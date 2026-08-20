@@ -1,0 +1,316 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("CREW")
+  isActive  Boolean  @default(true)
+  vesselId  Int?
+  vessel    Vessel?  @relation(fields: [vesselId], references: [id], onDelete: SetNull)
+  documents ReportDocument[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// File báo cáo tải lên từ tàu — BẤT BIẾN: không có action sửa;
+// chỉ ADMIN được xóa; sha256 chứng minh toàn vẹn nội dung.
+model ReportDocument {
+  id           Int      @id @default(autoincrement())
+  vesselId     Int
+  vessel       Vessel   @relation(fields: [vesselId], references: [id])
+  title        String
+  reportType   String
+  period       String?
+  fileName     String
+  storedName   String   @unique
+  mimeType     String
+  size         Int
+  sha256       String
+  note         String?
+  uploadedById Int
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+model Vessel {
+  id               Int               @id @default(autoincrement())
+  code             String            @unique
+  name             String
+  imo              String?
+  flag             String?
+  vesselType       String?
+  status           String            @default("ACTIVE")
+  // Chuẩn biểu mẫu công ty quản lý tàu (MLS / NAVIS) — quyết định đầu chứng từ PO, RFQ, Service Order.
+  formStandard     String            @default("MLS")
+  hullNo           String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  warehouses       Warehouse[]
+  inventories      Inventory[]
+  materialRequests MaterialRequest[]
+  users            User[]
+  lashingGears     LashingGear[]
+  lashingReports   LashingReport[]
+  documents        ReportDocument[]
+  vesselMaterials  VesselMaterial[]
+  purchaseOrders   PurchaseOrder[]
+}
+
+model Warehouse {
+  id            Int         @id @default(autoincrement())
+  code          String      @unique
+  name          String
+  warehouseType String
+  vesselId      Int?
+  vessel        Vessel?     @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  inventories   Inventory[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Category {
+  id        Int        @id @default(autoincrement())
+  code      String     @unique
+  name      String
+  materials Material[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Material {
+  id           Int                   @id @default(autoincrement())
+  code         String                @unique
+  nameVn       String
+  nameEn       String?
+  impa         String?
+  issa         String?
+  partNumber   String?
+  manufacturer String?
+  uom          String                @default("PCS")
+  materialType String                @default("STORE") // STORE = vật tư (MLS-11-05B), SPARE = phụ tùng (MLS-11-05A)
+  equipment    String?               // thiết bị/máy gắn với phụ tùng
+  categoryId   Int?
+  category     Category?             @relation(fields: [categoryId], references: [id])
+  minStock     Float                 @default(0)
+  maxStock     Float                 @default(0)
+  isCritical   Boolean               @default(false)
+  isActive     Boolean               @default(true)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  inventories  Inventory[]
+  requestItems MaterialRequestItem[]
+  vesselMaterials VesselMaterial[]
+  poItems      PurchaseOrderItem[]
+}
+
+// Danh mục vật tư riêng của từng tàu: tàu nào dùng vật tư nào.
+model VesselMaterial {
+  id         Int      @id @default(autoincrement())
+  vesselId   Int
+  vessel     Vessel   @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  materialId Int
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([vesselId, materialId])
+}
+
+// Biểu mẫu chứng từ (công ty quản lý) — thêm/bớt được. Vessel.formStandard tham chiếu code.
+model FormStandard {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  label       String
+  companyName String
+  address     String
+  repAddress  String?
+  tel         String?
+  email       String?
+  website     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Inventory {
+  id               Int       @id @default(autoincrement())
+  materialId       Int
+  warehouseId      Int
+  vesselId         Int
+  quantity         Float     @default(0)
+  reservedQuantity Float     @default(0)
+  material         Material  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  warehouse        Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  vessel           Vessel    @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([materialId, warehouseId])
+}
+
+model InventoryTransaction {
+  id          Int      @id @default(autoincrement())
+  type        String
+  materialId  Int
+  warehouseId Int
+  vesselId    Int
+  quantity    Float
+  note        String?
+  // Thời điểm THỰC HIỆN nhập/xuất (cho phép ghi lùi khi nhập bù) — báo cáo tính theo mốc này.
+  occurredAt  DateTime @default(now())
+  // Người thực hiện giao dịch (ghi tự động từ tài khoản đăng nhập).
+  performedBy String?
+  // Thời điểm ghi sổ vào hệ thống (audit).
+  createdAt   DateTime @default(now())
+}
+
+model MaterialRequest {
+  id           Int                   @id @default(autoincrement())
+  requestNo    String                @unique
+  kind         String                @default("STORE") // STORE = yêu cầu vật tư (MLS-11-05B), SPARE = yêu cầu phụ tùng (MLS-11-05A)
+  vesselId     Int
+  vessel       Vessel                @relation(fields: [vesselId], references: [id])
+  requestedBy  String
+  department   String
+  status       String                @default("DRAFT")
+  priority     String                @default("NORMAL")
+  requiredDate DateTime?
+  purpose      String?
+  notes        String?
+  // Thông tin thiết bị cho yêu cầu phụ tùng (MLS-11-05A)
+  equipment    String?
+  maker        String?
+  serialNo     String?
+  items        MaterialRequestItem[]
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+}
+
+model LashingGear {
+  id          Int                 @id @default(autoincrement())
+  vesselId    Int
+  vessel      Vessel              @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  name        String
+  partNo      String?
+  minQty      Float               @default(0)
+  standardQty Float               @default(0)
+  sortOrder   Int                 @default(0)
+  reportLines LashingReportLine[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@unique([vesselId, name])
+}
+
+model LashingReport {
+  id         Int                 @id @default(autoincrement())
+  vesselId   Int
+  vessel     Vessel              @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  reportDate DateTime
+  voyageNo   String?
+  position   String?
+  createdBy  String
+  lines      LashingReportLine[]
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+}
+
+model LashingReportLine {
+  id          Int           @id @default(autoincrement())
+  reportId    Int
+  report      LashingReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  gearId      Int
+  gear        LashingGear   @relation(fields: [gearId], references: [id], onDelete: Cascade)
+  // Snapshot tại thời điểm lập báo cáo — báo cáo cũ không đổi khi sửa danh mục chuẩn
+  gearName    String        @default("")
+  partNo      String?
+  minQty      Float         @default(0)
+  standardQty Float         @default(0)
+  inOrder     Float         @default(0)
+  outOfOrder  Float         @default(0)
+}
+
+model MaterialRequestItem {
+  id               Int              @id @default(autoincrement())
+  requestId        Int
+  request          MaterialRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  // materialId trống = vật tư MỚI ngoài danh mục, nhập tay ở các trường item* bên dưới.
+  materialId       Int?
+  material         Material?        @relation(fields: [materialId], references: [id])
+  itemName         String? // Tên vật tư / phụ tùng mới
+  itemCode         String? // Mã IMPA (vật tư) hoặc Part No (phụ tùng) cho vật tư mới
+  itemUom          String? // Đơn vị cho vật tư mới
+  quantity         Float // SL yêu cầu (REQ)
+  robSnapshot      Float            @default(0) // Còn tồn trên tàu tại thời điểm yêu cầu (ROB)
+  approvedQuantity Float            @default(0) // SL duyệt (APP)
+  suppliedQuantity Float            @default(0) // SL đã nhận về (từ mua sắm)
+  note             String?
+  poItems          PurchaseOrderItem[]
+}
+
+// Nhà cung cấp
+model Supplier {
+  id             Int             @id @default(autoincrement())
+  code           String          @unique
+  name           String
+  contact        String?
+  email          String?
+  phone          String?
+  address        String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  purchaseOrders PurchaseOrder[]
+}
+
+// Đơn mua hàng (Purchase Order)
+model PurchaseOrder {
+  id           Int                 @id @default(autoincrement())
+  poNo         String              @unique
+  supplierId   Int
+  supplier     Supplier            @relation(fields: [supplierId], references: [id])
+  vesselId     Int
+  vessel       Vessel              @relation(fields: [vesselId], references: [id])
+  // DRAFT, SENT, CONFIRMED, PARTIALLY_RECEIVED, RECEIVED, CLOSED, CANCELLED
+  status       String              @default("DRAFT")
+  currency     String              @default("USD")
+  orderDate    DateTime?
+  expectedDate DateTime?
+  notes        String?
+  // Các trường theo biểu mẫu PO/RFQ công ty
+  subject         String?
+  supplierRef     String? // Y/ref của nhà cung cấp
+  discountPercent Float   @default(0)
+  transportFee    Float   @default(0)
+  deliveryFee     Float   @default(0)
+  createdBy    String
+  items        PurchaseOrderItem[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+model PurchaseOrderItem {
+  id               Int                  @id @default(autoincrement())
+  poId             Int
+  po               PurchaseOrder        @relation(fields: [poId], references: [id], onDelete: Cascade)
+  // Nguồn từ dòng yêu cầu vật tư (nếu tạo từ yêu cầu)
+  requestItemId    Int?
+  requestItem      MaterialRequestItem? @relation(fields: [requestItemId], references: [id])
+  materialId       Int?
+  material         Material?            @relation(fields: [materialId], references: [id])
+  description      String
+  partNo           String?
+  uom              String               @default("PCS")
+  quantity         Float // SL đặt
+  unitPrice        Float                @default(0)
+  quantityReceived Float                @default(0)
+  warehouseId      Int? // kho đã nhập khi nhận hàng (không FK, giống InventoryTransaction)
+}

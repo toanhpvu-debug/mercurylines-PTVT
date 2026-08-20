@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - mercury-data:/data
+    restart: unless-stopped
+    # SESSION_SECRET tự sinh và lưu trong volume nếu không đặt ở đây.
+    # Truy cập qua HTTP thuần (không HTTPS): bỏ comment dòng dưới để cookie hoạt động.
+    # environment:
+    #   COOKIE_SECURE: "false"
+
+volumes:
+  mercury-data:

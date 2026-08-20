@@ -1,0 +1,62 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { requireScopedUser, vesselIdWhere, vesselScope } from "@/lib/auth";
+import DirectPurchaseForm from "@/components/DirectPurchaseForm";
+
+export const dynamic = "force-dynamic";
+
+export default async function DirectPurchasePage() {
+  const user = await requireScopedUser();
+  const scope = vesselScope(user);
+  if (!["ADMIN", "MASTER"].includes(user.role)) {
+    redirect("/purchasing");
+  }
+  const [vessels, suppliers] = await Promise.all([
+    prisma.vessel.findMany({
+      where: vesselIdWhere(scope),
+      orderBy: { code: "asc" },
+      select: { id: true, code: true, name: true },
+    }),
+    prisma.supplier.findMany({
+      where: { isActive: true },
+      orderBy: { code: "asc" },
+      select: { id: true, code: true, name: true },
+    }),
+  ]);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <Link
+          href="/purchasing"
+          className="text-sm text-blue-700 hover:underline"
+        >
+          ← Quay lại mua sắm
+        </Link>
+        <h2 className="text-2xl font-bold text-blue-950">
+          Tạo IFQ / PO trực tiếp — Phòng Kỹ thuật &amp; Vật tư
+        </h2>
+        <p className="text-slate-600">
+          Lập đơn mua không cần yêu cầu từ tàu: nhập dòng vật tư tay hoặc upload
+          file Excel theo form công ty. Sau khi tạo, từ trang đơn có thể in{" "}
+          <b>Yêu cầu báo giá (IFQ/RFQ)</b> gửi nhà cung cấp và in <b>PO</b> theo
+          biểu mẫu của tàu.
+        </p>
+      </div>
+
+      <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
+        <DirectPurchaseForm
+          vessels={vessels.map((v) => ({
+            id: v.id,
+            label: `${v.code} — ${v.name}`,
+          }))}
+          suppliers={suppliers.map((s) => ({
+            id: s.id,
+            label: `${s.code} — ${s.name}`,
+          }))}
+        />
+      </div>
+    </div>
+  );
+}

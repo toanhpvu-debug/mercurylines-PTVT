@@ -1,0 +1,9 @@
+# Chuẩn hóa xuống dòng: repo luôn lưu LF, tránh diff giả khi làm việc trên Windows.
+* text=auto eol=lf
+
+# File nhị phân — không đụng vào nội dung.
+*.png binary
+*.ico binary
+*.xlsx binary
+*.xls binary
+*.pdf binary

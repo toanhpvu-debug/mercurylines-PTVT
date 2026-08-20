@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background-color: #f2f6fb;
+  background-image:
+    radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.06) 0, transparent 45%),
+    radial-gradient(at 0% 100%, rgba(14, 116, 144, 0.05) 0, transparent 45%);
+  background-attachment: fixed;
+}
+
+/* Băng màu / nền trên chứng từ phải giữ màu khi in */
+.print-area {
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+@media print {
+  .no-print,
+  aside {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  body {
+    background: white !important;
+  }
+  .print-area {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  /* Bảng trong chứng từ không được là scroll container khi in — tránh cắt dòng giữa trang */
+  .print-area .overflow-x-auto {
+    overflow: visible !important;
+  }
+}
+
+@page {
+  size: A4 landscape;
+  margin: 10mm;
+}

@@ -47,6 +47,182 @@ export function estimateLitres(
   return Math.round(((areaM2 * coats) / coverage) * 10) / 10;
 }
 
+// Một dòng lớp sơn trong sơ đồ — xem, sửa tại chỗ, hoặc xóa.
+function SchemeLayerRow({
+  vesselId,
+  areaId,
+  areaM2,
+  layer,
+  products,
+  canEdit,
+  onDelete,
+}: {
+  vesselId: number;
+  areaId: number;
+  areaM2: number;
+  layer: LayerRow;
+  products: ProductOption[];
+  canEdit: boolean;
+  onDelete: (formData: FormData) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [state, action, pending] = useActionState(savePaintSchemeLayer, {
+    message: "",
+  });
+  const est = estimateLitres(areaM2, layer.coats, layer.coverage);
+
+  if (editing && canEdit) {
+    return (
+      <tr className="bg-blue-50/40">
+        <td colSpan={7} className="p-2">
+          <form action={action} className="space-y-2">
+            <input type="hidden" name="vesselId" value={vesselId} />
+            <input type="hidden" name="areaId" value={areaId} />
+            <input type="hidden" name="id" value={layer.id} />
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
+              <label className="block md:col-span-2">
+                <span className="mb-1 block text-xs text-slate-600">Sơn</span>
+                <select
+                  name="productId"
+                  defaultValue={layer.productId}
+                  required
+                  className="w-full rounded border p-2"
+                >
+                  {products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-slate-600">
+                  Lớp thứ
+                </span>
+                <input
+                  name="layerNo"
+                  type="number"
+                  min="1"
+                  step="1"
+                  defaultValue={layer.layerNo}
+                  className="w-full rounded border p-2"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-slate-600">
+                  Số lớp phủ
+                </span>
+                <input
+                  name="coats"
+                  type="number"
+                  min="1"
+                  step="1"
+                  defaultValue={layer.coats}
+                  className="w-full rounded border p-2"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-slate-600">
+                  DFT (µm)
+                </span>
+                <input
+                  name="dft"
+                  type="number"
+                  min="0"
+                  step="1"
+                  defaultValue={layer.dft || ""}
+                  className="w-full rounded border p-2"
+                />
+              </label>
+              <label className="block md:col-span-5">
+                <span className="mb-1 block text-xs text-slate-600">
+                  Ghi chú
+                </span>
+                <input
+                  name="notes"
+                  defaultValue={layer.notes ?? ""}
+                  className="w-full rounded border p-2"
+                />
+              </label>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                disabled={pending}
+                className="rounded bg-blue-700 px-4 py-1.5 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
+              >
+                {pending ? "Đang lưu..." : "Lưu lớp"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="text-sm text-slate-600 hover:underline"
+              >
+                Hủy
+              </button>
+              {state.message && (
+                <span
+                  className={`text-sm ${
+                    state.success ? "text-green-700" : "text-red-600"
+                  }`}
+                >
+                  {state.message}
+                </span>
+              )}
+            </div>
+          </form>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr>
+      <td className="p-2 font-semibold text-blue-900">{layer.layerNo}</td>
+      <td className="p-2">{layer.productLabel}</td>
+      <td className="p-2 text-right">{layer.coats}</td>
+      <td className="p-2 text-right">{layer.dft || "—"}</td>
+      <td className="p-2 text-right">
+        {est === null ? (
+          <span
+            className="text-slate-400"
+            title="Cần nhập diện tích khu vực và độ phủ của sơn"
+          >
+            —
+          </span>
+        ) : (
+          `${est.toLocaleString("vi-VN")} ${layer.uom}`
+        )}
+      </td>
+      <td className="p-2 text-slate-600">{layer.notes ?? ""}</td>
+      {canEdit && (
+        <td className="p-2 text-right whitespace-nowrap print:hidden">
+          <button
+            onClick={() => setEditing(true)}
+            className="mr-3 text-xs text-blue-700 hover:underline"
+          >
+            Sửa
+          </button>
+          <form
+            className="inline"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!confirm("Xóa lớp sơn này khỏi sơ đồ?")) return;
+              const fd = new FormData(e.currentTarget);
+              startTransition(() => onDelete(fd));
+            }}
+          >
+            <input type="hidden" name="vesselId" value={vesselId} />
+            <input type="hidden" name="id" value={layer.id} />
+            <button className="text-xs text-red-600 hover:underline">
+              Xóa
+            </button>
+          </form>
+        </td>
+      )}
+    </tr>
+  );
+}
+
 export function PaintAreaAddForm({ vesselId }: { vesselId: number }) {
   const [state, action, pending] = useActionState(savePaintArea, {
     message: "",
@@ -318,47 +494,17 @@ export function PaintAreaCard({
               </tr>
             ) : (
               layers.map((l) => {
-                const est = estimateLitres(area.areaM2, l.coats, l.coverage);
                 return (
-                  <tr key={l.id}>
-                    <td className="p-2 font-semibold text-blue-900">
-                      {l.layerNo}
-                    </td>
-                    <td className="p-2">{l.productLabel}</td>
-                    <td className="p-2 text-right">{l.coats}</td>
-                    <td className="p-2 text-right">{l.dft || "—"}</td>
-                    <td className="p-2 text-right">
-                      {est === null ? (
-                        <span
-                          className="text-slate-400"
-                          title="Cần nhập diện tích khu vực và độ phủ của sơn"
-                        >
-                          —
-                        </span>
-                      ) : (
-                        `${est.toLocaleString("vi-VN")} ${l.uom}`
-                      )}
-                    </td>
-                    <td className="p-2 text-slate-600">{l.notes ?? ""}</td>
-                    {canEdit && (
-                      <td className="p-2 text-right">
-                        <form
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            if (!confirm("Xóa lớp sơn này khỏi sơ đồ?")) return;
-                            const fd = new FormData(e.currentTarget);
-                            startTransition(() => layerDelAction(fd));
-                          }}
-                        >
-                          <input type="hidden" name="vesselId" value={vesselId} />
-                          <input type="hidden" name="id" value={l.id} />
-                          <button className="text-xs text-red-600 hover:underline">
-                            Xóa
-                          </button>
-                        </form>
-                      </td>
-                    )}
-                  </tr>
+                  <SchemeLayerRow
+                    key={l.id}
+                    vesselId={vesselId}
+                    areaId={area.id}
+                    areaM2={area.areaM2}
+                    layer={l}
+                    products={products}
+                    canEdit={canEdit}
+                    onDelete={layerDelAction}
+                  />
                 );
               })
             )}

@@ -13,6 +13,7 @@ import {
 } from "@/components/PaintAreaManager";
 import { PaintStockMinForm, PaintStockMoveForm } from "@/components/PaintStockForm";
 import { PaintJobDeleteButton, PaintJobForm } from "@/components/PaintJobForm";
+import PaintSchemeCopyForm from "@/components/PaintSchemeCopyForm";
 import PrintButton from "@/components/PrintButton";
 
 export const dynamic = "force-dynamic";
@@ -83,6 +84,20 @@ export default async function PaintVesselPage({
     }),
   ]);
 
+  // Tàu khác đã có sơ đồ — nguồn để sao chép. Chỉ lấy trong phạm vi người dùng.
+  const copySources = canEdit
+    ? await prisma.vessel.findMany({
+        where: scope.all ? { id: { not: vesselId } } : { id: -1 },
+        orderBy: { code: "asc" },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          _count: { select: { paintAreas: true } },
+        },
+      })
+    : [];
+
   const productOptions = products.map((p) => ({
     id: p.id,
     label: productLabel(p),
@@ -101,6 +116,71 @@ export default async function PaintVesselPage({
   const lowStocks = stocks.filter((s) => s.minQty > 0 && s.quantity < s.minQty);
   const totalPaintedM2 = jobs.reduce((sum, j) => sum + j.paintedM2, 0);
   const defaultDate = new Date().toISOString().slice(0, 10);
+
+  // Dự trù sơn: gộp lượng cần của MỌI khu vực theo từng loại sơn, đối chiếu với tồn.
+  // Khu vực chưa nhập diện tích hoặc sơn chưa khai độ phủ thì không tính được —
+  // đếm riêng để nói rõ con số dự trù còn thiếu căn cứ, thay vì đoán bừa.
+  const stockByProduct = new Map(stocks.map((s) => [s.productId, s]));
+  const demand = new Map<
+    number,
+    { name: string; uom: string; required: number; areas: string[] }
+  >();
+  let unmeasurable = 0;
+  for (const area of areas) {
+    for (const layer of area.layers) {
+      const litres =
+        area.areaM2 && layer.product.coverage
+          ? (area.areaM2 * layer.coats) / layer.product.coverage
+          : null;
+      if (litres === null) {
+        unmeasurable += 1;
+        continue;
+      }
+      const cur = demand.get(layer.productId) ?? {
+        name: layer.product.name,
+        uom: layer.product.uom,
+        required: 0,
+        areas: [],
+      };
+      cur.required += litres;
+      if (!cur.areas.includes(area.name)) cur.areas.push(area.name);
+      demand.set(layer.productId, cur);
+    }
+  }
+  const plan = [...demand.entries()]
+    .map(([productId, d]) => {
+      const onHand = stockByProduct.get(productId)?.quantity ?? 0;
+      return {
+        productId,
+        ...d,
+        required: Math.round(d.required * 10) / 10,
+        onHand,
+        shortfall: Math.max(0, Math.round((d.required - onHand) * 10) / 10),
+      };
+    })
+    .sort((a, b) => b.shortfall - a.shortfall);
+  const shortfallCount = plan.filter((p) => p.shortfall > 0).length;
+
+  // Tiêu thụ sơn 12 tháng gần nhất (theo giao dịch xuất đã tải về ở trên).
+  const since = new Date();
+  since.setMonth(since.getMonth() - 12);
+  const consumption = new Map<
+    number,
+    { name: string; uom: string; qty: number }
+  >();
+  for (const t of transactions) {
+    if (t.type !== "OUT" || t.occurredAt < since) continue;
+    const cur = consumption.get(t.productId) ?? {
+      name: t.product.name,
+      uom: t.product.uom,
+      qty: 0,
+    };
+    cur.qty += t.quantity;
+    consumption.set(t.productId, cur);
+  }
+  const consumptionRows = [...consumption.values()].sort(
+    (a, b) => b.qty - a.qty
+  );
 
   return (
     <div className="space-y-6">
@@ -143,7 +223,19 @@ export default async function PaintVesselPage({
           <h3 className="text-xl font-semibold text-blue-950">
             Sơ đồ sơn theo khu vực
           </h3>
-          {canEdit && <PaintAreaAddForm vesselId={vesselId} />}
+          {canEdit && (
+            <div className="flex flex-wrap items-center gap-3">
+              <PaintSchemeCopyForm
+                vesselId={vesselId}
+                sources={copySources.map((v) => ({
+                  id: v.id,
+                  label: `${v.code} — ${v.name}`,
+                  areaCount: v._count.paintAreas,
+                }))}
+              />
+              <PaintAreaAddForm vesselId={vesselId} />
+            </div>
+          )}
         </div>
         {areas.length === 0 ? (
           <div className="rounded-xl bg-white p-6 text-center text-slate-500 shadow-sm ring-1 ring-blue-100">
@@ -179,6 +271,76 @@ export default async function PaintVesselPage({
           ))
         )}
       </section>
+
+      {/* ── Dự trù sơn ────────────────────────────────────────────────── */}
+      {plan.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-xl font-semibold text-blue-950">
+              Dự trù sơn theo sơ đồ
+            </h3>
+            {shortfallCount > 0 && (
+              <span className="rounded bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800">
+                {shortfallCount} loại cần mua thêm
+              </span>
+            )}
+          </div>
+          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
+            <p className="mb-3 text-sm text-slate-600">
+              Lượng cần để sơn trọn sơ đồ của tất cả khu vực đã khai báo, đối
+              chiếu với sơn đang có trên tàu.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead className="bg-blue-900 text-left text-white">
+                  <tr>
+                    <th className="p-2">Sơn</th>
+                    <th className="p-2">Dùng cho khu vực</th>
+                    <th className="p-2 text-right">Cần</th>
+                    <th className="p-2 text-right">Đang có</th>
+                    <th className="p-2 text-right">Cần mua thêm</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-blue-50">
+                  {plan.map((p) => (
+                    <tr
+                      key={p.productId}
+                      className={p.shortfall > 0 ? "bg-amber-50" : ""}
+                    >
+                      <td className="p-2">{p.name}</td>
+                      <td className="p-2 text-slate-600">
+                        {p.areas.join("; ")}
+                      </td>
+                      <td className="p-2 text-right">
+                        {p.required.toLocaleString("vi-VN")} {p.uom}
+                      </td>
+                      <td className="p-2 text-right">
+                        {p.onHand.toLocaleString("vi-VN")} {p.uom}
+                      </td>
+                      <td className="p-2 text-right font-semibold">
+                        {p.shortfall > 0 ? (
+                          <span className="text-amber-800">
+                            {p.shortfall.toLocaleString("vi-VN")} {p.uom}
+                          </span>
+                        ) : (
+                          <span className="text-emerald-700">đủ</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {unmeasurable > 0 && (
+              <p className="mt-2 text-sm text-amber-700">
+                ⚠ {unmeasurable} lớp chưa tính được vì khu vực thiếu diện tích
+                m² hoặc loại sơn chưa khai độ phủ (m²/lít). Con số dự trù ở trên
+                chưa gồm các lớp đó.
+              </p>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* ── Tồn sơn ───────────────────────────────────────────────────── */}
       <section className="space-y-3">
@@ -367,6 +529,41 @@ export default async function PaintVesselPage({
           )}
         </div>
       </section>
+
+      {/* ── Tiêu thụ 12 tháng ─────────────────────────────────────────── */}
+      {consumptionRows.length > 0 && (
+        <section className="space-y-3">
+          <h3 className="text-xl font-semibold text-blue-950">
+            Tiêu thụ sơn 12 tháng gần nhất
+          </h3>
+          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[420px] text-sm">
+                <thead className="bg-blue-50 text-left text-blue-900">
+                  <tr>
+                    <th className="p-2">Sơn</th>
+                    <th className="p-2 text-right">Đã dùng</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-blue-50">
+                  {consumptionRows.map((c) => (
+                    <tr key={c.name}>
+                      <td className="p-2">{c.name}</td>
+                      <td className="p-2 text-right font-semibold">
+                        {c.qty.toLocaleString("vi-VN")} {c.uom}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Tính từ 40 giao dịch xuất gần nhất — gồm cả sơn trừ tự động khi ghi
+              nhật ký thi công.
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* ── Lịch sử nhập xuất ─────────────────────────────────────────── */}
       <section className="space-y-3 print:hidden">

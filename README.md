@@ -163,6 +163,16 @@ Module riêng cho sơn, tách khỏi danh mục vật tư vì sơn có thuộc t
 3. **Tồn sơn theo tàu** — nhập/xuất có ghi thời điểm + người thực hiện, định mức tối thiểu
    từng loại, cảnh báo THIẾU, và lịch sử nhập xuất.
 
+**Dự trù sơn** — trang tàu tự gộp lượng cần của mọi khu vực theo từng loại sơn, đối chiếu
+với tồn hiện có và ra số **cần mua thêm**. Lớp nào thiếu diện tích m² hoặc thiếu độ phủ thì
+được đếm riêng và báo rõ, không đưa vào con số dự trù.
+
+**Tiêu thụ sơn 12 tháng gần nhất** — tổng hợp từ giao dịch xuất, gồm cả phần trừ tự động
+khi ghi nhật ký thi công.
+
+**Sao chép sơ đồ từ tàu khác** — tàu cùng loạt dùng chung hệ sơn, chép cả khu vực lẫn các
+lớp sang tàu mới. Khu vực trùng tên được **bỏ qua**, không ghi đè sơ đồ đã chỉnh riêng.
+
 **Danh mục sơn** (`/paint/products`) dùng chung toàn đội: hãng, loại sơn (Primer /
 Anti-corrosive / Anti-fouling / Topcoat / Deck / Tank), mã màu, đơn vị, dung tích lon,
 độ phủ m²/L, DFT mỗi lớp, dung môi pha. Điền **độ phủ** thì app mới ước lượng được lượng cần.

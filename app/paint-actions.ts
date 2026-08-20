@@ -561,3 +561,91 @@ export async function listPaintVessels(user: {
     orderBy: { code: "asc" },
   });
 }
+
+// ─── Sao chép sơ đồ sơn từ tàu khác ──────────────────────────────────────────
+// Tàu cùng loạt (sister ship) dùng chung hệ sơn — khai lại từ đầu cho từng tàu
+// vừa mất công vừa dễ sai lệch.
+
+export async function copyPaintScheme(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const vesselId = Number(formData.get("vesselId"));
+  if (!(await requireVesselAccess(vesselId))) {
+    return { message: NO_PERMISSION };
+  }
+  const fromVesselId = Number(formData.get("fromVesselId"));
+  if (!fromVesselId || fromVesselId === vesselId) {
+    return { message: "Chọn một tàu khác để sao chép sơ đồ." };
+  }
+  // Chỉ đọc sơ đồ của tàu người dùng được phép xem.
+  const actor = await requireActiveRole(["ADMIN", "MASTER"]);
+  if (!actor) return { message: NO_PERMISSION };
+  const scope = vesselScope(actor);
+  if (!scope.all && scope.vesselId !== fromVesselId) {
+    return { message: "Bạn không được xem sơ đồ của tàu nguồn." };
+  }
+
+  const source = await prisma.paintArea.findMany({
+    where: { vesselId: fromVesselId },
+    include: { layers: { orderBy: { layerNo: "asc" } } },
+    orderBy: { sortOrder: "asc" },
+  });
+  if (!source.length) {
+    return { message: "Tàu nguồn chưa có khu vực sơn nào." };
+  }
+  const existing = await prisma.paintArea.findMany({
+    where: { vesselId },
+    select: { name: true },
+  });
+  const taken = new Set(existing.map((a) => a.name));
+
+  let addedAreas = 0;
+  let addedLayers = 0;
+  let skipped = 0;
+  await prisma.$transaction(async (tx) => {
+    for (const area of source) {
+      // Trùng tên khu vực thì bỏ qua, KHÔNG ghi đè — tránh mất sơ đồ đã chỉnh riêng.
+      if (taken.has(area.name)) {
+        skipped += 1;
+        continue;
+      }
+      const created = await tx.paintArea.create({
+        data: {
+          vesselId,
+          name: area.name,
+          areaM2: area.areaM2,
+          sortOrder: area.sortOrder,
+          notes: area.notes,
+        },
+      });
+      addedAreas += 1;
+      for (const layer of area.layers) {
+        await tx.paintSchemeLayer.create({
+          data: {
+            areaId: created.id,
+            productId: layer.productId,
+            layerNo: layer.layerNo,
+            coats: layer.coats,
+            dft: layer.dft,
+            notes: layer.notes,
+          },
+        });
+        addedLayers += 1;
+      }
+    }
+  });
+
+  revalidateVessel(vesselId);
+  if (!addedAreas) {
+    return {
+      message: `Không sao chép được khu vực nào — cả ${skipped} khu vực đều đã tồn tại trên tàu này.`,
+    };
+  }
+  return {
+    message:
+      `Đã sao chép ${addedAreas} khu vực và ${addedLayers} lớp sơn.` +
+      (skipped ? ` Bỏ qua ${skipped} khu vực đã có sẵn.` : ""),
+    success: true,
+  };
+}

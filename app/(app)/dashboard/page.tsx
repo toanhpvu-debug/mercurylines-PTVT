@@ -93,6 +93,7 @@ export default async function DashboardPage() {
     materials,
     vessels,
     spareLinks,
+    paintStocks,
   ] = await Promise.all([
     prisma.vessel.count({ where: vesselIdWhere(scope) }),
     prisma.material.count(),
@@ -147,6 +148,11 @@ export default async function DashboardPage() {
         vessel: { select: { id: true, name: true } },
       },
     }),
+    // Tồn sơn toàn đội (theo phạm vi tàu) — để đếm loại dưới định mức tối thiểu.
+    prisma.paintStock.findMany({
+      where: vesselWhere(scope),
+      select: { quantity: true, minQty: true },
+    })
   ]);
 
   const materialById = new Map(materials.map((m) => [m.id, m]));
@@ -218,6 +224,10 @@ export default async function DashboardPage() {
     year: "numeric",
   });
 
+  const lowPaintCount = paintStocks.filter(
+    (p) => p.minQty > 0 && p.quantity < p.minQty
+  ).length;
+
   return (
     <div className="space-y-6">
       {/* Tiêu đề + thao tác nhanh */}
@@ -261,7 +271,7 @@ export default async function DashboardPage() {
       )}
 
       {/* KPI */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
         <KpiCard
           href="/vessels"
           icon="⚓"
@@ -297,6 +307,14 @@ export default async function DashboardPage() {
           label="Cảnh báo tồn kho"
           value={allLowStock.length}
           valueClass={allLowStock.length > 0 ? "text-red-600" : "text-blue-950"}
+        />
+        <KpiCard
+          href="/paint"
+          icon="🎨"
+          iconBg="bg-amber-100"
+          label="Sơn dưới định mức"
+          value={lowPaintCount}
+          valueClass={lowPaintCount > 0 ? "text-amber-700" : "text-blue-950"}
         />
       </div>
 

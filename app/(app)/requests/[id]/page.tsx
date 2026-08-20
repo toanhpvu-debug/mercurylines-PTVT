@@ -1,13 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import {
+  REQUEST_STATUS_BADGE,
+  REQUEST_STATUS_LABEL,
+} from "@/lib/requestStatus";
 import { canDeleteRequest, requireScopedUser, vesselScope } from "@/lib/auth";
 import PrintButton from "@/components/PrintButton";
 import RequestStatusForm from "@/components/RequestStatusForm";
 import RequestApprovalForm from "@/components/RequestApprovalForm";
 import RequestDeleteButton from "@/components/RequestDeleteButton";
+import RequestRejectForm from "@/components/RequestRejectForm";
 
 export const dynamic = "force-dynamic";
+
 
 const deptLabels: Record<string, string> = {
   ENGINE: "Máy (Engine)",
@@ -34,6 +40,7 @@ export default async function RequestDetailPage({
     include: {
       vessel: true,
       items: { include: { material: true }, orderBy: { id: "asc" } },
+      events: { orderBy: { id: "asc" } },
     },
   });
   if (!request) {
@@ -68,9 +75,9 @@ export default async function RequestDetailPage({
   const dateStr = (request.requiredDate ?? request.createdAt).toLocaleDateString(
     "vi-VN"
   );
-  const canApprove =
-    canModerate &&
-    (request.status === "DRAFT" || request.status === "PENDING_MASTER");
+  const canApprove = canModerate && request.status === "PENDING_MASTER";
+  // Người lập (hoặc quản lý) trình yêu cầu nháp lên cấp duyệt.
+  const canSubmit = request.status === "DRAFT";
 
   return (
     <div className="space-y-4">
@@ -79,8 +86,12 @@ export default async function RequestDetailPage({
           ← Quay lại danh sách yêu cầu
         </Link>
         <div className="flex items-center gap-2">
-          <span className="rounded bg-slate-100 px-2 py-1 text-sm">
-            {request.status}
+          <span
+            className={`rounded px-2 py-1 text-sm font-medium ${
+              REQUEST_STATUS_BADGE[request.status] ?? "bg-slate-100 text-slate-700"
+            }`}
+          >
+            {REQUEST_STATUS_LABEL[request.status] ?? request.status}
           </span>
           {canDeleteRequest(user, request) && (
             <RequestDeleteButton
@@ -243,25 +254,77 @@ export default async function RequestDetailPage({
             <p className="font-bold">Chief Officer / Chief Engineer</p>
             <p className="italic">Đại phó / Máy trưởng</p>
             <div className="mt-12" />
+            {/* Điền sẵn tên người lập & người duyệt mà hệ thống đã ghi nhận,
+                thay vì để ô ký trống trơn như bản in cũ. */}
+            <p className="border-t border-slate-400 pt-1">
+              {request.requestedBy}
+            </p>
+            <p className="text-[10px] text-slate-500">
+              {request.submittedAt
+                ? `Trình ngày ${request.submittedAt.toLocaleDateString("vi-VN")}`
+                : " "}
+            </p>
           </div>
           <div>
             <p className="font-bold">Captain</p>
             <p className="italic">Thuyền trưởng</p>
             <div className="mt-12" />
+            <p className="border-t border-slate-400 pt-1">
+              {request.approvedBy ?? " "}
+            </p>
+            <p className="text-[10px] text-slate-500">
+              {request.approvedAt
+                ? `Duyệt ngày ${request.approvedAt.toLocaleDateString("vi-VN")}`
+                : " "}
+            </p>
           </div>
           <div>
             <p className="font-bold">Tech. &amp; Pur Dept</p>
             <p className="italic">Phòng Kỹ Thuật - Vật Tư</p>
             <div className="mt-12" />
+            <p className="border-t border-slate-400 pt-1">&nbsp;</p>
+            <p className="text-[10px] text-slate-500">&nbsp;</p>
           </div>
           <div>
             <p className="font-bold">Vice Director</p>
             <p className="italic">Phó Giám Đốc</p>
             <div className="mt-12" />
+            <p className="border-t border-slate-400 pt-1">&nbsp;</p>
+            <p className="text-[10px] text-slate-500">&nbsp;</p>
           </div>
         </div>
       </div>
 
+      {canSubmit && (
+        <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
+          <h3 className="mb-1 text-lg font-semibold text-blue-950">
+            Trình duyệt
+          </h3>
+          <p className="mb-3 text-sm text-slate-600">
+            Yêu cầu đang là <b>Nháp</b> — vẫn sửa/xóa được và chưa ai duyệt
+            được. Trình lên để chuyển sang <b>Chờ duyệt</b>.
+          </p>
+          <RequestStatusForm
+            id={request.id}
+            status="PENDING_MASTER"
+            label="Trình duyệt"
+            className="rounded bg-amber-500 px-5 py-2 text-white hover:bg-amber-600 disabled:opacity-50"
+            returnTo={`/requests/${request.id}`}
+          />
+        </div>
+      )}
+      {request.status === "REJECTED" && request.rejectionReason && (
+        <div className="no-print rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="font-semibold text-red-800">Yêu cầu bị từ chối</p>
+          <p className="mt-1 text-sm text-red-700">
+            {request.rejectionReason}
+          </p>
+          <p className="mt-1 text-xs text-red-600">
+            {request.rejectedBy} ·{" "}
+            {request.rejectedAt?.toLocaleString("vi-VN") ?? ""}
+          </p>
+        </div>
+      )}
       {canApprove && (
         <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
           <h3 className="mb-4 text-lg font-semibold">Duyệt yêu cầu</h3>
@@ -276,11 +339,8 @@ export default async function RequestDetailPage({
             }))}
           />
           <div className="mt-4 border-t pt-4">
-            <RequestStatusForm
+            <RequestRejectForm
               id={request.id}
-              status="REJECTED"
-              label="Từ chối yêu cầu"
-              className="rounded bg-red-100 px-3 py-1 text-red-700 hover:bg-red-200 disabled:opacity-50"
               returnTo={`/requests/${request.id}`}
             />
           </div>
@@ -297,6 +357,52 @@ export default async function RequestDetailPage({
           />
         </div>
       )}
+
+      {/* Nhật ký phê duyệt — ai làm gì, lúc nào, vì sao */}
+      <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
+        <h3 className="mb-3 text-lg font-semibold text-blue-950">
+          Nhật ký phê duyệt
+        </h3>
+        {request.events.length === 0 ? (
+          <p className="text-sm text-slate-500">
+            Chưa có mốc nào được ghi. Các yêu cầu lập trước khi bật nhật ký sẽ
+            không có lịch sử.
+          </p>
+        ) : (
+          <ol className="space-y-3">
+            {request.events.map((ev) => (
+              <li key={ev.id} className="flex gap-3">
+                <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-600" />
+                <div className="min-w-0">
+                  <p className="text-sm">
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                        REQUEST_STATUS_BADGE[ev.toStatus] ??
+                        "bg-slate-100 text-slate-700"
+                      }`}
+                    >
+                      {REQUEST_STATUS_LABEL[ev.toStatus] ?? ev.toStatus}
+                    </span>
+                    {ev.fromStatus && (
+                      <span className="ml-2 text-xs text-slate-500">
+                        (từ{" "}
+                        {REQUEST_STATUS_LABEL[ev.fromStatus] ?? ev.fromStatus})
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-slate-600">
+                    {ev.actorName} · {ev.actorRole} ·{" "}
+                    {ev.createdAt.toLocaleString("vi-VN")}
+                  </p>
+                  {ev.note && (
+                    <p className="mt-0.5 text-sm text-slate-700">{ev.note}</p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
     </div>
   );
 }

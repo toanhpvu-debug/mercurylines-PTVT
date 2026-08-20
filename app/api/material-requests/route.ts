@@ -128,8 +128,35 @@ export async function POST(request: Request) {
     const robByMaterial = new Map(
       robGroups.map((g) => [g.materialId, Number(g._sum.quantity ?? 0)])
     );
+    // Số yêu cầu theo quy ước chứng từ: <MR|SR>-<mã tàu>-<năm 2 số>-<số thứ tự>.
+    // VD MR-ML001-26-0007. Số cũ dạng timestamp không tra cứu hay đối chiếu được.
     const prefix = kind === "SPARE" ? "SR" : "MR";
-    const requestNo = `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const vessel = await prisma.vessel.findUnique({
+      where: { id: vesselId },
+      select: { code: true },
+    });
+    if (!vessel) {
+      return NextResponse.json({ error: "Tàu không tồn tại." }, { status: 400 });
+    }
+    const vesselTag = vessel.code.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    const yearTag = String(new Date().getFullYear()).slice(-2);
+    const base = `${prefix}-${vesselTag}-${yearTag}-`;
+    // Lấy số lớn nhất đã dùng trong năm của tàu này rồi +1 (không dựa vào count
+    // để xóa yêu cầu không làm trùng số).
+    const latest = await prisma.materialRequest.findFirst({
+      where: { requestNo: { startsWith: base } },
+      orderBy: { requestNo: "desc" },
+      select: { requestNo: true },
+    });
+    let seq = latest ? Number(latest.requestNo.slice(base.length)) + 1 : 1;
+    if (!Number.isFinite(seq) || seq < 1) seq = 1;
+    let requestNo = `${base}${String(seq).padStart(4, "0")}`;
+    while (
+      await prisma.materialRequest.findUnique({ where: { requestNo } })
+    ) {
+      seq += 1;
+      requestNo = `${base}${String(seq).padStart(4, "0")}`;
+    }
     const created = await prisma.materialRequest.create({
       data: {
         requestNo,
@@ -163,6 +190,17 @@ export async function POST(request: Request) {
       include: {
         vessel: true,
         items: { include: { material: true } },
+      },
+    });
+    // Mốc đầu tiên trong nhật ký phê duyệt.
+    await prisma.materialRequestEvent.create({
+      data: {
+        requestId: created.id,
+        fromStatus: null,
+        toStatus: "DRAFT",
+        actorName: user.name,
+        actorRole: user.role,
+        note: `Lập yêu cầu ${items.length} dòng`,
       },
     });
     return NextResponse.json(created, { status: 201 });

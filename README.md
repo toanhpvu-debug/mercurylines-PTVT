@@ -92,6 +92,11 @@ Danh mục và yêu cầu vật tư được dựng theo 3 mẫu Excel của cô
   - **Vật tư có sẵn hoặc vật tư mới:** mỗi dòng yêu cầu chọn *Có sẵn* (lấy từ danh mục) hoặc *Mới (ngoài danh mục)* — nhập tay Tên, Mã (IMPA cho vật tư / Part No cho phụ tùng), Đơn vị. Một yêu cầu có thể trộn cả hai; bản in ra đúng mẫu, vật tư mới có nhãn "(mới)". Vật tư mới không tự thêm vào danh mục gốc (giống dòng viết tay trên form giấy).
   - **ROB (còn tồn trên tàu) tự chụp** từ tồn kho tại thời điểm tạo yêu cầu (vật tư mới ROB = 0) — không phải nhập tay.
   - Người duyệt (ADMIN/MASTER) nhập **SL duyệt** cho từng dòng rồi duyệt; bản in `/requests/[id]` ra đúng mẫu công ty (4 ô ký: Đại phó/Máy trưởng · Thuyền trưởng · Phòng KT-VT · Phó GĐ), rồi chuyển sang mua sắm (purchasing).
+  - **Quy trình phê duyệt có trách nhiệm:** yêu cầu lập ra ở trạng thái **Nháp** — sửa/xóa được, chưa ai duyệt được. Người lập bấm **Trình duyệt** để chuyển sang **Chờ duyệt**, lúc đó ADMIN/Thuyền trưởng mới duyệt hoặc từ chối được. Trước đây nháp và đã trình lẫn lộn nên không phân định được trách nhiệm.
+  - **Từ chối phải nêu lý do** (kiểm ở tầng server, không chỉ HTML) — lý do hiện ngay trên trang chi tiết để người lập biết sửa gì mà trình lại.
+  - **Nhật ký phê duyệt:** mọi lần đổi trạng thái đều ghi *ai · vai trò · lúc nào · ghi chú*, hiện thành dòng thời gian ở cuối trang chi tiết. Ghi trong cùng transaction với thao tác đổi trạng thái nên nhật ký không bao giờ lệch với trạng thái thực.
+  - **Số yêu cầu theo quy ước chứng từ:** `MR-ML001-26-0001` (loại–mã tàu–năm–số thứ tự), thay cho số máy sinh kiểu `MR-1786932707187-191` không tra cứu được. Số thứ tự lấy theo số lớn nhất đã dùng nên xóa yêu cầu không gây trùng.
+  - **Ô ký trên bản in** điền sẵn tên người lập (kèm ngày trình) và người duyệt (kèm ngày duyệt) thay vì để trống trơn.
   - **Xóa yêu cầu** (nút Xóa ở danh sách, trang chi tiết và trong trang tàu, có hộp xác nhận): **quản trị viên xóa được mọi yêu cầu**; thuyền trưởng/thuyền viên chỉ xóa yêu cầu **của tàu mình khi chưa duyệt** (nháp / chờ / từ chối / hủy) — yêu cầu đã duyệt hoặc đã chuyển mua sắm chỉ quản trị viên mới xóa được, để bảo toàn hồ sơ. Xóa yêu cầu thì các dòng vật tư trong đó cũng bị xóa theo.
 
 ## Tồn kho đội tàu (`/inventory`)

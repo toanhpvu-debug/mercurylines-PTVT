@@ -6,6 +6,10 @@ import { unlink, writeFile } from "fs/promises";
 import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  REQUEST_ALLOWED_FROM,
+  REQUEST_STATUS_LABEL,
+} from "@/lib/requestStatus";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSession, deleteSession } from "@/lib/session";
@@ -631,15 +635,32 @@ export async function createInventoryTransaction(
   return { message: "Đã ghi nhận giao dịch nhập/xuất kho.", success: true };
 }
 
-const allowedFrom: Record<string, string[]> = {
-  APPROVED: ["DRAFT", "PENDING_MASTER"],
-  REJECTED: ["DRAFT", "PENDING_MASTER"],
-  IN_PROCUREMENT: ["APPROVED"],
-  PARTIALLY_DELIVERED: ["IN_PROCUREMENT"],
-  FULLY_DELIVERED: ["IN_PROCUREMENT", "PARTIALLY_DELIVERED"],
-  CLOSED: ["FULLY_DELIVERED"],
-  CANCELLED: ["DRAFT", "PENDING_MASTER", "APPROVED"],
-};
+const allowedFrom = REQUEST_ALLOWED_FROM;
+
+// Ghi một mốc vào nhật ký phê duyệt. Gọi trong cùng transaction với thao tác
+// đổi trạng thái để nhật ký không bao giờ lệch với trạng thái thực tế.
+async function logRequestEvent(
+  tx: Prisma.TransactionClient,
+  args: {
+    requestId: number;
+    fromStatus: string | null;
+    toStatus: string;
+    actorName: string;
+    actorRole: string;
+    note?: string | null;
+  }
+) {
+  await tx.materialRequestEvent.create({
+    data: {
+      requestId: args.requestId,
+      fromStatus: args.fromStatus,
+      toStatus: args.toStatus,
+      actorName: args.actorName,
+      actorRole: args.actorRole,
+      note: args.note ?? null,
+    },
+  });
+}
 
 // Duyệt yêu cầu kèm số lượng duyệt (S.L Duyệt / APP) cho từng dòng.
 export async function approveRequestQuantities(
@@ -665,33 +686,54 @@ export async function approveRequestQuantities(
   if (!scope.all && request.vesselId !== scope.vesselId) {
     return { message: NO_PERMISSION };
   }
-  if (!["DRAFT", "PENDING_MASTER"].includes(request.status)) {
+  // Chỉ duyệt được yêu cầu ĐÃ TRÌNH — nháp phải bấm "Trình duyệt" trước.
+  if (request.status !== "PENDING_MASTER") {
     return {
-      message: "Yêu cầu đã được xử lý, vui lòng tải lại trang.",
+      message:
+        request.status === "DRAFT"
+          ? "Yêu cầu còn ở trạng thái Nháp. Người lập cần bấm “Trình duyệt” trước khi phê duyệt."
+          : "Yêu cầu đã được xử lý, vui lòng tải lại trang.",
     };
   }
   try {
     await prisma.$transaction(async (tx) => {
       // Chốt trạng thái atomic trước — nếu người khác vừa duyệt/từ chối thì count=0 → rollback
       const guard = await tx.materialRequest.updateMany({
-        where: { id, status: { in: ["DRAFT", "PENDING_MASTER"] } },
-        data: { status: "APPROVED" },
+        where: { id, status: "PENDING_MASTER" },
+        data: {
+          status: "APPROVED",
+          approvedBy: actor.name,
+          approvedAt: new Date(),
+        },
       });
       if (guard.count === 0) {
         throw new ActionError(
           "Yêu cầu đã được xử lý, vui lòng tải lại trang."
         );
       }
+      let totalApproved = 0;
       for (const item of request.items) {
         const raw = formData.get(`approved_${item.id}`);
         let approved = Number(raw);
         if (!Number.isFinite(approved) || approved < 0) approved = 0;
         if (approved > item.quantity) approved = item.quantity;
+        totalApproved += approved;
         await tx.materialRequestItem.update({
           where: { id: item.id },
           data: { approvedQuantity: approved },
         });
       }
+      const note = String(formData.get("note") || "").trim();
+      await logRequestEvent(tx, {
+        requestId: id,
+        fromStatus: request.status,
+        toStatus: "APPROVED",
+        actorName: actor.name,
+        actorRole: actor.role,
+        note:
+          note ||
+          `Duyệt ${request.items.length} dòng, tổng SL duyệt ${totalApproved}`,
+      });
     });
   } catch (error) {
     if (error instanceof ActionError) {
@@ -708,13 +750,19 @@ export async function updateRequestStatus(
   _prevState: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
-  const actor = await requireActiveRole(["ADMIN", "MASTER"]);
+  const status = String(formData.get("status") || "");
+  // Trình duyệt là việc của người lập yêu cầu nên CREW cũng được làm;
+  // các chuyển trạng thái còn lại vẫn dành cho ADMIN/MASTER.
+  const roles =
+    status === "PENDING_MASTER"
+      ? ["ADMIN", "MASTER", "CREW"]
+      : ["ADMIN", "MASTER"];
+  const actor = await requireActiveRole(roles);
   if (!actor) {
     return { message: NO_PERMISSION };
   }
   const scope = vesselScope(actor);
   const id = Number(formData.get("id"));
-  const status = String(formData.get("status") || "");
   const returnTo = safeNextPath(
     String(formData.get("returnTo") || ""),
     "/requests"
@@ -726,18 +774,65 @@ export async function updateRequestStatus(
   ) {
     return { message: "Trạng thái yêu cầu không hợp lệ." };
   }
-  const result = await prisma.materialRequest.updateMany({
-    where: {
-      id,
-      status: { in: allowedFrom[status] },
-      ...(scope.all ? {} : { vesselId: scope.vesselId ?? -1 }),
-    },
-    data: { status },
-  });
-  if (result.count === 0) {
-    return {
-      message: "Yêu cầu đã thay đổi trạng thái, vui lòng tải lại trang.",
-    };
+  // Từ chối phải nêu lý do — người lập cần biết sửa gì để trình lại.
+  const note = String(formData.get("note") || "").trim();
+  if (status === "REJECTED" && !note) {
+    return { message: "Vui lòng nhập lý do từ chối." };
+  }
+  const now = new Date();
+  const stamp: Record<string, unknown> = {};
+  if (status === "PENDING_MASTER") {
+    stamp.submittedBy = actor.name;
+    stamp.submittedAt = now;
+  } else if (status === "REJECTED") {
+    stamp.rejectedBy = actor.name;
+    stamp.rejectedAt = now;
+    stamp.rejectionReason = note;
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const before = await tx.materialRequest.findUnique({
+        where: { id },
+        select: { status: true, vesselId: true },
+      });
+      if (!before) {
+        throw new ActionError("Không tìm thấy yêu cầu.");
+      }
+      if (!scope.all && before.vesselId !== scope.vesselId) {
+        throw new ActionError(NO_PERMISSION);
+      }
+      const result = await tx.materialRequest.updateMany({
+        where: {
+          id,
+          status: { in: allowedFrom[status] },
+          ...(scope.all ? {} : { vesselId: scope.vesselId ?? -1 }),
+        },
+        data: { status, ...stamp },
+      });
+      if (result.count === 0) {
+        throw new ActionError(
+          `Không chuyển được từ "${
+            REQUEST_STATUS_LABEL[before.status] ?? before.status
+          }" sang "${
+            REQUEST_STATUS_LABEL[status] ?? status
+          }". Có thể người khác vừa xử lý — hãy tải lại trang.`
+        );
+      }
+      await logRequestEvent(tx, {
+        requestId: id,
+        fromStatus: before.status,
+        toStatus: status,
+        actorName: actor.name,
+        actorRole: actor.role,
+        note: note || null,
+      });
+    });
+  } catch (error) {
+    if (error instanceof ActionError) {
+      return { message: error.message };
+    }
+    throw error;
   }
   revalidatePath("/requests");
   revalidatePath(returnTo);

@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import {
+  REQUEST_STATUS_BADGE,
+  REQUEST_STATUS_LABEL,
+} from "@/lib/requestStatus";
 import RequestForm from "@/components/RequestForm";
 import RequestStatusForm from "@/components/RequestStatusForm";
 import RequestDeleteButton from "@/components/RequestDeleteButton";
@@ -12,6 +16,7 @@ import {
 } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
+
 
 export default async function RequestsPage() {
   const user = await requireScopedUser();
@@ -136,8 +141,13 @@ export default async function RequestsPage() {
                     ))}
                   </td>
                   <td className="p-2">
-                    <span className="rounded bg-slate-100 px-2 py-1">
-                      {request.status}
+                    <span
+                      className={`rounded px-2 py-1 font-medium ${
+                        REQUEST_STATUS_BADGE[request.status] ??
+                        "bg-slate-100 text-slate-700"
+                      }`}
+                    >
+                      {REQUEST_STATUS_LABEL[request.status] ?? request.status}
                     </span>
                   </td>
                   <td className="p-2">
@@ -148,16 +158,22 @@ export default async function RequestsPage() {
                       >
                         Xem / In
                       </Link>
-                      {canModerate &&
-                        (request.status === "DRAFT" ||
-                          request.status === "PENDING_MASTER") && (
-                          <Link
-                            href={`/requests/${request.id}`}
-                            className="rounded bg-green-100 px-3 py-1 text-center text-green-700 hover:bg-green-200"
-                          >
-                            Duyệt
-                          </Link>
-                        )}
+                      {request.status === "DRAFT" && (
+                        <RequestStatusForm
+                          id={request.id}
+                          status="PENDING_MASTER"
+                          label="Trình duyệt"
+                          className="w-full rounded bg-amber-100 px-3 py-1 text-amber-800 hover:bg-amber-200 disabled:opacity-50"
+                        />
+                      )}
+                      {canModerate && request.status === "PENDING_MASTER" && (
+                        <Link
+                          href={`/requests/${request.id}`}
+                          className="rounded bg-green-100 px-3 py-1 text-center text-green-700 hover:bg-green-200"
+                        >
+                          Duyệt
+                        </Link>
+                      )}
                       {canModerate && request.status === "APPROVED" && (
                         <RequestStatusForm
                           id={request.id}

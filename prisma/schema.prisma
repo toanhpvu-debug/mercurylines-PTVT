@@ -194,8 +194,31 @@ model MaterialRequest {
   maker        String?
   serialNo     String?
   items        MaterialRequestItem[]
+  events       MaterialRequestEvent[]
+  // Vết phê duyệt — in lên ô ký của biểu mẫu MLS-11-05 và tra cứu nhanh.
+  submittedBy     String?
+  submittedAt     DateTime?
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectedBy      String?
+  rejectedAt      DateTime?
+  rejectionReason String?
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
+}
+
+// Nhật ký mọi lần đổi trạng thái của một yêu cầu — ai, khi nào, vì sao.
+// Yêu cầu vật tư là chứng từ có phê duyệt nên phải truy được trách nhiệm.
+model MaterialRequestEvent {
+  id         Int             @id @default(autoincrement())
+  requestId  Int
+  request    MaterialRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  fromStatus String?
+  toStatus   String
+  actorName  String
+  actorRole  String
+  note       String?
+  createdAt  DateTime        @default(now())
 }
 
 model LashingGear {

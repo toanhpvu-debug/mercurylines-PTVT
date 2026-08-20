@@ -389,8 +389,7 @@ export default async function VesselDetailPage({
                           Xem / In
                         </Link>
                         {canModerate &&
-                          (request.status === "DRAFT" ||
-                            request.status === "PENDING_MASTER") && (
+                          request.status === "PENDING_MASTER" && (
                             <Link
                               href={`/requests/${request.id}`}
                               className="rounded bg-green-100 px-3 py-1 text-center text-green-700 hover:bg-green-200"

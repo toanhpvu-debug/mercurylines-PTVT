@@ -171,17 +171,45 @@ export async function updateVessel(
   if (!VESSEL_STATUSES.includes(status)) {
     return { message: "Trạng thái tàu không hợp lệ.", values };
   }
+  const before = await prisma.vessel.findUnique({
+    where: { id },
+    select: { name: true },
+  });
+  if (!before) {
+    return { message: "Không tìm thấy tàu." };
+  }
+  let renamedWarehouses = 0;
   try {
-    await prisma.vessel.update({
-      where: { id },
-      data: {
-        code,
-        name,
-        imo: imo || null,
-        flag: flag || null,
-        vesselType: vesselType || null,
-        status,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.vessel.update({
+        where: { id },
+        data: {
+          code,
+          name,
+          imo: imo || null,
+          flag: flag || null,
+          vesselType: vesselType || null,
+          status,
+        },
+      });
+      // Tên kho nhúng sẵn tên tàu ("Kho máy - M. ODYSSEY") nên đổi tên tàu mà không
+      // đổi kho là dữ liệu lệch ngay. Chỉ sửa kho còn theo đúng quy ước đuôi
+      // " - <tên tàu cũ>"; kho đã được đặt tên riêng thì giữ nguyên.
+      if (before.name !== name) {
+        const suffix = ` - ${before.name}`;
+        const warehouses = await tx.warehouse.findMany({
+          where: { vesselId: id },
+          select: { id: true, name: true },
+        });
+        for (const wh of warehouses) {
+          if (!wh.name.endsWith(suffix)) continue;
+          await tx.warehouse.update({
+            where: { id: wh.id },
+            data: { name: `${wh.name.slice(0, -suffix.length)} - ${name}` },
+          });
+          renamedWarehouses += 1;
+        }
+      }
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -196,7 +224,13 @@ export async function updateVessel(
   }
   revalidatePath("/vessels");
   revalidatePath(`/vessels/${id}`);
-  return { message: "Đã lưu thay đổi.", success: true };
+  revalidatePath("/inventory");
+  return {
+    message: renamedWarehouses
+      ? `Đã lưu thay đổi và đổi tên ${renamedWarehouses} kho theo tên tàu mới.`
+      : "Đã lưu thay đổi.",
+    success: true,
+  };
 }
 
 export async function deleteVessel(

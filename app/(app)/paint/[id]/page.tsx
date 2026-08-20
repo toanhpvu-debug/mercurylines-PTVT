@@ -1,0 +1,430 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import {
+  canManageVesselCatalog,
+  requireScopedUser,
+  vesselScope,
+} from "@/lib/auth";
+import { PAINT_TYPE_LABEL } from "@/lib/paintTypes";
+import {
+  PaintAreaAddForm,
+  PaintAreaCard,
+} from "@/components/PaintAreaManager";
+import { PaintStockMinForm, PaintStockMoveForm } from "@/components/PaintStockForm";
+import { PaintJobDeleteButton, PaintJobForm } from "@/components/PaintJobForm";
+import PrintButton from "@/components/PrintButton";
+
+export const dynamic = "force-dynamic";
+
+const TYPE_LABEL = PAINT_TYPE_LABEL;
+
+function productLabel(p: {
+  name: string;
+  maker: string | null;
+  paintType: string;
+  colorName: string | null;
+}) {
+  const bits = [p.name];
+  if (p.maker) bits.push(p.maker);
+  bits.push(TYPE_LABEL[p.paintType] ?? p.paintType);
+  if (p.colorName) bits.push(p.colorName);
+  return bits.join(" · ");
+}
+
+export default async function PaintVesselPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const user = await requireScopedUser();
+  const scope = vesselScope(user);
+  const { id } = await params;
+  const vesselId = Number(id);
+  if (!Number.isInteger(vesselId) || vesselId <= 0) notFound();
+  // Người bị giới hạn tàu không xem được tàu khác kể cả gõ thẳng URL.
+  if (!scope.all && scope.vesselId !== vesselId) notFound();
+
+  const vessel = await prisma.vessel.findUnique({ where: { id: vesselId } });
+  if (!vessel) notFound();
+  const canEdit = canManageVesselCatalog(user, vesselId);
+
+  const [areas, products, stocks, jobs, transactions] = await Promise.all([
+    prisma.paintArea.findMany({
+      where: { vesselId },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      include: {
+        layers: {
+          orderBy: [{ layerNo: "asc" }, { id: "asc" }],
+          include: { product: true },
+        },
+      },
+    }),
+    prisma.paintProduct.findMany({
+      where: { isActive: true },
+      orderBy: [{ paintType: "asc" }, { name: "asc" }],
+    }),
+    prisma.paintStock.findMany({
+      where: { vesselId },
+      include: { product: true },
+      orderBy: { product: { name: "asc" } },
+    }),
+    prisma.paintJob.findMany({
+      where: { vesselId },
+      orderBy: [{ jobDate: "desc" }, { id: "desc" }],
+      take: 50,
+      include: { area: true, lines: { include: { product: true } } },
+    }),
+    prisma.paintTransaction.findMany({
+      where: { vesselId },
+      orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
+      take: 40,
+      include: { product: true },
+    }),
+  ]);
+
+  const productOptions = products.map((p) => ({
+    id: p.id,
+    label: productLabel(p),
+    coverage: p.coverage,
+    dftPerCoat: p.dftPerCoat,
+    uom: p.uom,
+  }));
+  const stockOptions = stocks
+    .filter((s) => s.quantity > 0)
+    .map((s) => ({
+      id: s.productId,
+      label: productLabel(s.product),
+      uom: s.product.uom,
+      onHand: s.quantity,
+    }));
+  const lowStocks = stocks.filter((s) => s.minQty > 0 && s.quantity < s.minQty);
+  const totalPaintedM2 = jobs.reduce((sum, j) => sum + j.paintedM2, 0);
+  const defaultDate = new Date().toISOString().slice(0, 10);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
+        <div>
+          <Link href="/paint" className="text-sm text-blue-700 hover:underline">
+            ← Quay lại quản lý sơn
+          </Link>
+          <h2 className="text-2xl font-bold text-blue-950">
+            Sơn — {vessel.name}
+          </h2>
+          <p className="text-slate-600">
+            {vessel.code}
+            {vessel.imo ? ` · IMO ${vessel.imo}` : ""} · {areas.length} khu vực ·{" "}
+            {jobs.length} lần thi công gần đây
+          </p>
+        </div>
+        <PrintButton />
+      </div>
+
+      {lowStocks.length > 0 && (
+        <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">
+          <p className="font-semibold">
+            {lowStocks.length} loại sơn dưới định mức tối thiểu
+          </p>
+          <ul className="mt-1 list-inside list-disc text-sm">
+            {lowStocks.map((s) => (
+              <li key={s.id}>
+                {s.product.name}: còn {s.quantity} {s.product.uom} / tối thiểu{" "}
+                {s.minQty} {s.product.uom}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* ── Sơ đồ sơn ─────────────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-xl font-semibold text-blue-950">
+            Sơ đồ sơn theo khu vực
+          </h3>
+          {canEdit && <PaintAreaAddForm vesselId={vesselId} />}
+        </div>
+        {areas.length === 0 ? (
+          <div className="rounded-xl bg-white p-6 text-center text-slate-500 shadow-sm ring-1 ring-blue-100">
+            Chưa khai báo khu vực sơn nào cho tàu này.
+            {canEdit && " Bấm “+ Thêm khu vực sơn” để bắt đầu."}
+          </div>
+        ) : (
+          areas.map((a) => (
+            <PaintAreaCard
+              key={a.id}
+              vesselId={vesselId}
+              canEdit={canEdit}
+              products={productOptions}
+              area={{
+                id: a.id,
+                name: a.name,
+                areaM2: a.areaM2,
+                sortOrder: a.sortOrder,
+                notes: a.notes,
+              }}
+              layers={a.layers.map((l) => ({
+                id: l.id,
+                layerNo: l.layerNo,
+                coats: l.coats,
+                dft: l.dft,
+                notes: l.notes,
+                productId: l.productId,
+                productLabel: productLabel(l.product),
+                coverage: l.product.coverage,
+                uom: l.product.uom,
+              }))}
+            />
+          ))
+        )}
+      </section>
+
+      {/* ── Tồn sơn ───────────────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <h3 className="text-xl font-semibold text-blue-950">Tồn sơn trên tàu</h3>
+        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
+          {stocks.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              Chưa có sơn nào trên tàu.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead className="bg-blue-900 text-left text-white">
+                  <tr>
+                    <th className="p-2">Sơn</th>
+                    <th className="p-2">Loại</th>
+                    <th className="p-2">Màu</th>
+                    <th className="p-2 text-right">Còn lại</th>
+                    <th className="p-2 text-right">Tối thiểu</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-blue-50">
+                  {stocks.map((s) => {
+                    const low = s.minQty > 0 && s.quantity < s.minQty;
+                    return (
+                      <tr key={s.id} className={low ? "bg-red-50" : ""}>
+                        <td className="p-2">
+                          {s.product.name}
+                          {s.product.maker ? (
+                            <span className="text-slate-500">
+                              {" "}
+                              · {s.product.maker}
+                            </span>
+                          ) : null}
+                          {low && (
+                            <span className="ml-2 rounded bg-red-600 px-1.5 py-0.5 text-xs font-semibold text-white">
+                              THIẾU
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-2">
+                          {TYPE_LABEL[s.product.paintType] ?? s.product.paintType}
+                        </td>
+                        <td className="p-2">
+                          {[s.product.colorName, s.product.colorCode]
+                            .filter(Boolean)
+                            .join(" · ") || "—"}
+                        </td>
+                        <td className="p-2 text-right font-semibold">
+                          {s.quantity} {s.product.uom}
+                        </td>
+                        <td className="p-2 text-right">
+                          {canEdit ? (
+                            <div className="flex justify-end print:hidden">
+                              <PaintStockMinForm
+                                vesselId={vesselId}
+                                productId={s.productId}
+                                minQty={s.minQty}
+                              />
+                            </div>
+                          ) : (
+                            s.minQty || "—"
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {canEdit && (
+          <details className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100 print:hidden">
+            <summary className="cursor-pointer font-semibold text-blue-950">
+              Nhập / xuất sơn
+            </summary>
+            <div className="mt-3">
+              <PaintStockMoveForm
+                vesselId={vesselId}
+                products={productOptions.map((p) => ({
+                  id: p.id,
+                  label: p.label,
+                  uom: p.uom,
+                }))}
+              />
+            </div>
+          </details>
+        )}
+      </section>
+
+      {/* ── Nhật ký thi công ──────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-xl font-semibold text-blue-950">
+            Nhật ký thi công sơn
+          </h3>
+          {totalPaintedM2 > 0 && (
+            <p className="text-sm text-slate-600">
+              Tổng đã sơn (50 lần gần nhất):{" "}
+              <b>{totalPaintedM2.toLocaleString("vi-VN")} m²</b>
+            </p>
+          )}
+        </div>
+
+        {canEdit && (
+          <details className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100 print:hidden">
+            <summary className="cursor-pointer font-semibold text-blue-950">
+              + Ghi một lần thi công
+            </summary>
+            <div className="mt-3">
+              <PaintJobForm
+                vesselId={vesselId}
+                defaultDate={defaultDate}
+                areas={areas.map((a) => ({ id: a.id, label: a.name }))}
+                products={stockOptions}
+              />
+            </div>
+          </details>
+        )}
+
+        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
+          {jobs.length === 0 ? (
+            <p className="text-sm text-slate-500">Chưa có lần thi công nào.</p>
+          ) : (
+            <div className="max-h-[28rem] overflow-auto">
+              <table className="w-full min-w-[900px] text-sm">
+                <thead className="sticky top-0 bg-blue-900 text-left text-white">
+                  <tr>
+                    <th className="p-2">Ngày</th>
+                    <th className="p-2">Khu vực</th>
+                    <th className="p-2 text-right">m²</th>
+                    <th className="p-2 text-right">Lớp</th>
+                    <th className="p-2">Sơn đã dùng</th>
+                    <th className="p-2">Điều kiện</th>
+                    <th className="p-2">Người thực hiện</th>
+                    {canEdit && <th className="p-2 print:hidden"></th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-blue-50">
+                  {jobs.map((j) => (
+                    <tr key={j.id}>
+                      <td className="p-2 whitespace-nowrap">
+                        {j.jobDate.toLocaleDateString("vi-VN")}
+                      </td>
+                      <td className="p-2">{j.area?.name ?? "—"}</td>
+                      <td className="p-2 text-right">{j.paintedM2 || "—"}</td>
+                      <td className="p-2 text-right">{j.coats}</td>
+                      <td className="p-2">
+                        {j.lines.length === 0
+                          ? "—"
+                          : j.lines
+                              .map(
+                                (l) =>
+                                  `${l.product.name} ${l.quantity}${l.product.uom}`
+                              )
+                              .join("; ")}
+                      </td>
+                      <td className="p-2 text-slate-600">
+                        {[
+                          j.weather,
+                          j.airTemp !== null ? `KK ${j.airTemp}°C` : null,
+                          j.humidity !== null ? `Ẩm ${j.humidity}%` : null,
+                          j.surfaceTemp !== null
+                            ? `BM ${j.surfaceTemp}°C`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "—"}
+                      </td>
+                      <td className="p-2">{j.performedBy ?? "—"}</td>
+                      {canEdit && (
+                        <td className="p-2 text-right print:hidden">
+                          <PaintJobDeleteButton
+                            vesselId={vesselId}
+                            jobId={j.id}
+                          />
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Lịch sử nhập xuất ─────────────────────────────────────────── */}
+      <section className="space-y-3 print:hidden">
+        <h3 className="text-xl font-semibold text-blue-950">
+          Lịch sử nhập / xuất sơn
+        </h3>
+        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
+          {transactions.length === 0 ? (
+            <p className="text-sm text-slate-500">Chưa có giao dịch nào.</p>
+          ) : (
+            <div className="max-h-80 overflow-auto">
+              <table className="w-full min-w-[700px] text-sm">
+                <thead className="sticky top-0 bg-blue-50 text-left text-blue-900">
+                  <tr>
+                    <th className="p-2">Thời điểm</th>
+                    <th className="p-2">Loại</th>
+                    <th className="p-2">Sơn</th>
+                    <th className="p-2 text-right">SL</th>
+                    <th className="p-2">Người thực hiện</th>
+                    <th className="p-2">Ghi chú</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-blue-50">
+                  {transactions.map((t) => (
+                    <tr key={t.id}>
+                      <td className="p-2 whitespace-nowrap">
+                        {t.occurredAt.toLocaleDateString("vi-VN")}{" "}
+                        {t.occurredAt.toLocaleTimeString("vi-VN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="p-2">
+                        <span
+                          className={
+                            t.type === "IN"
+                              ? "text-emerald-700"
+                              : "text-amber-700"
+                          }
+                        >
+                          {t.type === "IN" ? "↓ Nhận" : "↑ Xuất"}
+                        </span>
+                      </td>
+                      <td className="p-2">{t.product.name}</td>
+                      <td className="p-2 text-right">
+                        {t.type === "IN" ? "+" : "−"}
+                        {t.quantity} {t.product.uom}
+                      </td>
+                      <td className="p-2">{t.performedBy ?? "—"}</td>
+                      <td className="p-2 text-slate-600">{t.note ?? ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}

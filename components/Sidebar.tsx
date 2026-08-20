@@ -10,6 +10,7 @@ const links = [
   { href: "/requests", label: "Yêu cầu vật tư", icon: "📝" },
   { href: "/purchasing", label: "Mua sắm (Purchasing)", icon: "🛒" },
   { href: "/reports", label: "Báo cáo vật tư", icon: "📊" },
+  { href: "/paint", label: "Quản lý sơn", icon: "🎨" },
   { href: "/lashing", label: "Chằng buộc container", icon: "🔗" },
   { href: "/documents", label: "Báo cáo từ tàu", icon: "📄" },
 ];

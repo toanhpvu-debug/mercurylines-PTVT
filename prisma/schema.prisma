@@ -63,6 +63,10 @@ model Vessel {
   documents        ReportDocument[]
   vesselMaterials  VesselMaterial[]
   purchaseOrders   PurchaseOrder[]
+  paintAreas        PaintArea[]
+  paintStocks       PaintStock[]
+  paintJobs         PaintJob[]
+  paintTransactions PaintTransaction[]
 }
 
 model Warehouse {
@@ -313,4 +317,142 @@ model PurchaseOrderItem {
   unitPrice        Float                @default(0)
   quantityReceived Float                @default(0)
   warehouseId      Int? // kho đã nhập khi nhận hàng (không FK, giống InventoryTransaction)
+}
+
+// ─── Quản lý sơn ────────────────────────────────────────────────────────────
+// Sơn tách khỏi Material vì có thuộc tính riêng (hệ sơn, độ phủ, DFT, mã màu)
+// và quy trình riêng: sơ đồ sơn theo khu vực → thi công → trừ tồn.
+
+// Danh mục sơn dùng chung toàn đội (giống Material — định nghĩa một lần).
+model PaintProduct {
+  id       Int    @id @default(autoincrement())
+  code     String @unique
+  name     String
+  maker    String?
+  // PRIMER, ANTI_CORROSIVE, ANTI_FOULING, TOPCOAT, DECK, TANK, OTHER
+  paintType String @default("OTHER")
+  colorCode String?
+  colorName String?
+  uom       String @default("L")
+  // Dung tích một lon/thùng (lít) — để quy đổi khi nhập theo lon.
+  packSize  Float  @default(0)
+  // Độ phủ lý thuyết (m²/lít) tại chiều dày khô khuyến nghị.
+  coverage  Float  @default(0)
+  // Chiều dày màng khô khuyến nghị mỗi lớp (micron).
+  dftPerCoat Float @default(0)
+  thinner    String?
+  isActive   Boolean @default(true)
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  schemeLayers PaintSchemeLayer[]
+  stocks       PaintStock[]
+  jobLines     PaintJobLine[]
+  transactions PaintTransaction[]
+}
+
+// Khu vực sơn của từng tàu — do người dùng tự khai báo (không seed sẵn).
+model PaintArea {
+  id        Int    @id @default(autoincrement())
+  vesselId  Int
+  vessel    Vessel @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  name      String
+  // Diện tích khu vực (m²) — dùng để ước lượng lượng sơn cần.
+  areaM2    Float  @default(0)
+  sortOrder Int    @default(0)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  layers PaintSchemeLayer[]
+  jobs   PaintJob[]
+
+  @@unique([vesselId, name])
+}
+
+// Một lớp trong sơ đồ sơn của khu vực: lớp mấy, sơn gì, mấy lớp, DFT bao nhiêu.
+model PaintSchemeLayer {
+  id        Int          @id @default(autoincrement())
+  areaId    Int
+  area      PaintArea    @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  productId Int
+  product   PaintProduct @relation(fields: [productId], references: [id])
+  // Thứ tự lớp: 1 = lớp lót trong cùng.
+  layerNo   Int   @default(1)
+  coats     Int   @default(1)
+  dft       Float @default(0)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Tồn sơn theo tàu (sơn để trên tàu, không chia kho như vật tư).
+model PaintStock {
+  id        Int          @id @default(autoincrement())
+  vesselId  Int
+  vessel    Vessel       @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  productId Int
+  product   PaintProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Float @default(0)
+  minQty    Float @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([vesselId, productId])
+}
+
+// Nhập / xuất sơn — giữ vết mọi thay đổi tồn, kể cả do thi công.
+model PaintTransaction {
+  id        Int          @id @default(autoincrement())
+  vesselId  Int
+  vessel    Vessel       @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  productId Int
+  product   PaintProduct @relation(fields: [productId], references: [id])
+  // IN = nhận sơn lên tàu, OUT = xuất dùng (thi công hoặc hao hụt)
+  type      String
+  quantity  Float
+  // Nếu phát sinh từ một lần thi công thì gắn với công việc đó.
+  jobId     Int?
+  job       PaintJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  note        String?
+  occurredAt  DateTime @default(now())
+  performedBy String?
+  createdAt   DateTime @default(now())
+}
+
+// Một lần thi công sơn.
+model PaintJob {
+  id         Int        @id @default(autoincrement())
+  vesselId   Int
+  vessel     Vessel     @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  areaId     Int?
+  area       PaintArea? @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  jobDate    DateTime
+  // Diện tích thực sơn đợt này (m²) và số lớp đã phủ.
+  paintedM2  Float @default(0)
+  coats      Int   @default(1)
+  // Điều kiện thi công — ảnh hưởng chất lượng màng sơn, cần cho hồ sơ.
+  weather     String?
+  airTemp     Float?
+  humidity    Float?
+  surfaceTemp Float?
+  performedBy String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lines        PaintJobLine[]
+  transactions PaintTransaction[]
+}
+
+// Sơn đã dùng trong một lần thi công.
+model PaintJobLine {
+  id        Int          @id @default(autoincrement())
+  jobId     Int
+  job       PaintJob     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  productId Int
+  product   PaintProduct @relation(fields: [productId], references: [id])
+  quantity  Float
+  note      String?
 }

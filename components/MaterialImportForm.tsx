@@ -56,7 +56,7 @@ export default function MaterialImportForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Loại mặc định (khi không có nhóm thiết bị)
+            Loại dự phòng (khi không đoán được từ tên sheet)
           </span>
           <select
             name="kind"
@@ -80,6 +80,10 @@ export default function MaterialImportForm({
             disabled={!vesselId}
           >
             <option value="">— Không ghi tồn —</option>
+            <option value="AUTO">
+              ⭑ Tự động theo sheet (Phụ tùng→kho máy, Boong→kho boong, còn
+              lại→kho tiêu hao)
+            </option>
             {vesselWarehouses.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.label}
@@ -95,10 +99,18 @@ export default function MaterialImportForm({
         </p>
         <p className="mb-3 text-xs text-slate-600">
           Nhận trực tiếp form công ty: <b>MLS-11-06</b> Store &amp; Spare Part
-          Inventory (Excel — cột Description/IMPA/Unit/R.O.B) và{" "}
+          Inventory (Excel — cột Nhóm/Mô tả/Mã IMPA/Đơn vị/Tồn trên tàu) và{" "}
           <b>MLS-11-04</b> Danh mục phụ tùng thiết yếu (Word — tự nhận nhóm
           thiết bị, số lượng tối thiểu). Vật tư trùng (theo IMPA/Part No/tên) sẽ
           được gán vào tàu thay vì tạo mới.
+        </p>
+        <p className="mb-3 rounded border border-blue-200 bg-white/70 p-2 text-xs text-slate-700">
+          <b>Đọc toàn bộ sheet trong file.</b> Loại vật tư nhận theo tên sheet —
+          &quot;Phụ tùng (Spare Parts)&quot; vào nhóm phụ tùng; &quot;Vật tư
+          (Stores)&quot;, &quot;Vật tư Boong&quot;, &quot;Phục vụ
+          (Catering)&quot;, &quot;Bảo hộ (Safety)&quot; vào nhóm vật tư. Sheet
+          Dashboard hoặc trang ghi chú được bỏ qua. Sau khi nhập, hệ thống liệt
+          kê từng sheet đã đọc kèm số dòng để bạn đối chiếu.
         </p>
         <input
           type="file"

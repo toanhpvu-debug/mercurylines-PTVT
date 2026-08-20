@@ -4,6 +4,8 @@ import * as XLSX from "xlsx";
 
 // Đọc file danh mục vật tư/phụ tùng theo form công ty:
 // - Excel (MLS-11-06 Store & Spare Part Inventory): cột Description/IMPA/Unit/R.O.B/Group...
+//   File kiểm kê thực tế tách nhiều sheet theo bộ phận nên ĐỌC TOÀN BỘ SHEET,
+//   không chỉ sheet đầu (có file sheet đầu rỗng, dữ liệu nằm ở các sheet sau).
 // - Word .doc/.docx (MLS-11-04 DM phụ tùng thiết yếu): bảng tab-separated, nhóm theo thiết bị.
 
 export type ImportedItem = {
@@ -15,15 +17,53 @@ export type ImportedItem = {
   group: string | null;
   minStock: number;
   rob: number | null; // tồn trên tàu (R.O.B) nếu file có
+  sheet: string | null; // sheet Excel chứa dòng này
+  materialType: "STORE" | "SPARE" | null; // suy từ tên sheet; null = để người dùng quyết
+};
+
+// Tóm tắt từng sheet, để báo cho người dùng biết file được đọc ra sao.
+export type SheetSummary = {
+  name: string;
+  count: number;
+  materialType: "STORE" | "SPARE" | null;
+  skipped: boolean; // true = sheet không có bảng danh mục (Dashboard, ghi chú...)
 };
 
 export type ImportParseResult = {
   items: ImportedItem[];
   skippedRows: number;
+  sheets?: SheetSummary[];
+  truncated?: boolean;
   error?: string;
 };
 
-const MAX_ITEMS = 500;
+const MAX_ITEMS = 3000;
+
+// Tên sheet quyết định loại vật tư — form kiểm kê của công ty tách sẵn theo bộ phận:
+// "Phụ tùng (Spare Parts)" · "Vật tư (Stores)" · "Vật tư Boong (Deck Stores)" ·
+// "Vật tư Phục vụ (Catering)" · "Vật tư Bảo hộ (Safety)".
+const SHEET_SPARE_RE = /phụ\s*tùng|phu\s*tung|spare/i;
+const SHEET_STORE_RE =
+  /vật\s*tư|vat\s*tu|store|boong|deck|phục\s*vụ|phuc\s*vu|catering|bảo\s*hộ|bao\s*ho|safety|provision/i;
+
+// Kiểm tra SPARE trước: "Phụ tùng (Spare Parts)" chứa cả "phụ tùng" lẫn "parts".
+function sheetMaterialType(name: string): "STORE" | "SPARE" | null {
+  if (SHEET_SPARE_RE.test(name)) return "SPARE";
+  if (SHEET_STORE_RE.test(name)) return "STORE";
+  return null;
+}
+
+// Bộ phận kho tương ứng với một sheet, dùng cho chế độ ghi tồn "tự động theo sheet".
+// Hậu tố khớp với mã kho sinh khi tạo tàu: <mã tàu>-ENG / -DECK / -STORE.
+export type WarehouseKind = "ENG" | "DECK" | "STORE";
+
+export function warehouseKindForSheet(sheetName: string | null): WarehouseKind {
+  if (!sheetName) return "STORE";
+  if (SHEET_SPARE_RE.test(sheetName)) return "ENG";
+  if (/boong|deck/i.test(sheetName)) return "DECK";
+  // Phục vụ (Catering), Bảo hộ (Safety), Vật tư (Stores) → kho vật tư tiêu hao.
+  return "STORE";
+}
 
 const DESC_RE = /desc|mô tả|mo ta|tên vật tư|ten vat tu/i;
 const IMPA_RE = /impa/i;
@@ -68,38 +108,83 @@ function parseQtyUnit(text: string): { qty: number | null; unit: string | null }
   };
 }
 
+// Đọc MỌI sheet trong file. Sheet nào không có bảng danh mục (Dashboard, trang ghi chú)
+// thì bỏ qua chứ không coi là lỗi — chỉ báo lỗi khi cả file không ra dòng nào.
 export function parseMaterialExcel(buffer: Buffer): ImportParseResult {
-  let rows: unknown[][];
+  let wb: XLSX.WorkBook;
   try {
-    const wb = XLSX.read(buffer, { type: "buffer", sheetRows: 1000 });
-    const sheetName = wb.SheetNames[0];
-    if (!sheetName) {
-      return { items: [], skippedRows: 0, error: "File Excel không có sheet nào." };
-    }
-    const sheet = wb.Sheets[sheetName];
-    const refStr = sheet["!ref"];
-    if (!refStr) {
-      return { items: [], skippedRows: 0, error: "File Excel trống." };
-    }
-    const rng = XLSX.utils.decode_range(refStr);
-    if (rng.e.r - rng.s.r > 5000 || rng.e.c - rng.s.c > 400) {
-      return {
-        items: [],
-        skippedRows: 0,
-        error: "File Excel có vùng dữ liệu bất thường (quá lớn).",
-      };
-    }
-    rows = XLSX.utils.sheet_to_json(sheet, {
-      header: 1,
-      defval: null,
-      range: rng,
-    }) as unknown[][];
+    wb = XLSX.read(buffer, { type: "buffer", sheetRows: 5000 });
   } catch {
     return {
       items: [],
       skippedRows: 0,
       error: "Không đọc được file Excel (file hỏng hoặc sai định dạng).",
     };
+  }
+  if (!wb.SheetNames.length) {
+    return { items: [], skippedRows: 0, error: "File Excel không có sheet nào." };
+  }
+
+  const items: ImportedItem[] = [];
+  const sheets: SheetSummary[] = [];
+  let skippedRows = 0;
+  let truncated = false;
+
+  for (const sheetName of wb.SheetNames) {
+    if (items.length >= MAX_ITEMS) {
+      truncated = true;
+      break;
+    }
+    const type = sheetMaterialType(sheetName);
+    const parsed = parseSheet(wb.Sheets[sheetName], sheetName, type, MAX_ITEMS - items.length);
+    if (parsed === null) {
+      sheets.push({ name: sheetName, count: 0, materialType: type, skipped: true });
+      continue;
+    }
+    items.push(...parsed.items);
+    skippedRows += parsed.skippedRows;
+    if (parsed.truncated) truncated = true;
+    sheets.push({
+      name: sheetName,
+      count: parsed.items.length,
+      materialType: type,
+      skipped: false,
+    });
+  }
+
+  if (!items.length) {
+    return {
+      items: [],
+      skippedRows,
+      sheets,
+      error:
+        "Không tìm thấy bảng danh mục trong bất kỳ sheet nào của file (cần dòng tiêu đề có cột Mô tả/Description như form kiểm kê của công ty).",
+    };
+  }
+  return { items, skippedRows, sheets, truncated };
+}
+
+// Đọc một sheet. Trả null nếu sheet không chứa bảng danh mục.
+function parseSheet(
+  sheet: XLSX.WorkSheet | undefined,
+  sheetName: string,
+  sheetType: "STORE" | "SPARE" | null,
+  remaining: number
+): { items: ImportedItem[]; skippedRows: number; truncated: boolean } | null {
+  if (!sheet) return null;
+  const refStr = sheet["!ref"];
+  if (!refStr) return null;
+  let rows: unknown[][];
+  try {
+    const rng = XLSX.utils.decode_range(refStr);
+    if (rng.e.r - rng.s.r > 20000 || rng.e.c - rng.s.c > 400) return null;
+    rows = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      defval: null,
+      range: rng,
+    }) as unknown[][];
+  } catch {
+    return null;
   }
 
   // Dò dòng tiêu đề: có cột Mô tả + ít nhất một cột đặc trưng khác.
@@ -128,17 +213,12 @@ export function parseMaterialExcel(buffer: Buffer): ImportParseResult {
       break;
     }
   }
-  if (headerRowIdx === -1) {
-    return {
-      items: [],
-      skippedRows: 0,
-      error:
-        "Không tìm thấy bảng danh mục trong file (cần dòng tiêu đề có cột Mô tả/Description như form MLS-11-06).",
-    };
-  }
+  // Sheet không có bảng danh mục (Dashboard, trang ghi chú) — bỏ qua, không phải lỗi.
+  if (headerRowIdx === -1) return null;
 
   const items: ImportedItem[] = [];
   let skippedRows = 0;
+  let truncated = false;
   let currentEquipment: string | null = null;
   for (let r = headerRowIdx + 1; r < rows.length; r++) {
     const row = rows[r] ?? [];
@@ -178,17 +258,17 @@ export function parseMaterialExcel(buffer: Buffer): ImportParseResult {
       group: col.group >= 0 ? cellText(row[col.group]) || null : null,
       minStock: minParsed.qty ?? 0,
       rob: Number.isFinite(robRaw) && robRaw >= 0 ? robRaw : null,
+      sheet: sheetName,
+      // Dòng có nhóm thiết bị luôn là phụ tùng, dù sheet đặt tên gì.
+      materialType: currentEquipment ? "SPARE" : sheetType,
     });
-    if (items.length >= MAX_ITEMS) break;
+    if (items.length >= remaining) {
+      truncated = true;
+      break;
+    }
   }
-  if (!items.length) {
-    return {
-      items: [],
-      skippedRows,
-      error: "Không có dòng vật tư hợp lệ nào trong file.",
-    };
-  }
-  return { items, skippedRows };
+  if (!items.length) return null;
+  return { items, skippedRows, truncated };
 }
 
 // Word .doc/.docx (MLS-11-04): bảng dạng text, ô tách bằng tab.
@@ -239,6 +319,9 @@ export async function parseMaterialDoc(buffer: Buffer): Promise<ImportParseResul
       group: null,
       minStock: minParsed.qty ?? 0,
       rob: Number.isFinite(remain) && remain >= 0 && cells[6] ? remain : null,
+      sheet: null,
+      // MLS-11-04 là danh mục phụ tùng thiết yếu — toàn bộ là phụ tùng.
+      materialType: "SPARE",
     });
     if (items.length >= MAX_ITEMS) break;
   }

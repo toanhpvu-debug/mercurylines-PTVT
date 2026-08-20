@@ -1210,7 +1210,29 @@ export async function importMaterials(
   // Kho ghi tồn (tùy chọn) — phải thuộc tàu đã chọn.
   const warehouseRaw = String(formData.get("warehouseId") || "");
   let warehouseId: number | null = null;
-  if (warehouseRaw) {
+  // "AUTO" = định tuyến theo sheet: Phụ tùng→kho máy, Boong→kho boong, còn lại→kho tiêu hao.
+  let warehouseByKind: Partial<
+    Record<"ENG" | "DECK" | "STORE", number>
+  > | null = null;
+  if (warehouseRaw === "AUTO") {
+    const vesselWarehouses = await prisma.warehouse.findMany({
+      where: { vesselId },
+      select: { id: true, code: true },
+    });
+    const map: Partial<Record<"ENG" | "DECK" | "STORE", number>> = {};
+    for (const w of vesselWarehouses) {
+      if (/-ENG$/i.test(w.code)) map.ENG = w.id;
+      else if (/-DECK$/i.test(w.code)) map.DECK = w.id;
+      else if (/-STORE$/i.test(w.code)) map.STORE = w.id;
+    }
+    if (!map.ENG && !map.DECK && !map.STORE) {
+      return {
+        message:
+          "Tàu này chưa có kho nào có mã kết thúc bằng -ENG / -DECK / -STORE nên không tự định tuyến được. Hãy chọn một kho cụ thể.",
+      };
+    }
+    warehouseByKind = map;
+  } else if (warehouseRaw) {
     const wid = Number(warehouseRaw);
     if (!Number.isInteger(wid) || wid <= 0) {
       return { message: "Kho không hợp lệ." };
@@ -1243,168 +1265,22 @@ export async function importMaterials(
     return { message: parsed.error };
   }
 
-  // Ghép với vật tư sẵn có: theo IMPA, hoặc Part No, hoặc tên + thiết bị
-  // (cùng tên nhưng khác thiết bị — VD "Bạc trục" Máy chính vs Máy phát — là 2 phụ tùng khác nhau).
-  const existing = await prisma.material.findMany();
-  const norm = (s: string) => s.normalize("NFC").toLowerCase().replace(/\s+/g, " ").trim();
-  const nameKey = (name: string, equipment: string | null) =>
-    `${norm(name)}|${equipment ? norm(equipment) : ""}`;
-  const byImpa = new Map(
-    existing.filter((m) => m.impa).map((m) => [norm(m.impa as string), m])
-  );
-  const byPn = new Map(
-    existing
-      .filter((m) => m.partNumber)
-      .map((m) => [norm(m.partNumber as string), m])
-  );
-  const byName = new Map(existing.map((m) => [nameKey(m.nameVn, m.equipment), m]));
-
-  // Sinh mã ML-IMP-#### không trùng.
-  let importSeq =
-    existing.filter((m) => m.code.startsWith("ML-IMP-")).length + 1;
-  const usedCodes = new Set(existing.map((m) => m.code));
-  const nextCode = () => {
-    let code = `ML-IMP-${String(importSeq).padStart(4, "0")}`;
-    while (usedCodes.has(code)) {
-      importSeq++;
-      code = `ML-IMP-${String(importSeq).padStart(4, "0")}`;
-    }
-    importSeq++;
-    usedCodes.add(code);
-    return code;
-  };
-
-  let createdCount = 0;
-  let linkedCount = 0;
-  let robCount = 0;
-  const categoryCache = new Map<string, number>();
-
-  try {
-    await prisma.$transaction(async (tx) => {
-    for (const item of parsed.items) {
-      // 1) Tìm hoặc tạo vật tư
-      let material =
-        (item.impa && byImpa.get(norm(item.impa))) ||
-        (item.partNumber && byPn.get(norm(item.partNumber))) ||
-        byName.get(nameKey(item.name, item.equipment)) ||
-        null;
-      if (!material) {
-        // Nhóm (Group) → Category: tìm theo TÊN trước; slug bỏ dấu tiếng Việt,
-        // nếu trùng mã với nhóm khác tên thì thêm hậu tố -2, -3...
-        let categoryId: number | null = null;
-        if (item.group) {
-          const key = norm(item.group);
-          if (categoryCache.has(key)) {
-            categoryId = categoryCache.get(key)!;
-          } else {
-            let cat = await tx.category.findFirst({
-              where: { name: item.group },
-            });
-            if (!cat) {
-              const slugBase = key
-                .normalize("NFD")
-                .replace(/[̀-ͯ]/g, "")
-                .replace(/đ/g, "d")
-                .replace(/[^a-z0-9]+/g, "-")
-                .replace(/^-+|-+$/g, "")
-                .slice(0, 40);
-              let catCode = `CAT-${slugBase || "nhom"}`;
-              let suffix = 2;
-              while (await tx.category.findUnique({ where: { code: catCode } })) {
-                catCode = `CAT-${slugBase || "nhom"}-${suffix++}`;
-              }
-              cat = await tx.category.create({
-                data: { code: catCode, name: item.group },
-              });
-            }
-            categoryId = cat.id;
-            categoryCache.set(key, cat.id);
-          }
-        }
-        material = await tx.material.create({
-          data: {
-            code: nextCode(),
-            nameVn: item.name,
-            impa: item.impa,
-            partNumber: item.partNumber,
-            uom: item.uom || "PCS",
-            // Có thiết bị đi kèm → là phụ tùng; không thì theo loại đã chọn.
-            materialType: item.equipment ? "SPARE" : kind,
-            equipment: item.equipment,
-            categoryId,
-            minStock: item.minStock,
-          },
-        });
-        byName.set(nameKey(item.name, item.equipment), material);
-        if (item.impa) byImpa.set(norm(item.impa), material);
-        if (item.partNumber) byPn.set(norm(item.partNumber), material);
-        createdCount++;
-      } else {
-        linkedCount++;
-      }
-      // 2) Gán vào danh mục tàu
-      await tx.vesselMaterial.upsert({
-        where: {
-          vesselId_materialId: { vesselId, materialId: material.id },
-        },
-        update: {},
-        create: { vesselId, materialId: material.id },
-      });
-      // 3) Ghi tồn kho (R.O.B) nếu file có số tồn và người dùng chọn kho
-      if (warehouseId && item.rob !== null) {
-        const inv = await tx.inventory.findUnique({
-          where: {
-            materialId_warehouseId: {
-              materialId: material.id,
-              warehouseId,
-            },
-          },
-        });
-        const current = inv?.quantity ?? 0;
-        const delta = item.rob - current;
-        await tx.inventory.upsert({
-          where: {
-            materialId_warehouseId: {
-              materialId: material.id,
-              warehouseId,
-            },
-          },
-          update: { quantity: item.rob },
-          create: {
-            materialId: material.id,
-            warehouseId,
-            vesselId,
-            quantity: item.rob,
-          },
-        });
-        if (delta !== 0) {
-          await tx.inventoryTransaction.create({
-            data: {
-              type: delta > 0 ? "IN" : "OUT",
-              materialId: material.id,
-              warehouseId,
-              vesselId,
-              quantity: Math.abs(delta),
-              note: `Kiểm kê từ file ${file.name}`,
-              performedBy: actor.name,
-            },
-          });
-        }
-        robCount++;
-      }
-    }
-    }, { timeout: 60000, maxWait: 10000 }); // file lớn (tới 500 dòng × nhiều ghi) cần quá 5s mặc định
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      ["P2002", "P2028", "P2034"].includes(error.code)
-    ) {
-      return {
-        message:
-          "Có phiên nhập liệu khác chạy đồng thời nên mã tự sinh bị trùng. Vui lòng bấm nhập lại.",
-      };
-    }
-    throw error;
+  const { applyMaterialImport } = await import("@/lib/materialImportApply");
+  const { createdCount, linkedCount, robCount, conflict } =
+    await applyMaterialImport({
+      vesselId,
+      warehouseId,
+      warehouseByKind,
+      fallbackKind: kind,
+      items: parsed.items,
+      fileName: file.name,
+      actorName: actor.name,
+    });
+  if (conflict) {
+    return {
+      message:
+        "Có phiên nhập liệu khác chạy đồng thời nên mã tự sinh bị trùng. Vui lòng bấm nhập lại.",
+    };
   }
 
   revalidatePath("/materials");
@@ -1417,6 +1293,41 @@ export async function importMaterials(
   if (robCount > 0) parts.push(`${robCount} dòng ghi tồn kho`);
   if (parsed.skippedRows > 0)
     parts.push(`${parsed.skippedRows} dòng bị bỏ qua`);
+  // Liệt kê từng sheet để người dùng đối chiếu — file kiểm kê thật tách nhiều sheet
+  // theo bộ phận, im lặng bỏ sót một sheet là mất cả trăm dòng mà không ai biết.
+  if (parsed.sheets?.length) {
+    const read = parsed.sheets.filter((s) => !s.skipped);
+    const ignored = parsed.sheets.filter((s) => s.skipped);
+    if (read.length) {
+      const labels: Record<string, string> = {
+        STORE: "Vật tư",
+        SPARE: "Phụ tùng",
+      };
+      parts.push(
+        "Sheet đã đọc: " +
+          read
+            .map(
+              (s) =>
+                `${s.name} (${s.count} dòng${
+                  s.materialType ? `, ${labels[s.materialType]}` : ""
+                })`
+            )
+            .join("; ")
+      );
+    }
+    if (ignored.length) {
+      parts.push(
+        `Sheet không có bảng danh mục nên bỏ qua: ${ignored
+          .map((s) => s.name)
+          .join("; ")}`
+      );
+    }
+  }
+  if (parsed.truncated) {
+    parts.push(
+      "⚠ File vượt quá giới hạn 3000 dòng — phần còn lại chưa được nhập, hãy tách file nhỏ hơn"
+    );
+  }
   return { message: parts.join(" · "), success: true };
 }
 

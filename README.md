@@ -21,6 +21,19 @@ Hai thứ **không nằm trong repo** vì thuộc dữ liệu riêng của từn
 - **`.env`** — khóa session, mật khẩu seed, thông tin công ty in trên PO/RFQ. Chép từ `.env.example`.
 - **`templates/MLS-11-06.xlsx`** — biểu mẫu Excel gốc dùng cho chức năng *Xuất kiểm kê*. Xem [`templates/README.md`](templates/README.md). Thiếu file này thì mọi chức năng khác vẫn chạy, chỉ nút xuất kiểm kê báo lỗi nhắc chép file vào.
 
+### Script tiện dụng (bấm đúp trên Windows)
+
+| File | Việc |
+|---|---|
+| `run-dev.cmd` | Chạy app ở chế độ development |
+| `run-start.cmd` | Build rồi chạy bản production trên máy |
+| `dong-bo-github.cmd` | Đẩy thay đổi **mã nguồn** lên GitHub (add + commit + push) |
+| `sao-luu-du-lieu.cmd` | Nén **dữ liệu** (`prisma/dev.db`, `uploads/`, `.env`, `templates/*.xlsx`) thành `E:ackup-mercuryackup-<ngày giờ>.zip` |
+
+Hai script cuối tách bạch có chủ ý: **GitHub chỉ giữ mã nguồn, không giữ dữ liệu vận hành**.
+Đẩy code lên GitHub bao nhiêu lần cũng không sao lưu được tồn kho, đơn mua hay file báo cáo đã tải lên —
+việc đó là của `sao-luu-du-lieu.cmd`.
+
 Bản production trên máy:
 
 ```bash

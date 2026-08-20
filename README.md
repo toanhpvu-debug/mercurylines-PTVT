@@ -58,6 +58,7 @@ App dùng SQLite (ghi file trực tiếp) nên cần nền tảng có **ổ đĩ
 | **Railway** (dễ nhất) | Tạo project từ repo GitHub → Railway tự nhận `Dockerfile` → thêm **Volume** mount vào `/data` → deploy. |
 | **Render** | New Web Service → chọn repo → Runtime: Docker → thêm **Disk** mount `/data` (1 GB là đủ). |
 | **Fly.io** | `fly launch` (nhận Dockerfile) → `fly volumes create mercury_data` → mount vào `/data` trong `fly.toml`. |
+| **Hostinger VPS** | Template Docker + Caddy tự cấp HTTPS — có sẵn cấu hình và hướng dẫn từng bước ở [`deploy/HOSTINGER.md`](deploy/HOSTINGER.md). |
 | **VPS bất kỳ** (đã có Docker) | Copy thư mục dự án lên server → `docker compose up -d --build` → trỏ domain/Nginx vào cổng 3000. |
 | **Vercel** | Serverless không ghi được file SQLite. Muốn dùng Vercel phải chuyển `DATABASE_URL` sang database hosted (Turso/libSQL hoặc Postgres + đổi `provider` trong `prisma/schema.prisma`). |
 
@@ -147,6 +148,31 @@ Thực tế mỗi tàu phát hành RFQ/PO dưới danh nghĩa công ty quản l�
 
 Quản lý **nhà cung cấp** ở `/purchasing/suppliers` (ADMIN). Mua sắm dành cho **ADMIN và Thuyền trưởng** (vai trò văn phòng/procurement); thuyền viên chỉ xem. Tuân theo phạm vi tàu như toàn app.
 
+## Quản lý sơn (`/paint`)
+
+Module riêng cho sơn, tách khỏi danh mục vật tư vì sơn có thuộc tính và quy trình riêng
+(hệ sơn nhiều lớp, độ phủ, DFT, thi công theo diện tích). Ba phần cho **từng tàu**:
+
+1. **Sơ đồ sơn theo khu vực** — mỗi tàu tự khai báo khu vực (Vỏ dưới nước, Mạn khô, Boong…)
+   kèm diện tích m². Mỗi khu vực có các lớp theo thứ tự (lót → chống ăn mòn → chống hà),
+   mỗi lớp ghi số lớp phủ và DFT. App tự **ước lượng lượng sơn cần** = diện tích × số lớp ÷ độ phủ.
+2. **Nhật ký thi công** — ngày, khu vực, m² đã sơn, số lớp, **điều kiện thi công** (thời tiết,
+   nhiệt độ không khí/bề mặt, độ ẩm — cần cho hồ sơ chất lượng màng sơn), người thực hiện,
+   và các dòng sơn đã dùng. Ghi xong **tự trừ tồn**; xóa bản ghi thì **hoàn lại tồn**.
+   Không cho ghi khi lượng dùng vượt tồn.
+3. **Tồn sơn theo tàu** — nhập/xuất có ghi thời điểm + người thực hiện, định mức tối thiểu
+   từng loại, cảnh báo THIẾU, và lịch sử nhập xuất.
+
+**Danh mục sơn** (`/paint/products`) dùng chung toàn đội: hãng, loại sơn (Primer /
+Anti-corrosive / Anti-fouling / Topcoat / Deck / Tank), mã màu, đơn vị, dung tích lon,
+độ phủ m²/L, DFT mỗi lớp, dung môi pha. Điền **độ phủ** thì app mới ước lượng được lượng cần.
+
+Không seed dữ liệu mẫu — mỗi tàu tự khai khu vực theo thực tế. Tuân theo phạm vi tàu như
+toàn app; ADMIN và thuyền trưởng chỉnh sửa, thuyền viên chỉ xem.
+
+Lưu ý phân biệt: **sơn** nằm ở module này, còn **dụng cụ sơn** (chổi, con lăn, cây rút,
+khuôn kẻ chữ) vẫn thuộc danh mục vật tư boong.
+
 ## Báo cáo theo biểu mẫu công ty
 
 App tạo và in được 2 loại báo cáo đúng biểu mẫu Mercury Lines (nút **In báo cáo** → hộp thoại in của trình duyệt → giấy/PDF khổ A4 ngang, tự ẩn menu):
@@ -164,7 +190,9 @@ Tàu tải trực tiếp file báo cáo gốc (PDF hoặc Excel .xls/.xlsx, tố
 
 ## Cấu trúc chính
 
-- `prisma/schema.prisma` — 8 model: User, Vessel, Warehouse, Category, Material, Inventory, InventoryTransaction, MaterialRequest(+Item)
+- `prisma/schema.prisma` — model nghiệp vụ: User, Vessel, Warehouse, Category, Material, Inventory, InventoryTransaction, MaterialRequest(+Item), Supplier, PurchaseOrder(+Item), FormStandard, LashingGear/Report, ReportDocument, và nhóm sơn: PaintProduct, PaintArea, PaintSchemeLayer, PaintStock, PaintTransaction, PaintJob(+Line)
+- `app/paint-actions.ts` — server action của module sơn (tách khỏi `app/actions.ts`)
+- `lib/paintTypes.ts` — hằng số loại sơn dùng chung (file `"use server"` chỉ được export hàm async)
 - `app/actions.ts` — server actions: tạo tàu, tạo vật tư, nhập/xuất kho (transaction, chặn xuất quá tồn), đổi trạng thái yêu cầu
 - `app/api/material-requests/route.ts` — API tạo yêu cầu vật tư
 - `app/(app)/dashboard|vessels|materials|inventory|requests|users/page.tsx` — các trang chức năng

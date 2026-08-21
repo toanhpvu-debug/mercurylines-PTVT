@@ -1,0 +1,13 @@
+{
+  "_huong_dan": "Khai báo file kiểm kê gốc của từng tàu (theo MÃ TÀU). Script doi-chieu-danh-muc đối chiếu danh mục trong app với đúng các file này. Tàu không khai ở đây được coi là CHƯA CÓ dữ liệu nguồn — mọi vật tư đang gán cho nó đều bị coi là thừa.",
+  "tau": {
+    "ML-001": [
+      "E:/software/Kiem_Ke_Vat_Tu_MODYSSEY_Fixed.xlsx",
+      "E:/software/Kiem_Ke_Vat_Tu_Boong_PhucVu M.ODYSSEY.xlsx"
+    ],
+    "ML-002": [
+      "E:/software/Kiem_Ke_Vat_Tu_MMARINER.xlsx",
+      "E:/software/Kiem_Ke_Vat_Tu_MMARINER_Boong.xlsx"
+    ]
+  }
+}

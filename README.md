@@ -148,6 +148,19 @@ ADMIN/Thuyền trưởng upload file theo form công ty để nạp nhanh danh m
 
 Vật tư trùng (theo IMPA / Part No / tên + thiết bị; mã giữ chỗ "-", "N/A" bị bỏ qua) chỉ được **gán vào tàu**, không tạo bản sao — nhập lại cùng file không sinh trùng lặp. Vật tư mới có mã `ML-IMP-####`. Trang **Dashboard** có mục **"Kiểm soát phụ tùng thiết yếu"**: đếm phụ tùng SPARE dưới mức tối thiểu trên toàn đội (theo phạm vi tàu) với thanh mức độ.
 
+### Đối chiếu danh mục với file kiểm kê gốc
+
+`doi-chieu-danh-muc.cmd` so danh mục vật tư của **từng tàu** trong app với đúng các file kiểm kê
+Excel gốc, báo ra số vật tư **thừa** (có trong app nhưng không có trong file) và **thiếu**
+(có trong file nhưng chưa gán cho tàu).
+
+Khai báo file nguồn của từng tàu ở [`scripts/nguon-kiem-ke.json`](scripts/nguon-kiem-ke.json).
+Tàu không khai trong đó được coi là **chưa có dữ liệu nguồn** — mọi vật tư đang gán cho nó
+đều bị tính là thừa.
+
+Công cụ dùng **chính parser mà chức năng nhập file dùng**, nên kết quả đối chiếu phản ánh
+đúng những gì app sẽ đọc được, không phải một cách đọc thứ hai.
+
 ### Xuất kiểm kê theo form công ty (MLS-11-06)
 
 Nút **"⬇ Xuất kiểm kê MLS-11-06"** ở trang Danh mục (chế độ theo tàu, giữ bộ lọc Store/Spare) và trang chi tiết tàu tải về file Excel **điền trên chính template gốc của công ty** (giữ nguyên định dạng, chữ ký): tên tàu, ngày, loại vật tư, và từng dòng Nhóm / Mô tả / IMPA / Đơn vị / **Còn tồn đợt trước / Nhận trong kỳ / Tiêu thụ trong kỳ / Tồn trên tàu** (kỳ = tháng hiện tại, tính từ giao dịch nhập–xuất trong app). Trên 25 dòng thì form tự giãn, khối chữ ký tự dời xuống. Quyền theo phạm vi tàu (thuyền viên chỉ xuất được tàu mình).

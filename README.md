@@ -25,14 +25,29 @@ Hai thứ **không nằm trong repo** vì thuộc dữ liệu riêng của từn
 
 | File | Việc |
 |---|---|
-| `run-dev.cmd` | Chạy app ở chế độ development |
-| `run-start.cmd` | Build rồi chạy bản production trên máy |
+| **`chay-app.cmd`** | **Dùng hằng ngày.** Chạy bản production — chỉ build lại khi mã nguồn đổi, không đổi thì khởi động trong ~2 giây |
+| `run-dev.cmd` | Chỉ dùng khi đang **sửa code** (có hot-reload). Chậm hơn production khoảng 50 lần |
+| `run-start.cmd` | Build + chạy, luôn build lại (~2 phút). Dùng khi muốn ép build sạch |
 | `dong-bo-github.cmd` | Đẩy thay đổi **mã nguồn** lên GitHub (add + commit + push) |
 | `sao-luu-du-lieu.cmd` | Nén **dữ liệu** (`prisma/dev.db`, `uploads/`, `.env`, `templates/*.xlsx`) thành `E:ackup-mercuryackup-<ngày giờ>.zip` |
 
 Hai script cuối tách bạch có chủ ý: **GitHub chỉ giữ mã nguồn, không giữ dữ liệu vận hành**.
 Đẩy code lên GitHub bao nhiêu lần cũng không sao lưu được tồn kho, đơn mua hay file báo cáo đã tải lên —
 việc đó là của `sao-luu-du-lieu.cmd`.
+
+### Vì sao nên chạy production thay vì development
+
+Đo trên máy với dữ liệu thật (606 vật tư · 693 dòng tồn kho), tổng thời gian tải 10 trang:
+
+| Trang | Development | Production |
+|---|---|---|
+| Tồn kho | 15.772 ms | **130 ms** |
+| Vật tư | 15.025 ms | **282 ms** |
+| Dashboard | 1.189 ms | **133 ms** |
+| **Tổng 10 trang** | **38.863 ms** | **786 ms** |
+
+Khởi động production: ~2 giây. Chế độ development biên dịch lại theo yêu cầu nên chậm là
+đúng thiết kế — nó dành cho lúc sửa code, không phải lúc làm việc.
 
 Bản production trên máy:
 

@@ -19,6 +19,7 @@ model User {
   documents ReportDocument[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  @@index([vesselId])
 }
 
 // File báo cáo tải lên từ tàu — BẤT BIẾN: không có action sửa;
@@ -39,6 +40,8 @@ model ReportDocument {
   uploadedById Int
   uploadedBy   User     @relation(fields: [uploadedById], references: [id])
   createdAt    DateTime @default(now())
+  @@index([vesselId])
+  @@index([uploadedById])
 }
 
 model Vessel {
@@ -79,6 +82,7 @@ model Warehouse {
   inventories   Inventory[]
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+  @@index([vesselId])
 }
 
 model Category {
@@ -114,6 +118,9 @@ model Material {
   requestItems MaterialRequestItem[]
   vesselMaterials VesselMaterial[]
   poItems      PurchaseOrderItem[]
+  @@index([categoryId])
+  @@index([materialType])
+  @@index([isActive])
 }
 
 // Danh mục vật tư riêng của từng tàu: tàu nào dùng vật tư nào.
@@ -126,6 +133,7 @@ model VesselMaterial {
   createdAt  DateTime @default(now())
 
   @@unique([vesselId, materialId])
+  @@index([materialId])
 }
 
 // Biểu mẫu chứng từ (công ty quản lý) — thêm/bớt được. Vessel.formStandard tham chiếu code.
@@ -158,6 +166,8 @@ model Inventory {
   updatedAt        DateTime  @updatedAt
 
   @@unique([materialId, warehouseId])
+  @@index([vesselId])
+  @@index([warehouseId])
 }
 
 model InventoryTransaction {
@@ -174,6 +184,10 @@ model InventoryTransaction {
   performedBy String?
   // Thời điểm ghi sổ vào hệ thống (audit).
   createdAt   DateTime @default(now())
+  @@index([vesselId])
+  @@index([materialId])
+  @@index([warehouseId])
+  @@index([occurredAt])
 }
 
 model MaterialRequest {
@@ -205,6 +219,8 @@ model MaterialRequest {
   rejectionReason String?
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
+  @@index([vesselId])
+  @@index([status])
 }
 
 // Nhật ký mọi lần đổi trạng thái của một yêu cầu — ai, khi nào, vì sao.
@@ -219,6 +235,7 @@ model MaterialRequestEvent {
   actorRole  String
   note       String?
   createdAt  DateTime        @default(now())
+  @@index([requestId])
 }
 
 model LashingGear {
@@ -248,6 +265,7 @@ model LashingReport {
   lines      LashingReportLine[]
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
+  @@index([vesselId])
 }
 
 model LashingReportLine {
@@ -263,6 +281,8 @@ model LashingReportLine {
   standardQty Float         @default(0)
   inOrder     Float         @default(0)
   outOfOrder  Float         @default(0)
+  @@index([reportId])
+  @@index([gearId])
 }
 
 model MaterialRequestItem {
@@ -281,6 +301,8 @@ model MaterialRequestItem {
   suppliedQuantity Float            @default(0) // SL đã nhận về (từ mua sắm)
   note             String?
   poItems          PurchaseOrderItem[]
+  @@index([requestId])
+  @@index([materialId])
 }
 
 // Nhà cung cấp
@@ -322,6 +344,9 @@ model PurchaseOrder {
   items        PurchaseOrderItem[]
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
+  @@index([vesselId])
+  @@index([supplierId])
+  @@index([status])
 }
 
 model PurchaseOrderItem {
@@ -340,6 +365,9 @@ model PurchaseOrderItem {
   unitPrice        Float                @default(0)
   quantityReceived Float                @default(0)
   warehouseId      Int? // kho đã nhập khi nhận hàng (không FK, giống InventoryTransaction)
+  @@index([poId])
+  @@index([requestItemId])
+  @@index([materialId])
 }
 
 // ─── Quản lý sơn ────────────────────────────────────────────────────────────
@@ -408,6 +436,8 @@ model PaintSchemeLayer {
   notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  @@index([areaId])
+  @@index([productId])
 }
 
 // Tồn sơn theo tàu (sơn để trên tàu, không chia kho như vật tư).
@@ -423,6 +453,7 @@ model PaintStock {
   updatedAt DateTime @updatedAt
 
   @@unique([vesselId, productId])
+  @@index([productId])
 }
 
 // Nhập / xuất sơn — giữ vết mọi thay đổi tồn, kể cả do thi công.
@@ -442,6 +473,10 @@ model PaintTransaction {
   occurredAt  DateTime @default(now())
   performedBy String?
   createdAt   DateTime @default(now())
+  @@index([vesselId])
+  @@index([productId])
+  @@index([jobId])
+  @@index([occurredAt])
 }
 
 // Một lần thi công sơn.
@@ -467,6 +502,8 @@ model PaintJob {
 
   lines        PaintJobLine[]
   transactions PaintTransaction[]
+  @@index([vesselId])
+  @@index([areaId])
 }
 
 // Sơn đã dùng trong một lần thi công.
@@ -478,4 +515,6 @@ model PaintJobLine {
   product   PaintProduct @relation(fields: [productId], references: [id])
   quantity  Float
   note      String?
+  @@index([jobId])
+  @@index([productId])
 }

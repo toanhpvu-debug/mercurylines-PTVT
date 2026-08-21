@@ -55,7 +55,13 @@ export default async function InventoryPage({
           material: { include: { category: true } },
         },
       }),
-      prisma.material.findMany({ orderBy: { code: "asc" } }),
+      // Chỉ lấy 3 cột thật sự dùng (ô chọn vật tư của form nhập/xuất và bảng
+      // lịch sử giao dịch) — trước đây kéo toàn bộ cột của 600+ vật tư.
+      prisma.material.findMany({
+        where: { isActive: true },
+        orderBy: { code: "asc" },
+        select: { id: true, code: true, nameVn: true },
+      }),
       prisma.warehouse.findMany({
         where: vesselWhere(scope),
         orderBy: { code: "asc" },

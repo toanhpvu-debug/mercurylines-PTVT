@@ -18,13 +18,26 @@ import {
 export const dynamic = "force-dynamic";
 
 
-export default async function RequestsPage() {
+export default async function RequestsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ vessel?: string; status?: string }>;
+}) {
   const user = await requireScopedUser();
   const scope = vesselScope(user);
   const canModerate = ["ADMIN", "MASTER"].includes(user.role);
+  const params = await searchParams;
+  // Lọc theo tàu (link từ trang hồ sơ tàu) và theo trạng thái.
+  const vesselFilter = Number(params.vessel) || 0;
+  const statusFilter =
+    params.status && REQUEST_STATUS_LABEL[params.status] ? params.status : "";
   const [requests, vessels, materials] = await Promise.all([
     prisma.materialRequest.findMany({
-      where: vesselWhere(scope),
+      where: {
+        ...vesselWhere(scope),
+        ...(vesselFilter ? { vesselId: vesselFilter } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+      },
       orderBy: { createdAt: "desc" },
       include: {
         vessel: true,
@@ -81,7 +94,50 @@ export default async function RequestsPage() {
         />
       )}
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <h3 className="mb-4 text-lg font-semibold">Danh sách yêu cầu</h3>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold">
+            Danh sách yêu cầu ({requests.length})
+          </h3>
+          <form method="get" className="flex flex-wrap items-center gap-2">
+            {scope.all && (
+              <select
+                name="vessel"
+                defaultValue={vesselFilter ? String(vesselFilter) : ""}
+                className="rounded border p-1.5 text-sm"
+              >
+                <option value="">Tất cả tàu</option>
+                {vessels.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.code} — {v.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <select
+              name="status"
+              defaultValue={statusFilter}
+              className="rounded border p-1.5 text-sm"
+            >
+              <option value="">Mọi trạng thái</option>
+              {Object.entries(REQUEST_STATUS_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <button className="rounded bg-blue-700 px-3 py-1.5 text-sm text-white hover:bg-blue-800">
+              Lọc
+            </button>
+            {(vesselFilter || statusFilter) && (
+              <Link
+                href="/requests"
+                className="text-sm text-slate-600 hover:underline"
+              >
+                Bỏ lọc
+              </Link>
+            )}
+          </form>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full border text-sm">
             <thead>

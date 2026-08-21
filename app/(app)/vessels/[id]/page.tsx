@@ -1,13 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { canDeleteRequest, requireScopedUser, vesselScope } from "@/lib/auth";
+import { requireScopedUser, vesselScope } from "@/lib/auth";
 import VesselEditForm from "@/components/VesselEditForm";
 import VesselDeleteButton from "@/components/VesselDeleteButton";
-import InventoryForm from "@/components/InventoryForm";
-import RequestForm from "@/components/RequestForm";
-import RequestStatusForm from "@/components/RequestStatusForm";
-import RequestDeleteButton from "@/components/RequestDeleteButton";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +24,6 @@ export default async function VesselDetailPage({
   const user = await requireScopedUser();
   const scope = vesselScope(user);
   const canManage = user.role === "ADMIN";
-  const canTransact = ["ADMIN", "MASTER"].includes(user.role);
-  const canModerate = canTransact;
 
   const { id: idRaw } = await params;
   const id = Number(idRaw);
@@ -48,7 +42,7 @@ export default async function VesselDetailPage({
   if (!vessel) {
     notFound();
   }
-  const [inventories, materials, requests, documents] = await Promise.all([
+  const [inventories, requests, documents] = await Promise.all([
     prisma.inventory.findMany({
       where: { vesselId: id },
       orderBy: [{ warehouseId: "asc" }, { materialId: "asc" }],
@@ -56,10 +50,6 @@ export default async function VesselDetailPage({
         warehouse: true,
         material: true,
       },
-    }),
-    prisma.material.findMany({
-      where: { isActive: true },
-      orderBy: { code: "asc" },
     }),
     prisma.materialRequest.findMany({
       where: { vesselId: id },
@@ -103,12 +93,6 @@ export default async function VesselDetailPage({
           IMO: {vessel.imo || "—"} · Cờ: {vessel.flag || "—"} · Loại:{" "}
           {vessel.vesselType || "—"} · {vessel.warehouses.length} kho
         </p>
-        <a
-          href={`/api/export/inventory?vessel=${vessel.id}`}
-          className="mt-2 inline-block rounded border border-blue-200 bg-white px-3 py-1.5 text-sm text-blue-950 hover:bg-blue-50"
-        >
-          ⬇ Xuất kiểm kê vật tư (MLS-11-06)
-        </a>
       </div>
 
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
@@ -243,29 +227,16 @@ export default async function VesselDetailPage({
       </div>
 
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <h3 className="mb-4 text-lg font-semibold">
-          Tồn kho của {vessel.name}
-        </h3>
-        {canTransact && vessel.warehouses.length > 0 && (
-          <div className="mb-4 rounded border p-4">
-            <p className="mb-3 text-sm font-medium text-slate-600">
-              Nhập / xuất kho cho tàu này
-            </p>
-            <InventoryForm
-              materials={materials.map((material) => ({
-                id: material.id,
-                code: material.code,
-                nameVn: material.nameVn,
-              }))}
-              warehouses={vessel.warehouses.map((warehouse) => ({
-                id: warehouse.id,
-                code: warehouse.code,
-                name: warehouse.name,
-              }))}
-              returnTo={`/vessels/${vessel.id}`}
-            />
-          </div>
-        )}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-lg font-semibold">Tồn kho của {vessel.name}</h3>
+          {/* Nhập/xuất và xuất kiểm kê làm ở module Tồn kho — ở đây chỉ xem. */}
+          <Link
+            href={`/inventory?vessel=${vessel.id}`}
+            className="rounded border border-blue-200 bg-white px-3 py-1.5 text-sm text-blue-800 hover:bg-blue-50"
+          >
+            Nhập / xuất kho · Xuất kiểm kê →
+          </Link>
+        </div>
         {inventories.length === 0 ? (
           <p className="text-slate-600">Chưa có tồn kho.</p>
         ) : (
@@ -313,23 +284,17 @@ export default async function VesselDetailPage({
       </div>
 
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <h3 className="mb-4 text-lg font-semibold">
-          Yêu cầu vật tư của {vessel.name}
-        </h3>
-        <div className="mb-6">
-          <RequestForm
-            vessels={[{ id: vessel.id, code: vessel.code, name: vessel.name }]}
-            materials={materials.map((material) => ({
-              id: material.id,
-              code: material.code,
-              nameVn: material.nameVn,
-              uom: material.uom,
-              materialType: material.materialType,
-              partNumber: material.partNumber,
-              equipment: material.equipment,
-            }))}
-            defaultVesselId={vessel.id}
-          />
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-lg font-semibold">
+            Yêu cầu vật tư của {vessel.name}
+          </h3>
+          {/* Tạo, duyệt, xóa yêu cầu làm ở module Yêu cầu vật tư. */}
+          <Link
+            href={`/requests?vessel=${vessel.id}`}
+            className="rounded border border-blue-200 bg-white px-3 py-1.5 text-sm text-blue-800 hover:bg-blue-50"
+          >
+            Tạo / duyệt yêu cầu →
+          </Link>
         </div>
         {requests.length === 0 ? (
           <p className="text-slate-600">Chưa có yêu cầu vật tư nào.</p>
@@ -388,32 +353,6 @@ export default async function VesselDetailPage({
                         >
                           Xem / In
                         </Link>
-                        {canModerate &&
-                          request.status === "PENDING_MASTER" && (
-                            <Link
-                              href={`/requests/${request.id}`}
-                              className="rounded bg-green-100 px-3 py-1 text-center text-green-700 hover:bg-green-200"
-                            >
-                              Duyệt
-                            </Link>
-                          )}
-                        {canModerate && request.status === "APPROVED" && (
-                          <RequestStatusForm
-                            id={request.id}
-                            status="IN_PROCUREMENT"
-                            label="Chuyển mua sắm"
-                            className="rounded bg-blue-100 px-3 py-1 text-blue-700 hover:bg-blue-200 disabled:opacity-50"
-                            returnTo={`/vessels/${vessel.id}`}
-                          />
-                        )}
-                        {canDeleteRequest(user, request) && (
-                          <RequestDeleteButton
-                            id={request.id}
-                            requestNo={request.requestNo}
-                            returnTo={`/vessels/${vessel.id}`}
-                            className="rounded bg-red-100 px-3 py-1 text-center text-red-700 hover:bg-red-200 disabled:opacity-50"
-                          />
-                        )}
                       </div>
                     </td>
                   </tr>

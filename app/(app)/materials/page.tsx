@@ -141,13 +141,15 @@ export default async function MaterialsPage({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* Xuất kiểm kê MLS-11-06 nằm ở module Tồn kho — đúng ngữ cảnh và có
+              sẵn bộ lọc phạm vi. Trước đây nút này có ở 3 nơi cùng gọi một API. */}
           {isVesselMode && selectedVesselId && (
-            <a
-              href={`/api/export/inventory?vessel=${selectedVesselId}&type=${filterType}`}
+            <Link
+              href={`/inventory?vessel=${selectedVesselId}&type=${filterType}`}
               className="rounded border border-blue-200 bg-white px-4 py-2 text-sm text-blue-950 hover:bg-blue-50"
             >
-              ⬇ Xuất kiểm kê MLS-11-06
-            </a>
+              Tồn kho &amp; xuất kiểm kê →
+            </Link>
           )}
           {["ADMIN", "MASTER"].includes(user.role) && (
             <Link

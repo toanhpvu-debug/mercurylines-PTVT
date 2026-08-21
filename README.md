@@ -99,6 +99,23 @@ Danh mục và yêu cầu vật tư được dựng theo 3 mẫu Excel của cô
   - **Ô ký trên bản in** điền sẵn tên người lập (kèm ngày trình) và người duyệt (kèm ngày duyệt) thay vì để trống trơn.
   - **Xóa yêu cầu** (nút Xóa ở danh sách, trang chi tiết và trong trang tàu, có hộp xác nhận): **quản trị viên xóa được mọi yêu cầu**; thuyền trưởng/thuyền viên chỉ xóa yêu cầu **của tàu mình khi chưa duyệt** (nháp / chờ / từ chối / hủy) — yêu cầu đã duyệt hoặc đã chuyển mua sắm chỉ quản trị viên mới xóa được, để bảo toàn hồ sơ. Xóa yêu cầu thì các dòng vật tư trong đó cũng bị xóa theo.
 
+## Nguyên tắc bố cục: mỗi nghiệp vụ một chỗ
+
+Trang **hồ sơ tàu** (`/vessels/[id]`) chỉ để *xem*: thông tin tàu, danh sách kho, bảng tóm tắt
+tồn kho và yêu cầu, tài liệu gần đây. Mọi thao tác đều dẫn sang module chuyên trách, đã lọc
+sẵn theo tàu:
+
+| Muốn làm gì | Làm ở đâu |
+|---|---|
+| Nhập / xuất kho · Xuất kiểm kê MLS-11-06 | **Tồn kho** — `/inventory?vessel=<id>` |
+| Tạo · trình · duyệt · xóa yêu cầu | **Yêu cầu vật tư** — `/requests?vessel=<id>` |
+| Sửa danh mục vật tư của tàu | **Vật tư** — chọn tàu ở bộ chọn |
+
+Trước đây trang tàu nhúng luôn form nhập/xuất, form tạo yêu cầu và nút duyệt — tức là bản sao
+thu nhỏ của 3 module khác. Sửa logic ở module chính thì trang tàu lệch theo (đã xảy ra thật với
+tên kho và với luồng phê duyệt). Nút xuất kiểm kê từng có ở **3 nơi** cùng gọi một API, nay chỉ
+còn ở Tồn kho — nơi có sẵn bộ lọc phạm vi trước khi xuất.
+
 ## Tồn kho đội tàu (`/inventory`)
 
 Trang tồn kho bố cục theo luồng làm việc: **Tổng quan** (3 thẻ thống kê: số dòng, dưới tối thiểu, số tàu) → **Bộ lọc** thanh mỏng (tàu, kho, loại Store/Spare, tìm theo tên/mã/IMPA, "chỉ thiếu") → **Tồn kho nhóm theo tàu** (thẻ gập/mở có mũi tên chỉ trạng thái — tàu có cảnh báo tự mở kèm badge "N thiếu", tàu đủ gập gọn badge "đủ"; mỗi bảng có **thanh cuộn riêng + tiêu đề ghim cố định** để dò nhanh danh sách dài; nút **⬇ Xuất MLS-11-06** từng tàu; bên trong bảng sắp xếp theo **bộ phận tàu như form công ty: 🛳 Boong → ⚙️ Máy → ⚡ Điện → 🧺 Phục vụ/Tiêu hao → 🦺 An toàn** — mỗi bộ phận hiện số dòng + số thiếu, vật tư (Store) đứng trước, phụ tùng (Spare) xếp sau theo từng **nhóm thiết bị** có tiêu đề riêng, phân bộ phận tự động từ nhóm vật tư/thiết bị/mã kho) → **Nhập/xuất kho** (mục gập) → **Lịch sử giao dịch** (mục gập, cũng cuộn + ghim tiêu đề). Dòng thiếu tô đỏ + nhãn THIẾU; phụ tùng đánh dấu PT. Người bị giới hạn tàu không thể ép xem tàu khác qua URL.

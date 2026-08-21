@@ -5,6 +5,7 @@ import { requireScopedUser, vesselScope } from "@/lib/auth";
 import { getStandardForVessel } from "@/lib/formStandardsDb";
 import FormDocHeader from "@/components/FormDocHeader";
 import PrintButton from "@/components/PrintButton";
+import PurchaseOrderDeleteButton from "@/components/PurchaseOrderDeleteButton";
 import {
   POStatusButton,
   ReceiveGoodsForm,
@@ -96,6 +97,14 @@ export default async function PurchaseOrderDetailPage({
             Yêu cầu báo giá (RFQ)
           </Link>
           <PrintButton label="In đơn mua (PO)" />
+          {/* Dọn đơn đã hủy — điều kiện kiểm lại ở server. */}
+          {user.role === "ADMIN" && po.status === "CANCELLED" && (
+            <PurchaseOrderDeleteButton
+              id={po.id}
+              poNo={po.poNo}
+              className="rounded border border-red-300 px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+            />
+          )}
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import PurchaseOrderDeleteButton from "@/components/PurchaseOrderDeleteButton";
 import {
   requireScopedUser,
   vesselScope,
@@ -25,6 +26,8 @@ export default async function PurchasingPage() {
   const user = await requireScopedUser();
   const scope = vesselScope(user);
   const canManage = ["ADMIN", "MASTER"].includes(user.role);
+  // Xóa chứng từ mua sắm chỉ dành cho quản trị viên.
+  const canDeletePo = user.role === "ADMIN";
 
   const [pendingRequests, purchaseOrders] = await Promise.all([
     prisma.materialRequest.findMany({
@@ -224,12 +227,22 @@ export default async function PurchasingPage() {
                               : "—"}
                           </td>
                           <td className="p-2">
-                            <Link
-                              href={`/purchasing/${po.id}`}
-                              className="text-blue-700 hover:underline"
-                            >
-                              Xem
-                            </Link>
+                            <div className="flex items-center gap-3">
+                              <Link
+                                href={`/purchasing/${po.id}`}
+                                className="text-blue-700 hover:underline"
+                              >
+                                Xem
+                              </Link>
+                              {/* Đơn đã hủy là rác trong danh sách — cho quản
+                                  trị viên dọn. Điều kiện kiểm lại ở server. */}
+                              {canDeletePo && po.status === "CANCELLED" && (
+                                <PurchaseOrderDeleteButton
+                                  id={po.id}
+                                  poNo={po.poNo}
+                                />
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );

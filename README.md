@@ -211,6 +211,20 @@ Văn phòng lập đơn mua **không cần yêu cầu từ tàu**: chọn tàu +
 
 Đơn tạo ra ở trạng thái Nháp với đầy đủ trường thương mại (Subject, Y/ref, chiết khấu %, phí vận chuyển, phí giao lên tàu); từ trang đơn in được **Yêu cầu báo giá (IFQ/RFQ)** và **PO** theo biểu mẫu của tàu. Lưu ý: dòng của đơn trực tiếp không gắn với danh mục vật tư nên khi nhận hàng chỉ ghi nhận số lượng (không tự nhập kho). Quyền: ADMIN + Thuyền trưởng (theo phạm vi tàu).
 
+### Xóa đơn mua đã hủy
+
+Đơn đã hủy nằm lại làm rối danh sách. **Quản trị viên** xóa được chúng bằng nút *Xóa* ở
+danh sách mua sắm hoặc trang chi tiết đơn. Ba chốt chặn, đều kiểm ở tầng server chứ không
+chỉ ẩn nút:
+
+1. Chỉ **ADMIN** — xóa chứng từ mua sắm là việc hệ trọng.
+2. Chỉ đơn **Đã hủy**. Đơn đang xử lý phải bấm Hủy trước, để giữ vết là nó từng tồn tại.
+3. Chỉ khi **chưa nhận hàng**. Đã nhận nghĩa là tồn kho đã bị tác động — xóa đơn sẽ mất
+   căn cứ của số tồn đó, nên bị chặn kể cả khi đơn đã hủy.
+
+Dòng đơn có gắn với dòng yêu cầu thì phần "đã đặt" được trả lại cho yêu cầu, để yêu cầu đó
+quay về hàng chờ mua sắm.
+
 ### Nhà cung cấp (`/purchasing/suppliers`)
 
 ADMIN thêm / **sửa** (mục "Sửa thông tin nhà cung cấp" dưới mỗi dòng) / **Ngừng dùng–Dùng lại** / **Xóa** nhà cung cấp. Không thể xóa nhà cung cấp đã có đơn mua (giữ lịch sử) — hãy dùng Ngừng dùng.

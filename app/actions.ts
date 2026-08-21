@@ -2398,3 +2398,64 @@ export async function toggleUserActive(
   revalidatePath("/users");
   return { message: "", success: true };
 }
+
+// Xóa hẳn một đơn mua ĐÃ HỦY. Đơn hủy là rác trong danh sách nhưng vẫn phải
+// thận trọng: chỉ xóa khi chắc chắn nó chưa ảnh hưởng tới tồn kho hay yêu cầu.
+export async function deletePurchaseOrder(
+  _prevState: { message: string; success?: boolean },
+  formData: FormData
+): Promise<{ message: string; success?: boolean }> {
+  // Xóa chứng từ mua sắm là việc hệ trọng — chỉ quản trị viên.
+  const actor = await requireActiveRole(["ADMIN"]);
+  if (!actor) {
+    return { message: "Chỉ quản trị viên mới xóa được đơn mua." };
+  }
+  const id = Number(formData.get("id"));
+  if (!Number.isInteger(id) || id <= 0) {
+    return { message: "Dữ liệu không hợp lệ." };
+  }
+  const po = await prisma.purchaseOrder.findUnique({
+    where: { id },
+    include: { items: true },
+  });
+  if (!po) {
+    return { message: "Đơn mua đã bị xóa hoặc không tồn tại." };
+  }
+  const scope = vesselScope(actor);
+  if (!scope.all && po.vesselId !== scope.vesselId) {
+    return { message: NO_PERMISSION };
+  }
+  if (po.status !== "CANCELLED") {
+    return {
+      message:
+        "Chỉ xóa được đơn ĐÃ HỦY. Đơn đang xử lý thì hãy bấm Hủy trước, để giữ vết là nó từng tồn tại.",
+    };
+  }
+  // Đã nhận hàng nghĩa là tồn kho đã bị tác động — xóa đơn sẽ mất căn cứ của
+  // số tồn đó, nên chặn lại kể cả khi đơn đã hủy.
+  const received = po.items.reduce((s, i) => s + i.quantityReceived, 0);
+  if (received > 0) {
+    return {
+      message: `Không xóa được: đơn này đã nhận ${received} đơn vị hàng, xóa đi sẽ mất căn cứ của số tồn kho đã ghi.`,
+    };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Dòng đơn có gắn với dòng yêu cầu thì trả lại phần "đã đặt" cho yêu cầu,
+    // để yêu cầu đó lại hiện trong hàng chờ mua sắm.
+    for (const item of po.items) {
+      if (item.requestItemId) {
+        await tx.materialRequestItem.update({
+          where: { id: item.requestItemId },
+          data: { suppliedQuantity: { decrement: item.quantityReceived } },
+        });
+      }
+    }
+    // PurchaseOrderItem tự xóa theo (onDelete: Cascade).
+    await tx.purchaseOrder.delete({ where: { id } });
+  });
+
+  revalidatePath("/purchasing");
+  revalidatePath("/dashboard");
+  return { message: `Đã xóa đơn ${po.poNo}.`, success: true };
+}

@@ -41,7 +41,9 @@ export default function MaterialImportForm({
             value={vesselId}
             onChange={(e) => {
               setVesselId(e.target.value);
-              setWarehouseId("");
+              // File kiểm kê luôn có cột "Tồn trên tàu" nên mặc định là GHI TỒN
+              // theo sheet; muốn chỉ nạp danh mục thì chọn lại trong ô bên cạnh.
+              setWarehouseId(e.target.value ? "AUTO" : "");
             }}
             className="w-full rounded border p-2"
             required
@@ -70,28 +72,50 @@ export default function MaterialImportForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Ghi tồn (R.O.B) vào kho — tùy chọn
+            Ghi tồn (R.O.B) vào kho
           </span>
+          {/* Danh sách kho phụ thuộc tàu. Trước đây ô này bị khóa im lặng và chỉ
+              hiện "— Không ghi tồn —" nên trông như hỏng; nay nói rõ phải chọn tàu. */}
           <select
             name="warehouseId"
             value={warehouseId}
             onChange={(e) => setWarehouseId(e.target.value)}
-            className="w-full rounded border p-2"
+            className="w-full rounded border p-2 disabled:bg-slate-100 disabled:text-slate-500"
             disabled={!vesselId}
           >
-            <option value="">— Không ghi tồn —</option>
-            <option value="AUTO">
-              ⭑ Tự động theo sheet (Phụ tùng→kho máy, Boong→kho boong, còn
-              lại→kho tiêu hao)
-            </option>
-            {vesselWarehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.label}
-              </option>
-            ))}
+            {!vesselId ? (
+              <option value="">← Chọn tàu trước để hiện danh sách kho</option>
+            ) : (
+              <>
+                <option value="AUTO">
+                  ⭑ Tự động theo sheet (Phụ tùng→kho máy, Boong→kho boong, còn
+                  lại→kho tiêu hao)
+                </option>
+                {vesselWarehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.label}
+                  </option>
+                ))}
+                <option value="">— Không ghi tồn, chỉ nạp danh mục —</option>
+              </>
+            )}
           </select>
         </label>
       </div>
+
+      {vesselId && vesselWarehouses.length === 0 && (
+        <p className="rounded border border-yellow-300 bg-yellow-50 p-2 text-sm text-yellow-800">
+          Tàu này chưa có kho nào nên không ghi được tồn. Vào trang{" "}
+          <b>Đội tàu → chi tiết tàu</b> để tạo kho trước, hoặc cứ nhập danh mục
+          rồi ghi tồn sau.
+        </p>
+      )}
+      {warehouseId === "AUTO" && (
+        <p className="rounded border border-blue-200 bg-blue-50 p-2 text-sm text-blue-900">
+          Cột <b>Tồn trên tàu</b> trong file sẽ được ghi vào kho tương ứng với
+          từng sheet. Đây là cách dùng đúng cho file kiểm kê MLS-11-06.
+        </p>
+      )}
 
       <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4">
         <p className="mb-1 font-semibold text-blue-950">

@@ -2459,3 +2459,73 @@ export async function deletePurchaseOrder(
   revalidatePath("/dashboard");
   return { message: `Đã xóa đơn ${po.poNo}.`, success: true };
 }
+
+// Sửa vật tư ngay tại dòng trong bảng danh mục — không phải mở form riêng.
+export async function updateMaterial(
+  _prevState: { message: string; success?: boolean },
+  formData: FormData
+): Promise<{ message: string; success?: boolean }> {
+  if (!(await requireActiveRole(["ADMIN"]))) {
+    return { message: NO_PERMISSION };
+  }
+  const id = Number(formData.get("id"));
+  if (!Number.isInteger(id) || id <= 0) {
+    return { message: "Dữ liệu không hợp lệ." };
+  }
+  const before = await prisma.material.findUnique({ where: { id } });
+  if (!before) {
+    return { message: "Vật tư đã bị xóa hoặc không tồn tại." };
+  }
+
+  const str = (k: string) => String(formData.get(k) || "").trim();
+  const code = str("code");
+  const nameVn = str("nameVn");
+  if (!code || !nameVn) {
+    return { message: "Mã vật tư và tên vật tư là bắt buộc." };
+  }
+  const materialType = str("materialType") === "SPARE" ? "SPARE" : "STORE";
+  const equipment = str("equipment");
+  const categoryIdRaw = str("categoryId");
+  const minStock = Number(formData.get("minStock") || 0);
+  const maxStock = Number(formData.get("maxStock") || 0);
+  if (!Number.isFinite(minStock) || minStock < 0) {
+    return { message: "Tồn tối thiểu không hợp lệ." };
+  }
+  if (!Number.isFinite(maxStock) || maxStock < 0) {
+    return { message: "Tồn tối đa không hợp lệ." };
+  }
+
+  try {
+    await prisma.material.update({
+      where: { id },
+      data: {
+        code,
+        nameVn,
+        nameEn: str("nameEn") || null,
+        impa: str("impa") || null,
+        partNumber: str("partNumber") || null,
+        manufacturer: str("manufacturer") || null,
+        materialType,
+        // Thiết bị chỉ có nghĩa với phụ tùng — đổi sang Vật tư thì xóa đi cho
+        // khỏi treo dữ liệu cũ gây gom nhóm sai.
+        equipment: materialType === "SPARE" ? equipment || null : null,
+        uom: str("uom") || "PCS",
+        categoryId: categoryIdRaw ? Number(categoryIdRaw) : null,
+        minStock,
+        maxStock,
+        isCritical: formData.get("isCritical") === "on",
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return { message: `Mã vật tư "${code}" đã có ở vật tư khác.` };
+    }
+    throw error;
+  }
+  revalidatePath("/materials");
+  revalidatePath("/inventory");
+  return { message: `Đã lưu "${nameVn}".`, success: true };
+}

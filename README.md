@@ -174,6 +174,22 @@ ADMIN/Thuyền trưởng upload file theo form công ty để nạp nhanh danh m
 
 Vật tư trùng (theo IMPA / Part No / tên + thiết bị; mã giữ chỗ "-", "N/A" bị bỏ qua) chỉ được **gán vào tàu**, không tạo bản sao — nhập lại cùng file không sinh trùng lặp. Vật tư mới có mã `ML-IMP-####`. Trang **Dashboard** có mục **"Kiểm soát phụ tùng thiết yếu"**: đếm phụ tùng SPARE dưới mức tối thiểu trên toàn đội (theo phạm vi tàu) với thanh mức độ.
 
+### Sửa vật tư ngay tại bảng danh mục
+
+Nút **Sửa** ở mỗi dòng mở hộp thoại chỉnh đủ 13 trường: mã, tên Việt/Anh, loại, thiết bị,
+IMPA, Part No., Maker, nhóm, đơn vị, tồn tối thiểu/tối đa, và cờ *phụ tùng thiết yếu*.
+Không phải xoá đi tạo lại, cũng không phải mở trang riêng.
+
+Hai điều được kiểm ở tầng server:
+
+- **Mã trùng** bị chặn — báo rõ *"Mã vật tư … đã có ở vật tư khác"*.
+- **Đổi loại từ Phụ tùng sang Vật tư thì xoá luôn Thiết bị**, vì thiết bị chỉ có nghĩa với
+  phụ tùng — để sót lại sẽ làm gom nhóm sai ở trang danh mục và trang tồn kho.
+
+Ở chế độ **xem theo tàu**, nút Sửa vẫn có nhưng ẩn *Ngừng sử dụng* / *Xoá*: hai thao tác đó
+tác động lên bản ghi dùng chung toàn đội nên làm từ **Danh mục gốc** mới đúng ngữ cảnh.
+Chỉ quản trị viên thấy nút Sửa.
+
 ### Tìm kiếm và giới hạn hiển thị
 
 Danh mục có 600+ dòng nên trang **Vật tư** có ô **tìm theo tên / mã / IMPA / Part No / hãng /

@@ -168,6 +168,7 @@ export default async function MaterialsPage({
   // Tên nhóm lấy từ danh sách categories đã nạp — kiểu của rows không mang
   // quan hệ category nên không đọc thẳng m.category được.
   const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
+  const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name }));
   const byDept = new Map<string, Row[]>();
   for (const m of rows) {
     const key = departmentOfMaterial(
@@ -552,19 +553,61 @@ export default async function MaterialsPage({
                         )}
                         {isVesselMode && canEditVessel && (
                           <td className="p-2">
-                            <VesselMaterialRemoveButton
-                              vesselId={selectedVesselId!}
-                              materialId={material.id}
-                              code={material.code}
-                            />
+                            <div className="flex flex-col gap-1">
+                              {/* Sửa ở đây là sửa bản ghi dùng chung toàn đội,
+                                  nên chỉ quản trị viên mới thấy nút này. */}
+                              {canManageMaster && (
+                                <MaterialRowActions
+                                  material={{
+                                    id: material.id,
+                                    code: material.code,
+                                    nameVn: material.nameVn,
+                                    nameEn: material.nameEn,
+                                    impa: material.impa,
+                                    partNumber: material.partNumber,
+                                    manufacturer: material.manufacturer,
+                                    materialType: material.materialType,
+                                    equipment: material.equipment,
+                                    uom: material.uom,
+                                    categoryId: material.categoryId,
+                                    minStock: material.minStock,
+                                    maxStock: material.maxStock,
+                                    isCritical: material.isCritical,
+                                    isActive: material.isActive,
+                                  }}
+                                  categories={categoryOptions}
+                                  onlyEdit
+                                />
+                              )}
+                              <VesselMaterialRemoveButton
+                                vesselId={selectedVesselId!}
+                                materialId={material.id}
+                                code={material.code}
+                              />
+                            </div>
                           </td>
                         )}
                         {!isVesselMode && canManageMaster && (
                           <td className="p-2">
                             <MaterialRowActions
-                              id={material.id}
-                              code={material.code}
-                              isActive={material.isActive}
+                              material={{
+                                id: material.id,
+                                code: material.code,
+                                nameVn: material.nameVn,
+                                nameEn: material.nameEn,
+                                impa: material.impa,
+                                partNumber: material.partNumber,
+                                manufacturer: material.manufacturer,
+                                materialType: material.materialType,
+                                equipment: material.equipment,
+                                uom: material.uom,
+                                categoryId: material.categoryId,
+                                minStock: material.minStock,
+                                maxStock: material.maxStock,
+                                isCritical: material.isCritical,
+                                isActive: material.isActive,
+                              }}
+                              categories={categoryOptions}
                             />
                           </td>
                         )}

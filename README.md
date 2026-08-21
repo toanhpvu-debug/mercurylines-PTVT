@@ -6,6 +6,56 @@ Web app quản lý vật tư cho đội tàu: Dashboard cảnh báo tồn kho th
 
 **Giao diện:** tông xanh navy hàng hải chuyên nghiệp — sidebar navy gradient với logo nhận diện Mercury Lines (SVG vector, `components/MercuryLogo.tsx`), thẻ trắng viền xanh nhạt, nút chính xanh dương. Chứng từ mua sắm (PO, RFQ) in theo kiểu letterhead hiện đại của biểu mẫu công ty: logo chữ lồng, kẻ đôi navy, bảng hàng có đầu bảng navy (giữ màu khi in nhờ `print-color-adjust: exact`), khổ **A4 dọc**; các báo cáo MLS-11-01/11-13 vẫn in A4 ngang.
 
+## Database: PostgreSQL
+
+Dữ liệu nghiệp vụ nằm trong **PostgreSQL 17**. Trước đây dự án dùng SQLite (một file
+`prisma/dev.db`); bản SQLite gốc vẫn được giữ trong `E:ackup-mercury` để đối chiếu.
+
+### Chuyển từ SQLite sang PostgreSQL
+
+```
+1. Điền DATABASE_URL trong .env  (xem .env.example)
+2. tao-bang-postgres.cmd         — tạo 26 bảng theo schema
+3. chuyen-sang-postgres.cmd      — chép toàn bộ dữ liệu từ prisma/dev.db sang
+```
+
+Script chuyển dữ liệu ([`scripts/chuyen-sang-postgres.ts`](scripts/chuyen-sang-postgres.ts))
+dùng Prisma ở **cả hai đầu** — có một Prisma Client riêng chỉ để đọc SQLite, sinh từ
+[`prisma/schema.sqlite-doc.prisma`](prisma/schema.sqlite-doc.prisma) — nên không phải tự
+chuyển kiểu dữ liệu: SQLite lưu `DateTime` thành số epoch và `Boolean` thành 0/1, Prisma
+đọc ra `Date`/`boolean` rồi ghi sang Postgres đúng kiểu.
+
+Ba điểm đáng lưu ý trong script:
+
+- Chép **theo đúng thứ tự khóa ngoại** (Vessel trước User vì `User.vesselId` trỏ tới Vessel);
+  xoá thì đi ngược lại.
+- **Đặt lại bộ đếm id (sequence)** sau khi chép. Chép id sẵn có không làm sequence nhảy theo
+  — không đặt lại thì bản ghi tạo sau sẽ trùng id và lỗi khóa chính. Đây là lỗi kinh điển khi
+  chuyển sang PostgreSQL.
+- **Đối chiếu số lượng từng bảng** giữa hai bên ở cuối, báo rõ bảng nào lệch.
+
+Script chỉ **đọc** file SQLite, không sửa. Mặc định dừng nếu Postgres đã có dữ liệu; thêm
+`--ghi-de` để xoá sạch bên Postgres rồi chép lại.
+
+### Cài PostgreSQL trên máy Windows
+
+```bash
+winget install --id PostgreSQL.PostgreSQL.17 --silent --accept-package-agreements --override "--unattendedmodeui none --mode unattended --superpassword MAT_KHAU --serverport 5432"
+```
+
+Cài xong nó chạy dạng **dịch vụ Windows** (`postgresql-x64-17`), tự bật cùng máy. Tạo
+database và tài khoản riêng cho app — **không dùng tài khoản `postgres` cho ứng dụng**:
+
+```sql
+CREATE ROLE mercury LOGIN PASSWORD 'MAT_KHAU_RIENG';
+CREATE DATABASE mercury OWNER mercury ENCODING 'UTF8';
+```
+
+### Migration
+
+15 migration cũ là SQL kiểu SQLite, không chạy được trên PostgreSQL, nên đã gộp thành **một
+migration khởi tạo** cho Postgres. Bản cũ giữ ở `prisma/migrations-sqlite-cu` (đã gitignore).
+
 ## Chạy trên máy (development)
 
 ```bash

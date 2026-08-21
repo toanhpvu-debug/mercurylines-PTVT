@@ -1,1 +1,3 @@
-﻿provider = "postgresql"
+# Prisma dung file nay de biet migration duoc viet cho he quan tri nao.
+# Doi provider ma khong lam lai migration se gay loi P3019.
+provider = "postgresql"

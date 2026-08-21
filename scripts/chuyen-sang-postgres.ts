@@ -13,14 +13,25 @@
  * An toàn: chỉ ĐỌC file SQLite, không sửa. Chạy lại được — mặc định dừng nếu
  * Postgres đã có dữ liệu, thêm --ghi-de để xoá sạch bên Postgres rồi chép lại.
  */
+import path from "path";
+import { existsSync } from "fs";
+
 import { PrismaClient as PgClient } from "@prisma/client";
 import { PrismaClient as SqliteClient } from ".prisma/client-sqlite";
 
 const GHI_DE = process.argv.includes("--ghi-de");
 
+// Đường dẫn TUYỆT ĐỐI tới file SQLite. Đường dẫn tương đối bị Prisma hiểu theo
+// một gốc khác với thư mục chạy lệnh nên mở file thất bại.
+const FILE_SQLITE = path.resolve(process.cwd(), "prisma", "dev.db");
+if (!existsSync(FILE_SQLITE)) {
+  console.error(`Không thấy file SQLite: ${FILE_SQLITE}`);
+  process.exit(1);
+}
+
 const pg = new PgClient();
 const lite = new SqliteClient({
-  datasources: { db: { url: "file:./prisma/dev.db" } },
+  datasources: { db: { url: `file:${FILE_SQLITE.split(String.fromCharCode(92)).join("/")}` } },
 });
 
 /**

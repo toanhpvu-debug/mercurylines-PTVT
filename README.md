@@ -23,11 +23,26 @@ Hai thứ **không nằm trong repo** vì thuộc dữ liệu riêng của từn
 
 ### Script tiện dụng (bấm đúp trên Windows)
 
+Bấm đúp thẳng trong thư mục gốc của app, không cần mở terminal:
+
 | File | Việc |
 |---|---|
-| **`chay-app.cmd`** | **Dùng hằng ngày.** Chạy bản production — chỉ build lại khi mã nguồn đổi, không đổi thì khởi động trong ~2 giây |
-| `run-dev.cmd` | Chỉ dùng khi đang **sửa code** (có hot-reload). Chậm hơn production khoảng 50 lần |
-| `run-start.cmd` | Build + chạy, luôn build lại (~2 phút). Dùng khi muốn ép build sạch |
+| **`chay-app.cmd`** | **Dùng hằng ngày.** Chạy bản production, tự mở trình duyệt. Chỉ build lại khi mã nguồn đổi — không đổi thì sẵn sàng trong ~2 giây |
+| **`dung-app.cmd`** | Tắt app đang chạy ở cổng 3000 (khi lỡ mất cửa sổ, hoặc app còn chạy ngầm từ lần trước) |
+| `doi-chieu-danh-muc.cmd` | Đối chiếu danh mục vật tư từng tàu với file kiểm kê gốc |
+| `sao-luu-du-lieu.cmd` | Nén database + file upload + `.env` + biểu mẫu thành bản sao lưu |
+| `dong-bo-github.cmd` | Đẩy thay đổi mã nguồn lên GitHub |
+| `run-dev.cmd` | Chỉ khi đang **sửa code** (có hot-reload). Chậm hơn production ~50 lần |
+| `run-start.cmd` | Ép build lại từ đầu rồi chạy (~2 phút) |
+
+`chay-app.cmd` tự kiểm tra trước khi chạy và báo bằng tiếng Việt nếu thiếu điều kiện:
+thiếu `node_modules`, thiếu `.env`, thiếu `prisma/dev.db`, hoặc cổng 3000 đang bị chiếm
+(trường hợp này nó **không** giết tiến trình đang chạy mà chỉ hướng dẫn dùng `dung-app.cmd`).
+
+Node.js được dò động qua [`scripts/node-env.cmd`](scripts/node-env.cmd): ưu tiên Node cài
+trong hệ thống, không có thì lấy bản mới nhất đi kèm Playwright, rồi mới đến các vị trí cài
+thông thường. Trước đây đường dẫn Playwright bị ghim cứng kèm số phiên bản ở 4 file — Playwright
+cập nhật là cả 4 hỏng cùng lúc.
 | `dong-bo-github.cmd` | Đẩy thay đổi **mã nguồn** lên GitHub (add + commit + push) |
 | `sao-luu-du-lieu.cmd` | Nén **dữ liệu** (`prisma/dev.db`, `uploads/`, `.env`, `templates/*.xlsx`) thành `E:ackup-mercuryackup-<ngày giờ>.zip` |
 

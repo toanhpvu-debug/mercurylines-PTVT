@@ -57,3 +57,6 @@ next-env.d.ts
 
 # migration SQLite cu, giu lai de tra cuu - khong can dua len repo
 /prisma/migrations-sqlite-cu
+
+# Goi dong bo tau <-> van phong: chua du lieu that cua cong ty
+dong-bo/

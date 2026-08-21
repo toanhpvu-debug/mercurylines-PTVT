@@ -9,7 +9,7 @@ Web app quản lý vật tư cho đội tàu: Dashboard cảnh báo tồn kho th
 ## Database: PostgreSQL
 
 Dữ liệu nghiệp vụ nằm trong **PostgreSQL 17**. Trước đây dự án dùng SQLite (một file
-`prisma/dev.db`); bản SQLite gốc vẫn được giữ trong `E:ackup-mercury` để đối chiếu.
+`prisma/dev.db`); bản SQLite gốc vẫn được giữ trong `E:\backup-mercury` để đối chiếu.
 
 ### Chuyển từ SQLite sang PostgreSQL
 
@@ -80,13 +80,16 @@ Bấm đúp thẳng trong thư mục gốc của app, không cần mở terminal
 | **`chay-app.cmd`** | **Dùng hằng ngày.** Chạy bản production, tự mở trình duyệt. Chỉ build lại khi mã nguồn đổi — không đổi thì sẵn sàng trong ~2 giây |
 | **`dung-app.cmd`** | Tắt app đang chạy ở cổng 3000 (khi lỡ mất cửa sổ, hoặc app còn chạy ngầm từ lần trước) |
 | `doi-chieu-danh-muc.cmd` | Đối chiếu danh mục vật tư từng tàu với file kiểm kê gốc |
-| `sao-luu-du-lieu.cmd` | Nén database + file upload + `.env` + biểu mẫu thành bản sao lưu |
+| `sao-luu-du-lieu.cmd` | Nén bản chụp PostgreSQL (`pg_dump`) + file upload + `.env` + biểu mẫu thành bản sao lưu |
 | `dong-bo-github.cmd` | Đẩy thay đổi mã nguồn lên GitHub |
 | `run-dev.cmd` | Chỉ khi đang **sửa code** (có hot-reload). Chậm hơn production ~50 lần |
+| `khai-bao-ban-cai.cmd` | Khai báo bản cài này là của tàu nào (`ML-001`) hay là văn phòng (`VANPHONG`) — chạy một lần sau khi cài |
+| `dong-bo-xuat.cmd` | Xuất gói đồng bộ (`.json`) để gửi sang bên kia |
+| `dong-bo-nhap.cmd` | Nhập gói đồng bộ bên kia gửi tới |
 | `run-start.cmd` | Ép build lại từ đầu rồi chạy (~2 phút) |
 
 `chay-app.cmd` tự kiểm tra trước khi chạy và báo bằng tiếng Việt nếu thiếu điều kiện:
-thiếu `node_modules`, thiếu `.env`, thiếu `prisma/dev.db`, hoặc cổng 3000 đang bị chiếm
+thiếu `node_modules`, thiếu `.env`, hoặc cổng 3000 đang bị chiếm
 (trường hợp này nó **không** giết tiến trình đang chạy mà chỉ hướng dẫn dùng `dung-app.cmd`).
 
 Node.js được dò động qua [`scripts/node-env.cmd`](scripts/node-env.cmd): ưu tiên Node cài
@@ -94,7 +97,7 @@ trong hệ thống, không có thì lấy bản mới nhất đi kèm Playwright
 thông thường. Trước đây đường dẫn Playwright bị ghim cứng kèm số phiên bản ở 4 file — Playwright
 cập nhật là cả 4 hỏng cùng lúc.
 | `dong-bo-github.cmd` | Đẩy thay đổi **mã nguồn** lên GitHub (add + commit + push) |
-| `sao-luu-du-lieu.cmd` | Nén **dữ liệu** (`prisma/dev.db`, `uploads/`, `.env`, `templates/*.xlsx`) thành `E:ackup-mercuryackup-<ngày giờ>.zip` |
+| `sao-luu-du-lieu.cmd` | Nén **dữ liệu** (bản chụp PostgreSQL bằng `pg_dump`, `uploads/`, `.env`, `templates/*.xlsx`) thành `E:\backup-mercury\backup-<ngày giờ>.zip` |
 
 Hai script cuối tách bạch có chủ ý: **GitHub chỉ giữ mã nguồn, không giữ dữ liệu vận hành**.
 Đẩy code lên GitHub bao nhiêu lần cũng không sao lưu được tồn kho, đơn mua hay file báo cáo đã tải lên —
@@ -127,22 +130,78 @@ npm run start
 docker compose up -d --build
 ```
 
-App chạy tại `http://localhost:3000`. Database SQLite nằm trong volume `mercury-data` (đường dẫn `/data/mercury.db` trong container) nên dữ liệu **không mất khi rebuild/restart**. Lần khởi động đầu tiên tự chạy migration + seed dữ liệu mẫu.
+`docker compose` dựng hai container: `db` (PostgreSQL 17) và `web` (app). App chạy tại
+`http://localhost:3000`. Dữ liệu PostgreSQL nằm trong volume `mercury-db` nên **không mất
+khi rebuild/restart**; file báo cáo tải lên nằm trong volume `mercury-data`. `web` chỉ khởi
+động sau khi `db` báo khỏe (healthcheck `pg_isready`), lần đầu tự chạy migration + seed.
 
 ## Triển khai online
 
-App dùng SQLite (ghi file trực tiếp) nên cần nền tảng có **ổ đĩa bền vững (persistent disk/volume)**. Các lựa chọn đã được chuẩn bị sẵn qua `Dockerfile`:
+App cần một PostgreSQL và một thư mục lưu file tải lên. Các lựa chọn đã chuẩn bị sẵn:
 
 | Nền tảng | Cách làm |
 |---|---|
-| **Railway** (dễ nhất) | Tạo project từ repo GitHub → Railway tự nhận `Dockerfile` → thêm **Volume** mount vào `/data` → deploy. |
-| **Render** | New Web Service → chọn repo → Runtime: Docker → thêm **Disk** mount `/data` (1 GB là đủ). |
-| **Fly.io** | `fly launch` (nhận Dockerfile) → `fly volumes create mercury_data` → mount vào `/data` trong `fly.toml`. |
-| **Hostinger VPS** | Template Docker + Caddy tự cấp HTTPS — có sẵn cấu hình và hướng dẫn từng bước ở [`deploy/HOSTINGER.md`](deploy/HOSTINGER.md). |
-| **VPS bất kỳ** (đã có Docker) | Copy thư mục dự án lên server → `docker compose up -d --build` → trỏ domain/Nginx vào cổng 3000. |
-| **Vercel** | Serverless không ghi được file SQLite. Muốn dùng Vercel phải chuyển `DATABASE_URL` sang database hosted (Turso/libSQL hoặc Postgres + đổi `provider` trong `prisma/schema.prisma`). |
+| **Hostinger VPS** | Có sẵn cấu hình + hướng dẫn từng bước ở [`deploy/HOSTINGER.md`](deploy/HOSTINGER.md) (Docker + Caddy tự cấp HTTPS). |
+| **VPS bất kỳ** (đã có Docker) | Copy thư mục dự án lên server → đặt `POSTGRES_PASSWORD` trong `.env` → `docker compose up -d --build`. |
+| **Railway / Render / Fly.io** | Tạo service Postgres của nền tảng → trỏ `DATABASE_URL` vào đó → deploy `Dockerfile`, mount đĩa cho `UPLOAD_DIR`. |
+| **Vercel** | Chạy được, nhưng phải dùng Postgres hosted (Neon/Supabase/…) và lưu file tải lên ở object storage, vì serverless không có đĩa bền vững. |
 
-Biến môi trường: `DATABASE_URL` (mặc định trong Docker là `file:/data/mercury.db`), `SESSION_SECRET` (xem mục Đăng nhập & phân quyền), và `UPLOAD_DIR` (thư mục lưu file báo cáo tải lên, mặc định Docker `/data/uploads` — nằm cùng volume với database nên không mất khi rebuild).
+Biến môi trường: `DATABASE_URL` (chuỗi kết nối PostgreSQL), `SESSION_SECRET` (xem mục Đăng
+nhập & phân quyền), `UPLOAD_DIR` (thư mục lưu file báo cáo, mặc định Docker `/data/uploads`),
+và `POSTGRES_PASSWORD` khi dùng container `db` của `docker-compose`.
+
+## Làm việc khi mất mạng — mỗi tàu một bản, đồng bộ về văn phòng
+
+Tàu đi biển không có internet ổn định, nên app **không** phụ thuộc vào mạng: mỗi tàu chạy một
+bản app + PostgreSQL riêng ngay trên máy tàu. Toàn bộ nghiệp vụ (nhập xuất kho, yêu cầu vật
+tư, sơn, chằng buộc, báo cáo) làm bình thường khi mất mạng hoàn toàn. Khi có mạng trở lại thì
+trao đổi **gói đồng bộ** dạng một file `.json` — gửi qua email, USB, hay bất cứ cách nào.
+
+Chia được như vậy vì 13 bảng nghiệp vụ đều gắn với **một tàu cụ thể**: tàu A không bao giờ ghi
+vào dữ liệu tàu B, nên gộp lại gần như không có xung đột. Chỉ danh mục dùng chung (vật tư,
+nhóm, sơn, nhà cung cấp, biểu mẫu) là do văn phòng quản lý và tàu chỉ nhận về.
+
+### Khai báo bản cài (làm MỘT LẦN sau khi cài)
+
+```bash
+khai-bao-ban-cai.cmd ML-001
+```
+
+Trên máy văn phòng thì chạy `khai-bao-ban-cai.cmd VANPHONG`.
+
+Lệnh này còn đặt **dải id riêng** cho tàu — điểm mấu chốt để gộp dữ liệu. Văn phòng giữ dải
+`1 → 999.999`, mỗi tàu một triệu id: ML-001 từ `1.000.000`, ML-002 từ `2.000.000`… Nhờ vậy hai
+tàu cùng tạo bản ghi mới sẽ không đụng id nhau khi gửi về văn phòng. Chưa khai báo thì các
+lệnh đồng bộ từ chối chạy.
+
+### Vòng đồng bộ
+
+| Bước | Chạy ở | Lệnh | Kết quả |
+|---|---|---|---|
+| 1 | Tàu | `dong-bo-xuat.cmd` | Tạo `dong-bo/dongbo-ML-001-….json` — dữ liệu tàu đã thay đổi |
+| 2 | Văn phòng | `dong-bo-nhap.cmd <file>` | Gộp dữ liệu tàu vào cơ sở dữ liệu văn phòng |
+| 3 | Văn phòng | `dong-bo-xuat.cmd` | Tạo `dong-bo/dongbo-VANPHONG-….json` — danh mục dùng chung mới |
+| 4 | Tàu | `dong-bo-nhap.cmd <file>` | Tàu nhận danh mục cập nhật |
+
+Không truyền tham số thì `dong-bo-nhap.cmd` tự lấy file `.json` **mới nhất theo thời gian**
+trong thư mục `dong-bo/`.
+
+Vài điểm đã tính sẵn:
+
+- **Chỉ gửi phần thay đổi.** Lần xuất đầu lấy tất cả, các lần sau chỉ lấy bản ghi đổi sau mốc
+  lần trước (lưu ở bảng `SyncState`). Mốc mới được chốt *trước* khi đọc dữ liệu và chỉ ghi lại
+  *sau* khi file đã nằm trên đĩa, nên hỏng giữa chừng thì lần sau xuất lại, không mất bản ghi.
+- **Nhập lại cùng một gói không sinh dữ liệu trùng.** Nhập theo id: chưa có thì tạo, có rồi thì
+  cập nhật. Gửi nhầm gói hai lần vẫn an toàn.
+- **Chặn nhập nhầm chiều.** Gói của tàu chỉ nhập được ở văn phòng và ngược lại — tránh việc
+  dữ liệu cũ ghi đè dữ liệu mới.
+- **Bộ đếm id luôn nằm trong dải của bản cài.** Sau khi văn phòng nhập gói tàu, id lớn nhất
+  trong bảng là id của tàu; nếu đặt bộ đếm theo id lớn nhất chung thì bản ghi văn phòng tạo
+  sau đó sẽ rơi vào dải tàu và đụng độ ở lần đồng bộ sau. Vì vậy bộ đếm chỉ xét những id
+  thuộc dải của chính bản cài này.
+
+Thư mục `dong-bo/` chứa dữ liệu thật của công ty nên **không** được đưa lên Git (đã có trong
+`.gitignore`).
 
 ## Đăng nhập & phân quyền
 

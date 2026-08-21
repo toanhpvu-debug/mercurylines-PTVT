@@ -1,7 +1,7 @@
 ﻿# Sao lưu dữ liệu vận hành của Mercury Materials.
 #
 # Sao lưu đúng những thứ KHÔNG nằm trên GitHub (vì chúng là dữ liệu, không phải mã nguồn):
-#   - prisma\dev.db          database: tồn kho, yêu cầu, đơn mua, tài khoản...
+#   - database\mercury.dump  bản chụp PostgreSQL: tồn kho, yêu cầu, đơn mua, tài khoản...
 #   - uploads\               file báo cáo tàu đã tải lên
 #   - .env                   khóa session + thông tin công ty in trên chứng từ
 #   - templates\*.xlsx       biểu mẫu Excel gốc của công ty
@@ -37,28 +37,79 @@ New-Item -ItemType Directory -Path $staging -Force | Out-Null
 
 $found = @()
 
-# --- 1. Database ---
-$db = Join-Path $proj "prisma\dev.db"
-if (Test-Path $db) {
-    New-Item -ItemType Directory -Path (Join-Path $staging "prisma") -Force | Out-Null
-    $dbOut = Join-Path $staging "prisma\dev.db"
-    # Ưu tiên SQLite Online Backup API (chụp nhất quán kể cả khi app đang ghi).
-    # Không có Python thì chép thẳng file — vẫn đúng khi app đang rảnh.
-    $copied = $false
-    if (Get-Command python -ErrorAction SilentlyContinue) {
-        $py = "import sqlite3,sys" + "`n" +
-              "s=sqlite3.connect(sys.argv[1]); d=sqlite3.connect(sys.argv[2])" + "`n" +
-              "s.backup(d); d.close(); s.close()"
-        try {
-            $py | python - $db $dbOut
-            if ($LASTEXITCODE -eq 0 -and (Test-Path $dbOut)) { $copied = $true }
-        } catch { }
+# --- 1. Database (PostgreSQL) ---
+# Đọc DATABASE_URL trong .env rồi gọi pg_dump. Trước đây script chép file
+# prisma\dev.db; sau khi chuyển sang PostgreSQL thì file đó chỉ còn là bản
+# SQLite cũ đóng băng — sao lưu nó là sao lưu nhầm, dữ liệu thật vẫn nằm trong
+# PostgreSQL.
+$envFile = Join-Path $proj ".env"
+$dbUrl = $null
+if (Test-Path $envFile) {
+    foreach ($line in Get-Content $envFile) {
+        if ($line -match '^\s*DATABASE_URL\s*=\s*"?([^"]+)"?\s*$') { $dbUrl = $Matches[1]; break }
     }
-    if (-not $copied) { Copy-Item $db $dbOut -Force }
-    $found += "prisma\dev.db  ({0:N0} KB)" -f ((Get-Item $dbOut).Length / 1KB)
-} else {
-    Write-Host "! Không tìm thấy prisma\dev.db" -ForegroundColor Yellow
 }
+
+if (-not $dbUrl) {
+    throw "Không đọc được DATABASE_URL trong $envFile — không biết sao lưu database nào."
+}
+
+# postgresql://user:pass@host:port/db?schema=public
+if ($dbUrl -notmatch '^postgres(ql)?://([^:]+):([^@]*)@([^:/]+):(\d+)/([^?]+)') {
+    throw "DATABASE_URL không phải chuỗi kết nối PostgreSQL hợp lệ: $dbUrl"
+}
+$pgUser = $Matches[2]
+$pgPass = [System.Uri]::UnescapeDataString($Matches[3])
+$pgHost = $Matches[4]
+$pgPort = $Matches[5]
+$pgName = $Matches[6]
+
+# Tìm pg_dump: ưu tiên trong PATH, không có thì dò thư mục cài PostgreSQL.
+$pgDump = (Get-Command pg_dump -ErrorAction SilentlyContinue).Source
+if (-not $pgDump) {
+    $cand = Get-ChildItem "C:\Program Files\PostgreSQL" -Directory -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending |
+            ForEach-Object { Join-Path $_.FullName "bin\pg_dump.exe" } |
+            Where-Object { Test-Path $_ } |
+            Select-Object -First 1
+    $pgDump = $cand
+}
+if (-not $pgDump) {
+    throw "Không tìm thấy pg_dump.exe. Cài PostgreSQL client hoặc thêm thư mục bin vào PATH."
+}
+
+New-Item -ItemType Directory -Path (Join-Path $staging "database") -Force | Out-Null
+$dumpOut = Join-Path $staging "database\mercury.dump"
+
+# Định dạng custom (-Fc): nén sẵn, khôi phục bằng pg_restore, chọn được từng bảng.
+$env:PGPASSWORD = $pgPass
+try {
+    & $pgDump -h $pgHost -p $pgPort -U $pgUser -d $pgName -Fc -f $dumpOut
+    if ($LASTEXITCODE -ne 0) { throw "pg_dump trả về mã lỗi $LASTEXITCODE" }
+} finally {
+    Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+}
+$found += "database\mercury.dump  ({0:N0} KB)" -f ((Get-Item $dumpOut).Length / 1KB)
+
+# Kèm luôn lệnh khôi phục — lúc cần dùng bản sao lưu thường là lúc hoảng.
+$huongDan = @"
+KHÔI PHỤC DỮ LIỆU MERCURY MATERIALS
+===================================
+
+File mercury.dump là bản chụp toàn bộ database PostgreSQL (định dạng custom).
+
+1. Tạo database rỗng (nếu chưa có):
+     createdb -U postgres $pgName
+
+2. Khôi phục:
+     pg_restore -h $pgHost -p $pgPort -U $pgUser -d $pgName --clean --if-exists mercury.dump
+
+3. Chép uploads\, .env, templates\ trở lại thư mục dự án.
+
+Chụp lúc: $(Get-Date -Format "yyyy-MM-dd HH:mm")
+Nguồn   : $pgHost`:$pgPort/$pgName
+"@
+Set-Content -Path (Join-Path $staging "database\CACH-KHOI-PHUC.txt") -Value $huongDan -Encoding utf8
 
 # --- 2. File báo cáo tàu tải lên ---
 $up = Join-Path $proj "uploads"
@@ -108,4 +159,5 @@ $all | Select-Object -First 8 | ForEach-Object {
 }
 if ($all.Count -gt 8) { Write-Host "   ... và $($all.Count - 8) bản cũ hơn" }
 Write-Host ""
-Write-Host "Cách phục hồi: giải nén file zip rồi chép đè các thư mục vào $proj" -ForegroundColor DarkGray
+Write-Host "Cách phục hồi: giải nén file zip, chép đè uploads/.env/templates vào $proj," -ForegroundColor DarkGray
+Write-Host "               riêng database dùng pg_restore — xem database\CACH-KHOI-PHUC.txt trong zip." -ForegroundColor DarkGray

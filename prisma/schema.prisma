@@ -518,3 +518,36 @@ model PaintJobLine {
   @@index([jobId])
   @@index([productId])
 }
+
+// ─── Đồng bộ tàu ↔ văn phòng ────────────────────────────────────────────────
+// Mỗi tàu chạy một bản app riêng, làm việc không cần mạng. Khi có mạng thì
+// xuất phần thay đổi thành gói và gửi về văn phòng, đồng thời nhận danh mục
+// dùng chung mới về.
+
+model SyncState {
+  id Int @id @default(autoincrement())
+  /** "GUI_DI" = tàu gửi lên văn phòng, "NHAN_VE" = nhận từ văn phòng. */
+  huong String
+  /** Mã tàu của bản cài này; văn phòng để trống. */
+  vesselCode String?
+  /** Mốc thời gian của lần đồng bộ gần nhất — lần sau chỉ lấy thay đổi sau mốc này. */
+  lastSyncAt DateTime
+  /** Số bản ghi của lần gần nhất, để đối chiếu khi có nghi ngờ. */
+  lastCount Int      @default(0)
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([huong, vesselCode])
+}
+
+// Bản cài này là của tàu nào (hoặc là văn phòng). Chỉ có đúng một dòng.
+model SiteConfig {
+  id Int @id @default(1)
+  /** Mã tàu nếu là bản cài trên tàu; để trống nghĩa là bản văn phòng. */
+  vesselCode String?
+  /** Dải id dành riêng cho bản cài này, tránh trùng id khi gộp dữ liệu. */
+  idRangeStart BigInt @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

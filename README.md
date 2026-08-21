@@ -174,6 +174,15 @@ ADMIN/Thuyền trưởng upload file theo form công ty để nạp nhanh danh m
 
 Vật tư trùng (theo IMPA / Part No / tên + thiết bị; mã giữ chỗ "-", "N/A" bị bỏ qua) chỉ được **gán vào tàu**, không tạo bản sao — nhập lại cùng file không sinh trùng lặp. Vật tư mới có mã `ML-IMP-####`. Trang **Dashboard** có mục **"Kiểm soát phụ tùng thiết yếu"**: đếm phụ tùng SPARE dưới mức tối thiểu trên toàn đội (theo phạm vi tàu) với thanh mức độ.
 
+### Tìm kiếm và giới hạn hiển thị
+
+Danh mục có 600+ dòng nên trang **Vật tư** có ô **tìm theo tên / mã / IMPA / Part No / hãng /
+thiết bị**, và mặc định chỉ hiện **40 dòng đầu mỗi bộ phận** kèm link *xem tất cả*.
+
+Lý do không hiện hết mặc định: dựng đủ 606 dòng tạo hơn **20.000 phần tử DOM** và 109 KB HTML —
+trình duyệt bắt đầu ì từ khoảng 10.000 phần tử. Cắt còn 40 dòng/bộ phận đưa về **6.886 phần tử,
+43 KB**, còn tìm kiếm thì thường ra dưới 500 phần tử.
+
 ### Đối chiếu danh mục với file kiểm kê gốc
 
 `doi-chieu-danh-muc.cmd` so danh mục vật tư của **từng tàu** trong app với đúng các file kiểm kê

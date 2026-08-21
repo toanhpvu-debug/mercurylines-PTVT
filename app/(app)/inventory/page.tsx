@@ -2,7 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
-  compareWithinDepartment,
+  sortWithinDepartment,
   DEPARTMENTS,
   departmentOfMaterial,
 } from "@/lib/departments";
@@ -142,14 +142,13 @@ export default async function InventoryPage({
       inv.material.materialType
     );
   const deptSections = DEPARTMENTS;
-  const withCat = (m: InvRow["material"]) => ({
-    ...m,
-    categoryName: m.category?.name ?? null,
-  });
   const sortDeptRows = (rows: InvRow[]) =>
-    [...rows].sort((a, b) =>
-      compareWithinDepartment(withCat(a.material), withCat(b.material))
-    );
+    sortWithinDepartment(rows, (inv) => ({
+      materialType: inv.material.materialType,
+      equipment: inv.material.equipment,
+      categoryName: inv.material.category?.name ?? null,
+      nameVn: inv.material.nameVn,
+    }));
 
   return (
     <div className="space-y-4">

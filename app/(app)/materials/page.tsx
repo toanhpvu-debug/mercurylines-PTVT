@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
-  compareWithinDepartment,
+  sortWithinDepartment,
   DEPARTMENTS,
   departmentOfMaterial,
   equipmentOf,
@@ -25,12 +25,19 @@ export const dynamic = "force-dynamic";
 export default async function MaterialsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; vessel?: string }>;
+  searchParams: Promise<{
+    type?: string;
+    vessel?: string;
+    q?: string;
+    full?: string;
+  }>;
 }) {
   const user = await requireScopedUser();
   const scope = vesselScope(user);
   const canManageMaster = user.role === "ADMIN";
-  const { type, vessel: vesselParam } = await searchParams;
+  const { type, vessel: vesselParam, q: qRaw, full } = await searchParams;
+  const q = String(qRaw ?? "").trim().toLowerCase();
+  const showAll = full === "1";
   const filterType =
     type === "SPARE" ? "SPARE" : type === "STORE" ? "STORE" : "ALL";
 
@@ -74,6 +81,8 @@ export default async function MaterialsPage({
     const params = new URLSearchParams();
     if (nextType !== "ALL") params.set("type", nextType);
     if (nextVessel) params.set("vessel", nextVessel);
+    if (q) params.set("q", qRaw ?? "");
+    if (showAll) params.set("full", "1");
     const qs = params.toString();
     return qs ? `/materials?${qs}` : "/materials";
   };
@@ -132,9 +141,26 @@ export default async function MaterialsPage({
     });
   }
 
-  const rows = isVesselMode
+  const allRows = isVesselMode
     ? assignedMaterials.map((a) => a.material!).filter(Boolean)
     : masterMaterials;
+  // Tìm theo tên / mã / IMPA / Part No / hãng / thiết bị — 600+ dòng mà không
+  // có ô tìm thì phải cuộn tay.
+  const rows = q
+    ? allRows.filter((m) =>
+        [
+          m.nameVn,
+          m.nameEn,
+          m.code,
+          m.impa,
+          m.partNumber,
+          m.manufacturer,
+          m.equipment,
+        ]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q))
+      )
+    : allRows;
 
   // Nhóm theo bộ phận tàu như form công ty: Boong → Máy → Điện → Phục vụ →
   // An toàn → Khác. Trong mỗi bộ phận: vật tư trước, phụ tùng sau theo thiết bị.
@@ -156,17 +182,29 @@ export default async function MaterialsPage({
     if (list) list.push(m);
     else byDept.set(key, [m]);
   }
-  // Gắn kèm tên nhóm để suy ra thiết bị (file kiểm kê ghi thiết bị ở cột Nhóm).
-  const withCategory = (m: Row) => ({
-    ...m,
-    categoryName: m.categoryId ? (categoryNameById.get(m.categoryId) ?? null) : null,
-  });
-  const deptGroups = DEPARTMENTS.map((d) => ({
-    ...d,
-    rows: (byDept.get(d.key) ?? [])
-      .map(withCategory)
-      .sort(compareWithinDepartment),
-  })).filter((d) => d.rows.length > 0);
+  // Thiết bị suy từ tên Nhóm (file kiểm kê ghi thiết bị ở cột Nhóm).
+  // Trang này từng dựng hơn 20.000 phần tử DOM khi hiện hết 600 dòng — trình
+  // duyệt ì hẳn. Mặc định cắt bớt mỗi bộ phận; muốn xem hết thì bấm "Xem tất cả".
+  const PER_DEPT_LIMIT = 40;
+  const deptGroups = DEPARTMENTS.map((d) => {
+    const sorted = sortWithinDepartment(byDept.get(d.key) ?? [], (m) => ({
+      materialType: m.materialType,
+      equipment: m.equipment,
+      categoryName: m.categoryId
+        ? (categoryNameById.get(m.categoryId) ?? null)
+        : null,
+      nameVn: m.nameVn,
+    }));
+    return {
+      ...d,
+      total: sorted.length,
+      rows: showAll ? sorted : sorted.slice(0, PER_DEPT_LIMIT),
+    };
+  }).filter((d) => d.total > 0);
+  const hiddenCount = deptGroups.reduce(
+    (n, d) => n + (d.total - d.rows.length),
+    0
+  );
   // Số cột của bảng — dùng cho ô tiêu đề nhóm trải hết chiều ngang.
   const colCount =
     9 +
@@ -270,6 +308,35 @@ export default async function MaterialsPage({
             {tab.label}
           </Link>
         ))}
+        <form method="get" className="ml-auto flex items-center gap-2">
+          {filterType !== "ALL" && (
+            <input type="hidden" name="type" value={filterType} />
+          )}
+          {isVesselMode && (
+            <input type="hidden" name="vessel" value={vesselKey} />
+          )}
+          {showAll && <input type="hidden" name="full" value="1" />}
+          <input
+            name="q"
+            defaultValue={qRaw ?? ""}
+            placeholder="Tìm tên, mã, IMPA, Part No, hãng..."
+            className="w-64 rounded border p-1.5 text-sm"
+          />
+          <button className="rounded bg-blue-700 px-3 py-1.5 text-sm text-white hover:bg-blue-800">
+            Tìm
+          </button>
+          {q && (
+            <Link
+              href={buildHref(filterType, isVesselMode ? vesselKey : null).replace(
+                /[?&]q=[^&]*/,
+                ""
+              )}
+              className="text-sm text-slate-600 hover:underline"
+            >
+              Xóa tìm
+            </Link>
+          )}
+        </form>
       </div>
 
       {!isVesselMode && !scope.all ? (
@@ -384,7 +451,15 @@ export default async function MaterialsPage({
                             </td>
                           </tr>
                           {dept.rows.map((material) => {
-                            const equip = equipmentOf(material);
+                            const equip = equipmentOf({
+                              materialType: material.materialType,
+                              equipment: material.equipment,
+                              categoryName: material.categoryId
+                                ? (categoryNameById.get(material.categoryId) ??
+                                  null)
+                                : null,
+                              nameVn: material.nameVn,
+                            });
                             const showEquipHeader =
                               equip !== null && equip !== lastEquip;
                             if (equip !== null) lastEquip = equip;
@@ -503,6 +578,29 @@ export default async function MaterialsPage({
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {hiddenCount > 0 && (
+              <div className="mt-3 rounded border border-blue-200 bg-blue-50 p-3 text-sm">
+                Đang hiện {PER_DEPT_LIMIT} dòng đầu mỗi bộ phận — còn{" "}
+                <b>{hiddenCount} dòng</b> chưa hiện. Dùng ô tìm kiếm để lọc cho
+                nhanh, hoặc{" "}
+                <Link
+                  href={`${buildHref(
+                    filterType,
+                    isVesselMode ? vesselKey : null
+                  )}${
+                    buildHref(filterType, isVesselMode ? vesselKey : null).includes(
+                      "?"
+                    )
+                      ? "&"
+                      : "?"
+                  }full=1`}
+                  className="font-medium text-blue-700 hover:underline"
+                >
+                  xem tất cả {rows.length} dòng
+                </Link>{" "}
+                (trang sẽ nặng hơn).
               </div>
             )}
           </div>

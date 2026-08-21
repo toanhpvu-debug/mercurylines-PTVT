@@ -113,20 +113,39 @@ export function equipmentOf(m: MaterialLike): string | null {
   return "Chưa rõ thiết bị";
 }
 
+// Một bộ đối chiếu dùng chung. `String.localeCompare(x, "vi")` dựng một
+// Intl.Collator MỚI cho mỗi lần gọi — đặt trong hàm so sánh thì với 600 dòng
+// là hơn 10.000 lần dựng, đủ làm trang chậm thêm vài giây.
+const viCollator = new Intl.Collator("vi");
+
 /**
- * So sánh hai vật tư trong cùng một bộ phận:
+ * Sắp xếp vật tư trong một bộ phận:
  * Vật tư (Store) đứng trước → Phụ tùng (Spare) xếp sau theo từng thiết bị →
  * trong mỗi thiết bị sắp theo tên.
+ *
+ * Tính sẵn khóa sắp xếp một lần cho mỗi dòng thay vì tính lại trong hàm so
+ * sánh — hàm so sánh chạy O(n log n) lần nên mọi việc nặng đặt trong đó đều bị
+ * nhân lên hàng nghìn lần.
  */
-export function compareWithinDepartment(
-  a: MaterialLike,
-  b: MaterialLike
-): number {
-  const spareA = a.materialType === "SPARE" ? 1 : 0;
-  const spareB = b.materialType === "SPARE" ? 1 : 0;
-  if (spareA !== spareB) return spareA - spareB;
-  const eqA = equipmentOf(a) ?? "";
-  const eqB = equipmentOf(b) ?? "";
-  if (eqA !== eqB) return eqA.localeCompare(eqB, "vi");
-  return a.nameVn.localeCompare(b.nameVn, "vi");
+export function sortWithinDepartment<T>(
+  rows: T[],
+  pick: (row: T) => MaterialLike
+): T[] {
+  return rows
+    .map((row) => {
+      const m = pick(row);
+      return {
+        row,
+        spare: m.materialType === "SPARE" ? 1 : 0,
+        equip: equipmentOf(m) ?? "",
+        name: m.nameVn,
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.spare - b.spare ||
+        viCollator.compare(a.equip, b.equip) ||
+        viCollator.compare(a.name, b.name)
+    )
+    .map((x) => x.row);
 }

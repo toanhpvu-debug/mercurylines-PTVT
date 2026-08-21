@@ -3,7 +3,8 @@
 
 export const REQUEST_STATUS_LABEL: Record<string, string> = {
   DRAFT: "Nháp",
-  PENDING_MASTER: "Chờ duyệt",
+  PENDING_MASTER: "Chờ tàu duyệt",
+  PENDING_OFFICE: "Chờ công ty duyệt",
   APPROVED: "Đã duyệt",
   REJECTED: "Từ chối",
   IN_PROCUREMENT: "Đang mua sắm",
@@ -16,6 +17,7 @@ export const REQUEST_STATUS_LABEL: Record<string, string> = {
 export const REQUEST_STATUS_BADGE: Record<string, string> = {
   DRAFT: "bg-slate-100 text-slate-700",
   PENDING_MASTER: "bg-amber-100 text-amber-800",
+  PENDING_OFFICE: "bg-orange-100 text-orange-800",
   APPROVED: "bg-emerald-100 text-emerald-800",
   REJECTED: "bg-red-100 text-red-700",
   IN_PROCUREMENT: "bg-blue-100 text-blue-800",
@@ -26,15 +28,31 @@ export const REQUEST_STATUS_BADGE: Record<string, string> = {
 };
 
 // Chuyển trạng thái hợp lệ: đích -> các trạng thái nguồn được phép.
+//
 // Yêu cầu phải được TRÌNH (PENDING_MASTER) rồi mới duyệt được — nháp và
 // đã trình là hai việc khác nhau về trách nhiệm.
+//
+// Duyệt đi qua HAI cấp, đúng cơ cấu phân quyền thật:
+//   DRAFT -> PENDING_MASTER -> PENDING_OFFICE -> APPROVED -> mua sắm
+//            (tàu trình)      (tàu duyệt)       (công ty duyệt)
+// Bị từ chối ở cấp nào cũng quay về REJECTED để người lập sửa và trình lại.
 export const REQUEST_ALLOWED_FROM: Record<string, string[]> = {
-  PENDING_MASTER: ["DRAFT"],
-  APPROVED: ["PENDING_MASTER"],
-  REJECTED: ["PENDING_MASTER"],
+  PENDING_MASTER: ["DRAFT", "REJECTED"],
+  PENDING_OFFICE: ["PENDING_MASTER"],
+  APPROVED: ["PENDING_OFFICE"],
+  REJECTED: ["PENDING_MASTER", "PENDING_OFFICE"],
   IN_PROCUREMENT: ["APPROVED"],
   PARTIALLY_DELIVERED: ["IN_PROCUREMENT"],
   FULLY_DELIVERED: ["IN_PROCUREMENT", "PARTIALLY_DELIVERED"],
   CLOSED: ["FULLY_DELIVERED"],
-  CANCELLED: ["DRAFT", "PENDING_MASTER", "APPROVED"],
+  CANCELLED: ["DRAFT", "PENDING_MASTER", "PENDING_OFFICE", "APPROVED"],
 };
+
+/** Cấp duyệt kế tiếp của một yêu cầu, null nếu không còn ở khâu phê duyệt. */
+export function capDuyetKeTiep(
+  status: string
+): "TAU" | "CONG_TY" | null {
+  if (status === "PENDING_MASTER") return "TAU";
+  if (status === "PENDING_OFFICE") return "CONG_TY";
+  return null;
+}

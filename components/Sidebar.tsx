@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { logout } from "@/app/actions";
 import { MercuryMark } from "@/components/MercuryLogo";
+import { ROLE_LABEL } from "@/lib/roles";
 
 const links = [
   { href: "/dashboard", label: "Dashboard", icon: "▦" },
@@ -15,11 +16,7 @@ const links = [
   { href: "/documents", label: "Báo cáo từ tàu", icon: "📄" },
 ];
 
-const roleLabels: Record<string, string> = {
-  ADMIN: "Quản trị viên",
-  MASTER: "Thuyền trưởng",
-  CREW: "Thuyền viên",
-};
+const roleLabels = ROLE_LABEL;
 
 export default function Sidebar({
   user,

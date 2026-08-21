@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireActiveRole, vesselScope } from "@/lib/auth";
+import { LAP_YEU_CAU } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
-    const user = await requireActiveRole(["ADMIN", "MASTER", "CREW"]);
+    const user = await requireActiveRole([...LAP_YEU_CAU]);
     if (!user) {
       return NextResponse.json(
         { error: "Bạn không có quyền thực hiện thao tác này." },

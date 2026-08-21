@@ -9,11 +9,13 @@ import RequestStatusForm from "@/components/RequestStatusForm";
 import RequestDeleteButton from "@/components/RequestDeleteButton";
 import {
   canDeleteRequest,
+  capDuyetChoPhep,
   requireScopedUser,
   vesselIdWhere,
   vesselScope,
   vesselWhere,
 } from "@/lib/auth";
+import { LAP_YEU_CAU } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +27,8 @@ export default async function RequestsPage({
 }) {
   const user = await requireScopedUser();
   const scope = vesselScope(user);
-  const canModerate = ["ADMIN", "MASTER"].includes(user.role);
+  const canModerate = ["ADMIN", "MASTER", "TECH_MANAGER"].includes(user.role);
+  const canSubmit = LAP_YEU_CAU.includes(user.role);
   const params = await searchParams;
   // Lọc theo tàu (link từ trang hồ sơ tàu) và theo trạng thái.
   const vesselFilter = Number(params.vessel) || 0;
@@ -214,20 +217,31 @@ export default async function RequestsPage({
                       >
                         Xem / In
                       </Link>
-                      {request.status === "DRAFT" && (
-                        <RequestStatusForm
-                          id={request.id}
-                          status="PENDING_MASTER"
-                          label="Trình duyệt"
-                          className="w-full rounded bg-amber-100 px-3 py-1 text-amber-800 hover:bg-amber-200 disabled:opacity-50"
-                        />
-                      )}
-                      {canModerate && request.status === "PENDING_MASTER" && (
+                      {canSubmit &&
+                        (request.status === "DRAFT" ||
+                          request.status === "REJECTED") && (
+                          <RequestStatusForm
+                            id={request.id}
+                            status="PENDING_MASTER"
+                            label={
+                              request.status === "REJECTED"
+                                ? "Trình lại"
+                                : "Trình duyệt"
+                            }
+                            className="w-full rounded bg-amber-100 px-3 py-1 text-amber-800 hover:bg-amber-200 disabled:opacity-50"
+                          />
+                        )}
+                      {/* Chỉ hiện nút Duyệt cho người ĐANG GIỮ bước duyệt —
+                          máy trưởng không thấy nút trên yêu cầu boong, văn
+                          phòng không thấy trên yêu cầu tàu chưa duyệt. */}
+                      {capDuyetChoPhep(user, request) && (
                         <Link
                           href={`/requests/${request.id}`}
                           className="rounded bg-green-100 px-3 py-1 text-center text-green-700 hover:bg-green-200"
                         >
-                          Duyệt
+                          {capDuyetChoPhep(user, request) === "TAU"
+                            ? "Tàu duyệt"
+                            : "Công ty duyệt"}
                         </Link>
                       )}
                       {canModerate && request.status === "APPROVED" && (

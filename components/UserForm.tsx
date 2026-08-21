@@ -43,8 +43,12 @@ export default function UserForm({ vessels }: { vessels: VesselOption[] }) {
         className="w-full rounded border p-2"
         defaultValue={v.role ?? "CREW"}
       >
-        <option value="CREW">Thuyền viên (CREW)</option>
+        <option value="CREW">Sĩ quan / thuyền viên (CREW)</option>
+        <option value="CHIEF_ENGINEER">Máy trưởng (CHIEF_ENGINEER)</option>
         <option value="MASTER">Thuyền trưởng (MASTER)</option>
+        <option value="TECH_MANAGER">
+          Quản lý kỹ thuật công ty (TECH_MANAGER)
+        </option>
         <option value="ADMIN">Quản trị viên (ADMIN)</option>
       </select>
       <select

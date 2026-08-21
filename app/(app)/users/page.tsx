@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser } from "@/lib/auth";
+import { ROLE_DESC } from "@/lib/roles";
 import UserForm from "@/components/UserForm";
 import {
   UserActiveToggle,
@@ -42,13 +43,23 @@ export default async function UsersPage() {
           <UserForm vessels={vesselOptions} />
           <div className="mt-6 rounded bg-slate-50 p-3 text-xs text-slate-600">
             <p className="mb-1 font-semibold">Quyền theo vai trò:</p>
-            <p>ADMIN: toàn quyền + quản lý người dùng (luôn toàn đội)</p>
-            <p>MASTER: nhập/xuất kho, duyệt yêu cầu</p>
-            <p>CREW: xem dữ liệu, tạo yêu cầu vật tư</p>
+            {["ADMIN", "TECH_MANAGER", "MASTER", "CHIEF_ENGINEER", "CREW"].map(
+              (r) => (
+                <p key={r}>
+                  <b>{r}</b> — {ROLE_DESC[r]}
+                </p>
+              )
+            )}
+            <p className="mt-2 font-semibold">Đường đi phê duyệt yêu cầu:</p>
+            <p>
+              Nháp → <b>tàu duyệt</b> (thuyền trưởng, hoặc máy trưởng với bộ
+              phận Máy/Điện) → <b>công ty duyệt</b> (quản lý kỹ thuật) → mua sắm
+            </p>
             <p className="mt-2 font-semibold">Tàu phụ trách:</p>
             <p>Gán tàu: chỉ thấy và thao tác trên tàu đó</p>
+            <p>ADMIN, TECH_MANAGER: luôn toàn đội</p>
             <p>MASTER không gán tàu: quản lý toàn đội (văn phòng)</p>
-            <p>CREW không gán tàu: chưa xem được dữ liệu tàu</p>
+            <p>CREW / CHIEF_ENGINEER không gán tàu: chưa xem được dữ liệu tàu</p>
           </div>
         </div>
         <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 xl:col-span-2">

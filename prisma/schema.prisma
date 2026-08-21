@@ -210,10 +210,16 @@ model MaterialRequest {
   items        MaterialRequestItem[]
   events       MaterialRequestEvent[]
   // Vết phê duyệt — in lên ô ký của biểu mẫu MLS-11-05 và tra cứu nhanh.
-  submittedBy     String?
-  submittedAt     DateTime?
-  approvedBy      String?
-  approvedAt      DateTime?
+  // Hai cấp riêng biệt: tàu duyệt trước (thuyền trưởng / máy trưởng), rồi công
+  // ty duyệt (quản lý kỹ thuật). Ghi tách ra vì là hai ô ký khác nhau trên
+  // biểu mẫu và vì cần biết ai chịu trách nhiệm ở từng cấp.
+  submittedBy      String?
+  submittedAt      DateTime?
+  shipApprovedBy   String?
+  shipApprovedRole String?
+  shipApprovedAt   DateTime?
+  approvedBy       String?
+  approvedAt       DateTime?
   rejectedBy      String?
   rejectedAt      DateTime?
   rejectionReason String?

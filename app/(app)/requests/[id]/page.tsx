@@ -5,7 +5,18 @@ import {
   REQUEST_STATUS_BADGE,
   REQUEST_STATUS_LABEL,
 } from "@/lib/requestStatus";
-import { canDeleteRequest, requireScopedUser, vesselScope } from "@/lib/auth";
+import {
+  canDeleteRequest,
+  capDuyetChoPhep,
+  requireScopedUser,
+  vesselScope,
+} from "@/lib/auth";
+import {
+  LAP_YEU_CAU,
+  ROLE_LABEL,
+  nguoiDuyetCapTau,
+  viSaoKhongDuyetDuoc,
+} from "@/lib/roles";
 import PrintButton from "@/components/PrintButton";
 import RequestStatusForm from "@/components/RequestStatusForm";
 import RequestApprovalForm from "@/components/RequestApprovalForm";
@@ -29,7 +40,7 @@ export default async function RequestDetailPage({
 }) {
   const user = await requireScopedUser();
   const scope = vesselScope(user);
-  const canModerate = ["ADMIN", "MASTER"].includes(user.role);
+  const canModerate = ["ADMIN", "MASTER", "TECH_MANAGER"].includes(user.role);
   const { id: idRaw } = await params;
   const id = Number(idRaw);
   if (!Number.isInteger(id) || id <= 0) {
@@ -75,9 +86,23 @@ export default async function RequestDetailPage({
   const dateStr = (request.requiredDate ?? request.createdAt).toLocaleDateString(
     "vi-VN"
   );
-  const canApprove = canModerate && request.status === "PENDING_MASTER";
-  // Người lập (hoặc quản lý) trình yêu cầu nháp lên cấp duyệt.
-  const canSubmit = request.status === "DRAFT";
+  // Cấp duyệt mà NGƯỜI ĐANG XEM được phép làm ngay bây giờ (null = không phải
+  // lượt của họ). Cùng một hàm với server action nên nút bấm và quyền thật
+  // không thể lệch nhau.
+  const capDuyet = capDuyetChoPhep(user, request);
+  const dangChoDuyet =
+    request.status === "PENDING_MASTER" || request.status === "PENDING_OFFICE";
+  const nguoiPhaiDuyet =
+    request.status === "PENDING_MASTER"
+      ? `${ROLE_LABEL[nguoiDuyetCapTau(request.department)]} (hoặc thuyền trưởng)`
+      : request.status === "PENDING_OFFICE"
+        ? ROLE_LABEL.TECH_MANAGER
+        : "";
+  // Người lập (hoặc quản lý) trình yêu cầu nháp lên cấp duyệt; bị từ chối thì
+  // sửa xong trình lại được.
+  const canSubmit =
+    (request.status === "DRAFT" || request.status === "REJECTED") &&
+    LAP_YEU_CAU.includes(user.role);
 
   return (
     <div className="space-y-4">
@@ -269,6 +294,26 @@ export default async function RequestDetailPage({
             <p className="font-bold">Captain</p>
             <p className="italic">Thuyền trưởng</p>
             <div className="mt-12" />
+            {/* Ô ký cấp TÀU: điền người thực sự duyệt trên tàu — có thể là
+                máy trưởng với yêu cầu buồng máy, nên ghi rõ chức danh. */}
+            <p className="border-t border-slate-400 pt-1">
+              {request.shipApprovedBy ?? " "}
+            </p>
+            <p className="text-[10px] text-slate-500">
+              {request.shipApprovedAt
+                ? `${
+                    request.shipApprovedRole === "CHIEF_ENGINEER"
+                      ? "Máy trưởng · "
+                      : ""
+                  }Duyệt ngày ${request.shipApprovedAt.toLocaleDateString("vi-VN")}`
+                : " "}
+            </p>
+          </div>
+          <div>
+            <p className="font-bold">Tech. &amp; Pur Dept</p>
+            <p className="italic">Phòng Kỹ Thuật - Vật Tư</p>
+            <div className="mt-12" />
+            {/* Ô ký cấp CÔNG TY: quản lý kỹ thuật duyệt sau khi tàu đã duyệt. */}
             <p className="border-t border-slate-400 pt-1">
               {request.approvedBy ?? " "}
             </p>
@@ -277,13 +322,6 @@ export default async function RequestDetailPage({
                 ? `Duyệt ngày ${request.approvedAt.toLocaleDateString("vi-VN")}`
                 : " "}
             </p>
-          </div>
-          <div>
-            <p className="font-bold">Tech. &amp; Pur Dept</p>
-            <p className="italic">Phòng Kỹ Thuật - Vật Tư</p>
-            <div className="mt-12" />
-            <p className="border-t border-slate-400 pt-1">&nbsp;</p>
-            <p className="text-[10px] text-slate-500">&nbsp;</p>
           </div>
           <div>
             <p className="font-bold">Vice Director</p>
@@ -295,19 +333,107 @@ export default async function RequestDetailPage({
         </div>
       </div>
 
+      {/* Đường đi phê duyệt — nhìn là biết đang ở đâu và còn ai phải ký */}
+      <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
+        <h3 className="mb-3 text-lg font-semibold text-blue-950">
+          Tiến độ phê duyệt
+        </h3>
+        <ol className="grid gap-3 sm:grid-cols-3">
+          {[
+            {
+              ten: "Người lập trình duyệt",
+              ai: request.submittedBy,
+              luc: request.submittedAt,
+              vaiTro: null as string | null,
+              xong: !!request.submittedAt,
+            },
+            {
+              ten: "Tàu duyệt (thuyền trưởng / máy trưởng)",
+              ai: request.shipApprovedBy,
+              luc: request.shipApprovedAt,
+              vaiTro: request.shipApprovedRole as string | null,
+              xong: !!request.shipApprovedAt,
+            },
+            {
+              ten: "Công ty duyệt (quản lý kỹ thuật)",
+              ai: request.approvedBy,
+              luc: request.approvedAt,
+              vaiTro: null as string | null,
+              xong: !!request.approvedAt,
+            },
+          ].map((buoc, i) => (
+            <li
+              key={buoc.ten}
+              className={`rounded-lg border p-3 text-sm ` + (
+                buoc.xong
+                  ? "border-emerald-200 bg-emerald-50"
+                  : "border-slate-200 bg-slate-50"
+              )}
+            >
+              <p className="flex items-center gap-2 font-medium text-slate-800">
+                <span
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs text-white ` + (
+                    buoc.xong ? "bg-emerald-600" : "bg-slate-400"
+                  )}
+                >
+                  {buoc.xong ? "✓" : i + 1}
+                </span>
+                {buoc.ten}
+              </p>
+              <p className="mt-1 text-slate-600">
+                {buoc.xong ? (
+                  <>
+                    {buoc.ai}
+                    {buoc.vaiTro ? ` · ${ROLE_LABEL[buoc.vaiTro] ?? buoc.vaiTro}` : ""}
+                    <br />
+                    <span className="text-xs text-slate-500">
+                      {buoc.luc?.toLocaleString("vi-VN")}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-slate-400">chưa</span>
+                )}
+              </p>
+            </li>
+          ))}
+        </ol>
+        {dangChoDuyet && (
+          <p className="mt-3 text-sm text-slate-600">
+            Đang chờ <b>{nguoiPhaiDuyet}</b> duyệt.
+            {!capDuyet && (
+              <span className="ml-1 text-slate-500">
+                {viSaoKhongDuyetDuoc(user.role)}
+              </span>
+            )}
+          </p>
+        )}
+      </div>
+
       {canSubmit && (
         <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
           <h3 className="mb-1 text-lg font-semibold text-blue-950">
-            Trình duyệt
+            {request.status === "REJECTED" ? "Trình lại" : "Trình duyệt"}
           </h3>
           <p className="mb-3 text-sm text-slate-600">
-            Yêu cầu đang là <b>Nháp</b> — vẫn sửa/xóa được và chưa ai duyệt
-            được. Trình lên để chuyển sang <b>Chờ duyệt</b>.
+            {request.status === "REJECTED" ? (
+              <>
+                Yêu cầu đã bị từ chối. Sửa lại rồi trình lên{" "}
+                <b>{ROLE_LABEL[nguoiDuyetCapTau(request.department)]}</b> một lần
+                nữa.
+              </>
+            ) : (
+              <>
+                Yêu cầu đang là <b>Nháp</b> — vẫn sửa/xóa được và chưa ai duyệt
+                được. Trình lên để chuyển sang{" "}
+                <b>Chờ tàu duyệt</b>, người duyệt là{" "}
+                <b>{ROLE_LABEL[nguoiDuyetCapTau(request.department)]}</b>.
+              </>
+            )}
           </p>
           <RequestStatusForm
             id={request.id}
             status="PENDING_MASTER"
-            label="Trình duyệt"
+            label={request.status === "REJECTED" ? "Trình lại" : "Trình duyệt"}
             className="rounded bg-amber-500 px-5 py-2 text-white hover:bg-amber-600 disabled:opacity-50"
             returnTo={`/requests/${request.id}`}
           />
@@ -325,17 +451,28 @@ export default async function RequestDetailPage({
           </p>
         </div>
       )}
-      {canApprove && (
+      {capDuyet && (
         <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-          <h3 className="mb-4 text-lg font-semibold">Duyệt yêu cầu</h3>
+          <h3 className="mb-1 text-lg font-semibold">
+            {capDuyet === "TAU"
+              ? "Duyệt cấp tàu"
+              : "Duyệt cấp công ty (quản lý kỹ thuật)"}
+          </h3>
+          <p className="mb-4 text-sm text-slate-600">
+            {capDuyet === "TAU"
+              ? "Duyệt xong yêu cầu sẽ chuyển tiếp lên quản lý kỹ thuật công ty."
+              : "Đây là bước duyệt cuối. Duyệt xong yêu cầu sẵn sàng chuyển sang mua sắm."}
+          </p>
           <RequestApprovalForm
             requestId={request.id}
+            capDuyet={capDuyet}
             items={request.items.map((item) => ({
               id: item.id,
               code: lineDisplayCode(item),
               name: lineShortName(item),
               quantity: item.quantity,
               rob: item.robSnapshot,
+              tauDuyet: item.approvedQuantity,
             }))}
           />
           <div className="mt-4 border-t pt-4">

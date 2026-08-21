@@ -4,6 +4,18 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
+// Phần quyết định quyền là hàm THUẦN nên nằm ở lib/roles.ts — file này là
+// "server-only" và kéo theo next/navigation, không chạy được ngoài Next (kể cả
+// trong script kiểm thử). Tái xuất ở đây để mọi nơi đang import từ @/lib/auth
+// giữ nguyên.
+export type { VesselScope } from "@/lib/roles";
+export {
+  canManageVesselCatalog,
+  capDuyetChoPhep,
+  vesselScope,
+} from "@/lib/roles";
+
+import { vesselScope, type VesselScope } from "@/lib/roles";
 
 export async function requireActiveRole(roles: string[]) {
   const session = await getSession();
@@ -40,30 +52,6 @@ export async function requireScopedUser() {
   return user;
 }
 
-export type VesselScope = {
-  all: boolean;
-  vesselId: number | null;
-  unassigned: boolean;
-};
-
-// Quy tắc phạm vi: ADMIN luôn toàn đội; CREW/MASTER có gán tàu -> chỉ tàu đó;
-// MASTER không gán tàu -> toàn đội (vai trò văn phòng); CREW không gán tàu -> không thấy tàu nào.
-export function vesselScope(user: {
-  role: string;
-  vesselId: number | null;
-}): VesselScope {
-  if (user.role === "ADMIN") {
-    return { all: true, vesselId: null, unassigned: false };
-  }
-  if (user.vesselId) {
-    return { all: false, vesselId: user.vesselId, unassigned: false };
-  }
-  if (user.role === "MASTER") {
-    return { all: true, vesselId: null, unassigned: false };
-  }
-  return { all: false, vesselId: null, unassigned: true };
-}
-
 // Điều kiện where theo phạm vi cho các bảng có cột vesselId (-1 không khớp gì).
 export function vesselWhere(scope: VesselScope) {
   return scope.all ? {} : { vesselId: scope.vesselId ?? -1 };
@@ -81,20 +69,6 @@ export const REQUEST_DELETABLE_BY_NON_ADMIN = [
   "REJECTED",
   "CANCELLED",
 ];
-
-// Ai được chỉnh danh mục vật tư của một tàu (gán/gỡ vật tư):
-// ADMIN mọi tàu; MASTER tàu mình (hoặc toàn đội nếu không gán tàu); CREW không.
-export function canManageVesselCatalog(
-  user: { role: string; vesselId: number | null },
-  vesselId: number
-) {
-  if (user.role === "ADMIN") return true;
-  if (user.role === "MASTER") {
-    const scope = vesselScope(user);
-    return scope.all || scope.vesselId === vesselId;
-  }
-  return false;
-}
 
 // Ai được xóa một yêu cầu: ADMIN xóa mọi trạng thái; MASTER/CREW chỉ xóa
 // yêu cầu của tàu mình khi chưa duyệt/mua sắm.

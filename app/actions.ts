@@ -16,9 +16,18 @@ import { createSession, deleteSession } from "@/lib/session";
 import {
   REQUEST_DELETABLE_BY_NON_ADMIN,
   canManageVesselCatalog,
+  capDuyetChoPhep,
   requireActiveRole,
   vesselScope,
 } from "@/lib/auth";
+import {
+  CHI_HUY_TAU,
+  DUYET_CONG_TY,
+  LAP_YEU_CAU,
+  ROLE_LABEL,
+  VAN_HANH_TAU,
+  viSaoKhongDuyetDuoc,
+} from "@/lib/roles";
 import {
   ALLOWED_EXTENSIONS,
   MAX_UPLOAD_BYTES,
@@ -442,7 +451,7 @@ export async function assignMaterialToVessel(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
-  const actor = await requireActiveRole(["ADMIN", "MASTER"]);
+  const actor = await requireActiveRole([...VAN_HANH_TAU]);
   if (!actor) {
     return { message: NO_PERMISSION };
   }
@@ -479,7 +488,7 @@ export async function unassignMaterialFromVessel(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
-  const actor = await requireActiveRole(["ADMIN", "MASTER"]);
+  const actor = await requireActiveRole([...VAN_HANH_TAU]);
   if (!actor) {
     return { message: NO_PERMISSION };
   }
@@ -511,7 +520,7 @@ export async function createInventoryTransaction(
   success?: boolean;
   values?: Record<string, string>;
 }> {
-  const actor = await requireActiveRole(["ADMIN", "MASTER"]);
+  const actor = await requireActiveRole([...VAN_HANH_TAU]);
   if (!actor) {
     return { message: NO_PERMISSION };
   }
@@ -662,16 +671,29 @@ async function logRequestEvent(
   });
 }
 
-// Duyệt yêu cầu kèm số lượng duyệt (S.L Duyệt / APP) cho từng dòng.
+/**
+ * Duyệt yêu cầu kèm số lượng duyệt (S.L Duyệt / APP) cho từng dòng.
+ *
+ * MỘT hàm lo cả hai cấp, tự xác định cấp theo trạng thái hiện tại của yêu cầu:
+ *   PENDING_MASTER -> PENDING_OFFICE   thuyền trưởng / máy trưởng duyệt
+ *   PENDING_OFFICE -> APPROVED         quản lý kỹ thuật công ty duyệt
+ *
+ * Tách thành hai hàm thì phần chốt trạng thái atomic, cắt số lượng và ghi nhật
+ * ký phải viết hai lần — sớm muộn cũng lệch nhau.
+ *
+ * Cấp công ty được sửa lại số lượng tàu đã duyệt (giảm tiếp), vì công ty mới là
+ * nơi quyết định cuối cùng mua bao nhiêu.
+ */
 export async function approveRequestQuantities(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
-  const actor = await requireActiveRole(["ADMIN", "MASTER"]);
+  const actor = await requireActiveRole([
+    ...new Set([...CHI_HUY_TAU, ...DUYET_CONG_TY]),
+  ]);
   if (!actor) {
     return { message: NO_PERMISSION };
   }
-  const scope = vesselScope(actor);
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
     return { message: "Yêu cầu không hợp lệ." };
@@ -683,28 +705,46 @@ export async function approveRequestQuantities(
   if (!request) {
     return { message: "Không tìm thấy yêu cầu." };
   }
-  if (!scope.all && request.vesselId !== scope.vesselId) {
-    return { message: NO_PERMISSION };
+
+  const cap = capDuyetChoPhep(actor, request);
+  if (!cap) {
+    // Báo đúng lý do: sai cấp, sai bộ phận, hay yêu cầu chưa được trình.
+    if (request.status === "DRAFT") {
+      return {
+        message:
+          "Yêu cầu còn ở trạng thái Nháp. Người lập cần bấm “Trình duyệt” trước khi phê duyệt.",
+      };
+    }
+    if (request.status !== "PENDING_MASTER" && request.status !== "PENDING_OFFICE") {
+      return { message: "Yêu cầu đã được xử lý, vui lòng tải lại trang." };
+    }
+    if (request.status === "PENDING_OFFICE") {
+      return {
+        message:
+          "Tàu đã duyệt, bước này thuộc quản lý kỹ thuật công ty.",
+      };
+    }
+    return { message: viSaoKhongDuyetDuoc(actor.role) };
   }
-  // Chỉ duyệt được yêu cầu ĐÃ TRÌNH — nháp phải bấm "Trình duyệt" trước.
-  if (request.status !== "PENDING_MASTER") {
-    return {
-      message:
-        request.status === "DRAFT"
-          ? "Yêu cầu còn ở trạng thái Nháp. Người lập cần bấm “Trình duyệt” trước khi phê duyệt."
-          : "Yêu cầu đã được xử lý, vui lòng tải lại trang.",
-    };
-  }
+
+  const tuTrangThai = cap === "TAU" ? "PENDING_MASTER" : "PENDING_OFFICE";
+  const denTrangThai = cap === "TAU" ? "PENDING_OFFICE" : "APPROVED";
+  const now = new Date();
+  const dau =
+    cap === "TAU"
+      ? {
+          shipApprovedBy: actor.name,
+          shipApprovedRole: actor.role,
+          shipApprovedAt: now,
+        }
+      : { approvedBy: actor.name, approvedAt: now };
+
   try {
     await prisma.$transaction(async (tx) => {
       // Chốt trạng thái atomic trước — nếu người khác vừa duyệt/từ chối thì count=0 → rollback
       const guard = await tx.materialRequest.updateMany({
-        where: { id, status: "PENDING_MASTER" },
-        data: {
-          status: "APPROVED",
-          approvedBy: actor.name,
-          approvedAt: new Date(),
-        },
+        where: { id, status: tuTrangThai },
+        data: { status: denTrangThai, ...dau },
       });
       if (guard.count === 0) {
         throw new ActionError(
@@ -716,7 +756,13 @@ export async function approveRequestQuantities(
         const raw = formData.get(`approved_${item.id}`);
         let approved = Number(raw);
         if (!Number.isFinite(approved) || approved < 0) approved = 0;
-        if (approved > item.quantity) approved = item.quantity;
+        // Không cấp nào được duyệt vượt số lượng tàu đã xin; cấp công ty còn
+        // không được vượt số lượng tàu đã duyệt ở bước trước.
+        const tran =
+          cap === "TAU"
+            ? item.quantity
+            : Math.min(item.quantity, item.approvedQuantity);
+        if (approved > tran) approved = tran;
         totalApproved += approved;
         await tx.materialRequestItem.update({
           where: { id: item.id },
@@ -724,15 +770,19 @@ export async function approveRequestQuantities(
         });
       }
       const note = String(formData.get("note") || "").trim();
+      const tenCap =
+        cap === "TAU"
+          ? `${ROLE_LABEL[actor.role] ?? actor.role} duyệt cấp tàu`
+          : "Quản lý kỹ thuật duyệt cấp công ty";
       await logRequestEvent(tx, {
         requestId: id,
         fromStatus: request.status,
-        toStatus: "APPROVED",
+        toStatus: denTrangThai,
         actorName: actor.name,
         actorRole: actor.role,
         note:
           note ||
-          `Duyệt ${request.items.length} dòng, tổng SL duyệt ${totalApproved}`,
+          `${tenCap}: ${request.items.length} dòng, tổng SL duyệt ${totalApproved}`,
       });
     });
   } catch (error) {
@@ -751,13 +801,18 @@ export async function updateRequestStatus(
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
   const status = String(formData.get("status") || "");
-  // Trình duyệt là việc của người lập yêu cầu nên CREW cũng được làm;
-  // các chuyển trạng thái còn lại vẫn dành cho ADMIN/MASTER.
+  // Quyền theo từng bước chuyển, đúng phân cấp:
+  //   PENDING_MASTER (trình duyệt)  -> người lập, kể cả sĩ quan/thuyền viên
+  //   REJECTED (từ chối)            -> tùy đang ở cấp nào, kiểm tra sau khi
+  //                                    đọc trạng thái hiện tại của yêu cầu
+  //   còn lại (hủy, chuyển mua sắm, giao hàng...) -> chỉ huy tàu + văn phòng
   const roles =
     status === "PENDING_MASTER"
-      ? ["ADMIN", "MASTER", "CREW"]
-      : ["ADMIN", "MASTER"];
-  const actor = await requireActiveRole(roles);
+      ? LAP_YEU_CAU
+      : status === "REJECTED"
+        ? [...new Set([...CHI_HUY_TAU, ...DUYET_CONG_TY])]
+        : [...new Set([...CHI_HUY_TAU, ...DUYET_CONG_TY])];
+  const actor = await requireActiveRole([...roles]);
   if (!actor) {
     return { message: NO_PERMISSION };
   }
@@ -784,6 +839,11 @@ export async function updateRequestStatus(
   if (status === "PENDING_MASTER") {
     stamp.submittedBy = actor.name;
     stamp.submittedAt = now;
+    // Trình lại sau khi bị từ chối: xóa vết từ chối cũ, nếu không bảng đỏ
+    // "Yêu cầu bị từ chối" vẫn đứng nguyên trên một yêu cầu đang chờ duyệt.
+    stamp.rejectedBy = null;
+    stamp.rejectedAt = null;
+    stamp.rejectionReason = null;
   } else if (status === "REJECTED") {
     stamp.rejectedBy = actor.name;
     stamp.rejectedAt = now;
@@ -794,13 +854,30 @@ export async function updateRequestStatus(
     await prisma.$transaction(async (tx) => {
       const before = await tx.materialRequest.findUnique({
         where: { id },
-        select: { status: true, vesselId: true },
+        select: { status: true, vesselId: true, department: true },
       });
       if (!before) {
         throw new ActionError("Không tìm thấy yêu cầu.");
       }
       if (!scope.all && before.vesselId !== scope.vesselId) {
         throw new ActionError(NO_PERMISSION);
+      }
+      // Từ chối phải đúng cấp: người đang giữ bước duyệt mới được từ chối.
+      // Không có kiểm tra này thì máy trưởng từ chối được yêu cầu đang nằm ở
+      // bàn của công ty, và ngược lại.
+      if (status === "REJECTED") {
+        const capTuChoi = capDuyetChoPhep(actor, {
+          vesselId: before.vesselId,
+          status: before.status,
+          department: before.department,
+        });
+        if (!capTuChoi) {
+          throw new ActionError(
+            before.status === "PENDING_OFFICE"
+              ? "Yêu cầu đang chờ công ty duyệt — chỉ quản lý kỹ thuật mới từ chối được ở bước này."
+              : viSaoKhongDuyetDuoc(actor.role)
+          );
+        }
       }
       const result = await tx.materialRequest.updateMany({
         where: {
@@ -843,7 +920,7 @@ export async function deleteMaterialRequest(
   _prevState: { message: string },
   formData: FormData
 ): Promise<{ message: string }> {
-  const actor = await requireActiveRole(["ADMIN", "MASTER", "CREW"]);
+  const actor = await requireActiveRole([...LAP_YEU_CAU]);
   if (!actor) {
     return { message: NO_PERMISSION };
   }
@@ -2152,7 +2229,7 @@ export async function uploadReportDocument(
   success?: boolean;
   values?: Record<string, string>;
 }> {
-  const actor = await requireActiveRole(["ADMIN", "MASTER", "CREW"]);
+  const actor = await requireActiveRole([...LAP_YEU_CAU]);
   if (!actor) {
     return { message: NO_PERMISSION };
   }

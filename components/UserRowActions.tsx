@@ -36,7 +36,9 @@ export function UserRoleForm({
           className="rounded border p-1 text-sm disabled:bg-slate-100 disabled:text-slate-400"
         >
           <option value="CREW">CREW</option>
+          <option value="CHIEF_ENGINEER">CHIEF_ENGINEER</option>
           <option value="MASTER">MASTER</option>
+          <option value="TECH_MANAGER">TECH_MANAGER</option>
           <option value="ADMIN">ADMIN</option>
         </select>
         <select

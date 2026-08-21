@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 
 const REQ_STATUS: Record<string, { label: string; badge: string; bar: string }> = {
   DRAFT: { label: "Nháp", badge: "bg-slate-100 text-slate-600", bar: "bg-slate-400" },
-  PENDING_MASTER: { label: "Chờ duyệt", badge: "bg-amber-100 text-amber-700", bar: "bg-amber-400" },
+  PENDING_MASTER: { label: "Chờ tàu duyệt", badge: "bg-amber-100 text-amber-700", bar: "bg-amber-400" },
+  PENDING_OFFICE: { label: "Chờ công ty duyệt", badge: "bg-orange-100 text-orange-700", bar: "bg-orange-400" },
   APPROVED: { label: "Đã duyệt", badge: "bg-green-100 text-green-700", bar: "bg-green-500" },
   REJECTED: { label: "Từ chối", badge: "bg-red-100 text-red-700", bar: "bg-red-400" },
   IN_PROCUREMENT: { label: "Đang mua sắm", badge: "bg-blue-100 text-blue-700", bar: "bg-blue-500" },
@@ -34,6 +35,7 @@ const PO_STATUS: Record<string, { label: string; bar: string }> = {
 const REQ_OPEN = [
   "DRAFT",
   "PENDING_MASTER",
+  "PENDING_OFFICE",
   "APPROVED",
   "IN_PROCUREMENT",
   "PARTIALLY_DELIVERED",

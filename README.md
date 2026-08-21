@@ -82,6 +82,7 @@ Bấm đúp thẳng trong thư mục gốc của app, không cần mở terminal
 | `doi-chieu-danh-muc.cmd` | Đối chiếu danh mục vật tư từng tàu với file kiểm kê gốc |
 | `sao-luu-du-lieu.cmd` | Nén bản chụp PostgreSQL (`pg_dump`) + file upload + `.env` + biểu mẫu thành bản sao lưu, kèm dấu vân tay để đối chiếu |
 | `khoi-phuc-du-lieu.cmd` | Đưa dữ liệu trở lại từ một bản sao lưu — tự chụp đường lùi trước, đối chiếu vân tay sau |
+| `kiem-tra-phan-quyen.cmd` | Chạy ma trận phân quyền duyệt yêu cầu (221 phép thử, không đụng database) |
 | `dong-bo-github.cmd` | Đẩy thay đổi mã nguồn lên GitHub |
 | `run-dev.cmd` | Chỉ khi đang **sửa code** (có hot-reload). Chậm hơn production ~50 lần |
 | `khai-bao-ban-cai.cmd` | Khai báo bản cài này là của tàu nào (`ML-001`) hay là văn phòng (`VANPHONG`) — chạy một lần sau khi cài |
@@ -244,13 +245,57 @@ Thư mục `dong-bo/` chứa dữ liệu thật của công ty nên **không** �
 
 App yêu cầu đăng nhập (session cookie ký JWT, hạn 7 ngày). Tài khoản seed sẵn dùng chung mật khẩu đặt ở biến môi trường `SEED_PASSWORD`; bỏ trống thì seed dùng tạm `ChangeMe@123` và in cảnh báo — **đổi ngay sau lần đăng nhập đầu tiên**:
 
-| Email | Vai trò | Phạm vi | Quyền |
-|---|---|---|---|
-| `admin@example.com` | ADMIN | Toàn đội | Toàn quyền + quản lý người dùng (trang **Người dùng**: tạo tài khoản, đổi vai trò, gán tàu, khóa/mở khóa) |
-| `master@example.com` | MASTER | Toàn đội (không gán tàu) | Nhập/xuất kho, duyệt/từ chối yêu cầu vật tư |
-| `crew@example.com` | CREW | Chỉ tàu ML-001 | Xem dữ liệu tàu mình, tạo yêu cầu cho tàu mình |
+| Vai trò | Phạm vi | Quyền |
+|---|---|---|
+| `ADMIN` | Toàn đội | Toàn quyền + quản lý người dùng (trang **Người dùng**: tạo tài khoản, đổi vai trò, gán tàu, khóa/mở khóa) |
+| `TECH_MANAGER` | Toàn đội (văn phòng) | Quản lý kỹ thuật công ty: **duyệt cấp công ty** các yêu cầu tàu đã duyệt, xem toàn đội |
+| `MASTER` | Tàu mình (hoặc toàn đội nếu không gán tàu) | Thuyền trưởng: **duyệt cấp tàu mọi bộ phận**, nhập/xuất kho, danh mục tàu |
+| `CHIEF_ENGINEER` | Tàu mình | Máy trưởng: **duyệt cấp tàu bộ phận Máy/Điện**, nhập/xuất kho, danh mục tàu |
+| `CREW` | Tàu mình | Sĩ quan / thuyền viên: lập và trình yêu cầu vật tư. Không duyệt |
 
-**Phạm vi theo tàu:** mỗi tài khoản có thể được gán một *tàu phụ trách* (trang Người dùng). Tài khoản gán tàu (CREW hoặc MASTER) chỉ nhìn thấy và thao tác trên đúng tàu đó ở mọi trang — Dashboard, Đội tàu, Tồn kho, Yêu cầu — kể cả gõ thẳng URL tàu khác cũng nhận 404; ràng buộc được áp ở tầng truy vấn dữ liệu và trong từng server action/API. MASTER không gán tàu = vai trò văn phòng, quản lý toàn đội. CREW chưa gán tàu sẽ không thấy dữ liệu tàu nào (có banner nhắc liên hệ quản trị viên). Danh mục vật tư là dữ liệu tham chiếu chung nên mọi vai trò đều xem được.
+### Phân cấp phê duyệt yêu cầu vật tư
+
+Yêu cầu đi qua **hai cấp duyệt**, đúng cơ cấu trách nhiệm thật:
+
+```
+Sĩ quan lập yêu cầu (CREW)
+      │  Trình duyệt
+      ▼
+Chờ tàu duyệt ──── thuyền trưởng (mọi bộ phận) · máy trưởng (Máy/Điện)
+      │  Tàu duyệt & chuyển lên công ty
+      ▼
+Chờ công ty duyệt ──── quản lý kỹ thuật (TECH_MANAGER)
+      │  Công ty duyệt
+      ▼
+Đã duyệt ──► Chuyển mua sắm
+```
+
+Bị từ chối ở cấp nào cũng quay về **Từ chối**; người lập sửa rồi **Trình lại**, vết từ chối
+cũ được xóa để bảng đỏ không đứng nguyên trên một yêu cầu đang chờ duyệt.
+
+Vài quyết định đáng nói:
+
+- **Thuyền trưởng duyệt được cả yêu cầu buồng máy, máy trưởng thì không duyệt yêu cầu boong.**
+  Trên tàu thuyền trưởng là người chịu trách nhiệm cao nhất; ngược lại, nếu mỗi bộ phận chỉ
+  đúng một người duyệt thì máy trưởng đi bờ là yêu cầu buồng máy nằm kẹt.
+- **Công ty giảm được số lượng tàu đã duyệt nhưng không tăng.** Số lượng chỉ đi một chiều
+  xuống qua từng cấp: xin → tàu duyệt → công ty duyệt. Cho phép tăng thì cấp dưới ký một
+  đằng, mua một nẻo.
+- **Từ chối cũng phải đúng cấp.** Không có kiểm tra này thì máy trưởng từ chối được yêu cầu
+  đang nằm trên bàn của công ty, và ngược lại.
+- Nút bấm trên giao diện và quyền thật ở server dùng **chung một hàm** (`capDuyetChoPhep`
+  trong [`lib/auth.ts`](lib/auth.ts)), nên không thể lệch nhau: ai không có nút thì gọi thẳng
+  server action cũng bị chặn.
+
+Ma trận phân quyền (5 vai trò × 4 bộ phận × 5 trạng thái × cùng/khác tàu) có bài kiểm tra
+chạy lại được bằng `kiem-tra-phan-quyen.cmd` — gọi đúng hàm mà server dùng, kỳ vọng viết tay
+theo quy định chứ không suy ra từ chính hàm đang kiểm tra.
+
+Biểu mẫu in MLS-11-05 có sẵn bốn ô ký; hai cấp duyệt điền vào đúng ô của mình — ô *Captain*
+ghi người duyệt trên tàu (kèm chữ "Máy trưởng" nếu là máy trưởng ký), ô *Tech. & Pur Dept*
+ghi quản lý kỹ thuật công ty.
+
+**Phạm vi theo tàu:** mỗi tài khoản có thể được gán một *tàu phụ trách* (trang Người dùng). Tài khoản gán tàu chỉ nhìn thấy và thao tác trên đúng tàu đó ở mọi trang — Dashboard, Đội tàu, Tồn kho, Yêu cầu — kể cả gõ thẳng URL tàu khác cũng nhận 404; ràng buộc được áp ở tầng truy vấn dữ liệu và trong từng server action/API. ADMIN và TECH_MANAGER luôn toàn đội. MASTER không gán tàu = vai trò văn phòng, quản lý toàn đội. CREW hoặc CHIEF_ENGINEER chưa gán tàu sẽ không thấy dữ liệu tàu nào (có banner nhắc liên hệ quản trị viên) — máy trưởng là chức danh trên **một** con tàu nên không có ngoại lệ "không gán tàu thì toàn đội". Danh mục vật tư là dữ liệu tham chiếu chung nên mọi vai trò đều xem được.
 
 Quyền được kiểm tra ở 3 lớp: `proxy.ts` (chặn truy cập chưa đăng nhập), từng trang (ẩn form không có quyền), và **trong mỗi server action/API** (đọc vai trò mới nhất từ database — đổi vai trò/khóa tài khoản có hiệu lực ngay với mọi thao tác ghi).
 

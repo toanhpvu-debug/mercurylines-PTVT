@@ -80,7 +80,8 @@ Bấm đúp thẳng trong thư mục gốc của app, không cần mở terminal
 | **`chay-app.cmd`** | **Dùng hằng ngày.** Chạy bản production, tự mở trình duyệt. Chỉ build lại khi mã nguồn đổi — không đổi thì sẵn sàng trong ~2 giây |
 | **`dung-app.cmd`** | Tắt app đang chạy ở cổng 3000 (khi lỡ mất cửa sổ, hoặc app còn chạy ngầm từ lần trước) |
 | `doi-chieu-danh-muc.cmd` | Đối chiếu danh mục vật tư từng tàu với file kiểm kê gốc |
-| `sao-luu-du-lieu.cmd` | Nén bản chụp PostgreSQL (`pg_dump`) + file upload + `.env` + biểu mẫu thành bản sao lưu |
+| `sao-luu-du-lieu.cmd` | Nén bản chụp PostgreSQL (`pg_dump`) + file upload + `.env` + biểu mẫu thành bản sao lưu, kèm dấu vân tay để đối chiếu |
+| `khoi-phuc-du-lieu.cmd` | Đưa dữ liệu trở lại từ một bản sao lưu — tự chụp đường lùi trước, đối chiếu vân tay sau |
 | `dong-bo-github.cmd` | Đẩy thay đổi mã nguồn lên GitHub |
 | `run-dev.cmd` | Chỉ khi đang **sửa code** (có hot-reload). Chậm hơn production ~50 lần |
 | `khai-bao-ban-cai.cmd` | Khai báo bản cài này là của tàu nào (`ML-001`) hay là văn phòng (`VANPHONG`) — chạy một lần sau khi cài |
@@ -96,12 +97,48 @@ Node.js được dò động qua [`scripts/node-env.cmd`](scripts/node-env.cmd):
 trong hệ thống, không có thì lấy bản mới nhất đi kèm Playwright, rồi mới đến các vị trí cài
 thông thường. Trước đây đường dẫn Playwright bị ghim cứng kèm số phiên bản ở 4 file — Playwright
 cập nhật là cả 4 hỏng cùng lúc.
-| `dong-bo-github.cmd` | Đẩy thay đổi **mã nguồn** lên GitHub (add + commit + push) |
-| `sao-luu-du-lieu.cmd` | Nén **dữ liệu** (bản chụp PostgreSQL bằng `pg_dump`, `uploads/`, `.env`, `templates/*.xlsx`) thành `E:\backup-mercury\backup-<ngày giờ>.zip` |
+**GitHub chỉ giữ mã nguồn, không giữ dữ liệu vận hành.** Đẩy code lên GitHub bao nhiêu lần
+cũng không sao lưu được tồn kho, đơn mua hay file báo cáo đã tải lên — việc đó là của
+`sao-luu-du-lieu.cmd`.
 
-Hai script cuối tách bạch có chủ ý: **GitHub chỉ giữ mã nguồn, không giữ dữ liệu vận hành**.
-Đẩy code lên GitHub bao nhiêu lần cũng không sao lưu được tồn kho, đơn mua hay file báo cáo đã tải lên —
-việc đó là của `sao-luu-du-lieu.cmd`.
+## Sao lưu & khôi phục
+
+Hai chiều của cùng một việc, chạy bằng cách bấm đúp:
+
+```
+sao-luu-du-lieu.cmd     ->  E:\backup-mercury\backup-<ngày giờ>.zip
+khoi-phuc-du-lieu.cmd   <-  chọn một bản trong danh sách rồi đưa dữ liệu trở lại
+```
+
+Bản sao lưu gồm bản chụp PostgreSQL (`pg_dump` định dạng custom), `uploads/`, `.env`,
+`templates/*.xlsx`, kèm `CACH-KHOI-PHUC.txt` hướng dẫn làm tay khi máy mới chưa có thư mục dự án.
+
+### Bản sao lưu chỉ có giá trị khi khôi phục được thật
+
+Ba thứ được làm để việc khôi phục dùng được lúc cần chứ không chỉ "có script":
+
+**Dấu vân tay.** Mỗi bản sao lưu kèm `database/van-tay.json` — số dòng *và* md5 nội dung từng
+bảng. Sau khi khôi phục, script đối chiếu lại: khớp mới báo thành công. Chỉ so số dòng thì một
+bản ghi bị sửa nội dung vẫn lọt qua.
+
+**Đường lùi.** Trước khi ghi đè, script tự chụp dữ liệu hiện tại thành
+`truoc-khi-khoi-phuc-<giờ>.dump`. Chọn nhầm ngày là chuyện hay xảy ra; không có đường lùi thì
+một cú bấm sai xóa sạch dữ liệu thật. Lùi lại bằng chính script đó:
+
+```bash
+khoi-phuc-du-lieu.cmd -File "E:\backup-mercury\truoc-khi-khoi-phuc-20260821-222112.dump"
+```
+
+**Không làm nửa vời.** Chụp đường lùi thất bại thì dừng, không khôi phục. `pg_restore` lỗi thì
+dừng ngay và in đúng lệnh để lùi lại, thay vì để database dở dang. App phải tắt trước
+(`dung-app.cmd`) vì `pg_restore --clean` xóa rồi tạo lại toàn bộ bảng.
+
+Đã diễn tập trên chính dữ liệu thật: khôi phục xong, cả 29 bảng / 2.682 dòng khớp md5 với dấu
+vân tay ghi trước đó, kể cả bộ đếm id; rồi lùi lại từ file `.dump` cũng khớp y như vậy.
+
+`.env` **không** bị ghi đè tự động — file này chứa mật khẩu database của *máy đang chạy*, ghi đè
+bằng `.env` của máy khác là app mất kết nối ngay. Bản trong sao lưu được để cạnh ở
+`.env.tu-ban-sao-luu` để tự đối chiếu.
 
 ### Vì sao nên chạy production thay vì development
 

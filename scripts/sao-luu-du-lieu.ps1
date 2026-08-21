@@ -2,14 +2,19 @@
 #
 # Sao lưu đúng những thứ KHÔNG nằm trên GitHub (vì chúng là dữ liệu, không phải mã nguồn):
 #   - database\mercury.dump  bản chụp PostgreSQL: tồn kho, yêu cầu, đơn mua, tài khoản...
+#   - database\van-tay.json  số dòng + md5 nội dung từng bảng, để đối chiếu khi khôi phục
 #   - uploads\               file báo cáo tàu đã tải lên
 #   - .env                   khóa session + thông tin công ty in trên chứng từ
 #   - templates\*.xlsx       biểu mẫu Excel gốc của công ty
 #
 # Kết quả: E:\backup-mercury\backup-YYYYMMDD-HHmm.zip
+#
+# Khôi phục: chạy khoi-phuc-du-lieu.cmd (đọc thẳng file zip này).
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = "Stop"
+
+. "$PSScriptRoot\lib-postgres.ps1"
 
 $proj = Split-Path -Parent $PSScriptRoot
 $backupRoot = "E:\backup-mercury"
@@ -38,80 +43,59 @@ New-Item -ItemType Directory -Path $staging -Force | Out-Null
 $found = @()
 
 # --- 1. Database (PostgreSQL) ---
-# Đọc DATABASE_URL trong .env rồi gọi pg_dump. Trước đây script chép file
-# prisma\dev.db; sau khi chuyển sang PostgreSQL thì file đó chỉ còn là bản
-# SQLite cũ đóng băng — sao lưu nó là sao lưu nhầm, dữ liệu thật vẫn nằm trong
-# PostgreSQL.
-$envFile = Join-Path $proj ".env"
-$dbUrl = $null
-if (Test-Path $envFile) {
-    foreach ($line in Get-Content $envFile) {
-        if ($line -match '^\s*DATABASE_URL\s*=\s*"?([^"]+)"?\s*$') { $dbUrl = $Matches[1]; break }
-    }
-}
-
-if (-not $dbUrl) {
-    throw "Không đọc được DATABASE_URL trong $envFile — không biết sao lưu database nào."
-}
-
-# postgresql://user:pass@host:port/db?schema=public
-if ($dbUrl -notmatch '^postgres(ql)?://([^:]+):([^@]*)@([^:/]+):(\d+)/([^?]+)') {
-    throw "DATABASE_URL không phải chuỗi kết nối PostgreSQL hợp lệ: $dbUrl"
-}
-$pgUser = $Matches[2]
-$pgPass = [System.Uri]::UnescapeDataString($Matches[3])
-$pgHost = $Matches[4]
-$pgPort = $Matches[5]
-$pgName = $Matches[6]
-
-# Tìm pg_dump: ưu tiên trong PATH, không có thì dò thư mục cài PostgreSQL.
-$pgDump = (Get-Command pg_dump -ErrorAction SilentlyContinue).Source
-if (-not $pgDump) {
-    $cand = Get-ChildItem "C:\Program Files\PostgreSQL" -Directory -ErrorAction SilentlyContinue |
-            Sort-Object Name -Descending |
-            ForEach-Object { Join-Path $_.FullName "bin\pg_dump.exe" } |
-            Where-Object { Test-Path $_ } |
-            Select-Object -First 1
-    $pgDump = $cand
-}
-if (-not $pgDump) {
-    throw "Không tìm thấy pg_dump.exe. Cài PostgreSQL client hoặc thêm thư mục bin vào PATH."
-}
+# Trước đây script chép file prisma\dev.db; sau khi chuyển sang PostgreSQL thì
+# file đó chỉ còn là bản SQLite cũ đóng băng — sao lưu nó là sao lưu nhầm.
+$kn = Doc-KetNoi -DuAn $proj
+$pgDump = Tim-CongCuPg "pg_dump"
+$pgRestore = Tim-CongCuPg "pg_restore"
 
 New-Item -ItemType Directory -Path (Join-Path $staging "database") -Force | Out-Null
 $dumpOut = Join-Path $staging "database\mercury.dump"
 
 # Định dạng custom (-Fc): nén sẵn, khôi phục bằng pg_restore, chọn được từng bảng.
-$env:PGPASSWORD = $pgPass
-try {
-    & $pgDump -h $pgHost -p $pgPort -U $pgUser -d $pgName -Fc -f $dumpOut
-    if ($LASTEXITCODE -ne 0) { throw "pg_dump trả về mã lỗi $LASTEXITCODE" }
-} finally {
-    Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+$logDump = Join-Path $env:TEMP "mercury-pgdump-$stamp.log"
+$ma = Chay-Lenh -Exe $pgDump -MatKhau $kn.MatKhau -FileLog $logDump -ThamSo @(
+    "-h", $kn.May, "-p", $kn.Cong, "-U", $kn.NguoiDung, "-d", $kn.TenDb, "-Fc", "-f", $dumpOut
+)
+if ($ma -ne 0) {
+    Get-Content $logDump -Tail 10 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "   $_" -ForegroundColor Red }
+    throw "pg_dump trả về mã lỗi $ma — không sao lưu được database."
 }
+Remove-Item $logDump -Force -ErrorAction SilentlyContinue
 $found += "database\mercury.dump  ({0:N0} KB)" -f ((Get-Item $dumpOut).Length / 1KB)
 
-# Kèm luôn lệnh khôi phục — lúc cần dùng bản sao lưu thường là lúc hoảng.
-$huongDan = @"
-KHÔI PHỤC DỮ LIỆU MERCURY MATERIALS
-===================================
+# --- 2. Dấu vân tay dữ liệu ---
+# Một bản sao lưu chỉ đáng tin khi kiểm chứng được. Ghi số dòng + md5 nội dung
+# từng bảng để lúc khôi phục đối chiếu đúng đến từng ô dữ liệu, chứ không chỉ
+# "file có tồn tại".
+Write-Host "Đang tính dấu vân tay dữ liệu..." -ForegroundColor DarkGray
+$vanTay = Lay-VanTay -KetNoi $kn
+$tongDong = ($vanTay.Values | Measure-Object -Property so -Sum).Sum
+$manifest = [ordered]@{
+    taoLuc   = (Get-Date).ToString("s")
+    database = $kn.TenDb
+    nguon    = "$($kn.May):$($kn.Cong)/$($kn.TenDb)"
+    soBang   = $vanTay.Count
+    tongDong = $tongDong
+    bang     = $vanTay
+}
+$manifest | ConvertTo-Json -Depth 5 |
+    Set-Content -Path (Join-Path $staging "database\van-tay.json") -Encoding utf8
+$found += "database\van-tay.json  ($($vanTay.Count) bảng, {0:N0} dòng)" -f $tongDong
 
-File mercury.dump là bản chụp toàn bộ database PostgreSQL (định dạng custom).
+# --- 3. Kiểm tra file dump có đọc được không ---
+# pg_dump báo thành công vẫn có thể ra file hỏng (hết đĩa, ổ lỗi). Đọc thử mục
+# lục ngay bây giờ, lúc còn cứu được, thay vì phát hiện lúc cần khôi phục.
+$logList = Join-Path $env:TEMP "mercury-pglist-$stamp.log"
+$ma = Chay-Lenh -Exe $pgRestore -FileLog $logList -ThamSo @("--list", $dumpOut)
+if ($ma -ne 0) {
+    throw "File dump vừa tạo KHÔNG đọc được — bản sao lưu này hỏng, không dùng được."
+}
+$soBangTrongDump = (Get-Content $logList | Select-String -SimpleMatch "TABLE DATA").Count
+Remove-Item $logList -Force -ErrorAction SilentlyContinue
+Write-Host "Đã kiểm tra file dump: đọc được, có $soBangTrongDump bảng dữ liệu." -ForegroundColor DarkGray
 
-1. Tạo database rỗng (nếu chưa có):
-     createdb -U postgres $pgName
-
-2. Khôi phục:
-     pg_restore -h $pgHost -p $pgPort -U $pgUser -d $pgName --clean --if-exists mercury.dump
-
-3. Chép uploads\, .env, templates\ trở lại thư mục dự án.
-
-Chụp lúc: $(Get-Date -Format "yyyy-MM-dd HH:mm")
-Nguồn   : $pgHost`:$pgPort/$pgName
-"@
-Set-Content -Path (Join-Path $staging "database\CACH-KHOI-PHUC.txt") -Value $huongDan -Encoding utf8
-
-# --- 2. File báo cáo tàu tải lên ---
+# --- 4. File báo cáo tàu tải lên ---
 $up = Join-Path $proj "uploads"
 if ((Test-Path $up) -and (Get-ChildItem $up -File -ErrorAction SilentlyContinue)) {
     Copy-Item $up (Join-Path $staging "uploads") -Recurse -Force
@@ -119,20 +103,50 @@ if ((Test-Path $up) -and (Get-ChildItem $up -File -ErrorAction SilentlyContinue)
     $found += "uploads\       ($n file)"
 }
 
-# --- 3. Cấu hình bí mật ---
+# --- 5. Cấu hình bí mật ---
 $envFile = Join-Path $proj ".env"
 if (Test-Path $envFile) {
     Copy-Item $envFile (Join-Path $staging ".env") -Force
     $found += ".env"
 }
 
-# --- 4. Biểu mẫu Excel gốc ---
+# --- 6. Biểu mẫu Excel gốc ---
 $tpl = Get-ChildItem (Join-Path $proj "templates") -Filter "*.xls*" -ErrorAction SilentlyContinue
 if ($tpl) {
     New-Item -ItemType Directory -Path (Join-Path $staging "templates") -Force | Out-Null
     $tpl | ForEach-Object { Copy-Item $_.FullName (Join-Path $staging "templates") -Force }
     $found += "templates\     ($($tpl.Count) file)"
 }
+
+# --- 7. Hướng dẫn khôi phục bằng tay (khi không còn thư mục dự án) ---
+$huongDan = @"
+KHÔI PHỤC DỮ LIỆU MERCURY MATERIALS
+===================================
+
+CÁCH THƯỜNG DÙNG
+Chạy khoi-phuc-du-lieu.cmd trong thư mục dự án rồi chọn bản sao lưu này.
+Script tự chụp lại dữ liệu hiện tại trước khi ghi đè (để lùi lại được),
+tự khôi phục database + uploads + templates, rồi đối chiếu dấu vân tay.
+
+KHÔI PHỤC BẰNG TAY (khi máy mới, chưa có thư mục dự án)
+
+1. Tạo database rỗng nếu chưa có (cần quyền tạo database):
+     createdb -U postgres $($kn.TenDb)
+     psql -U postgres -c "CREATE USER $($kn.NguoiDung) WITH PASSWORD '...';"
+     psql -U postgres -c "ALTER DATABASE $($kn.TenDb) OWNER TO $($kn.NguoiDung);"
+
+2. Khôi phục database:
+     pg_restore -h $($kn.May) -p $($kn.Cong) -U $($kn.NguoiDung) -d $($kn.TenDb) --clean --if-exists mercury.dump
+
+3. Chép .env, uploads\, templates\ trở lại thư mục dự án.
+
+4. Đối chiếu với van-tay.json: số dòng từng bảng phải khớp.
+
+Chụp lúc: $(Get-Date -Format "yyyy-MM-dd HH:mm")
+Nguồn   : $($kn.May):$($kn.Cong)/$($kn.TenDb)
+Gồm     : $($vanTay.Count) bảng, $tongDong dòng
+"@
+Set-Content -Path (Join-Path $staging "database\CACH-KHOI-PHUC.txt") -Value $huongDan -Encoding utf8
 
 if ($found.Count -eq 0) {
     Write-Host "Không tìm thấy dữ liệu nào để sao lưu. Dừng lại." -ForegroundColor Red
@@ -145,6 +159,7 @@ if (-not (Test-Path $backupRoot)) { New-Item -ItemType Directory -Path $backupRo
 Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $zipPath -Force
 Remove-Item $staging -Recurse -Force
 
+Write-Host ""
 Write-Host "Đã sao lưu:" -ForegroundColor Green
 $found | ForEach-Object { Write-Host "   - $_" }
 Write-Host ""
@@ -159,5 +174,4 @@ $all | Select-Object -First 8 | ForEach-Object {
 }
 if ($all.Count -gt 8) { Write-Host "   ... và $($all.Count - 8) bản cũ hơn" }
 Write-Host ""
-Write-Host "Cách phục hồi: giải nén file zip, chép đè uploads/.env/templates vào $proj," -ForegroundColor DarkGray
-Write-Host "               riêng database dùng pg_restore — xem database\CACH-KHOI-PHUC.txt trong zip." -ForegroundColor DarkGray
+Write-Host "Khôi phục: chạy khoi-phuc-du-lieu.cmd" -ForegroundColor DarkGray

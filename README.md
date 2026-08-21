@@ -183,6 +183,19 @@ Lý do không hiện hết mặc định: dựng đủ 606 dòng tạo hơn **20
 trình duyệt bắt đầu ì từ khoảng 10.000 phần tử. Cắt còn 40 dòng/bộ phận đưa về **6.886 phần tử,
 43 KB**, còn tìm kiếm thì thường ra dưới 500 phần tử.
 
+### IMPA và Part No. — phân biệt khi nhập file
+
+File kiểm kê của công ty ghi **cả mã nhà sản xuất lẫn mã IMPA vào chung cột "Mã IMPA"**.
+Bộ đọc file phân loại lại thay vì đổ thẳng vào ô IMPA:
+
+| Giá trị | Vào ô |
+|---|---|
+| 6 chữ số, liền hoặc có dấu ngăn — `190115`, `19.01.15`, `51.08...` | **IMPA** |
+| Có chữ cái — `VLH-53.06.01`, `E11108`, `SY000814`, `6310-2Z` | **Part No.** |
+| Số trơn từ 7 chữ số — `1016815253` (số hiệu của hãng) | **Part No.** |
+
+Quy tắc nằm ở `looksLikeImpa()` trong [`lib/materialImport.ts`](lib/materialImport.ts).
+
 ### Đối chiếu danh mục với file kiểm kê gốc
 
 `doi-chieu-danh-muc.cmd` so danh mục vật tư của **từng tàu** trong app với đúng các file kiểm kê

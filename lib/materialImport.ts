@@ -88,6 +88,26 @@ function cleanId(s: string): string | null {
   return t;
 }
 
+/**
+ * Giá trị trong cột "Mã IMPA" có đúng là mã IMPA không.
+ *
+ * IMPA là mã 6 chữ số, có thể viết liền (190115) hoặc ngăn bằng dấu chấm/gạch
+ * (19.01.15), và trong file kiểm kê thật đôi khi bị cắt cụt (51.08...).
+ * Nhưng file của công ty còn ghi cả MÃ NHÀ SẢN XUẤT vào cột này —
+ * VLH-53.06.01, E11108, SY000814, 6310-2Z, hay số máy 10 chữ số 1016815253.
+ * Những mã đó phải vào cột Part No., không phải IMPA.
+ */
+export function looksLikeImpa(value: string): boolean {
+  const v = value.trim();
+  if (!v) return false;
+  // Có chữ cái → mã nhà sản xuất.
+  if (/[A-Za-z]/.test(v)) return false;
+  // Số trơn: IMPA dài đúng 6; dài hơn là số hiệu của hãng.
+  if (/^\d+$/.test(v)) return v.length <= 6;
+  // Còn lại là dạng có dấu ngăn (19.01.15, 51.08...) — coi là IMPA.
+  return true;
+}
+
 function cellNumber(v: unknown): number {
   if (typeof v === "string") {
     let s = v.trim();
@@ -249,10 +269,15 @@ function parseSheet(
     const robRaw = robText ? cellNumber(row[col.rob]) : NaN;
     const uom =
       (col.uom >= 0 ? cellText(row[col.uom]) : "") || minParsed.unit || "PCS";
+    const impaCell = col.impa >= 0 ? cleanId(cellText(row[col.impa])) : null;
+    const pnCell = col.pn >= 0 ? cleanId(cellText(row[col.pn])) : null;
     items.push({
       name,
-      impa: col.impa >= 0 ? cleanId(cellText(row[col.impa])) : null,
-      partNumber: col.pn >= 0 ? cleanId(cellText(row[col.pn])) : null,
+      // Cột "Mã IMPA" trong file công ty lẫn cả mã nhà sản xuất — phân loại
+      // lại chứ không đổ thẳng vào ô IMPA.
+      impa: impaCell && looksLikeImpa(impaCell) ? impaCell : null,
+      partNumber:
+        pnCell ?? (impaCell && !looksLikeImpa(impaCell) ? impaCell : null),
       uom,
       equipment: currentEquipment,
       group: col.group >= 0 ? cellText(row[col.group]) || null : null,

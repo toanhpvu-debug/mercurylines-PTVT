@@ -38,7 +38,15 @@ export default async function PaintProductsPage() {
         </p>
       </div>
 
-      <PaintProductAddForm types={PAINT_TYPES} />
+      <div className="flex flex-wrap items-center gap-3">
+        <PaintProductAddForm types={PAINT_TYPES} />
+        <Link
+          href="/paint/import"
+          className="rounded border border-blue-300 bg-white px-4 py-2 text-sm text-blue-800 hover:bg-blue-50"
+        >
+          ⬆ Nhập từ file Excel / PDF
+        </Link>
+      </div>
 
       <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
         <p className="mb-3 font-semibold text-blue-950">

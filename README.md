@@ -253,6 +253,25 @@ Module riêng cho sơn, tách khỏi danh mục vật tư vì sơn có thuộc t
 3. **Tồn sơn theo tàu** — nhập/xuất có ghi thời điểm + người thực hiện, định mức tối thiểu
    từng loại, cảnh báo THIẾU, và lịch sử nhập xuất.
 
+**Nhập danh mục sơn từ file** (`/paint/import`) — nạp nhanh bảng sơn của hãng thay vì gõ tay:
+
+- **Excel (.xls/.xlsx):** tự dò cột theo tiêu đề, đọc mọi sheet, bỏ qua sheet không có bảng.
+  Nhận cả tiếng Việt lẫn tiếng Anh: Tên sơn/Product · Hãng/Maker · Loại/Type · Mã màu/Colour code ·
+  Đơn vị/Unit · Dung tích/Pack · Độ phủ/Coverage · DFT · Dung môi/Thinner · Tồn/Q'ty.
+  Đọc được số thập phân kiểu Việt Nam (`7,5`).
+- **Dán từ PDF:** mở PDF → Ctrl+A → Ctrl+C → dán vào ô text. App tách cột theo Tab, dấu `|`
+  hoặc khoảng trắng liền nhau. Không có dòng tiêu đề thì mỗi dòng là một tên sơn, và loại sơn
+  được đoán từ tên ("chống hà" → Anti-fouling, "lót" → Primer).
+- Chọn tàu thì **cột số lượng được ghi thành tồn sơn** của tàu đó (đặt số tuyệt đối, không cộng dồn).
+
+Ghép theo **tên sơn**: tên đã có thì chỉ **bổ sung ô còn trống**, không ghi đè thông tin đã chỉnh
+trong app — nên nhập lại cùng file không sinh bản sao.
+
+> **Vì sao không đọc thẳng file PDF?** Máy chưa cài thư viện đọc PDF và không có `npm` để cài thêm.
+> Tự viết bộ đọc PDF thì chỉ chạy được với PDF dạng chữ, hỏng với PDF scan — thử trên 2 file PDF
+> sẵn có thì không giải nén được stream nào. Với dữ liệu thật, đọc sai còn tệ hơn không đọc, nên
+> để trình đọc PDF lo phần trích chữ rồi dán vào là chắc chắn hơn.
+
 **Dự trù sơn** — trang tàu tự gộp lượng cần của mọi khu vực theo từng loại sơn, đối chiếu
 với tồn hiện có và ra số **cần mua thêm**. Lớp nào thiếu diện tích m² hoặc thiếu độ phủ thì
 được đếm riêng và báo rõ, không đưa vào con số dự trù.

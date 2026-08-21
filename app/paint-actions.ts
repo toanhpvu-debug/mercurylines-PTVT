@@ -649,3 +649,174 @@ export async function copyPaintScheme(
     success: true,
   };
 }
+
+// ─── Nhập danh mục sơn từ file Excel hoặc text dán tay ───────────────────────
+
+export async function importPaintProducts(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const actor = await requireActiveRole(["ADMIN", "MASTER"]);
+  if (!actor) return { message: NO_PERMISSION };
+
+  // Tàu để ghi tồn — tùy chọn. Bỏ trống thì chỉ nạp danh mục dùng chung.
+  const vesselRaw = text(formData, "vesselId");
+  let vesselId: number | null = null;
+  if (vesselRaw) {
+    const vid = Number(vesselRaw);
+    if (!Number.isInteger(vid) || vid <= 0) {
+      return { message: "Tàu không hợp lệ." };
+    }
+    if (!canManageVesselCatalog(actor, vid)) {
+      return { message: "Bạn chỉ ghi tồn được cho tàu mình phụ trách." };
+    }
+    vesselId = vid;
+  }
+
+  const { parsePaintExcel, parsePaintText } = await import("@/lib/paintImport");
+  const pasted = text(formData, "pasted");
+  const file = formData.get("file");
+  let parsed;
+
+  if (pasted) {
+    parsed = parsePaintText(pasted);
+  } else if (file instanceof File && file.size > 0) {
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".pdf")) {
+      return {
+        message:
+          "Chưa đọc trực tiếp được file PDF. Hãy mở PDF, bôi đen bảng (Ctrl+A), copy (Ctrl+C) rồi dán vào ô “Dán từ PDF” bên dưới — cách này chính xác hơn vì trình đọc PDF lo phần trích chữ.",
+      };
+    }
+    if (!/\.(xls|xlsx)$/.test(name)) {
+      return { message: "File phải là Excel (.xls hoặc .xlsx)." };
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return { message: "File vượt quá 10MB." };
+    }
+    parsed = parsePaintExcel(Buffer.from(await file.arrayBuffer()));
+  } else {
+    return { message: "Hãy chọn file Excel hoặc dán nội dung từ PDF." };
+  }
+
+  if (parsed.error) return { message: parsed.error };
+
+  // Ghép với sơn đã có theo TÊN (không phân biệt hoa thường) để nhập lại cùng
+  // file không sinh bản sao.
+  const existing = await prisma.paintProduct.findMany();
+  const norm = (v: string) => v.normalize("NFC").toLowerCase().replace(/\s+/g, " ").trim();
+  const byName = new Map(existing.map((p) => [norm(p.name), p]));
+  let seq = existing.length + 1;
+  const usedCodes = new Set(existing.map((p) => p.code));
+  const nextCode = () => {
+    let code = `SON-${String(seq).padStart(4, "0")}`;
+    while (usedCodes.has(code)) {
+      seq += 1;
+      code = `SON-${String(seq).padStart(4, "0")}`;
+    }
+    seq += 1;
+    usedCodes.add(code);
+    return code;
+  };
+
+  let created = 0;
+  let updated = 0;
+  let stockRows = 0;
+
+  await prisma.$transaction(
+    async (tx) => {
+      for (const item of parsed.items) {
+        const key = norm(item.name);
+        let product = byName.get(key);
+        if (product) {
+          // Chỉ điền thêm ô còn trống, KHÔNG ghi đè dữ liệu đã có trong app —
+          // người dùng có thể đã chỉnh tay chính xác hơn file.
+          const patch: Record<string, unknown> = {};
+          if (!product.maker && item.maker) patch.maker = item.maker;
+          if (product.paintType === "OTHER" && item.paintType)
+            patch.paintType = item.paintType;
+          if (!product.colorCode && item.colorCode) patch.colorCode = item.colorCode;
+          if (!product.colorName && item.colorName) patch.colorName = item.colorName;
+          if (!product.packSize && item.packSize) patch.packSize = item.packSize;
+          if (!product.coverage && item.coverage) patch.coverage = item.coverage;
+          if (!product.dftPerCoat && item.dftPerCoat)
+            patch.dftPerCoat = item.dftPerCoat;
+          if (!product.thinner && item.thinner) patch.thinner = item.thinner;
+          if (Object.keys(patch).length) {
+            product = await tx.paintProduct.update({
+              where: { id: product.id },
+              data: patch,
+            });
+            updated += 1;
+          }
+        } else {
+          product = await tx.paintProduct.create({
+            data: {
+              code: nextCode(),
+              name: item.name,
+              maker: item.maker,
+              paintType: item.paintType ?? "OTHER",
+              colorCode: item.colorCode,
+              colorName: item.colorName,
+              uom: item.uom || "L",
+              packSize: item.packSize ?? 0,
+              coverage: item.coverage ?? 0,
+              dftPerCoat: item.dftPerCoat ?? 0,
+              thinner: item.thinner,
+            },
+          });
+          byName.set(key, product);
+          created += 1;
+        }
+
+        // Ghi tồn nếu chọn tàu và file có cột số lượng.
+        if (vesselId && item.quantity !== null && item.quantity >= 0) {
+          const stock = await tx.paintStock.findUnique({
+            where: { vesselId_productId: { vesselId, productId: product.id } },
+          });
+          const current = stock?.quantity ?? 0;
+          const delta = item.quantity - current;
+          await tx.paintStock.upsert({
+            where: { vesselId_productId: { vesselId, productId: product.id } },
+            update: { quantity: item.quantity },
+            create: { vesselId, productId: product.id, quantity: item.quantity },
+          });
+          if (delta !== 0) {
+            await tx.paintTransaction.create({
+              data: {
+                vesselId,
+                productId: product.id,
+                type: delta > 0 ? "IN" : "OUT",
+                quantity: Math.abs(delta),
+                note: "Nhập danh mục sơn từ file",
+                performedBy: actor.name,
+              },
+            });
+          }
+          stockRows += 1;
+        }
+      }
+    },
+    { timeout: 60000, maxWait: 10000 }
+  );
+
+  revalidatePath("/paint");
+  revalidatePath("/paint/products");
+  if (vesselId) revalidatePath(`/paint/${vesselId}`);
+
+  const parts = [
+    `Đã đọc ${parsed.items.length} dòng:`,
+    `${created} loại sơn mới`,
+    `${updated} loại đã có được bổ sung thông tin`,
+  ];
+  if (stockRows) parts.push(`${stockRows} dòng ghi tồn`);
+  if (parsed.skippedRows) parts.push(`${parsed.skippedRows} dòng bỏ qua`);
+  if (parsed.sheets?.length) {
+    const read = parsed.sheets.filter((s) => !s.skipped);
+    if (read.length)
+      parts.push(
+        "Sheet đã đọc: " + read.map((s) => `${s.name} (${s.count})`).join("; ")
+      );
+  }
+  return { message: parts.join(" · "), success: true };
+}

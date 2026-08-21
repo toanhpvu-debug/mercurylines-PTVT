@@ -54,3 +54,6 @@ next-env.d.ts
 
 # cau hinh trien khai chua bi mat (chep tu deploy/env.hostinger.example)
 /deploy/.env
+
+# migration SQLite cu, giu lai de tra cuu - khong can dua len repo
+/prisma/migrations-sqlite-cu

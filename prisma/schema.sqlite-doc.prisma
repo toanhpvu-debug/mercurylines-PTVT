@@ -1,10 +1,14 @@
-generator client {
+// Schema CHI DE DOC du lieu SQLite cu khi chuyen sang PostgreSQL.
+// Sinh ra mot Prisma Client rieng tai node_modules/.prisma/client-sqlite.
+// KHONG dung file nay de migrate - schema chinh la prisma/schema.prisma.
+generator clientSqlite {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client-sqlite"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = env("SQLITE_URL")
 }
 
 model User {

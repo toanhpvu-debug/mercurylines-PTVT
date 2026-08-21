@@ -13,21 +13,43 @@
 # sẽ "thành công" rồi lập tức quay lại trang login. Xem deploy/HOSTINGER.md.
 
 services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-mercury}"
+      POSTGRES_USER: "${POSTGRES_USER:-mercury}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Thiếu POSTGRES_PASSWORD trong deploy/.env}"
+    volumes:
+      - mercury-db:/var/lib/postgresql/data
+    # Web chỉ khởi động sau khi database SẴN SÀNG NHẬN LỆNH — nếu không, lệnh
+    # migrate ở entrypoint sẽ lỗi kết nối.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mercury} -d ${POSTGRES_DB:-mercury}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   web:
     build:
       context: ..
       dockerfile: Dockerfile
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     expose:
       - "3000"
     volumes:
-      # Toàn bộ dữ liệu vận hành nằm ở đây: mercury.db + uploads/ + .session-secret.
-      # Còn volume này thì rebuild/restart bao nhiêu lần cũng không mất dữ liệu.
+      # File tải lên + khóa session. Dữ liệu nghiệp vụ nằm trong PostgreSQL
+      # (volume mercury-db), rebuild/restart bao nhiêu lần cũng không mất.
       - mercury-data:/data
       # Biểu mẫu Excel gốc của công ty KHÔNG nằm trong repo (xem templates/README.md).
       # Chép file lên VPS rồi mount vào, nếu không nút "Xuất kiểm kê MLS-11-06" sẽ báo lỗi.
       - ../templates/MLS-11-06.xlsx:/app/templates/MLS-11-06.xlsx:ro
     environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-mercury}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-mercury}?schema=public"
+
       # Khóa ký cookie phiên. Bỏ trống thì entrypoint tự sinh và lưu vào volume.
       # Đặt tay nếu muốn giữ nguyên phiên đăng nhập khi đổi sang volume khác.
       SESSION_SECRET: "${SESSION_SECRET:-}"
@@ -70,5 +92,6 @@ services:
 
 volumes:
   mercury-data:
+  mercury-db:
   caddy-data:
   caddy-config:

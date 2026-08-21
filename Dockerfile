@@ -14,7 +14,7 @@ RUN npm run build
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-ENV DATABASE_URL="file:/data/mercury.db"
+# DATABASE_URL truyen tu docker-compose (dich vu postgres), khong ghim trong image.
 ENV UPLOAD_DIR="/data/uploads"
 
 EXPOSE 3000

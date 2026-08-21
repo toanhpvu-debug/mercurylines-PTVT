@@ -1,15 +1,40 @@
 services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mercury
+      POSTGRES_USER: mercury
+      # Đổi mật khẩu này trước khi chạy thật.
+      POSTGRES_PASSWORD: doi_mat_khau_nay
+    volumes:
+      - mercury-db:/var/lib/postgresql/data
+    # Web chỉ khởi động sau khi database SẴN SÀNG NHẬN LỆNH, không chỉ sau khi
+    # container chạy — nếu không, lệnh migrate ở entrypoint sẽ lỗi kết nối.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mercury -d mercury"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   web:
     build: .
     ports:
       - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
+      # Chỉ còn file người dùng tải lên và khóa session — dữ liệu nghiệp vụ
+      # đã nằm trong PostgreSQL.
       - mercury-data:/data
     restart: unless-stopped
-    # SESSION_SECRET tự sinh và lưu trong volume nếu không đặt ở đây.
-    # Truy cập qua HTTP thuần (không HTTPS): bỏ comment dòng dưới để cookie hoạt động.
-    # environment:
-    #   COOKIE_SECURE: "false"
+    environment:
+      DATABASE_URL: "postgresql://mercury:doi_mat_khau_nay@db:5432/mercury?schema=public"
+      # SESSION_SECRET tự sinh và lưu trong volume nếu không đặt ở đây.
+      # Truy cập qua HTTP thuần (không HTTPS): bỏ comment dòng dưới để cookie hoạt động.
+      # COOKIE_SECURE: "false"
 
 volumes:
   mercury-data:
+  mercury-db:

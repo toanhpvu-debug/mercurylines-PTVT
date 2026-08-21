@@ -1,0 +1,74 @@
+# Cấu hình chạy Mercury Materials trên Hostinger VPS (template Docker).
+#
+# Dùng — CHẠY TỪ TRONG THƯ MỤC deploy/ để docker compose đọc đúng file deploy/.env:
+#   cd /opt/mercury-materials/deploy
+#   docker compose -f docker-compose.hostinger.yml up -d --build
+#
+# TRƯỚC KHI CHẠY LẦN ĐẦU, bắt buộc chép templates/MLS-11-06.xlsx lên VPS.
+# Docker tự tạo THƯ MỤC rỗng nếu nguồn bind mount không tồn tại, và app sẽ lỗi khó hiểu.
+#
+# Caddy đứng trước làm reverse proxy và TỰ XIN chứng chỉ HTTPS của Let's Encrypt.
+# HTTPS là bắt buộc chứ không phải tùy chọn: app đặt cookie phiên với secure=true khi
+# NODE_ENV=production, trình duyệt sẽ không gửi cookie qua HTTP thuần nên đăng nhập
+# sẽ "thành công" rồi lập tức quay lại trang login. Xem deploy/HOSTINGER.md.
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "3000"
+    volumes:
+      # Toàn bộ dữ liệu vận hành nằm ở đây: mercury.db + uploads/ + .session-secret.
+      # Còn volume này thì rebuild/restart bao nhiêu lần cũng không mất dữ liệu.
+      - mercury-data:/data
+      # Biểu mẫu Excel gốc của công ty KHÔNG nằm trong repo (xem templates/README.md).
+      # Chép file lên VPS rồi mount vào, nếu không nút "Xuất kiểm kê MLS-11-06" sẽ báo lỗi.
+      - ../templates/MLS-11-06.xlsx:/app/templates/MLS-11-06.xlsx:ro
+    environment:
+      # Khóa ký cookie phiên. Bỏ trống thì entrypoint tự sinh và lưu vào volume.
+      # Đặt tay nếu muốn giữ nguyên phiên đăng nhập khi đổi sang volume khác.
+      SESSION_SECRET: "${SESSION_SECRET:-}"
+
+      # Mật khẩu 3 tài khoản mẫu tạo ra ở lần seed đầu tiên. ĐỔI NGAY sau khi đăng nhập.
+      SEED_PASSWORD: "${SEED_PASSWORD:?Thiếu SEED_PASSWORD trong deploy/.env}"
+
+      # Thông tin công ty in trên PO / RFQ — chỉ dùng khi seed lần đầu,
+      # sau đó sửa trực tiếp trong app tại /purchasing/forms.
+      FORM_MLS_LABEL: "${FORM_MLS_LABEL:-}"
+      FORM_MLS_COMPANY_NAME: "${FORM_MLS_COMPANY_NAME:-}"
+      FORM_MLS_ADDRESS: "${FORM_MLS_ADDRESS:-}"
+      FORM_MLS_REP_ADDRESS: "${FORM_MLS_REP_ADDRESS:-}"
+      FORM_MLS_TEL: "${FORM_MLS_TEL:-}"
+      FORM_MLS_EMAIL: "${FORM_MLS_EMAIL:-}"
+      FORM_MLS_WEBSITE: "${FORM_MLS_WEBSITE:-}"
+      FORM_NAVIS_LABEL: "${FORM_NAVIS_LABEL:-}"
+      FORM_NAVIS_COMPANY_NAME: "${FORM_NAVIS_COMPANY_NAME:-}"
+      FORM_NAVIS_ADDRESS: "${FORM_NAVIS_ADDRESS:-}"
+      FORM_NAVIS_TEL: "${FORM_NAVIS_TEL:-}"
+      FORM_NAVIS_EMAIL: "${FORM_NAVIS_EMAIL:-}"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Tên miền trỏ về VPS, ví dụ: vattu.tenmiencuaban.com
+      DOMAIN: "${DOMAIN:?Thiếu DOMAIN trong deploy/.env}"
+      # Email nhận cảnh báo hết hạn chứng chỉ từ Let's Encrypt.
+      ACME_EMAIL: "${ACME_EMAIL:?Thiếu ACME_EMAIL trong deploy/.env}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  mercury-data:
+  caddy-data:
+  caddy-config:

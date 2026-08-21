@@ -1,0 +1,24 @@
+# Reverse proxy + HTTPS tự động (Let's Encrypt) cho Mercury Materials.
+# {$DOMAIN} và {$ACME_EMAIL} lấy từ deploy/.env qua docker-compose.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	# Cho phép tải file báo cáo tới 25MB (server action đặt giới hạn 25MB trong next.config.ts).
+	request_body {
+		max_size 25MB
+	}
+
+	reverse_proxy web:3000
+
+	encode gzip
+
+	log {
+		output file /data/access.log {
+			roll_size 10MB
+			roll_keep 5
+		}
+	}
+}

@@ -51,3 +51,6 @@ next-env.d.ts
 # bieu mau Excel goc cua cong ty (tai lieu noi bo) - xem templates/README.md
 /templates/*.xlsx
 /templates/*.xls
+
+# cau hinh trien khai chua bi mat (chep tu deploy/env.hostinger.example)
+/deploy/.env

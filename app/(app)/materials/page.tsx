@@ -1,5 +1,12 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import {
+  compareWithinDepartment,
+  DEPARTMENTS,
+  departmentOfMaterial,
+  equipmentOf,
+} from "@/lib/departments";
 import MaterialForm from "@/components/MaterialForm";
 import MaterialRowActions from "@/components/MaterialRowActions";
 import {
@@ -128,6 +135,47 @@ export default async function MaterialsPage({
   const rows = isVesselMode
     ? assignedMaterials.map((a) => a.material!).filter(Boolean)
     : masterMaterials;
+
+  // Nhóm theo bộ phận tàu như form công ty: Boong → Máy → Điện → Phục vụ →
+  // An toàn → Khác. Trong mỗi bộ phận: vật tư trước, phụ tùng sau theo thiết bị.
+  type Row = (typeof rows)[number];
+  // Tên nhóm lấy từ danh sách categories đã nạp — kiểu của rows không mang
+  // quan hệ category nên không đọc thẳng m.category được.
+  const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
+  const byDept = new Map<string, Row[]>();
+  for (const m of rows) {
+    const key = departmentOfMaterial(
+      [
+        m.categoryId ? categoryNameById.get(m.categoryId) : null,
+        m.equipment,
+        m.code,
+      ],
+      m.materialType
+    );
+    const list = byDept.get(key);
+    if (list) list.push(m);
+    else byDept.set(key, [m]);
+  }
+  // Gắn kèm tên nhóm để suy ra thiết bị (file kiểm kê ghi thiết bị ở cột Nhóm).
+  const withCategory = (m: Row) => ({
+    ...m,
+    categoryName: m.categoryId ? (categoryNameById.get(m.categoryId) ?? null) : null,
+  });
+  const deptGroups = DEPARTMENTS.map((d) => ({
+    ...d,
+    rows: (byDept.get(d.key) ?? [])
+      .map(withCategory)
+      .sort(compareWithinDepartment),
+  })).filter((d) => d.rows.length > 0);
+  // Số cột của bảng — dùng cho ô tiêu đề nhóm trải hết chiều ngang.
+  const colCount =
+    9 +
+    (isSpareView ? 1 : 0) +
+    (filterType === "ALL" ? 1 : 0) +
+    (!isVesselMode ? 1 : 0) +
+    (((isVesselMode && canEditVessel) || (!isVesselMode && canManageMaster))
+      ? 1
+      : 0);
 
   return (
     <div className="space-y-6">
@@ -318,7 +366,41 @@ export default async function MaterialsPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((material) => (
+                    {deptGroups.map((dept) => {
+                      // Trong bộ phận, chèn tiêu đề phụ mỗi khi đổi thiết bị
+                      // (chỉ với phụ tùng) — VD Máy chính, Máy đèn.
+                      let lastEquip: string | null = null;
+                      return (
+                        <Fragment key={dept.key}>
+                          <tr className="border-b-2 border-blue-300 bg-blue-100/70">
+                            <td
+                              colSpan={colCount}
+                              className="p-2 font-bold text-blue-950"
+                            >
+                              {dept.icon} {dept.label}
+                              <span className="ml-2 font-normal text-blue-800">
+                                ({dept.rows.length})
+                              </span>
+                            </td>
+                          </tr>
+                          {dept.rows.map((material) => {
+                            const equip = equipmentOf(material);
+                            const showEquipHeader =
+                              equip !== null && equip !== lastEquip;
+                            if (equip !== null) lastEquip = equip;
+                            return (
+                              <Fragment key={material.id}>
+                                {showEquipHeader && (
+                                  <tr className="border-b bg-slate-100">
+                                    <td
+                                      colSpan={colCount}
+                                      className="py-1.5 pl-6 text-sm font-semibold text-slate-700"
+                                    >
+                                      🔧 {equip}
+                                    </td>
+                                  </tr>
+                                )}
+                                {(
                       <tr
                         key={material.id}
                         className={`border-b ${
@@ -412,7 +494,13 @@ export default async function MaterialsPage({
                           </td>
                         )}
                       </tr>
-                    ))}
+                                )}
+                              </Fragment>
+                            );
+                          })}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

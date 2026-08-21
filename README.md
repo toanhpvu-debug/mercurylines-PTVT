@@ -114,6 +114,17 @@ Biến môi trường: `SESSION_SECRET` (bắt buộc — Docker tự sinh và l
 
 Danh mục và yêu cầu vật tư được dựng theo 3 mẫu Excel của công ty (MLS-11-05A/05B/11-06):
 
+- **Danh mục vật tư** (`/materials`) xếp theo **bộ phận tàu** như form công ty:
+  🛳 Boong → ⚙️ Máy → ⚡ Điện → 🧺 Phục vụ/Tiêu hao → 🦺 An toàn. Trong mỗi bộ phận, vật tư
+  (Store) đứng trước, phụ tùng (Spare) xếp sau và **gom theo từng thiết bị** — Máy chính,
+  Máy đèn, Air Compressor, Oil Separator, BWMS… Cùng cách phân nhóm với trang Tồn kho
+  (dùng chung [`lib/departments.ts`](lib/departments.ts)).
+
+  Hai quy tắc đáng lưu ý trong cách phân nhóm: thiết bị của phụ tùng lấy từ trường
+  `equipment`, **không có thì lấy tên Nhóm (Category)** — file kiểm kê MLS-11-06 ghi thiết bị
+  ở cột "Nhóm" chứ không phải trường riêng; và phụ tùng không đoán được bộ phận thì xếp vào
+  **Máy** chứ không phải "Khác", vì trên tàu phụ tùng gần như luôn thuộc buồng máy.
+
 - **Danh mục vật tư** (`/materials`) phân biệt **Vật tư (Store)** và **Phụ tùng (Spare part)** — có tab lọc; phụ tùng gắn với **Thiết bị/máy** (Equipment) và có Part No, Maker; vật tư có Mã IMPA. ADMIN thêm/sửa với đầy đủ trường theo form. Xóa/ngừng sử dụng: ADMIN có nút **Ngừng sử dụng** (giữ lịch sử, ẩn khỏi yêu cầu mới) và **Xóa vĩnh viễn** (chỉ khi vật tư chưa có tồn kho và chưa dùng trong yêu cầu nào).
   - **Danh mục riêng từng tàu:** có **bộ chọn tàu** — chọn *Danh mục gốc (toàn đội)* để quản lý định nghĩa chung, hoặc chọn một **tàu** để xem/hiệu chỉnh danh mục riêng của tàu đó (thêm/gỡ vật tư mà tàu dùng). Thuyền viên/thuyền trưởng có gán tàu bị khóa vào đúng tàu mình; ADMIN và thuyền trưởng văn phòng chọn được mọi tàu. Gỡ vật tư khỏi tàu **không** xóa định nghĩa gốc hay tồn kho — chỉ bỏ khỏi danh sách của tàu đó.
 - **Yêu cầu vật tư** (`/requests`) có 2 dạng theo mẫu:

@@ -1,6 +1,11 @@
 import React from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import {
+  compareWithinDepartment,
+  DEPARTMENTS,
+  departmentOfMaterial,
+} from "@/lib/departments";
 import InventoryForm from "@/components/InventoryForm";
 import { requireScopedUser, vesselScope, vesselWhere } from "@/lib/auth";
 
@@ -125,47 +130,26 @@ export default async function InventoryPage({
     ? warehouses.filter((w) => w.vesselId === vesselFilter)
     : warehouses;
 
-  // Phân bộ phận theo cơ cấu tàu (như form MLS-11-06: Boong/Máy/Điện/Phục vụ):
-  // ưu tiên nhóm vật tư (Category) → thiết bị đi kèm → mã kho.
-  const DEPTS = [
-    { key: "DECK", label: "Boong (Deck)", icon: "🛳", re: /boong|deck/i },
-    { key: "ENGINE", label: "Máy (Engine)", icon: "⚙️", re: /máy|may chinh|engine|\beng\b|-eng/i },
-    { key: "ELEC", label: "Điện (Electric)", icon: "⚡", re: /điện|dien|elec/i },
-    {
-      key: "SERVICE",
-      label: "Phục vụ / Tiêu hao (Service)",
-      icon: "🧺",
-      re: /tiêu hao|tieu hao|phục vụ|phuc vu|service|steward|consum|store/i,
-    },
-    { key: "SAFETY", label: "An toàn (Safety)", icon: "🦺", re: /an toàn|an toan|safety/i },
-  ] as const;
-  const OTHER_DEPT = { key: "OTHER", label: "Khác", icon: "📦" } as const;
+  // Phân bộ phận dùng chung với trang Danh mục vật tư (lib/departments.ts).
   type InvRow = (typeof filtered)[number];
-  const deptKeyOf = (inv: InvRow): string => {
-    const sources = [
-      inv.material.category?.name ?? "",
-      inv.material.equipment ?? "",
-      inv.warehouse.code,
-    ];
-    for (const src of sources) {
-      if (!src) continue;
-      const dept = DEPTS.find((d) => d.re.test(src));
-      if (dept) return dept.key;
-    }
-    return OTHER_DEPT.key;
-  };
-  const deptSections = [...DEPTS, OTHER_DEPT];
-  // Trong mỗi bộ phận: Vật tư (Store) trước, Phụ tùng (Spare) sau theo nhóm thiết bị.
+  const deptKeyOf = (inv: InvRow): string =>
+    departmentOfMaterial(
+      [
+        inv.material.category?.name,
+        inv.material.equipment,
+        inv.warehouse.code,
+      ],
+      inv.material.materialType
+    );
+  const deptSections = DEPARTMENTS;
+  const withCat = (m: InvRow["material"]) => ({
+    ...m,
+    categoryName: m.category?.name ?? null,
+  });
   const sortDeptRows = (rows: InvRow[]) =>
-    [...rows].sort((a, b) => {
-      const spareA = a.material.materialType === "SPARE" ? 1 : 0;
-      const spareB = b.material.materialType === "SPARE" ? 1 : 0;
-      if (spareA !== spareB) return spareA - spareB;
-      const eqA = a.material.equipment ?? "";
-      const eqB = b.material.equipment ?? "";
-      if (eqA !== eqB) return eqA.localeCompare(eqB, "vi");
-      return a.material.nameVn.localeCompare(b.material.nameVn, "vi");
-    });
+    [...rows].sort((a, b) =>
+      compareWithinDepartment(withCat(a.material), withCat(b.material))
+    );
 
   return (
     <div className="space-y-4">

@@ -6,6 +6,7 @@ import { nhomNhienLieuChoPhep } from "@/lib/roles";
 import {
   CATEGORY_ICON,
   CATEGORY_LABEL,
+  CATEGORY_VALUES,
   CONSUMABLE_CATEGORIES,
   CONSUMER_LABEL,
   GRADE_LABEL,
@@ -46,8 +47,10 @@ const gio = (d: Date) =>
 
 export default async function ConsumableVesselPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ nhom?: string }>;
 }) {
   const user = await requireScopedUser();
   const scope = vesselScope(user);
@@ -63,6 +66,15 @@ export default async function ConsumableVesselPage({
   // được hóa chất; ô chọn mặt hàng ở các form chỉ hiện nhóm đó.
   const nhomGhiDuoc = nhomNhienLieuChoPhep(user, vesselId);
   const coTheGhi = nhomGhiDuoc.length > 0;
+
+  // Tách hẳn ba nhóm: dầu đốt, dầu nhờn và hóa chất là ba nghiệp vụ khác nhau,
+  // do người khác nhau phụ trách và có chứng từ khác nhau. Xem lẫn cả ba trong
+  // một danh sách thì máy trưởng phải lọc mắt qua hóa chất tẩy rửa mới thấy
+  // được lô dầu của mình.
+  const { nhom: nhomRaw } = await searchParams;
+  const nhomChon =
+    nhomRaw && CATEGORY_VALUES.includes(nhomRaw) ? nhomRaw : null;
+  const hopNhom = (c: string) => nhomChon === null || c === nhomChon;
 
   const [products, stocks, receipts, transactions] = await Promise.all([
     prisma.consumableProduct.findMany({
@@ -88,7 +100,7 @@ export default async function ConsumableVesselPage({
   ]);
 
   const optionsChoNhom = products
-    .filter((p) => nhomGhiDuoc.includes(p.category))
+    .filter((p) => nhomGhiDuoc.includes(p.category) && hopNhom(p.category))
     .map((p) => ({
       id: p.id,
       label: `${CATEGORY_ICON[p.category] ?? ""} ${nhanMatHang(p)}`,
@@ -110,7 +122,7 @@ export default async function ConsumableVesselPage({
     .filter((r) => r.sampleKeepUntil && soNgayToi(r.sampleKeepUntil)! < 0)
     .slice(0, 10);
 
-  const theoNhom = CONSUMABLE_CATEGORIES.map((c) => ({
+  const theoNhom = CONSUMABLE_CATEGORIES.filter((c) => hopNhom(c.value)).map((c) => ({
     ...c,
     stocks: stocks
       .filter((s) => s.product.category === c.value)
@@ -139,6 +151,39 @@ export default async function ConsumableVesselPage({
             Bạn xem được số liệu nhưng không ghi được giao dịch nhóm nào ở tàu này.
           </p>
         )}
+      </div>
+
+      {/* ── Tách nhóm ────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href={`/consumables/${vesselId}`}
+          className={`rounded px-3 py-1.5 text-sm ${
+            nhomChon === null
+              ? "bg-blue-700 text-white"
+              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+          }`}
+        >
+          Tất cả
+        </Link>
+        {CONSUMABLE_CATEGORIES.map((c) => {
+          const ghiDuoc = nhomGhiDuoc.includes(c.value);
+          return (
+            <Link
+              key={c.value}
+              href={`/consumables/${vesselId}?nhom=${c.value}`}
+              className={`rounded px-3 py-1.5 text-sm ${
+                nhomChon === c.value
+                  ? "bg-blue-700 text-white"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              {c.icon} {c.label}
+              {!ghiDuoc && (
+                <span className="ml-1 text-xs opacity-70">(chỉ xem)</span>
+              )}
+            </Link>
+          );
+        })}
       </div>
 
       {/* ── Cảnh báo ─────────────────────────────────────────────────── */}
@@ -307,11 +352,12 @@ export default async function ConsumableVesselPage({
                   <th className="p-2">Cảng / NCC</th>
                   <th className="p-2">Đặc tính</th>
                   <th className="p-2">Mẫu · hạn dùng</th>
+                  <th className="p-2">Bản gốc</th>
                   <th className="p-2"></th>
                 </tr>
               </thead>
               <tbody>
-                {receipts.map((r) => {
+                {receipts.filter((r) => hopNhom(r.product.category)).map((r) => {
                   const cb = kiemTraLuuHuynh(r.sulphur);
                   const conHan = soNgayToi(r.expiryDate);
                   return (
@@ -373,6 +419,21 @@ export default async function ConsumableVesselPage({
                         )}
                         {!r.sampleKeepUntil && !r.expiryDate && "—"}
                       </td>
+                      <td className="p-2 text-xs">
+                        {r.attachStored ? (
+                          <a
+                            href={`/api/consumable-receipts/${r.id}/file`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-700 hover:underline"
+                            title={r.attachName ?? ""}
+                          >
+                            📎 Xem bản gốc
+                          </a>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
                       <td className="p-2 text-right">
                         {nhomGhiDuoc.includes(r.product.category) && (
                           <ConsumableReceiptDeleteButton
@@ -412,7 +473,7 @@ export default async function ConsumableVesselPage({
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((t) => (
+                {transactions.filter((t) => hopNhom(t.product.category)).map((t) => (
                   <tr key={t.id} className="border-b">
                     <td className="p-2 whitespace-nowrap">{gio(t.occurredAt)}</td>
                     <td className="p-2">

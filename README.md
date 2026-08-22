@@ -83,6 +83,7 @@ Bấm đúp thẳng trong thư mục gốc của app, không cần mở terminal
 | `sao-luu-du-lieu.cmd` | Nén bản chụp PostgreSQL (`pg_dump`) + file upload + `.env` + biểu mẫu thành bản sao lưu, kèm dấu vân tay để đối chiếu |
 | `khoi-phuc-du-lieu.cmd` | Đưa dữ liệu trở lại từ một bản sao lưu — tự chụp đường lùi trước, đối chiếu vân tay sau |
 | `kiem-tra-phan-quyen.cmd` | Chạy ma trận phân quyền: duyệt yêu cầu, phần sơn, dầu/hóa chất (490 phép thử, không đụng database) |
+| `kiem-tra-doc-phieu.cmd` | Kiểm tra bộ tách dữ liệu phiếu nhận từ chữ OCR / bảng dán (7 tình huống) |
 | `dong-bo-github.cmd` | Đẩy thay đổi mã nguồn lên GitHub |
 | `run-dev.cmd` | Chỉ khi đang **sửa code** (có hot-reload). Chậm hơn production ~50 lần |
 | `khai-bao-ban-cai.cmd` | Khai báo bản cài này là của tàu nào (`ML-001`) hay là văn phòng (`VANPHONG`) — chạy một lần sau khi cài |
@@ -582,6 +583,40 @@ MARPOL. Hóa chất thì **cả hai bộ phận** cùng dùng: máy trưởng lo
 dầu; đại phó lo tẩy rửa, vệ sinh hầm hàng — nên quyền của hóa chất rộng hơn một bậc. Ô chọn
 mặt hàng ở mỗi form chỉ hiện nhóm người đó được ghi, nên đại phó mở được trang nhưng không ghi
 được phiếu bunker.
+
+### Nhập phiếu: thủ công, hoặc đọc từ PDF scan
+
+Ba nhóm được **tách hẳn** thành tab riêng (Tất cả · Dầu đốt · Dầu nhờn · Hóa chất) ở trang
+của tàu. Đó là ba nghiệp vụ khác nhau, do người khác nhau phụ trách và có chứng từ khác nhau;
+xem lẫn cả ba trong một danh sách thì máy trưởng phải lọc mắt qua hóa chất tẩy rửa mới thấy
+được lô dầu của mình. Tab nào ngoài quyền thì ghi rõ *(chỉ xem)*.
+
+Ghi phiếu nhận có hai đường:
+
+**Thủ công** — gõ từng ô. Form đổi theo nhóm mặt hàng đang chọn: hỏi lưu huỳnh của một can
+hóa chất tẩy rửa, hay hỏi hạn dùng của một lô HFO, đều là ô trống vô nghĩa mà người dùng vẫn
+phải đọc qua.
+
+**Đọc từ file PDF, kể cả bản SCAN.** Chọn file BDN → hệ thống nhận dạng chữ trong ảnh rồi điền
+sẵn các ô. Máy này không có thư viện đọc PDF, không có Tesseract và không cài thêm được, nên
+phần này dùng hai thành phần có sẵn của **Windows**: `Windows.Data.Pdf` dựng từng trang thành
+ảnh, `Windows.Media.Ocr` nhận dạng chữ ([`scripts/doc-pdf-scan.ps1`](scripts/doc-pdf-scan.ps1)).
+Không phải cài gì. Chạy trên Linux/Docker thì báo rõ là không dùng được và người nhập gõ tay —
+không có chức năng nào hỏng.
+
+Ba điều làm cho đường này **chính xác** chứ không chỉ tiện:
+
+- **Máy chỉ ĐỀ XUẤT, không bao giờ tự lưu.** Ô nào máy điền thì **viền vàng**, kèm dòng nhắc
+  đối chiếu bản gốc — nhất là số lượng và lưu huỳnh. Đọc nhầm một chữ số khối lượng dầu là sai
+  cả bảng cân đối nhiên liệu và sai cả hồ sơ MARPOL.
+- **Không đoán bừa.** Ô nào không thấy nhãn quen thuộc thì để trống. Ô trống thì người nhập
+  biết phải gõ; ô sai thì họ tưởng máy đã đọc đúng.
+- **Bản gốc được đính kèm vào phiếu.** Xem lại bất cứ lúc nào qua nút *📎 Xem bản gốc* ở bảng
+  phiếu nhận. Đây mới là chỗ bảo đảm chính xác về sau, chứ không phải tin vào máy đọc. Xóa
+  phiếu thì file cũng được dọn theo.
+
+Đọc được cả BDN tiếng Anh lẫn phiếu tiếng Việt, số kiểu `450.250` lẫn `450,250`, và bảng không
+có dấu hai chấm. Bộ tách dữ liệu có bài kiểm tra riêng: `kiem-tra-doc-phieu.cmd`.
 
 ### Bốn quy tắc nghiệp vụ được cài sẵn
 

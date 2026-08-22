@@ -666,6 +666,13 @@ model ConsumableReceipt {
   currency  String?
   note      String?
 
+  // Bản gốc đính kèm (BDN scan, phiếu giao). Giữ file gốc ngay tại phiếu là
+  // cách duy nhất đối chiếu lại được khi số liệu bị nghi ngờ — nhất là khi số
+  // được điền sẵn từ bộ đọc PDF chứ không gõ tay từng ô.
+  attachName   String?
+  attachStored String?
+  attachSize   Int?
+
   performedBy String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

@@ -1,5 +1,8 @@
 "use server";
 
+import path from "path";
+import { randomUUID } from "crypto";
+import { mkdir, readdir, rename, stat, unlink, writeFile } from "fs/promises";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
@@ -13,6 +16,8 @@ import {
   tinhHanDung,
 } from "@/lib/consumables";
 import { VAN_HANH_HOA_CHAT } from "@/lib/roles";
+import { MAX_UPLOAD_BYTES, ensureUploadDir, getUploadDir } from "@/lib/uploads";
+import type { PhieuDeXuat } from "@/lib/bunkerParse";
 
 // Server action cho module Dầu · Dầu nhờn · Hóa chất. Tách khỏi app/actions.ts
 // và app/paint-actions.ts để mỗi nghiệp vụ đứng riêng.
@@ -66,6 +71,37 @@ async function requireNhom(vesselId: number, category: string | null) {
 // Danh mục dùng chung toàn đội — văn phòng / thuyền trưởng quản, như danh mục sơn.
 async function requireFleet() {
   return requireActiveRole(["ADMIN", "MASTER"]);
+}
+
+/**
+ * Thư mục chứa file người dùng vừa đọc thử nhưng CHƯA lưu thành phiếu.
+ *
+ * Tách khỏi uploads/ để dọn được: file ở đây chắc chắn chưa có bản ghi nào trỏ
+ * tới, nên quá hạn là xóa an toàn.
+ */
+async function ensureThuMucTam() {
+  const dir = path.join(getUploadDir(), "tam-doc");
+  await mkdir(dir, { recursive: true });
+  return dir;
+}
+
+const HAN_FILE_TAM_MS = 24 * 60 * 60 * 1000;
+
+/** Xóa file đọc thử quá 24 giờ mà không thành phiếu. */
+async function donFileTamCu(dir: string) {
+  try {
+    const ds = await readdir(dir);
+    const now = Date.now();
+    for (const ten of ds) {
+      const fp = path.join(dir, ten);
+      const st = await stat(fp).catch(() => null);
+      if (st && now - st.mtimeMs > HAN_FILE_TAM_MS) {
+        await unlink(fp).catch(() => {});
+      }
+    }
+  } catch {
+    // Thư mục chưa có hoặc không đọc được — không phải lý do để chặn việc đọc file.
+  }
 }
 
 function revalidateVessel(vesselId: number) {
@@ -259,6 +295,44 @@ export async function createConsumableReceipt(
   const sampleKeepUntil =
     product.category === "FUEL" ? mocGiuMauDau(receivedAt) : null;
 
+  // Bản gốc đính kèm: hoặc file người dùng vừa chọn ở ô đính kèm, hoặc file đã
+  // lưu sẵn ở bước "đọc từ PDF" (khỏi phải tải lên hai lần).
+  let attachName: string | null = null;
+  let attachStored: string | null = null;
+  let attachSize: number | null = null;
+  const tepDaCo = text(formData, "tepTam");
+  const tepMoi = formData.get("attach");
+  if (tepMoi instanceof File && tepMoi.size > 0) {
+    if (tepMoi.size > MAX_UPLOAD_BYTES) {
+      return { message: "File đính kèm vượt quá 20MB." };
+    }
+    const dir = await ensureUploadDir();
+    const ext = tepMoi.name.toLowerCase().endsWith(".pdf") ? ".pdf" : "";
+    if (!ext) return { message: "File đính kèm phải là PDF." };
+    attachStored = `${randomUUID()}.pdf`;
+    await writeFile(
+      path.join(dir, attachStored),
+      Buffer.from(await tepMoi.arrayBuffer())
+    );
+    attachName = tepMoi.name;
+    attachSize = tepMoi.size;
+  } else if (tepDaCo && /^[0-9a-f-]{36}\.pdf$/i.test(tepDaCo)) {
+    // Chuyển file từ thư mục tạm sang uploads: từ lúc này nó là chứng từ của
+    // một phiếu có thật, không còn là file đọc thử chờ dọn.
+    const dir = await ensureUploadDir();
+    const nguon = path.join(await ensureThuMucTam(), tepDaCo);
+    const dich = path.join(dir, tepDaCo);
+    try {
+      await rename(nguon, dich);
+      attachStored = tepDaCo;
+      attachName = text(formData, "tepTamTen") || "ban-scan.pdf";
+      attachSize = numOrNull(formData, "tepTamCo");
+    } catch {
+      // File tạm đã bị dọn (quá 24 giờ) — vẫn lưu phiếu, chỉ mất bản đính kèm.
+      attachStored = null;
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     const receipt = await tx.consumableReceipt.create({
       data: {
@@ -266,6 +340,9 @@ export async function createConsumableReceipt(
         productId,
         docNo,
         receivedAt,
+        attachName,
+        attachStored,
+        attachSize: attachSize ? Math.trunc(attachSize) : null,
         port: text(formData, "port") || null,
         supplier: text(formData, "supplier") || null,
         barge: text(formData, "barge") || null,
@@ -353,6 +430,11 @@ export async function deleteConsumableReceipt(
     await tx.consumableTransaction.deleteMany({ where: { receiptId: id } });
     await tx.consumableReceipt.delete({ where: { id } });
   });
+  // Dọn file đính kèm sau khi bản ghi đã xóa — xóa file trước mà transaction
+  // hỏng thì mất bản gốc của một phiếu vẫn còn.
+  if (receipt.attachStored) {
+    await unlink(path.join(getUploadDir(), receipt.attachStored)).catch(() => {});
+  }
   revalidateVessel(receipt.vesselId);
   return { message: `Đã xóa phiếu ${receipt.docNo} và hoàn lại tồn.`, success: true };
 }
@@ -467,4 +549,83 @@ export async function saveConsumableMin(
   });
   revalidateVessel(vesselId);
   return { message: "Đã lưu định mức.", success: true };
+}
+
+// ─── Đọc phiếu từ file PDF (kể cả bản scan) ──────────────────────────────────
+
+export type KetQuaDocPhieu = {
+  message: string;
+  success?: boolean;
+  deXuat?: PhieuDeXuat;
+  chu?: string;
+  /** Tên file tạm đã lưu, để đính kèm khi lưu phiếu mà không phải tải lại. */
+  tepTam?: string;
+};
+
+/**
+ * Đọc một file PDF (BDN scan / phiếu giao) và ĐỀ XUẤT các ô để điền sẵn.
+ *
+ * KHÔNG ghi gì vào dữ liệu. Kết quả nhận dạng chữ không bao giờ chính xác 100%
+ * — đọc nhầm một chữ số của khối lượng dầu là sai cả bảng cân đối nhiên liệu và
+ * sai cả hồ sơ MARPOL. Người nhập phải đối chiếu với bản gốc rồi mới bấm lưu,
+ * và bản gốc được đính kèm luôn vào phiếu để về sau còn đối chiếu được.
+ */
+export async function docPhieuTuPdf(
+  _prev: KetQuaDocPhieu,
+  formData: FormData
+): Promise<KetQuaDocPhieu> {
+  const vesselId = Number(formData.get("vesselId"));
+  // Chỉ cần là người thao tác được ít nhất một nhóm trên tàu này — bước này
+  // chưa ghi gì, quyền ghi kiểm ở lúc lưu phiếu.
+  const actor = await requireActiveRole([...VAN_HANH_HOA_CHAT]);
+  if (!actor || !coQuanLyNhienLieu(actor, vesselId)) {
+    return { message: NO_PERMISSION };
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { message: "Hãy chọn file PDF." };
+  }
+  if (!file.name.toLowerCase().endsWith(".pdf")) {
+    return { message: "File phải là PDF (.pdf)." };
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return { message: "File vượt quá 20MB." };
+  }
+
+  const { docPdfBangOcr } = await import("@/lib/pdfOcr");
+  const { docPhieuTuChu } = await import("@/lib/bunkerParse");
+
+  // File đọc thử nằm ở thư mục TẠM riêng, không đổ thẳng vào uploads: đọc thử
+  // rồi không lưu phiếu là chuyện thường (xem trước, chọn nhầm file), mỗi lần
+  // như vậy mà để lại một file trong uploads thì thư mục phình mãi không ai
+  // dám dọn vì không biết file nào còn được tham chiếu.
+  const dirTam = await ensureThuMucTam();
+  await donFileTamCu(dirTam);
+  const storedName = `${randomUUID()}.pdf`;
+  const fullPath = path.join(dirTam, storedName);
+  await writeFile(fullPath, Buffer.from(await file.arrayBuffer()));
+
+  const kq = await docPdfBangOcr(fullPath);
+  if (!kq.ok) {
+    // Giữ lại file: người dùng vẫn đính kèm được dù máy không đọc ra chữ.
+    return {
+      message: kq.loi,
+      deXuat: undefined,
+      tepTam: storedName,
+    };
+  }
+
+  const deXuat = docPhieuTuChu(kq.text);
+  const soO = deXuat.daDoc.length;
+  return {
+    message:
+      soO === 0
+        ? "Đọc được chữ nhưng không nhận ra ô nào quen thuộc. Hãy nhập tay và đối chiếu với bản gốc."
+        : `Đã đọc ${soO} ô từ bản scan. Đối chiếu lại với bản gốc trước khi lưu — chữ nhận dạng từ ảnh không bao giờ đúng tuyệt đối.`,
+    success: soO > 0,
+    deXuat,
+    chu: kq.text.slice(0, 4000),
+    tepTam: storedName,
+  };
 }

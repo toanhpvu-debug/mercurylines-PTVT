@@ -12,6 +12,9 @@ import {
   TRANSACTION_LABEL,
   kiemTraLuuHuynh,
 } from "@/lib/consumables";
+import ConsumablePdfReader, {
+  type KetQuaDoc,
+} from "@/components/ConsumablePdfReader";
 
 export type ProductOption = {
   id: number;
@@ -55,6 +58,17 @@ export function ConsumableReceiptForm({
   });
   const [productId, setProductId] = useState("");
   const [sulphur, setSulphur] = useState("");
+  // Kết quả đọc từ PDF: dùng làm giá trị điền sẵn (defaultValue) và để tô sáng
+  // đúng những ô máy đã điền — người nhập biết chỗ nào cần soi lại.
+  const [doc, setDoc] = useState<KetQuaDoc | null>(null);
+  const [lanDoc, setLanDoc] = useState(0);
+  const dx = doc?.deXuat;
+  const daDoc = new Set(dx?.daDoc ?? []);
+  // Ô nào máy điền thì viền vàng — nhìn là biết chỗ phải đối chiếu bản gốc.
+  const oDoc = (ten: string) =>
+    daDoc.has(ten)
+      ? "w-full rounded border-2 border-amber-400 bg-amber-50 p-2"
+      : "w-full rounded border p-2";
 
   const chon = products.find((p) => String(p.id) === productId);
   const laDau = chon?.category === "FUEL";
@@ -72,8 +86,38 @@ export function ConsumableReceiptForm({
   }
 
   return (
-    <form action={action} className="space-y-3">
+    <div className="space-y-3">
+      {/* Bộ đọc PDF nằm NGOÀI form: form dùng key={lanDoc} để dựng lại với giá
+          trị điền sẵn mới, nếu bộ đọc nằm trong thì mỗi lần đọc xong nó bị dựng
+          lại và mất luôn thông báo vừa hiện. HTML cũng không cho lồng form. */}
+      <ConsumablePdfReader
+        vesselId={vesselId}
+        onDoc={(kq) => {
+          setDoc(kq);
+          setLanDoc((n) => n + 1);
+          setSulphur(
+            kq.deXuat?.sulphur != null ? String(kq.deXuat.sulphur) : ""
+          );
+        }}
+      />
+
+      {dx && (
+        <p className="rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+          Ô có <b>viền vàng</b> là do máy đọc từ bản scan điền sẵn. Đối chiếu với
+          bản gốc rồi sửa lại nếu sai — nhất là <b>số lượng</b> và{" "}
+          <b>lưu huỳnh</b>.
+        </p>
+      )}
+
+      <form action={action} className="space-y-3" key={lanDoc}>
       <input type="hidden" name="vesselId" value={vesselId} />
+      {doc?.tepTam && (
+        <>
+          <input type="hidden" name="tepTam" value={doc.tepTam} />
+          <input type="hidden" name="tepTamTen" value={doc.tenTep ?? ""} />
+          <input type="hidden" name="tepTamCo" value={String(doc.coTep ?? 0)} />
+        </>
+      )}
 
       <div className="grid gap-3 md:grid-cols-4">
         <label className="block md:col-span-2">
@@ -95,7 +139,12 @@ export function ConsumableReceiptForm({
         </label>
         <label className="block">
           <Nhan>{laDau ? "Số BDN *" : "Số phiếu giao *"}</Nhan>
-          <input name="docNo" required className="w-full rounded border p-2" />
+          <input
+            name="docNo"
+            required
+            defaultValue={dx?.docNo ?? ""}
+            className={oDoc("docNo")}
+          />
         </label>
         <label className="block">
           <Nhan>Ngày nhận *</Nhan>
@@ -103,7 +152,8 @@ export function ConsumableReceiptForm({
             type="date"
             name="receivedAt"
             required
-            className="w-full rounded border p-2"
+            defaultValue={dx?.receivedAt ?? ""}
+            className={oDoc("receivedAt")}
           />
         </label>
         <label className="block">
@@ -114,21 +164,34 @@ export function ConsumableReceiptForm({
             step="0.001"
             min="0.001"
             required
-            className="w-full rounded border p-2"
+            defaultValue={dx?.quantity ?? ""}
+            className={oDoc("quantity")}
           />
         </label>
         <label className="block">
           <Nhan>Cảng nhận</Nhan>
-          <input name="port" className="w-full rounded border p-2" />
+          <input
+            name="port"
+            defaultValue={dx?.port ?? ""}
+            className={oDoc("port")}
+          />
         </label>
         <label className="block">
           <Nhan>Nhà cung cấp</Nhan>
-          <input name="supplier" className="w-full rounded border p-2" />
+          <input
+            name="supplier"
+            defaultValue={dx?.supplier ?? ""}
+            className={oDoc("supplier")}
+          />
         </label>
         {laDau && (
           <label className="block">
             <Nhan>Sà lan / xe cấp</Nhan>
-            <input name="barge" className="w-full rounded border p-2" />
+            <input
+              name="barge"
+              defaultValue={dx?.barge ?? ""}
+              className={oDoc("barge")}
+            />
           </label>
         )}
       </div>
@@ -159,7 +222,8 @@ export function ConsumableReceiptForm({
                 name="density"
                 type="number"
                 step="0.1"
-                className="w-full rounded border p-2"
+                defaultValue={dx?.density ?? ""}
+                className={oDoc("density")}
               />
             </label>
             <label className="block">
@@ -168,7 +232,8 @@ export function ConsumableReceiptForm({
                 name="viscosity"
                 type="number"
                 step="0.1"
-                className="w-full rounded border p-2"
+                defaultValue={dx?.viscosity ?? ""}
+                className={oDoc("viscosity")}
               />
             </label>
             {laDau && (
@@ -179,7 +244,8 @@ export function ConsumableReceiptForm({
                     name="waterContent"
                     type="number"
                     step="0.01"
-                    className="w-full rounded border p-2"
+                    defaultValue={dx?.waterContent ?? ""}
+                    className={oDoc("waterContent")}
                   />
                 </label>
                 <label className="block">
@@ -188,7 +254,8 @@ export function ConsumableReceiptForm({
                     name="flashPoint"
                     type="number"
                     step="0.1"
-                    className="w-full rounded border p-2"
+                    defaultValue={dx?.flashPoint ?? ""}
+                    className={oDoc("flashPoint")}
                   />
                 </label>
               </>
@@ -200,7 +267,8 @@ export function ConsumableReceiptForm({
                   name="bnValue"
                   type="number"
                   step="0.1"
-                  className="w-full rounded border p-2"
+                  defaultValue={dx?.bnValue ?? ""}
+                  className={oDoc("bnValue")}
                 />
               </label>
             )}
@@ -227,7 +295,8 @@ export function ConsumableReceiptForm({
                 <input
                   name="sampleSealNo"
                   placeholder="Số niêm trên chai mẫu đại diện"
-                  className="w-full rounded border p-2"
+                  defaultValue={dx?.sampleSealNo ?? ""}
+                  className={oDoc("sampleSealNo")}
                 />
               </label>
               <p className="self-end text-xs text-slate-600">
@@ -247,7 +316,8 @@ export function ConsumableReceiptForm({
             <input
               type="date"
               name="expiryDate"
-              className="w-full rounded border p-2"
+              defaultValue={dx?.expiryDate ?? ""}
+              className={oDoc("expiryDate")}
             />
           </label>
           <p className="text-xs text-slate-600 md:col-span-2 md:self-end">
@@ -265,7 +335,8 @@ export function ConsumableReceiptForm({
             name="unitPrice"
             type="number"
             step="0.01"
-            className="w-full rounded border p-2"
+            defaultValue={dx?.unitPrice ?? ""}
+            className={oDoc("unitPrice")}
           />
         </label>
         <label className="block">
@@ -273,7 +344,8 @@ export function ConsumableReceiptForm({
           <input
             name="currency"
             placeholder="USD"
-            className="w-full rounded border p-2"
+            defaultValue={dx?.currency ?? ""}
+            className={oDoc("currency")}
           />
         </label>
         <label className="block md:col-span-2">
@@ -282,6 +354,22 @@ export function ConsumableReceiptForm({
         </label>
       </div>
 
+      <label className="block">
+        <Nhan>Đính kèm bản gốc (PDF) — nếu chưa đọc từ file ở trên</Nhan>
+        <input
+          type="file"
+          name="attach"
+          accept=".pdf"
+          className="w-full rounded border p-2"
+        />
+        {doc?.tepTam && (
+          <span className="mt-1 block text-xs text-emerald-700">
+            Đã có bản gốc từ bước đọc file: {doc.tenTep}. Chọn file ở đây sẽ
+            thay bằng file mới.
+          </span>
+        )}
+      </label>
+
       <button
         disabled={pending}
         className="rounded bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
@@ -289,7 +377,8 @@ export function ConsumableReceiptForm({
         {pending ? "Đang ghi..." : "Ghi phiếu nhận"}
       </button>
       <ThongBao state={state} />
-    </form>
+      </form>
+    </div>
   );
 }
 

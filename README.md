@@ -596,6 +596,27 @@ của tàu. Đó là ba nghiệp vụ khác nhau, do người khác nhau phụ t
 xem lẫn cả ba trong một danh sách thì máy trưởng phải lọc mắt qua hóa chất tẩy rửa mới thấy
 được lô dầu của mình. Tab nào ngoài quyền thì ghi rõ *(chỉ xem)*.
 
+Mỗi tab là một màn hình **hoàn chỉnh cho riêng nhóm đó** — cảnh báo, tổng hợp, ô chọn mặt
+hàng ở mọi form đều chỉ của nhóm đang xem:
+
+| | Dầu đốt | Dầu nhờn | Hóa chất |
+|---|---|---|---|
+| Tồn theo chủng loại | HFO · VLSFO · MGO… | xy-lanh · hệ thống · AE… | nồi hơi · làm mát · tẩy rửa… |
+| Tiêu thụ 30 ngày theo M/E · A/E · nồi hơi | ✓ | ✓ | ✓ |
+| **Tồn dùng được trong ECA / chỉ ngoài ECA** | ✓ | — | — |
+| **Mẫu dầu đang giữ** (số niêm, giữ tới, còn bao nhiêu ngày) | ✓ | — | — |
+| **An toàn: phân loại nguy hiểm, nơi lưu MSDS** | — | — | ✓ |
+| Cảnh báo dưới định mức · hạn dùng lô | ✓ | ✓ | ✓ |
+
+Con số quan trọng nhất của tab dầu đốt là **còn bao nhiêu tấn dùng được trong vùng ECA** —
+đó là câu hỏi phải trả lời trước khi vào ECA. Tính theo lưu huỳnh *danh nghĩa* khai ở danh mục
+chứ không theo từng lô: nhiều lô nằm chung két nên không quy tồn về đúng lô được; mặt hàng
+chưa khai lưu huỳnh thì xếp riêng, không đoán là đạt.
+
+Bảng **mẫu dầu đang giữ** liệt kê số niêm và ngày phải giữ tới của từng lô còn trong hạn 12
+tháng — kiểm tra của cảng (PSC) hỏi là đưa ra được ngay; lô đã qua mốc thì hiện ở phần cảnh
+báo để bỏ mẫu.
+
 Ghi phiếu nhận có hai đường:
 
 **Thủ công** — gõ từng ô. Form đổi theo nhóm mặt hàng đang chọn: hỏi lưu huỳnh của một can

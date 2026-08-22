@@ -15,6 +15,7 @@ import {
   CATEGORY_VALUES,
   CONSUMABLE_CATEGORIES,
   CONSUMER_LABEL,
+  GIOI_HAN_LUU_HUYNH,
   GRADE_LABEL,
   NGUONG_CANH_BAO_HAN_DUNG,
   TRANSACTION_LABEL,
@@ -83,7 +84,13 @@ export default async function ConsumableVesselPage({
     nhomRaw && CATEGORY_VALUES.includes(nhomRaw) ? nhomRaw : null;
   const hopNhom = (c: string) => nhomChon === null || c === nhomChon;
 
-  const [products, stocks, receipts, transactions] = await Promise.all([
+  // Mốc 30 ngày cho phần tổng hợp tiêu thụ. Số ghi ở cột "nơi tiêu thụ" của
+  // từng giao dịch chỉ có ích khi được cộng lại theo M/E · A/E · nồi hơi —
+  // trước đây ghi vào rồi không tổng hợp ở đâu cả.
+  const moc30Ngay = new Date();
+  moc30Ngay.setDate(moc30Ngay.getDate() - 30);
+
+  const [products, stocks, receipts, transactions, tieuThu30] = await Promise.all([
     prisma.consumableProduct.findMany({
       where: { isActive: true },
       orderBy: [{ category: "asc" }, { grade: "asc" }, { name: "asc" }],
@@ -103,6 +110,11 @@ export default async function ConsumableVesselPage({
       include: { product: true },
       orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
       take: 40,
+    }),
+    prisma.consumableTransaction.groupBy({
+      by: ["productId", "consumer"],
+      where: { vesselId, type: "CONSUME", occurredAt: { gte: moc30Ngay } },
+      _sum: { quantity: true },
     }),
   ]);
 
@@ -141,17 +153,96 @@ export default async function ConsumableVesselPage({
       ] ?? null);
 
   // Cảnh báo gom một chỗ: dưới định mức, lô sắp/đã hết hạn, mẫu dầu hết hạn giữ.
+  // Cảnh báo phải theo ĐÚNG TAB đang xem: đứng ở tab Dầu nhờn mà vẫn hiện hạn
+  // dùng của hóa chất thì tab chẳng còn nghĩa gì.
   const duoiDinhMuc = stocks.filter(
-    (s) => s.minQty > 0 && s.quantity < s.minQty
+    (s) =>
+      hopNhom(s.product.category) && s.minQty > 0 && s.quantity < s.minQty
   );
   const loHetHan = receipts
-    .filter((r) => r.expiryDate)
+    .filter((r) => hopNhom(r.product.category) && r.expiryDate)
     .map((r) => ({ r, con: soNgayToi(r.expiryDate)! }))
     .filter((x) => x.con <= NGUONG_CANH_BAO_HAN_DUNG)
     .sort((a, b) => a.con - b.con);
   const mauHetHanGiu = receipts
-    .filter((r) => r.sampleKeepUntil && soNgayToi(r.sampleKeepUntil)! < 0)
+    .filter(
+      (r) =>
+        hopNhom(r.product.category) &&
+        r.sampleKeepUntil &&
+        soNgayToi(r.sampleKeepUntil)! < 0
+    )
     .slice(0, 10);
+
+  // ── Tổng hợp riêng cho từng nhóm ──────────────────────────────────────────
+  const theoId = new Map(products.map((p) => [p.id, p]));
+
+  /** Tồn cộng theo chủng loại trong một nhóm (HFO/VLSFO/… hay CYL/SYS/…). */
+  const tonTheoChungLoai = (category: string) => {
+    const gom = new Map<string, { tong: number; uom: string; soMat: number }>();
+    for (const st of stocks) {
+      if (st.product.category !== category) continue;
+      const cu = gom.get(st.product.grade);
+      if (cu) {
+        cu.tong += st.quantity;
+        cu.soMat += 1;
+      } else {
+        gom.set(st.product.grade, {
+          tong: st.quantity,
+          uom: st.product.uom,
+          soMat: 1,
+        });
+      }
+    }
+    return [...gom.entries()].sort((a, b) => b[1].tong - a[1].tong);
+  };
+
+  /** Tiêu thụ 30 ngày cộng theo nơi tiêu thụ, trong một nhóm. */
+  const tieuThuTheoNoi = (category: string) => {
+    const gom = new Map<string, { tong: number; uom: string }>();
+    for (const g of tieuThu30) {
+      const p = theoId.get(g.productId);
+      if (!p || p.category !== category) continue;
+      const noi = g.consumer ?? "OTHER";
+      const cu = gom.get(noi);
+      const them = Number(g._sum.quantity ?? 0);
+      if (cu) cu.tong += them;
+      else gom.set(noi, { tong: them, uom: p.uom });
+    }
+    return [...gom.entries()].sort((a, b) => b[1].tong - a[1].tong);
+  };
+
+  /**
+   * Tồn dầu đốt chia theo giới hạn lưu huỳnh MARPOL.
+   *
+   * Tính theo lưu huỳnh DANH NGHĨA khai ở danh mục, không theo từng lô: dầu
+   * nhiều lô nằm chung két nên không quy được tồn về đúng lô nào. Mặt hàng
+   * chưa khai lưu huỳnh thì xếp riêng — không đoán là đạt.
+   */
+  const tonTheoLuuHuynh = () => {
+    let dungEca = 0;
+    let ngoaiEca = 0;
+    let chuaKhai = 0;
+    let uom = "MT";
+    for (const st of stocks) {
+      if (st.product.category !== "FUEL") continue;
+      uom = st.product.uom;
+      const s = st.product.sulphurMax;
+      if (s === null) chuaKhai += st.quantity;
+      else if (s <= GIOI_HAN_LUU_HUYNH.ECA) dungEca += st.quantity;
+      else ngoaiEca += st.quantity;
+    }
+    return { dungEca, ngoaiEca, chuaKhai, uom };
+  };
+
+  const mauDangGiu = receipts
+    .filter(
+      (r) => r.sampleKeepUntil && soNgayToi(r.sampleKeepUntil)! >= 0
+    )
+    .slice(0, 15);
+
+  const hoaChatNguyHiem = products.filter(
+    (p) => p.category === "CHEMICAL" && (p.hazardClass || p.msdsNote)
+  );
 
   const theoNhom = CONSUMABLE_CATEGORIES.filter((c) => hopNhom(c.value)).map((c) => ({
     ...c,
@@ -257,6 +348,122 @@ export default async function ConsumableVesselPage({
           )}
         </div>
       )}
+
+      {/* ── Tóm tắt theo nhóm ────────────────────────────────────────── */}
+      {CONSUMABLE_CATEGORIES.filter((c) => hopNhom(c.value)).map((c) => {
+        const ton = tonTheoChungLoai(c.value);
+        const tt = tieuThuTheoNoi(c.value);
+        if (ton.length === 0 && tt.length === 0) return null;
+        return (
+          <section key={`tt-${c.value}`} className="space-y-3">
+            <h3 className="text-xl font-semibold text-blue-950">
+              {c.icon} {c.label} — tổng hợp
+            </h3>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
+                <h4 className="mb-2 text-sm font-semibold text-slate-700">
+                  Tồn theo chủng loại
+                </h4>
+                {ton.length === 0 ? (
+                  <p className="text-sm text-slate-500">Chưa có tồn.</p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {ton.map(([grade, v]) => (
+                      <li key={grade} className="flex justify-between gap-3">
+                        <span className="text-slate-700">
+                          {GRADE_LABEL[grade] ?? grade}
+                          <span className="text-slate-400">
+                            {" "}
+                            · {v.soMat} mặt hàng
+                          </span>
+                        </span>
+                        <span className="font-semibold text-blue-950">
+                          {Math.round(v.tong * 1000) / 1000} {v.uom}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {/* Dầu đốt: câu hỏi quan trọng nhất trước khi vào vùng ECA là
+                    "còn bao nhiêu dầu dùng được trong ECA". */}
+                {c.value === "FUEL" &&
+                  (() => {
+                    const lh = tonTheoLuuHuynh();
+                    const tong = lh.dungEca + lh.ngoaiEca + lh.chuaKhai;
+                    if (tong === 0) return null;
+                    return (
+                      <div className="mt-3 border-t pt-3 text-sm">
+                        <p className="mb-1 font-semibold text-slate-700">
+                          Theo giới hạn lưu huỳnh (MARPOL VI Reg 14)
+                        </p>
+                        <p className="text-emerald-700">
+                          Dùng được trong ECA (≤{GIOI_HAN_LUU_HUYNH.ECA}%):{" "}
+                          <b>
+                            {Math.round(lh.dungEca * 1000) / 1000} {lh.uom}
+                          </b>
+                        </p>
+                        <p className="text-amber-800">
+                          Chỉ ngoài ECA (&gt;{GIOI_HAN_LUU_HUYNH.ECA}%):{" "}
+                          <b>
+                            {Math.round(lh.ngoaiEca * 1000) / 1000} {lh.uom}
+                          </b>
+                        </p>
+                        {lh.chuaKhai > 0 && (
+                          <p className="text-slate-500">
+                            Chưa khai lưu huỳnh ở danh mục:{" "}
+                            <b>
+                              {Math.round(lh.chuaKhai * 1000) / 1000} {lh.uom}
+                            </b>{" "}
+                            — chưa xếp được vào nhóm nào.
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-slate-500">
+                          Tính theo lưu huỳnh danh nghĩa khai ở danh mục, không
+                          theo từng lô: nhiều lô nằm chung két nên không quy tồn
+                          về đúng lô được.
+                        </p>
+                      </div>
+                    );
+                  })()}
+              </div>
+
+              <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
+                <h4 className="mb-2 text-sm font-semibold text-slate-700">
+                  Tiêu thụ 30 ngày gần nhất — theo nơi tiêu thụ
+                </h4>
+                {tt.length === 0 ? (
+                  <p className="text-sm text-slate-500">
+                    Chưa ghi tiêu thụ nào trong 30 ngày.
+                  </p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {tt.map(([noi, v]) => (
+                      <li key={noi} className="flex justify-between gap-3">
+                        <span className="text-slate-700">
+                          {CONSUMER_LABEL[noi] ?? noi}
+                        </span>
+                        <span className="font-semibold text-blue-950">
+                          {Math.round(v.tong * 1000) / 1000} {v.uom}
+                        </span>
+                      </li>
+                    ))}
+                    <li className="flex justify-between gap-3 border-t pt-1">
+                      <span className="font-medium text-slate-700">Tổng</span>
+                      <span className="font-bold text-blue-950">
+                        {Math.round(
+                          tt.reduce((a, [, v]) => a + v.tong, 0) * 1000
+                        ) / 1000}{" "}
+                        {tt[0][1].uom}
+                      </span>
+                    </li>
+                  </ul>
+                )}
+              </div>
+            </div>
+          </section>
+        );
+      })}
 
       {/* ── Tồn theo nhóm ────────────────────────────────────────────── */}
       <section className="space-y-3">
@@ -376,6 +583,104 @@ export default async function ConsumableVesselPage({
               lines={dongXinCap}
               nguoiDuyet={nguoiDuyetCuaToi}
             />
+          </div>
+        </section>
+      )}
+
+      {/* ── Mẫu dầu đang giữ (chỉ có nghĩa với dầu đốt) ──────────────── */}
+      {hopNhom("FUEL") && mauDangGiu.length > 0 && (
+        <section className="space-y-3">
+          <h3 className="text-xl font-semibold text-blue-950">
+            Mẫu dầu đang giữ trên tàu
+          </h3>
+          <div className="overflow-x-auto rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
+            <p className="mb-2 text-sm text-slate-600">
+              MARPOL Annex VI Reg 18.8.1 — mẫu đại diện phải giữ tới khi dùng hết
+              lô và ít nhất 12 tháng kể từ ngày giao. Kiểm tra của cảng (PSC) hỏi
+              là phải đưa ra được ngay.
+            </p>
+            <table className="w-full border text-sm">
+              <thead>
+                <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
+                  <th className="p-2">Số BDN</th>
+                  <th className="p-2">Ngày giao</th>
+                  <th className="p-2">Mặt hàng</th>
+                  <th className="p-2">Số niêm</th>
+                  <th className="p-2">Giữ tới</th>
+                  <th className="p-2 text-right">Còn</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mauDangGiu.map((r) => {
+                  const con = soNgayToi(r.sampleKeepUntil)!;
+                  return (
+                    <tr key={r.id} className="border-b">
+                      <td className="p-2 font-medium">{r.docNo}</td>
+                      <td className="p-2 whitespace-nowrap">
+                        {ngay(r.receivedAt)}
+                      </td>
+                      <td className="p-2">{r.product.name}</td>
+                      <td className="p-2 font-mono text-xs">
+                        {r.sampleSealNo ?? (
+                          <span className="text-amber-700">chưa ghi số niêm</span>
+                        )}
+                      </td>
+                      <td className="p-2 whitespace-nowrap">
+                        {ngay(r.sampleKeepUntil!)}
+                      </td>
+                      <td className="p-2 text-right whitespace-nowrap text-slate-600">
+                        {con} ngày
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* ── An toàn hóa chất ─────────────────────────────────────────── */}
+      {hopNhom("CHEMICAL") && hoaChatNguyHiem.length > 0 && (
+        <section className="space-y-3">
+          <h3 className="text-xl font-semibold text-blue-950">
+            An toàn hóa chất
+          </h3>
+          <div className="overflow-x-auto rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
+            <table className="w-full border text-sm">
+              <thead>
+                <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
+                  <th className="p-2">Mã</th>
+                  <th className="p-2">Hóa chất</th>
+                  <th className="p-2">Phân loại nguy hiểm</th>
+                  <th className="p-2">Hạn dùng</th>
+                  <th className="p-2">Ghi chú an toàn / nơi lưu MSDS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hoaChatNguyHiem.map((p) => (
+                  <tr key={p.id} className="border-b">
+                    <td className="p-2 font-mono text-xs">{p.code}</td>
+                    <td className="p-2">{p.name}</td>
+                    <td className="p-2">
+                      {p.hazardClass ? (
+                        <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-800">
+                          {p.hazardClass}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="p-2 text-slate-600">
+                      {p.shelfLifeMonths
+                        ? `${p.shelfLifeMonths} tháng kể từ ngày nhận`
+                        : "—"}
+                    </td>
+                    <td className="p-2 text-slate-600">{p.msdsNote ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       )}

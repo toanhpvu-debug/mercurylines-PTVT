@@ -20,6 +20,7 @@ import {
   boPhanCuaChucDanh,
   capDuyetChoPhep,
   coDuyetCapTau,
+  coQuanLyNhienLieu,
   coQuanLySon,
   nguoiDuyetCapTau,
 } from "@/lib/roles";
@@ -221,6 +222,50 @@ for (const r of ROLES) {
   else truot++;
   console.log(
     `  ${ok ? "OK  " : "TRUOT"} ${(ROLE_LABEL[r] ?? r).padEnd(26)} tau minh: ${tauMinh ? "co" : "khong"}   tau khac: ${tauKhac ? "co" : "khong"}`
+  );
+}
+
+// --- Quyen DAU / DAU NHON / HOA CHAT ---
+// Ky vong viet tay: dau dot va dau nhon la viec buong may (may truong), dai pho
+// khong dung vao. Hoa chat thi ca hai bo phan cung dung nen quyen rong hon mot
+// bac. Van phong (TECH_MANAGER) xem chu khong thao tac tren tau.
+console.log("\n=== QUYEN DAU / DAU NHON / HOA CHAT ===");
+const MONG_NL: Record<string, [boolean, boolean, boolean]> = {
+  // [FUEL, LUBE, CHEMICAL]
+  ADMIN: [true, true, true],
+  MASTER: [true, true, true],
+  CHIEF_ENGINEER: [true, true, true],
+  CHIEF_OFFICER: [false, false, true],
+  TECH_MANAGER: [false, false, false],
+  SECOND_OFFICER: [false, false, false],
+  THIRD_OFFICER: [false, false, false],
+  SECOND_ENGINEER: [false, false, false],
+  THIRD_ENGINEER: [false, false, false],
+  FOURTH_ENGINEER: [false, false, false],
+  CREW: [false, false, false],
+};
+for (const r of ROLES) {
+  const vanPhong = r === "ADMIN" || r === "TECH_MANAGER";
+  const user = { role: r, vesselId: vanPhong ? null : 1 };
+  const thuc: [boolean, boolean, boolean] = [
+    coQuanLyNhienLieu(user, 1, "FUEL"),
+    coQuanLyNhienLieu(user, 1, "LUBE"),
+    coQuanLyNhienLieu(user, 1, "CHEMICAL"),
+  ];
+  const mong = MONG_NL[r];
+  // Nguoi gan tau khong duoc dung sang tau khac.
+  const tauKhac = coQuanLyNhienLieu(user, 2, "CHEMICAL");
+  const mongTauKhac = mong[2] && vanPhong;
+  const ok =
+    thuc[0] === mong[0] &&
+    thuc[1] === mong[1] &&
+    thuc[2] === mong[2] &&
+    tauKhac === mongTauKhac;
+  if (ok) dat++;
+  else truot++;
+  const danh = (b: boolean) => (b ? "co   " : "khong");
+  console.log(
+    `  ${ok ? "OK  " : "TRUOT"} ${(ROLE_LABEL[r] ?? r).padEnd(26)} dau ${danh(thuc[0])} nhon ${danh(thuc[1])} hoa chat ${danh(thuc[2])} | tau khac ${danh(tauKhac)}`
   );
 }
 

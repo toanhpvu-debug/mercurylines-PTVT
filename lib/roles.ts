@@ -165,6 +165,29 @@ export const VAN_HANH_SON: readonly string[] = [
   "CHIEF_ENGINEER",
 ];
 
+/**
+ * Ai vận hành phần Dầu · Dầu nhờn · Hóa chất của một tàu.
+ *
+ * Dầu đốt và dầu nhờn là việc của BUỒNG MÁY — máy trưởng chịu trách nhiệm nhận
+ * bunker, ghi tiêu thụ và giữ mẫu theo MARPOL. Đại phó không đụng vào.
+ *
+ * Hóa chất thì cả hai bộ phận cùng dùng: máy trưởng lo hóa chất nồi hơi, nước
+ * làm mát, xử lý dầu; đại phó lo hóa chất tẩy rửa, vệ sinh hầm hàng. Vì vậy
+ * quyền của hóa chất rộng hơn một bậc.
+ */
+export const VAN_HANH_NHIEN_LIEU: readonly string[] = [
+  "ADMIN",
+  "MASTER",
+  "CHIEF_ENGINEER",
+];
+
+export const VAN_HANH_HOA_CHAT: readonly string[] = [
+  "ADMIN",
+  "MASTER",
+  "CHIEF_ENGINEER",
+  "CHIEF_OFFICER",
+];
+
 /** Ai được lập và trình yêu cầu vật tư. */
 export const LAP_YEU_CAU: readonly string[] = [
   "ADMIN",
@@ -275,6 +298,40 @@ export function coQuanLySon(
   if (!VAN_HANH_SON.includes(user.role)) return false;
   const scope = vesselScope(user);
   return scope.all || scope.vesselId === vesselId;
+}
+
+/**
+ * Người này có được thao tác nhóm dầu/hóa chất này trên tàu này không.
+ *
+ * Truyền category = null khi chỉ cần biết "có vào được module không" (mở trang,
+ * xem tồn); truyền cụ thể khi sắp ghi một giao dịch của nhóm đó.
+ */
+export function coQuanLyNhienLieu(
+  user: { role: string; vesselId: number | null },
+  vesselId: number,
+  category?: string | null
+) {
+  const nhom =
+    category === "CHEMICAL"
+      ? VAN_HANH_HOA_CHAT
+      : category
+        ? VAN_HANH_NHIEN_LIEU
+        : VAN_HANH_HOA_CHAT; // không nêu nhóm: hỏi quyền rộng nhất
+  if (!nhom.includes(user.role)) return false;
+  const scope = vesselScope(user);
+  return scope.all || scope.vesselId === vesselId;
+}
+
+/** Các nhóm mà người này được ghi giao dịch trên tàu đã cho. */
+export function nhomNhienLieuChoPhep(
+  user: { role: string; vesselId: number | null },
+  vesselId: number
+): string[] {
+  const ra: string[] = [];
+  for (const c of ["FUEL", "LUBE", "CHEMICAL"]) {
+    if (coQuanLyNhienLieu(user, vesselId, c)) ra.push(c);
+  }
+  return ra;
 }
 
 /**

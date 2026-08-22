@@ -70,6 +70,9 @@ model Vessel {
   paintStocks       PaintStock[]
   paintJobs         PaintJob[]
   paintTransactions PaintTransaction[]
+  consumableStocks       ConsumableStock[]
+  consumableReceipts     ConsumableReceipt[]
+  consumableTransactions ConsumableTransaction[]
 }
 
 model Warehouse {
@@ -560,4 +563,142 @@ model SiteConfig {
   idRangeStart BigInt @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// ─── Dầu đốt · Dầu nhờn · Hóa chất ───────────────────────────────────────────
+//
+// Ba nhóm này đi chung một bộ bảng vì vòng đời giống hệt nhau: nhận theo lô có
+// chứng từ và đặc tính riêng → nằm trong két/kho → tiêu thụ dần. Tách ba bộ
+// bảng gần như giống nhau chỉ để đặt tên khác thì mọi sửa đổi sau này phải làm
+// ba lần.
+//
+// Phần KHÁC nhau nằm ở đặc tính từng nhóm (lưu huỳnh cho dầu đốt, TBN cho dầu
+// nhờn, hạn dùng cho hóa chất) nên để cùng bảng, cột nào không áp dụng thì null
+// — thay vì bảng riêng cho mỗi nhóm.
+
+model ConsumableProduct {
+  id       Int    @id @default(autoincrement())
+  code     String @unique
+  name     String
+  nameEn   String?
+  // FUEL = dầu đốt, LUBE = dầu nhờn, CHEMICAL = hóa chất
+  category String
+  // FUEL: HFO, VLSFO, ULSFO, MGO, MDO
+  // LUBE: CYL (xy-lanh), SYS (hệ thống), AE, HYD, GEAR, GREASE
+  // CHEMICAL: BOILER, COOLING, FUEL_TREAT, CLEANING, SEWAGE, OTHER
+  grade    String @default("OTHER")
+  maker    String?
+  uom      String @default("MT")
+  // Dung tích một thùng/can (L) — để quy đổi khi nhận theo thùng.
+  packSize Float  @default(0)
+
+  // Đặc tính DANH NGHĨA của mặt hàng. Đặc tính THỰC của từng lô nằm ở
+  // ConsumableReceipt — hai lô cùng mặt hàng có thể khác nhau.
+  sulphurMax Float? // % m/m, dầu đốt
+  viscosity  Float? // cSt @50°C (dầu đốt) hoặc @100°C (dầu nhờn)
+  density    Float? // kg/m³ @15°C
+  bnValue    Float? // TBN — dầu nhờn xy-lanh
+  // Hóa chất
+  hazardClass     String? // phân loại nguy hiểm IMDG/GHS
+  shelfLifeMonths Int? // hạn dùng kể từ ngày sản xuất/nhận
+  msdsNote        String? // ghi chú an toàn / vị trí lưu MSDS
+
+  isActive Boolean @default(true)
+  notes    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stocks       ConsumableStock[]
+  receipts     ConsumableReceipt[]
+  transactions ConsumableTransaction[]
+
+  @@index([category])
+}
+
+model ConsumableStock {
+  id        Int               @id @default(autoincrement())
+  vesselId  Int
+  vessel    Vessel            @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  productId Int
+  product   ConsumableProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Float @default(0)
+  minQty    Float @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([vesselId, productId])
+  @@index([productId])
+}
+
+model ConsumableReceipt {
+  id        Int               @id @default(autoincrement())
+  vesselId  Int
+  vessel    Vessel            @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  productId Int
+  product   ConsumableProduct @relation(fields: [productId], references: [id])
+
+  // Số BDN với dầu đốt, số phiếu giao hàng với dầu nhờn / hóa chất.
+  docNo      String
+  receivedAt DateTime
+  port       String?
+  supplier   String?
+  barge      String?
+  quantity   Float
+
+  // Đặc tính THỰC của lô — đọc từ BDN / chứng thư phân tích.
+  density      Float?
+  viscosity    Float?
+  sulphur      Float? // % m/m
+  waterContent Float? // % v/v
+  flashPoint   Float? // °C
+  bnValue      Float?
+
+  // Hóa chất: hạn dùng của lô.
+  expiryDate DateTime?
+
+  // MARPOL Annex VI Reg 18.8.1: mẫu đại diện của lô dầu phải giữ trên tàu tới
+  // khi dùng hết lô đó và ít nhất 12 tháng kể từ ngày giao.
+  sampleSealNo    String?
+  sampleKeepUntil DateTime?
+
+  unitPrice Float?
+  currency  String?
+  note      String?
+
+  performedBy String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  transactions ConsumableTransaction[]
+
+  @@index([vesselId])
+  @@index([productId])
+  @@index([receivedAt])
+}
+
+model ConsumableTransaction {
+  id        Int               @id @default(autoincrement())
+  vesselId  Int
+  vessel    Vessel            @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  productId Int
+  product   ConsumableProduct @relation(fields: [productId], references: [id])
+  // IN = nhận lên tàu, OUT = xuất/trả/hao hụt, CONSUME = tiêu thụ
+  type      String
+  quantity  Float
+  // Nơi tiêu thụ, chỉ có nghĩa với CONSUME: ME, AE, BOILER, INERT, OTHER.
+  // Báo cáo dầu của tàu tách theo đúng các mục này.
+  consumer  String?
+  receiptId Int?
+  receipt   ConsumableReceipt? @relation(fields: [receiptId], references: [id], onDelete: SetNull)
+
+  occurredAt  DateTime @default(now())
+  performedBy String?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([vesselId])
+  @@index([productId])
+  @@index([occurredAt])
+  @@index([receiptId])
 }

@@ -12,6 +12,7 @@ const links = [
   { href: "/purchasing", label: "Mua sắm (Purchasing)", icon: "🛒" },
   { href: "/reports", label: "Báo cáo vật tư", icon: "📊" },
   { href: "/paint", label: "Quản lý sơn", icon: "🎨" },
+  { href: "/consumables", label: "Dầu · Dầu nhờn · Hóa chất", icon: "🛢️" },
   { href: "/lashing", label: "Chằng buộc container", icon: "🔗" },
   { href: "/documents", label: "Báo cáo từ tàu", icon: "📄" },
 ];

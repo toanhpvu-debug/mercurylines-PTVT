@@ -82,7 +82,7 @@ Bấm đúp thẳng trong thư mục gốc của app, không cần mở terminal
 | `doi-chieu-danh-muc.cmd` | Đối chiếu danh mục vật tư từng tàu với file kiểm kê gốc |
 | `sao-luu-du-lieu.cmd` | Nén bản chụp PostgreSQL (`pg_dump`) + file upload + `.env` + biểu mẫu thành bản sao lưu, kèm dấu vân tay để đối chiếu |
 | `khoi-phuc-du-lieu.cmd` | Đưa dữ liệu trở lại từ một bản sao lưu — tự chụp đường lùi trước, đối chiếu vân tay sau |
-| `kiem-tra-phan-quyen.cmd` | Chạy ma trận phân quyền duyệt yêu cầu và quyền phần sơn (479 phép thử, không đụng database) |
+| `kiem-tra-phan-quyen.cmd` | Chạy ma trận phân quyền: duyệt yêu cầu, phần sơn, dầu/hóa chất (490 phép thử, không đụng database) |
 | `dong-bo-github.cmd` | Đẩy thay đổi mã nguồn lên GitHub |
 | `run-dev.cmd` | Chỉ khi đang **sửa code** (có hot-reload). Chậm hơn production ~50 lần |
 | `khai-bao-ban-cai.cmd` | Khai báo bản cài này là của tàu nào (`ML-001`) hay là văn phòng (`VANPHONG`) — chạy một lần sau khi cài |
@@ -560,6 +560,51 @@ Thực tế mỗi tàu phát hành RFQ/PO dưới danh nghĩa công ty quản l�
 - **Gán biểu mẫu cho tàu** (ADMIN): mỗi tàu một dropdown chọn biểu mẫu + ô Hull No. Đổi xong, mọi RFQ/PO của tàu đó in ngay theo công ty mới. Hai biểu mẫu MLS và NAVIS được tạo sẵn khi seed.
 
 Quản lý **nhà cung cấp** ở `/purchasing/suppliers` (ADMIN). Mua sắm dành cho **ADMIN và Thuyền trưởng** (vai trò văn phòng/procurement); thuyền viên chỉ xem. Tuân theo phạm vi tàu như toàn app.
+
+## Dầu đốt · Dầu nhờn · Hóa chất (`/consumables`)
+
+Ba nhóm đi chung một bộ bảng vì vòng đời giống hệt nhau: **nhận theo lô có chứng từ và đặc
+tính riêng → nằm trong két/kho → tiêu thụ dần**. Tách ba bộ bảng gần như giống nhau chỉ để đặt
+tên khác thì mọi sửa đổi sau này phải làm ba lần. Phần *khác* nhau là đặc tính từng nhóm nên
+để cùng bảng, cột nào không áp dụng thì để trống.
+
+### Phân quyền theo bộ phận
+
+| | Dầu đốt | Dầu nhờn | Hóa chất |
+|---|---|---|---|
+| Quản trị, Thuyền trưởng | ✓ | ✓ | ✓ |
+| Máy trưởng | ✓ | ✓ | ✓ |
+| **Đại phó** | ✗ | ✗ | **✓** |
+| Sĩ quan còn lại, quản lý kỹ thuật | ✗ (chỉ xem) | ✗ | ✗ |
+
+Dầu đốt và dầu nhờn là việc **buồng máy** — máy trưởng nhận bunker, ghi tiêu thụ, giữ mẫu theo
+MARPOL. Hóa chất thì **cả hai bộ phận** cùng dùng: máy trưởng lo nồi hơi, nước làm mát, xử lý
+dầu; đại phó lo tẩy rửa, vệ sinh hầm hàng — nên quyền của hóa chất rộng hơn một bậc. Ô chọn
+mặt hàng ở mỗi form chỉ hiện nhóm người đó được ghi, nên đại phó mở được trang nhưng không ghi
+được phiếu bunker.
+
+### Bốn quy tắc nghiệp vụ được cài sẵn
+
+**Lưu huỳnh theo MARPOL Annex VI Reg 14.** Nhập hàm lượng lưu huỳnh của lô là hệ thống đối
+chiếu ngay: ≤0,10% dùng được cả trong vùng ECA; ≤0,50% đạt giới hạn toàn cầu nhưng không dùng
+được trong ECA; trên 0,50% chỉ hợp lệ khi tàu có hệ thống lọc khí thải. Đây là **cảnh báo**
+chứ không chặn cứng — chặn cứng thì tàu có scrubber không ghi được lô dầu thật của mình.
+
+**Mẫu dầu giữ 12 tháng (Reg 18.8.1).** Mốc được tính tự động khi ghi phiếu, kèm ô ghi số niêm.
+Trang tàu liệt kê những lô đã qua mốc để bỏ mẫu — bỏ sớm là mất bằng chứng đối chứng khi bị
+kiểm tra (PSC), giữ mãi thì tủ mẫu chật cứng.
+
+**Hạn dùng hóa chất.** Khai hạn dùng (tháng) ở danh mục thì mỗi lô nhận tự tính ngày hết hạn;
+lô còn dưới 60 ngày hoặc đã quá hạn hiện lên đầu trang tàu.
+
+**Đặc tính mặt hàng ≠ đặc tính lô.** Danh mục giữ đặc tính *danh nghĩa* (lưu huỳnh tối đa, độ
+nhớt, TBN); phiếu nhận giữ đặc tính *thực* đọc từ BDN / chứng thư phân tích. Hai lô cùng mặt
+hàng có thể khác nhau, gộp một chỗ là mất số liệu thật của từng lô.
+
+Ngoài ra: nơi tiêu thụ (M/E · A/E · nồi hơi · máy khí trơ) chỉ hỏi khi ghi **tiêu thụ**, không
+hỏi khi nhận hay xuất — ghi vào đó là dữ liệu vô nghĩa làm báo cáo cộng nhầm. Ghi phiếu nhận
+làm ba việc trong **một** transaction (lưu chứng từ, cộng tồn, sinh giao dịch), và xóa phiếu
+thì trừ lại đúng lượng đã cộng.
 
 ## Quản lý sơn (`/paint`)
 

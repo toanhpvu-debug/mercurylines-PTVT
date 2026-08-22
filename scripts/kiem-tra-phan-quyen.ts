@@ -22,6 +22,7 @@ import {
   coDuyetCapTau,
   coQuanLyNhienLieu,
   coQuanLySon,
+  coXinCapNhienLieu,
   nguoiDuyetCapTau,
   trinhThangLenCongTy,
 } from "@/lib/roles";
@@ -347,6 +348,64 @@ for (const r of ROLES) {
   console.log(
     `  ${ok ? "OK  " : "TRUOT"} ${(ROLE_LABEL[r] ?? r).padEnd(26)} ${thuc ? "di thang len cong ty" : "qua buoc duyet cap tau"}`
   );
+}
+
+// --- QUYEN XIN CAP tach khoi QUYEN GHI ---
+// Si quan may truc ca la nguoi biet sap het cai gi nen phai xin cap duoc, nhung
+// khong vi the ma duoc ghi phieu bunker hay sua ton. Gop hai quyen lam mot thi
+// hoac May 3 ghi duoc BDN, hoac May 3 khong xin duoc dau — ca hai deu sai.
+console.log("\n=== XIN CAP vs GHI NGHIEP VU ===");
+const MONG_XIN: Record<string, [boolean, boolean, boolean]> = {
+  // [FUEL, LUBE, CHEMICAL]
+  ADMIN: [true, true, true],
+  MASTER: [true, true, true],
+  CHIEF_ENGINEER: [true, true, true],
+  SECOND_ENGINEER: [true, true, true],
+  THIRD_ENGINEER: [true, true, true],
+  FOURTH_ENGINEER: [true, true, true],
+  CHIEF_OFFICER: [false, false, true],
+  TECH_MANAGER: [false, false, false],
+  SECOND_OFFICER: [false, false, false],
+  THIRD_OFFICER: [false, false, false],
+  CREW: [false, false, false],
+};
+for (const r of ROLES) {
+  const vanPhong = r === "ADMIN" || r === "TECH_MANAGER";
+  const user = { role: r, vesselId: vanPhong ? null : 1 };
+  const xin: [boolean, boolean, boolean] = [
+    coXinCapNhienLieu(user, 1, "FUEL"),
+    coXinCapNhienLieu(user, 1, "LUBE"),
+    coXinCapNhienLieu(user, 1, "CHEMICAL"),
+  ];
+  const ghi = coQuanLyNhienLieu(user, 1, "FUEL");
+  const mong = MONG_XIN[r];
+  // Tau khac thi khong dung toi, tru vai tro van phong.
+  const tauKhac = coXinCapNhienLieu(user, 2, "FUEL");
+  const ok =
+    xin[0] === mong[0] &&
+    xin[1] === mong[1] &&
+    xin[2] === mong[2] &&
+    tauKhac === (mong[0] && vanPhong);
+  if (ok) dat++;
+  else truot++;
+  const d = (b: boolean) => (b ? "co   " : "khong");
+  console.log(
+    `  ${ok ? "OK  " : "TRUOT"} ${(ROLE_LABEL[r] ?? r).padEnd(26)} xin: dau ${d(xin[0])} nhon ${d(xin[1])} hoa chat ${d(xin[2])} | ghi nghiep vu dau: ${d(ghi)}`
+  );
+}
+
+// Diem quan trong nhat cua lan nay: si quan may XIN duoc nhung KHONG GHI duoc.
+const may3 = { role: "THIRD_ENGINEER", vesselId: 1 };
+const caMay3: [string, unknown, unknown][] = [
+  ["May 3 XIN CAP duoc dau", coXinCapNhienLieu(may3, 1, "FUEL"), true],
+  ["May 3 KHONG ghi duoc nghiep vu dau", coQuanLyNhienLieu(may3, 1, "FUEL"), false],
+  ["May 3 khong xin duoc cho tau khac", coXinCapNhienLieu(may3, 2, "FUEL"), false],
+];
+for (const [ten, thuc, mong] of caMay3) {
+  const ok = JSON.stringify(thuc) === JSON.stringify(mong);
+  if (ok) dat++;
+  else truot++;
+  console.log(`  ${ok ? "OK  " : "TRUOT"} ${ten} -> ${JSON.stringify(thuc)}`);
 }
 
 console.log(`\n=== TONG: ${dat} dat / ${truot} truot ===`);

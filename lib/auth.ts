@@ -14,7 +14,9 @@ export {
   capDuyetChoPhep,
   coQuanLyNhienLieu,
   coQuanLySon,
+  coXinCapNhienLieu,
   nhomNhienLieuChoPhep,
+  nhomXinCapChoPhep,
   trinhThangLenCongTy,
   vesselScope,
 } from "@/lib/roles";

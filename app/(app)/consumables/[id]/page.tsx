@@ -7,6 +7,7 @@ import {
   boPhanCuaChucDanh,
   nguoiDuyetCapTau,
   nhomNhienLieuChoPhep,
+  nhomXinCapChoPhep,
   trinhThangLenCongTy,
 } from "@/lib/roles";
 import {
@@ -74,6 +75,11 @@ export default async function ConsumableVesselPage({
   // được hóa chất; ô chọn mặt hàng ở các form chỉ hiện nhóm đó.
   const nhomGhiDuoc = nhomNhienLieuChoPhep(user, vesselId);
   const coTheGhi = nhomGhiDuoc.length > 0;
+  // Quyền XIN CẤP rộng hơn quyền ghi: sĩ quan máy xin được dầu nhưng không ghi
+  // được phiếu bunker. Không tách thì hoặc Máy 3 ghi được BDN, hoặc Máy 3 không
+  // xin được dầu — cả hai đều sai.
+  const nhomXinDuoc = nhomXinCapChoPhep(user, vesselId);
+  const coTheXinCap = nhomXinDuoc.length > 0;
 
   // Tách hẳn ba nhóm: dầu đốt, dầu nhờn và hóa chất là ba nghiệp vụ khác nhau,
   // do người khác nhau phụ trách và có chứng từ khác nhau. Xem lẫn cả ba trong
@@ -118,6 +124,31 @@ export default async function ConsumableVesselPage({
     }),
   ]);
 
+  /**
+   * Tốc độ tiêu thụ mỗi ngày của một mặt hàng, tính trên 30 ngày gần nhất.
+   *
+   * Đây là con số biến định mức tĩnh thành cảnh báo có nghĩa: "còn 320 MT" tự
+   * nó không nói được gì, "còn 320 MT, dùng hết trong 103 ngày" thì nói được.
+   * Chưa có tiêu thụ nào thì trả 0 — không suy diễn từ dữ liệu không có.
+   */
+  const tieuThuMoiNgay = (productId: number) => {
+    let tong = 0;
+    for (const g of tieuThu30) {
+      if (g.productId === productId) tong += Number(g._sum.quantity ?? 0);
+    }
+    return tong / 30;
+  };
+
+  /** Số ngày còn dùng được theo tốc độ hiện tại; null khi chưa có tiêu thụ. */
+  const soNgayConDung = (productId: number, ton: number) => {
+    const moiNgay = tieuThuMoiNgay(productId);
+    if (moiNgay <= 0) return null;
+    return Math.floor(ton / moiNgay);
+  };
+
+  /** Dưới ngưỡng này thì coi là sắp hết, không cần chờ chạm định mức. */
+  const NGUONG_NGAY_SAP_HET = 30;
+
   const optionsChoNhom = products
     .filter((p) => nhomGhiDuoc.includes(p.category) && hopNhom(p.category))
     .map((p) => ({
@@ -132,7 +163,7 @@ export default async function ConsumableVesselPage({
   // và định mức của tàu. Mặt hàng chưa từng nhận thì chưa có bản ghi tồn nên coi
   // như 0 — vẫn phải xin được, đó chính là lúc cần xin nhất.
   const dongXinCap = products
-    .filter((p) => nhomGhiDuoc.includes(p.category) && hopNhom(p.category))
+    .filter((p) => nhomXinDuoc.includes(p.category) && hopNhom(p.category))
     .map((p) => {
       const st = stocks.find((x) => x.productId === p.id);
       return {
@@ -142,6 +173,7 @@ export default async function ConsumableVesselPage({
         category: p.category,
         ton: st?.quantity ?? 0,
         minQty: st?.minQty ?? 0,
+        moiNgay: tieuThuMoiNgay(p.id),
       };
     });
   // Ai ký ở cấp tàu cho yêu cầu do NGƯỜI NÀY lập. Thuyền trưởng / quản trị thì
@@ -164,6 +196,14 @@ export default async function ConsumableVesselPage({
     .map((r) => ({ r, con: soNgayToi(r.expiryDate)! }))
     .filter((x) => x.con <= NGUONG_CANH_BAO_HAN_DUNG)
     .sort((a, b) => a.con - b.con);
+  // Sắp hết theo TỐC ĐỘ THẬT, không chỉ theo định mức tĩnh. Một mặt hàng vẫn
+  // trên định mức nhưng tiêu thụ nhanh thì vẫn hết trước khi kịp mua.
+  const sapHetTheoTocDo = stocks
+    .filter((s) => hopNhom(s.product.category))
+    .map((s) => ({ s, ngay: soNgayConDung(s.productId, s.quantity) }))
+    .filter((x) => x.ngay !== null && x.ngay < NGUONG_NGAY_SAP_HET)
+    .sort((a, b) => a.ngay! - b.ngay!);
+
   const mauHetHanGiu = receipts
     .filter(
       (r) =>
@@ -310,6 +350,7 @@ export default async function ConsumableVesselPage({
 
       {/* ── Cảnh báo ─────────────────────────────────────────────────── */}
       {(duoiDinhMuc.length > 0 ||
+        sapHetTheoTocDo.length > 0 ||
         loHetHan.length > 0 ||
         mauHetHanGiu.length > 0) && (
         <div className="space-y-2">
@@ -320,6 +361,17 @@ export default async function ConsumableVesselPage({
                 .map(
                   (s) =>
                     `${s.product.name} (${s.quantity}/${s.minQty} ${s.product.uom})`
+                )
+                .join(" · ")}
+            </div>
+          )}
+          {sapHetTheoTocDo.length > 0 && (
+            <div className="rounded-lg border border-orange-300 bg-orange-50 p-3 text-sm text-orange-900">
+              <b>Sắp hết theo tốc độ tiêu thụ 30 ngày qua:</b>{" "}
+              {sapHetTheoTocDo
+                .map(
+                  ({ s, ngay }) =>
+                    `${s.product.name} còn ${ngay} ngày (${s.quantity} ${s.product.uom})`
                 )
                 .join(" · ")}
             </div>
@@ -489,6 +541,8 @@ export default async function ConsumableVesselPage({
                       <th className="p-2">Mặt hàng</th>
                       <th className="p-2">Chủng loại</th>
                       <th className="p-2 text-right">Tồn</th>
+                      <th className="p-2 text-right">Dùng/ngày</th>
+                      <th className="p-2 text-right">Còn dùng được</th>
                       <th className="p-2 text-right">Định mức</th>
                     </tr>
                   </thead>
@@ -519,6 +573,34 @@ export default async function ConsumableVesselPage({
                           </td>
                           <td className="p-2 text-right font-semibold">
                             {s.quantity} {s.product.uom}
+                          </td>
+                          <td className="p-2 text-right text-slate-600">
+                            {(() => {
+                              const md = tieuThuMoiNgay(s.productId);
+                              return md > 0 ? Math.round(md * 100) / 100 : "—";
+                            })()}
+                          </td>
+                          <td className="p-2 text-right">
+                            {(() => {
+                              const ng = soNgayConDung(s.productId, s.quantity);
+                              if (ng === null)
+                                return (
+                                  <span className="text-slate-400">
+                                    chưa có tiêu thụ
+                                  </span>
+                                );
+                              return (
+                                <span
+                                  className={
+                                    ng < NGUONG_NGAY_SAP_HET
+                                      ? "font-semibold text-orange-700"
+                                      : "text-slate-700"
+                                  }
+                                >
+                                  {ng} ngày
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="p-2 text-right">
                             {nhomGhiDuoc.includes(s.product.category) ? (
@@ -572,7 +654,7 @@ export default async function ConsumableVesselPage({
       )}
 
       {/* ── Yêu cầu cấp ──────────────────────────────────────────────── */}
-      {coTheGhi && (
+      {coTheXinCap && (
         <section className="space-y-3">
           <h3 className="text-xl font-semibold text-blue-950">
             Yêu cầu cấp — gửi lên phê duyệt
@@ -860,10 +942,14 @@ export default async function ConsumableVesselPage({
       </section>
 
       <p className="text-xs text-slate-500">
-        Nhóm bạn được ghi trên tàu này:{" "}
+        Trên tàu này bạn <b>ghi nghiệp vụ</b> được:{" "}
         {nhomGhiDuoc.length
           ? nhomGhiDuoc.map((c) => CATEGORY_LABEL[c]).join(" · ")
-          : "không có"}
+          : "không nhóm nào"}
+        . <b>Xin cấp</b> được:{" "}
+        {nhomXinDuoc.length
+          ? nhomXinDuoc.map((c) => CATEGORY_LABEL[c]).join(" · ")
+          : "không nhóm nào"}
         .
       </p>
     </div>

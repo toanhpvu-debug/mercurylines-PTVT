@@ -203,6 +203,33 @@ export const VAN_HANH_HOA_CHAT: readonly string[] = [
   "CHIEF_OFFICER",
 ];
 
+/**
+ * Ai được LẬP YÊU CẦU xin cấp dầu · dầu nhờn · hóa chất.
+ *
+ * RỘNG HƠN quyền ghi nghiệp vụ, và cố ý như vậy: sĩ quan máy trực ca là người
+ * biết sắp hết cái gì, nên phải xin cấp được — nhưng không vì thế mà được ghi
+ * phiếu bunker, sửa tồn hay đổi định mức. Gộp hai quyền làm một thì hoặc là
+ * Máy 3 ghi được BDN, hoặc là Máy 3 không xin được dầu; cả hai đều sai.
+ *
+ * Yêu cầu của sĩ quan máy đi qua máy trưởng SƠ DUYỆT rồi mới lên công ty.
+ */
+export const XIN_CAP_NHIEN_LIEU: readonly string[] = [
+  "ADMIN",
+  "MASTER",
+  "CHIEF_ENGINEER",
+  "CHIEF_OFFICER",
+  "SECOND_ENGINEER",
+  "THIRD_ENGINEER",
+  "FOURTH_ENGINEER",
+];
+
+/** Sĩ quan máy dưới quyền máy trưởng. */
+export const SI_QUAN_MAY: readonly string[] = [
+  "SECOND_ENGINEER",
+  "THIRD_ENGINEER",
+  "FOURTH_ENGINEER",
+];
+
 /** Ai được lập và trình yêu cầu vật tư. */
 export const LAP_YEU_CAU: readonly string[] = [
   "ADMIN",
@@ -335,6 +362,39 @@ export function coQuanLyNhienLieu(
   if (!nhom.includes(user.role)) return false;
   const scope = vesselScope(user);
   return scope.all || scope.vesselId === vesselId;
+}
+
+/**
+ * Người này có được XIN CẤP nhóm này trên tàu này không.
+ *
+ * Sĩ quan máy xin được cả ba nhóm — buồng máy dùng cả dầu đốt, dầu nhờn lẫn
+ * hóa chất nồi hơi/nước làm mát. Đại phó chỉ hóa chất, đúng như quyền vận hành
+ * của ông ấy.
+ */
+export function coXinCapNhienLieu(
+  user: { role: string; vesselId: number | null },
+  vesselId: number,
+  category?: string | null
+) {
+  if (!XIN_CAP_NHIEN_LIEU.includes(user.role)) return false;
+  // Đại phó là người boong: chỉ xin được hóa chất.
+  if (user.role === "CHIEF_OFFICER" && category && category !== "CHEMICAL") {
+    return false;
+  }
+  const scope = vesselScope(user);
+  return scope.all || scope.vesselId === vesselId;
+}
+
+/** Các nhóm mà người này được XIN CẤP trên tàu đã cho. */
+export function nhomXinCapChoPhep(
+  user: { role: string; vesselId: number | null },
+  vesselId: number
+): string[] {
+  const ra: string[] = [];
+  for (const c of ["FUEL", "LUBE", "CHEMICAL"]) {
+    if (coXinCapNhienLieu(user, vesselId, c)) ra.push(c);
+  }
+  return ra;
 }
 
 /** Các nhóm mà người này được ghi giao dịch trên tàu đã cho. */

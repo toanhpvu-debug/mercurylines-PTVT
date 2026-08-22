@@ -7,7 +7,11 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { coQuanLyNhienLieu, requireActiveRole } from "@/lib/auth";
+import {
+  coQuanLyNhienLieu,
+  coXinCapNhienLieu,
+  requireActiveRole,
+} from "@/lib/auth";
 import {
   CATEGORY_LABEL,
   CATEGORY_VALUES,
@@ -19,8 +23,8 @@ import {
 import {
   QUAN_DANH_MUC_NHIEN_LIEU,
   ROLE_LABEL,
-  SI_QUAN,
   VAN_HANH_HOA_CHAT,
+  XIN_CAP_NHIEN_LIEU,
   boPhanCuaChucDanh,
   trinhThangLenCongTy,
 } from "@/lib/roles";
@@ -664,7 +668,7 @@ export async function taoYeuCauNhienLieu(
   formData: FormData
 ): Promise<ActionState> {
   const vesselId = Number(formData.get("vesselId"));
-  const actor = await requireActiveRole([...VAN_HANH_HOA_CHAT, ...SI_QUAN]);
+  const actor = await requireActiveRole([...XIN_CAP_NHIEN_LIEU]);
   if (!actor) return { message: NO_PERMISSION };
 
   const vessel = await prisma.vessel.findUnique({
@@ -696,7 +700,7 @@ export async function taoYeuCauNhienLieu(
   // Xin cấp nhóm nào thì phải có quyền nhóm đó — không mượn form để xin hộ
   // nhóm mình không phụ trách.
   for (const p of products) {
-    if (!coQuanLyNhienLieu(actor, vesselId, p.category)) {
+    if (!coXinCapNhienLieu(actor, vesselId, p.category)) {
       return {
         message: `Bạn không phụ trách nhóm của mặt hàng "${p.name}" nên không xin cấp được.`,
       };

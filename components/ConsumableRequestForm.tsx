@@ -11,7 +11,12 @@ export type RequestLine = {
   category: string;
   ton: number;
   minQty: number;
+  /** Tiêu thụ trung bình mỗi ngày, tính trên 30 ngày gần nhất. 0 = chưa có. */
+  moiNgay: number;
 };
+
+/** Số ngày dự trữ mặc định khi đề xuất số lượng xin cấp. */
+const SO_NGAY_DU_TRU_MAC_DINH = 60;
 
 /**
  * Xin cấp dầu · dầu nhờn · hóa chất, gửi vào đúng dây chuyền phê duyệt của
@@ -34,22 +39,38 @@ export default function ConsumableRequestForm({
     message: "",
   });
 
-  const thieu = useMemo(
-    () =>
-      new Map(
-        lines.map((l) => [
-          l.productId,
-          l.minQty > 0 && l.ton < l.minQty
-            ? Math.round((l.minQty - l.ton) * 1000) / 1000
-            : 0,
-        ])
-      ),
-    [lines]
-  );
+  const [soNgay, setSoNgay] = useState(SO_NGAY_DU_TRU_MAC_DINH);
+
+  /**
+   * Đề xuất số lượng xin cấp = phần LỚN HƠN giữa hai cách tính:
+   *   - bù cho đủ định mức tối thiểu, và
+   *   - đủ dùng cho <soNgay> ngày theo tốc độ tiêu thụ 30 ngày qua.
+   *
+   * Chỉ dựa vào định mức thì mặt hàng tiêu thụ nhanh vẫn hết trước khi hàng
+   * về; chỉ dựa vào tốc độ thì mặt hàng chưa từng ghi tiêu thụ sẽ đề xuất 0.
+   * Lấy số lớn hơn nên cách nào cũng không bỏ sót.
+   */
+  const deXuat = useMemo(() => {
+    const m = new Map<number, { sl: number; vi: string }>();
+    for (const l of lines) {
+      const buDinhMuc =
+        l.minQty > 0 && l.ton < l.minQty ? l.minQty - l.ton : 0;
+      const duDung = l.moiNgay > 0 ? l.moiNgay * soNgay - l.ton : 0;
+      const sl = Math.max(buDinhMuc, duDung, 0);
+      const vi =
+        sl === 0
+          ? ""
+          : duDung > buDinhMuc
+            ? `đủ dùng ${soNgay} ngày`
+            : "bù cho đủ định mức";
+      m.set(l.productId, { sl: Math.ceil(sl * 1000) / 1000, vi });
+    }
+    return m;
+  }, [lines, soNgay]);
 
   const [chiThieu, setChiThieu] = useState(true);
   const hienThi = chiThieu
-    ? lines.filter((l) => (thieu.get(l.productId) ?? 0) > 0)
+    ? lines.filter((l) => (deXuat.get(l.productId)?.sl ?? 0) > 0)
     : lines;
 
   if (lines.length === 0) {
@@ -78,20 +99,36 @@ export default function ConsumableRequestForm({
             </>
           )}
         </p>
-        <label className="flex items-center gap-2 text-sm text-slate-600">
-          <input
-            type="checkbox"
-            checked={chiThieu}
-            onChange={(e) => setChiThieu(e.target.checked)}
-          />
-          Chỉ hiện mặt hàng dưới định mức
-        </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            Dự trữ đủ dùng
+            <select
+              value={soNgay}
+              onChange={(e) => setSoNgay(Number(e.target.value))}
+              className="rounded border p-1"
+            >
+              {[30, 45, 60, 90, 120].map((n) => (
+                <option key={n} value={n}>
+                  {n} ngày
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <input
+              type="checkbox"
+              checked={chiThieu}
+              onChange={(e) => setChiThieu(e.target.checked)}
+            />
+            Chỉ hiện mặt hàng cần cấp
+          </label>
+        </div>
       </div>
 
       {hienThi.length === 0 ? (
         <p className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-          Không có mặt hàng nào dưới định mức. Bỏ dấu tick ở trên để xin cấp mặt
-          hàng khác.
+          Không mặt hàng nào cần cấp: tất cả đều trên định mức và đủ dùng{" "}
+          {soNgay} ngày. Bỏ dấu tick ở trên để xin cấp mặt hàng khác.
         </p>
       ) : (
         <div className="overflow-x-auto">
@@ -101,13 +138,17 @@ export default function ConsumableRequestForm({
                 <th className="p-2">Mặt hàng</th>
                 <th className="p-2">ĐVT</th>
                 <th className="p-2 text-right">Tồn</th>
+                <th className="p-2 text-right">Dùng/ngày</th>
+                <th className="p-2 text-right">Còn dùng được</th>
                 <th className="p-2 text-right">Định mức</th>
                 <th className="p-2">Số lượng xin cấp</th>
               </tr>
             </thead>
             <tbody>
               {hienThi.map((l) => {
-                const goiY = thieu.get(l.productId) ?? 0;
+                const dx = deXuat.get(l.productId) ?? { sl: 0, vi: "" };
+                const conDung =
+                  l.moiNgay > 0 ? Math.floor(l.ton / l.moiNgay) : null;
                 return (
                   <tr key={l.productId} className="border-b">
                     <td className="p-2">
@@ -116,10 +157,30 @@ export default function ConsumableRequestForm({
                     <td className="p-2 text-slate-600">{l.uom}</td>
                     <td
                       className={`p-2 text-right ${
-                        goiY > 0 ? "font-medium text-amber-700" : ""
+                        dx.sl > 0 ? "font-medium text-amber-700" : ""
                       }`}
                     >
                       {l.ton}
+                    </td>
+                    <td className="p-2 text-right text-slate-600">
+                      {l.moiNgay > 0
+                        ? Math.round(l.moiNgay * 100) / 100
+                        : "—"}
+                    </td>
+                    <td className="p-2 text-right">
+                      {conDung === null ? (
+                        <span className="text-slate-400">—</span>
+                      ) : (
+                        <span
+                          className={
+                            conDung < soNgay
+                              ? "font-semibold text-orange-700"
+                              : "text-slate-700"
+                          }
+                        >
+                          {conDung} ngày
+                        </span>
+                      )}
                     </td>
                     <td className="p-2 text-right text-slate-600">
                       {l.minQty > 0 ? l.minQty : "—"}
@@ -130,10 +191,16 @@ export default function ConsumableRequestForm({
                         type="number"
                         step="0.001"
                         min="0"
-                        defaultValue={goiY > 0 ? goiY : ""}
+                        key={`${l.productId}-${soNgay}`}
+                        defaultValue={dx.sl > 0 ? dx.sl : ""}
                         placeholder="0"
                         className="w-28 rounded border p-1"
                       />
+                      {dx.vi && (
+                        <span className="mt-0.5 block text-xs text-slate-500">
+                          {dx.vi}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );

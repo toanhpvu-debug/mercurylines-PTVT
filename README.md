@@ -82,7 +82,7 @@ Bấm đúp thẳng trong thư mục gốc của app, không cần mở terminal
 | `doi-chieu-danh-muc.cmd` | Đối chiếu danh mục vật tư từng tàu với file kiểm kê gốc |
 | `sao-luu-du-lieu.cmd` | Nén bản chụp PostgreSQL (`pg_dump`) + file upload + `.env` + biểu mẫu thành bản sao lưu, kèm dấu vân tay để đối chiếu |
 | `khoi-phuc-du-lieu.cmd` | Đưa dữ liệu trở lại từ một bản sao lưu — tự chụp đường lùi trước, đối chiếu vân tay sau |
-| `kiem-tra-phan-quyen.cmd` | Chạy ma trận phân quyền: duyệt yêu cầu, phần sơn, dầu/hóa chất (508 phép thử, không đụng database) |
+| `kiem-tra-phan-quyen.cmd` | Chạy ma trận phân quyền: duyệt yêu cầu, phần sơn, dầu/hóa chất (522 phép thử, không đụng database) |
 | `kiem-tra-doc-phieu.cmd` | Kiểm tra bộ tách dữ liệu phiếu nhận từ chữ OCR / bảng dán (7 tình huống) |
 | `dong-bo-github.cmd` | Đẩy thay đổi mã nguồn lên GitHub |
 | `run-dev.cmd` | Chỉ khi đang **sửa code** (có hot-reload). Chậm hơn production ~50 lần |
@@ -650,10 +650,25 @@ Nút *Gửi yêu cầu phê duyệt* ở trang của tàu đi đúng dây chuy�
 liền tới mua sắm:
 
 ```
-Máy 2/3/4 lập   →  Máy trưởng duyệt cấp tàu    →  Công ty duyệt  →  Mua sắm
-Máy trưởng lập  →  Thuyền trưởng duyệt cấp tàu →  Công ty duyệt  →  Mua sắm
-Đại phó lập     →  Thuyền trưởng duyệt cấp tàu →  Công ty duyệt  →  Mua sắm
+Máy 2/3/4 lập   →  Máy trưởng SƠ DUYỆT         →  Công ty duyệt chính thức  →  Mua sắm
+Máy trưởng lập  →  Thuyền trưởng sơ duyệt      →  Công ty duyệt chính thức  →  Mua sắm
+Đại phó lập     →  Thuyền trưởng sơ duyệt      →  Công ty duyệt chính thức  →  Mua sắm
 ```
+
+**Quyền XIN CẤP tách khỏi quyền GHI NGHIỆP VỤ.** Sĩ quan máy trực ca là người biết sắp hết cái
+gì nên phải xin cấp được — nhưng không vì thế mà được ghi phiếu bunker, sửa tồn hay đổi định
+mức. Gộp hai quyền làm một thì hoặc Máy 3 ghi được BDN, hoặc Máy 3 không xin được dầu; cả hai
+đều sai.
+
+| | Xin cấp dầu · nhờn · hóa chất | Ghi nghiệp vụ (phiếu nhận, tiêu thụ, định mức) |
+|---|---|---|
+| Quản trị, Thuyền trưởng, Máy trưởng | ✓ | ✓ |
+| **Máy 2 · Máy 3 · Máy 4** | **✓ cả ba nhóm** | ✗ |
+| Đại phó | ✓ chỉ hóa chất | ✓ chỉ hóa chất |
+| Phó 2/3, thuyền viên, quản lý kỹ thuật | ✗ | ✗ |
+
+**Số lượng chỉ đi một chiều xuống qua từng cấp:** xin 180 → máy trưởng sơ duyệt 150 → công ty
+duyệt 120. Mỗi cấp giảm được nhưng không tăng, vì trần của cấp sau là số cấp trước đã duyệt.
 
 **Không ai duyệt yêu cầu do chính mình lập.** Máy trưởng quản toàn bộ dầu, dầu nhờn và hóa
 chất của tàu, nhưng khi chính ông ấy xin cấp thì chữ ký duyệt phải là người khác — nếu không
@@ -667,6 +682,21 @@ ghi rõ lý do, nên không có bậc nào trống trên chứng từ.
 
 Đi kèm: bỏ qua bước cấp tàu thì **số lượng tàu duyệt bằng số xin** — chữ ký lúc lập chính là
 chữ ký cấp tàu. Để 0 thì cấp công ty chỉ duyệt được tối đa 0, vì trần của họ là số tàu đã duyệt.
+
+### Cảnh báo theo tốc độ tiêu thụ thật, không chỉ theo định mức tĩnh
+
+"Còn 120 MT" tự nó không nói được gì. "Còn 120 MT, dùng 5 MT/ngày, hết trong 24 ngày" thì nói
+được. Hệ thống lấy tiêu thụ 30 ngày gần nhất chia ra mỗi ngày, rồi:
+
+- Bảng tồn có thêm cột **Dùng/ngày** và **Còn dùng được** (số ngày), tô cam khi dưới 30 ngày.
+- Cảnh báo **"Sắp hết theo tốc độ tiêu thụ"** bắt được trường hợp mà định mức tĩnh bỏ sót:
+  mặt hàng *vẫn trên định mức* nhưng tiêu thụ nhanh nên vẫn hết trước khi hàng kịp về.
+- Bảng xin cấp **đề xuất số lượng** = phần lớn hơn giữa *bù cho đủ định mức* và *đủ dùng cho N
+  ngày* (chọn 30/45/60/90/120, mặc định 60), kèm dòng ghi rõ đã tính theo cách nào. Chỉ dựa
+  vào định mức thì mặt hàng tiêu thụ nhanh vẫn thiếu; chỉ dựa vào tốc độ thì mặt hàng chưa từng
+  ghi tiêu thụ sẽ đề xuất 0. Lấy số lớn hơn nên cách nào cũng không bỏ sót.
+
+Mặt hàng chưa có tiêu thụ nào thì cột số ngày để trống — không suy diễn từ dữ liệu không có.
 
 ### Bốn quy tắc nghiệp vụ được cài sẵn
 

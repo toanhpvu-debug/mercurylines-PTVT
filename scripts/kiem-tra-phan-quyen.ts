@@ -23,6 +23,7 @@ import {
   coQuanLyNhienLieu,
   coQuanLySon,
   nguoiDuyetCapTau,
+  trinhThangLenCongTy,
 } from "@/lib/roles";
 
 type KetQua = "TAU" | "CONG_TY" | null;
@@ -266,6 +267,85 @@ for (const r of ROLES) {
   const danh = (b: boolean) => (b ? "co   " : "khong");
   console.log(
     `  ${ok ? "OK  " : "TRUOT"} ${(ROLE_LABEL[r] ?? r).padEnd(26)} dau ${danh(thuc[0])} nhon ${danh(thuc[1])} hoa chat ${danh(thuc[2])} | tau khac ${danh(tauKhac)}`
+  );
+}
+
+// --- CHAN TU DUYET YEU CAU CUA CHINH MINH ---
+// May truong quan toan bo dau/nhon/hoa chat cua tau nhung khi chinh ong ay xin
+// cap thi chu ky duyet phai la nguoi khac. Yeu cau cua May 2/3/4 thi may truong
+// duyet; yeu cau cua may truong thi thuyen truong duyet.
+console.log("\n=== CHAN TU DUYET ===");
+const MAY_TRUONG = { id: 10, role: "CHIEF_ENGINEER", vesselId: 1 };
+const THUYEN_TRUONG = { id: 11, role: "MASTER", vesselId: 1 };
+const MAY_HAI = { id: 12, role: "SECOND_ENGINEER", vesselId: 1 };
+const yc = (nguoiLap: number, boPhan = "ENGINE") => ({
+  vesselId: 1,
+  status: "PENDING_MASTER",
+  department: boPhan,
+  requestedById: nguoiLap,
+});
+
+const caTuDuyet: [string, unknown, unknown][] = [
+  [
+    "May truong duyet y/c cua May 2",
+    capDuyetChoPhep(MAY_TRUONG, yc(MAY_HAI.id)),
+    "TAU",
+  ],
+  [
+    "May truong KHONG tu duyet y/c cua chinh minh",
+    capDuyetChoPhep(MAY_TRUONG, yc(MAY_TRUONG.id)),
+    null,
+  ],
+  [
+    "Thuyen truong duyet y/c cua may truong",
+    capDuyetChoPhep(THUYEN_TRUONG, yc(MAY_TRUONG.id)),
+    "TAU",
+  ],
+  [
+    "Thuyen truong KHONG tu duyet y/c cua chinh minh",
+    capDuyetChoPhep(THUYEN_TRUONG, yc(THUYEN_TRUONG.id, "DECK")),
+    null,
+  ],
+  [
+    "May 2 KHONG duyet y/c cua chinh minh",
+    capDuyetChoPhep(MAY_HAI, yc(MAY_HAI.id)),
+    null,
+  ],
+  [
+    "Yeu cau cu chua co nguoi lap -> van duyet duoc nhu truoc",
+    capDuyetChoPhep(MAY_TRUONG, {
+      vesselId: 1,
+      status: "PENDING_MASTER",
+      department: "ENGINE",
+      requestedById: null,
+    }),
+    "TAU",
+  ],
+  [
+    "Buoc cong ty khong dinh dang chan tu duyet",
+    capDuyetChoPhep(
+      { id: 20, role: "TECH_MANAGER", vesselId: null },
+      { vesselId: 1, status: "PENDING_OFFICE", department: "ENGINE", requestedById: 20 }
+    ),
+    "CONG_TY",
+  ],
+];
+for (const [ten, thuc, mong] of caTuDuyet) {
+  const ok = JSON.stringify(thuc) === JSON.stringify(mong);
+  if (ok) dat++;
+  else truot++;
+  console.log(`  ${ok ? "OK  " : "TRUOT"} ${ten} -> ${JSON.stringify(thuc)}`);
+}
+
+console.log("\n=== AI TRINH THANG LEN CONG TY ===");
+for (const r of ROLES) {
+  const thuc = trinhThangLenCongTy(r);
+  const mong = r === "MASTER" || r === "ADMIN";
+  const ok = thuc === mong;
+  if (ok) dat++;
+  else truot++;
+  console.log(
+    `  ${ok ? "OK  " : "TRUOT"} ${(ROLE_LABEL[r] ?? r).padEnd(26)} ${thuc ? "di thang len cong ty" : "qua buoc duyet cap tau"}`
   );
 }
 

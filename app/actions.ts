@@ -27,6 +27,7 @@ import {
   LAP_YEU_CAU,
   ROLE_LABEL,
   VAN_HANH_TAU,
+  trinhThangLenCongTy,
   viSaoKhongDuyetDuoc,
 } from "@/lib/roles";
 import {
@@ -725,6 +726,13 @@ export async function approveRequestQuantities(
           "Tàu đã duyệt, bước này thuộc quản lý kỹ thuật công ty.",
       };
     }
+    // Tự lập tự duyệt: báo đúng lý do thay vì "không có quyền" chung chung.
+    if (request.requestedById != null && request.requestedById === actor.id) {
+      return {
+        message:
+          "Bạn là người lập yêu cầu này nên không tự duyệt được. Yêu cầu của máy trưởng do thuyền trưởng duyệt ở cấp tàu.",
+      };
+    }
     return { message: viSaoKhongDuyetDuoc(actor.role) };
   }
 
@@ -836,10 +844,24 @@ export async function updateRequestStatus(
     return { message: "Vui lòng nhập lý do từ chối." };
   }
   const now = new Date();
+  // Thuyền trưởng (và quản trị) trình yêu cầu của CHÍNH MÌNH thì bỏ qua bước
+  // duyệt cấp tàu, đi thẳng lên công ty. Trên tàu không còn ai trên thuyền
+  // trưởng để ký, mà chính ông ấy lại bị chặn tự duyệt — không có lối này thì
+  // yêu cầu nằm kẹt vĩnh viễn ở "Chờ tàu duyệt".
+  const diThangLenCongTy =
+    status === "PENDING_MASTER" && trinhThangLenCongTy(actor.role);
+  const statusThat = diThangLenCongTy ? "PENDING_OFFICE" : status;
   const stamp: Record<string, unknown> = {};
   if (status === "PENDING_MASTER") {
     stamp.submittedBy = actor.name;
     stamp.submittedAt = now;
+    if (diThangLenCongTy) {
+      // Chữ ký cấp tàu chính là người lập — ghi lại để ô ký trên biểu mẫu và
+      // bảng tiến độ không bị trống một bậc.
+      stamp.shipApprovedBy = actor.name;
+      stamp.shipApprovedRole = actor.role;
+      stamp.shipApprovedAt = now;
+    }
     // Trình lại sau khi bị từ chối: xóa vết từ chối cũ, nếu không bảng đỏ
     // "Yêu cầu bị từ chối" vẫn đứng nguyên trên một yêu cầu đang chờ duyệt.
     stamp.rejectedBy = null;
@@ -855,7 +877,12 @@ export async function updateRequestStatus(
     await prisma.$transaction(async (tx) => {
       const before = await tx.materialRequest.findUnique({
         where: { id },
-        select: { status: true, vesselId: true, department: true },
+        select: {
+          status: true,
+          vesselId: true,
+          department: true,
+          requestedById: true,
+        },
       });
       if (!before) {
         throw new ActionError("Không tìm thấy yêu cầu.");
@@ -871,6 +898,7 @@ export async function updateRequestStatus(
           vesselId: before.vesselId,
           status: before.status,
           department: before.department,
+          requestedById: before.requestedById,
         });
         if (!capTuChoi) {
           throw new ActionError(
@@ -886,7 +914,7 @@ export async function updateRequestStatus(
           status: { in: allowedFrom[status] },
           ...(scope.all ? {} : { vesselId: scope.vesselId ?? -1 }),
         },
-        data: { status, ...stamp },
+        data: { status: statusThat, ...stamp },
       });
       if (result.count === 0) {
         throw new ActionError(
@@ -897,13 +925,31 @@ export async function updateRequestStatus(
           }". Có thể người khác vừa xử lý — hãy tải lại trang.`
         );
       }
+      if (diThangLenCongTy) {
+        // Bỏ qua bước duyệt cấp tàu thì SL tàu duyệt phải bằng SL xin — trần
+        // của cấp công ty là số tàu đã duyệt, để 0 thì họ chỉ duyệt được 0.
+        const items = await tx.materialRequestItem.findMany({
+          where: { requestId: id },
+          select: { id: true, quantity: true },
+        });
+        for (const it of items) {
+          await tx.materialRequestItem.update({
+            where: { id: it.id },
+            data: { approvedQuantity: it.quantity },
+          });
+        }
+      }
       await logRequestEvent(tx, {
         requestId: id,
         fromStatus: before.status,
-        toStatus: status,
+        toStatus: statusThat,
         actorName: actor.name,
         actorRole: actor.role,
-        note: note || null,
+        note:
+          note ||
+          (diThangLenCongTy
+            ? `${ROLE_LABEL[actor.role] ?? actor.role} lập và trình — cấp tàu đã ký, chuyển thẳng lên công ty`
+            : null),
       });
     });
   } catch (error) {

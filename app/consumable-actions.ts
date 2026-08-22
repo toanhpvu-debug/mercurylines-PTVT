@@ -9,13 +9,21 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { coQuanLyNhienLieu, requireActiveRole } from "@/lib/auth";
 import {
+  CATEGORY_LABEL,
   CATEGORY_VALUES,
   CONSUMER_VALUES,
   GRADES,
   mocGiuMauDau,
   tinhHanDung,
 } from "@/lib/consumables";
-import { VAN_HANH_HOA_CHAT } from "@/lib/roles";
+import {
+  QUAN_DANH_MUC_NHIEN_LIEU,
+  ROLE_LABEL,
+  SI_QUAN,
+  VAN_HANH_HOA_CHAT,
+  boPhanCuaChucDanh,
+  trinhThangLenCongTy,
+} from "@/lib/roles";
 import { MAX_UPLOAD_BYTES, ensureUploadDir, getUploadDir } from "@/lib/uploads";
 import type { PhieuDeXuat } from "@/lib/bunkerParse";
 
@@ -68,9 +76,15 @@ async function requireNhom(vesselId: number, category: string | null) {
   return actor;
 }
 
-// Danh mục dùng chung toàn đội — văn phòng / thuyền trưởng quản, như danh mục sơn.
+/**
+ * Danh mục dầu / hóa chất dùng chung toàn đội.
+ *
+ * Có MÁY TRƯỞNG, khác với danh mục sơn: đây là danh mục nghiệp vụ của buồng máy
+ * — người nắm rõ mã dầu, TBN, độ nhớt và hóa chất nào dùng cho nồi hơi chính là
+ * máy trưởng, không phải văn phòng.
+ */
 async function requireFleet() {
-  return requireActiveRole(["ADMIN", "MASTER"]);
+  return requireActiveRole([...QUAN_DANH_MUC_NHIEN_LIEU]);
 }
 
 /**
@@ -203,7 +217,7 @@ export async function toggleConsumableProduct(
   _prev: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
-  if (!(await requireActiveRole(["ADMIN"]))) return { message: NO_PERMISSION };
+  if (!(await requireFleet())) return { message: NO_PERMISSION };
   const id = Number(formData.get("id"));
   const p = await prisma.consumableProduct.findUnique({ where: { id } });
   if (!p) return { message: "Không tìm thấy mặt hàng." };
@@ -222,7 +236,7 @@ export async function deleteConsumableProduct(
   _prev: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
-  if (!(await requireActiveRole(["ADMIN"]))) return { message: NO_PERMISSION };
+  if (!(await requireFleet())) return { message: NO_PERMISSION };
   const id = Number(formData.get("id"));
   const p = await prisma.consumableProduct.findUnique({
     where: { id },
@@ -627,5 +641,180 @@ export async function docPhieuTuPdf(
     deXuat,
     chu: kq.text.slice(0, 4000),
     tepTam: storedName,
+  };
+}
+
+// ─── Yêu cầu cấp dầu · dầu nhờn · hóa chất ───────────────────────────────────
+
+/**
+ * Lập yêu cầu cấp dầu/dầu nhờn/hóa chất từ trang của tàu và trình lên luôn.
+ *
+ * KHÔNG dựng đường phê duyệt riêng — đi đúng dây chuyền đang có của yêu cầu
+ * vật tư, nối liền tới mua sắm:
+ *
+ *   Máy 2/3/4 lập  ->  Máy trưởng duyệt cấp tàu  ->  Công ty duyệt  ->  Mua sắm
+ *   Máy trưởng lập ->  Thuyền trưởng duyệt cấp tàu -> Công ty duyệt -> Mua sắm
+ *
+ * Máy trưởng quản toàn bộ dầu và hóa chất của tàu nhưng KHÔNG tự duyệt yêu cầu
+ * của chính mình — chặn ở capDuyetChoPhep, không phải ở đây, để nút bấm trên
+ * giao diện và quyền thật không lệch nhau.
+ */
+export async function taoYeuCauNhienLieu(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const vesselId = Number(formData.get("vesselId"));
+  const actor = await requireActiveRole([...VAN_HANH_HOA_CHAT, ...SI_QUAN]);
+  if (!actor) return { message: NO_PERMISSION };
+
+  const vessel = await prisma.vessel.findUnique({
+    where: { id: vesselId },
+    select: { code: true, name: true },
+  });
+  if (!vessel) return { message: "Tàu không tồn tại." };
+
+  // Các dòng gửi lên: sl_<productId> = số lượng xin cấp.
+  const dong: { productId: number; quantity: number }[] = [];
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith("sl_")) continue;
+    const productId = Number(key.slice(3));
+    const quantity = Number(String(value).replace(",", "."));
+    if (!Number.isInteger(productId) || productId <= 0) continue;
+    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+    dong.push({ productId, quantity });
+  }
+  if (dong.length === 0) {
+    return { message: "Nhập số lượng cho ít nhất một mặt hàng." };
+  }
+
+  const products = await prisma.consumableProduct.findMany({
+    where: { id: { in: dong.map((d) => d.productId) } },
+  });
+  if (products.length !== dong.length) {
+    return { message: "Có mặt hàng không còn trong danh mục." };
+  }
+  // Xin cấp nhóm nào thì phải có quyền nhóm đó — không mượn form để xin hộ
+  // nhóm mình không phụ trách.
+  for (const p of products) {
+    if (!coQuanLyNhienLieu(actor, vesselId, p.category)) {
+      return {
+        message: `Bạn không phụ trách nhóm của mặt hàng "${p.name}" nên không xin cấp được.`,
+      };
+    }
+  }
+  const theoId = new Map(products.map((p) => [p.id, p]));
+
+  const stocks = await prisma.consumableStock.findMany({
+    where: { vesselId, productId: { in: dong.map((d) => d.productId) } },
+  });
+  const tonTheoId = new Map(stocks.map((s) => [s.productId, s.quantity]));
+
+  const priority = ["LOW", "NORMAL", "HIGH", "URGENT"].includes(
+    text(formData, "priority")
+  )
+    ? text(formData, "priority")
+    : "NORMAL";
+  const ghiChu = text(formData, "purpose");
+  const department = boPhanCuaChucDanh(actor.role) ?? "ENGINE";
+
+  const vesselTag = vessel.code.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const base = `MR-${vesselTag}-${String(new Date().getFullYear()).slice(-2)}-`;
+  const latest = await prisma.materialRequest.findFirst({
+    where: { requestNo: { startsWith: base } },
+    orderBy: { requestNo: "desc" },
+    select: { requestNo: true },
+  });
+  let seq = latest ? Number(latest.requestNo.slice(base.length)) + 1 : 1;
+  if (!Number.isFinite(seq) || seq < 1) seq = 1;
+  let requestNo = `${base}${String(seq).padStart(4, "0")}`;
+  while (await prisma.materialRequest.findUnique({ where: { requestNo } })) {
+    seq += 1;
+    requestNo = `${base}${String(seq).padStart(4, "0")}`;
+  }
+
+  // Thuyền trưởng / quản trị lập thì cấp tàu coi như đã ký — đi thẳng lên công
+  // ty, cùng quy tắc với yêu cầu vật tư thường.
+  const thangLenCongTy = trinhThangLenCongTy(actor.role);
+  const now = new Date();
+
+  const created = await prisma.$transaction(async (tx) => {
+    const req = await tx.materialRequest.create({
+      data: {
+        requestNo,
+        kind: "STORE",
+        vesselId,
+        requestedBy: actor.name,
+        requestedByRole: actor.role,
+        requestedById: actor.id,
+        department,
+        priority,
+        status: thangLenCongTy ? "PENDING_OFFICE" : "PENDING_MASTER",
+        submittedBy: actor.name,
+        submittedAt: now,
+        ...(thangLenCongTy
+          ? {
+              shipApprovedBy: actor.name,
+              shipApprovedRole: actor.role,
+              shipApprovedAt: now,
+            }
+          : {}),
+        purpose: ghiChu || `Yêu cầu cấp dầu / hóa chất cho ${vessel.name}`,
+        items: {
+          create: dong.map((d) => {
+            const p = theoId.get(d.productId)!;
+            return {
+              // Dầu và hóa chất nằm ở danh mục riêng, không phải danh mục vật
+              // tư, nên ghi thành dòng nhập tay thay vì trỏ materialId sang
+              // bảng khác.
+              materialId: null,
+              itemName: `${CATEGORY_LABEL[p.category] ?? p.category}: ${p.name}${
+                p.maker ? ` (${p.maker})` : ""
+              }`,
+              itemCode: p.code,
+              itemUom: p.uom,
+              quantity: d.quantity,
+              robSnapshot: tonTheoId.get(d.productId) ?? 0,
+              // Bỏ qua bước duyệt cấp tàu thì SL tàu duyệt phải bằng SL xin:
+              // chữ ký lúc lập chính là chữ ký cấp tàu. Để 0 thì cấp công ty
+              // chỉ duyệt được tối đa 0 (trần của họ là số tàu đã duyệt).
+              approvedQuantity: thangLenCongTy ? d.quantity : 0,
+              note: null,
+            };
+          }),
+        },
+      },
+    });
+    await tx.materialRequestEvent.createMany({
+      data: [
+        {
+          requestId: req.id,
+          fromStatus: null,
+          toStatus: "DRAFT",
+          actorName: actor.name,
+          actorRole: actor.role,
+          note: `Lập yêu cầu cấp dầu / hóa chất ${dong.length} dòng`,
+        },
+        {
+          requestId: req.id,
+          fromStatus: "DRAFT",
+          toStatus: thangLenCongTy ? "PENDING_OFFICE" : "PENDING_MASTER",
+          actorName: actor.name,
+          actorRole: actor.role,
+          note: thangLenCongTy
+            ? `${ROLE_LABEL[actor.role] ?? actor.role} lập và trình — cấp tàu đã ký, chuyển thẳng lên công ty`
+            : "Trình duyệt",
+        },
+      ],
+    });
+    return req;
+  });
+
+  revalidateVessel(vesselId);
+  revalidatePath("/requests");
+  return {
+    message: `Đã gửi yêu cầu ${created.requestNo} (${dong.length} mặt hàng) lên ${
+      thangLenCongTy ? "quản lý kỹ thuật công ty" : "duyệt cấp tàu"
+    }.`,
+    success: true,
   };
 }

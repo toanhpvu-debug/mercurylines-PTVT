@@ -181,6 +181,21 @@ export const VAN_HANH_NHIEN_LIEU: readonly string[] = [
   "CHIEF_ENGINEER",
 ];
 
+/**
+ * Ai quản DANH MỤC dầu · dầu nhờn · hóa chất dùng chung toàn đội (sửa, ngừng
+ * dùng, xóa mặt hàng).
+ *
+ * Có máy trưởng: đây là danh mục nghiệp vụ của buồng máy, người nắm rõ mã dầu,
+ * TBN, độ nhớt và hóa chất nào dùng cho nồi hơi chính là máy trưởng — chứ không
+ * phải văn phòng. Khác với danh mục SƠN (vẫn thuộc thuyền trưởng/văn phòng) vì
+ * sơn là việc boong.
+ */
+export const QUAN_DANH_MUC_NHIEN_LIEU: readonly string[] = [
+  "ADMIN",
+  "MASTER",
+  "CHIEF_ENGINEER",
+];
+
 export const VAN_HANH_HOA_CHAT: readonly string[] = [
   "ADMIN",
   "MASTER",
@@ -342,16 +357,50 @@ export function nhomNhienLieuChoPhep(
  * chi tiết, trang danh sách); tách ra là sớm muộn cũng lệch nhau.
  */
 export function capDuyetChoPhep(
-  user: { role: string; vesselId: number | null },
-  request: { vesselId: number; status: string; department: string }
+  user: { id?: number; role: string; vesselId: number | null },
+  request: {
+    vesselId: number;
+    status: string;
+    department: string;
+    requestedById?: number | null;
+  }
 ): "TAU" | "CONG_TY" | null {
   const scope = vesselScope(user);
   if (request.status === "PENDING_MASTER") {
     if (!scope.all && request.vesselId !== scope.vesselId) return null;
+    // KHÔNG AI DUYỆT YÊU CẦU DO CHÍNH MÌNH LẬP.
+    //
+    // Máy trưởng quản toàn bộ dầu, dầu nhờn, hóa chất của tàu, nhưng khi chính
+    // ông ấy xin cấp thì chữ ký duyệt phải là người khác — nếu không thì "duyệt"
+    // chỉ là ký hai lần vào cùng một tờ giấy. Yêu cầu của máy trưởng do thuyền
+    // trưởng duyệt ở cấp tàu; yêu cầu của Máy 2/3/4 thì máy trưởng duyệt.
+    //
+    // Yêu cầu do THUYỀN TRƯỞNG lập không rơi vào đây: nó được chuyển thẳng lên
+    // công ty ngay lúc trình (xem app/actions.ts), vì trên tàu không còn ai
+    // trên thuyền trưởng để ký.
+    if (
+      user.id != null &&
+      request.requestedById != null &&
+      user.id === request.requestedById
+    ) {
+      return null;
+    }
     return coDuyetCapTau(user.role, request.department) ? "TAU" : null;
   }
   if (request.status === "PENDING_OFFICE") {
     return coDuyetCongTy(user.role) ? "CONG_TY" : null;
   }
   return null;
+}
+
+/**
+ * Yêu cầu do người này lập có được chuyển THẲNG lên công ty khi trình không.
+ *
+ * Đúng với thuyền trưởng và quản trị: trên tàu không còn ai trên thuyền trưởng
+ * để ký cấp tàu. Không có lối này thì yêu cầu của thuyền trưởng nằm kẹt vĩnh
+ * viễn ở "Chờ tàu duyệt" — chính ông ấy bị chặn tự duyệt, còn máy trưởng thì
+ * không duyệt được yêu cầu boong.
+ */
+export function trinhThangLenCongTy(role: string): boolean {
+  return role === "MASTER" || role === "ADMIN";
 }

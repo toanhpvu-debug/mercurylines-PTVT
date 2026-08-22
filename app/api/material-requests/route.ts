@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     // đối chiếu được với ai thật sự bấm nút.
     const requestedBy = user.name;
     const requestedByRole = user.role;
+    const requestedById = user.id;
     const department = String(body.department || "GENERAL").trim();
     const priority = String(body.priority || "NORMAL").trim();
     const purpose = body.purpose ? String(body.purpose).trim() : null;
@@ -166,6 +167,7 @@ export async function POST(request: Request) {
         vesselId,
         requestedBy,
         requestedByRole,
+        requestedById,
         department,
         priority,
         status: "DRAFT",

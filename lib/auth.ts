@@ -15,6 +15,7 @@ export {
   coQuanLyNhienLieu,
   coQuanLySon,
   nhomNhienLieuChoPhep,
+  trinhThangLenCongTy,
   vesselScope,
 } from "@/lib/roles";
 

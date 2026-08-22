@@ -82,7 +82,7 @@ Bấm đúp thẳng trong thư mục gốc của app, không cần mở terminal
 | `doi-chieu-danh-muc.cmd` | Đối chiếu danh mục vật tư từng tàu với file kiểm kê gốc |
 | `sao-luu-du-lieu.cmd` | Nén bản chụp PostgreSQL (`pg_dump`) + file upload + `.env` + biểu mẫu thành bản sao lưu, kèm dấu vân tay để đối chiếu |
 | `khoi-phuc-du-lieu.cmd` | Đưa dữ liệu trở lại từ một bản sao lưu — tự chụp đường lùi trước, đối chiếu vân tay sau |
-| `kiem-tra-phan-quyen.cmd` | Chạy ma trận phân quyền: duyệt yêu cầu, phần sơn, dầu/hóa chất (490 phép thử, không đụng database) |
+| `kiem-tra-phan-quyen.cmd` | Chạy ma trận phân quyền: duyệt yêu cầu, phần sơn, dầu/hóa chất (508 phép thử, không đụng database) |
 | `kiem-tra-doc-phieu.cmd` | Kiểm tra bộ tách dữ liệu phiếu nhận từ chữ OCR / bảng dán (7 tình huống) |
 | `dong-bo-github.cmd` | Đẩy thay đổi mã nguồn lên GitHub |
 | `run-dev.cmd` | Chỉ khi đang **sửa code** (có hot-reload). Chậm hơn production ~50 lần |
@@ -571,12 +571,17 @@ tên khác thì mọi sửa đổi sau này phải làm ba lần. Phần *khác*
 
 ### Phân quyền theo bộ phận
 
-| | Dầu đốt | Dầu nhờn | Hóa chất |
-|---|---|---|---|
-| Quản trị, Thuyền trưởng | ✓ | ✓ | ✓ |
-| Máy trưởng | ✓ | ✓ | ✓ |
-| **Đại phó** | ✗ | ✗ | **✓** |
-| Sĩ quan còn lại, quản lý kỹ thuật | ✗ (chỉ xem) | ✗ | ✗ |
+| | Dầu đốt | Dầu nhờn | Hóa chất | Danh mục toàn đội |
+|---|---|---|---|---|
+| Quản trị, Thuyền trưởng | ✓ | ✓ | ✓ | ✓ |
+| **Máy trưởng** | ✓ | ✓ | ✓ | **✓** (sửa · ngừng dùng · xóa, như quản trị) |
+| **Đại phó** | ✗ | ✗ | **✓** | thêm mới |
+| Sĩ quan còn lại | ✗ (chỉ xem) | ✗ | ✗ | thêm mới |
+| Quản lý kỹ thuật | ✗ (chỉ xem) | ✗ | ✗ | ✗ |
+
+Máy trưởng quản **danh mục** dầu và hóa chất toàn đội ngang quản trị — khác với danh mục
+**sơn** (vẫn thuộc thuyền trưởng/văn phòng). Người nắm rõ mã dầu, TBN, độ nhớt và hóa chất nào
+dùng cho nồi hơi chính là máy trưởng, không phải văn phòng.
 
 Dầu đốt và dầu nhờn là việc **buồng máy** — máy trưởng nhận bunker, ghi tiêu thụ, giữ mẫu theo
 MARPOL. Hóa chất thì **cả hai bộ phận** cùng dùng: máy trưởng lo nồi hơi, nước làm mát, xử lý
@@ -617,6 +622,30 @@ Ba điều làm cho đường này **chính xác** chứ không chỉ tiện:
 
 Đọc được cả BDN tiếng Anh lẫn phiếu tiếng Việt, số kiểu `450.250` lẫn `450,250`, và bảng không
 có dấu hai chấm. Bộ tách dữ liệu có bài kiểm tra riêng: `kiem-tra-doc-phieu.cmd`.
+
+### Yêu cầu cấp dầu / hóa chất và quy tắc không tự duyệt
+
+Nút *Gửi yêu cầu phê duyệt* ở trang của tàu đi đúng dây chuyền đang có của yêu cầu vật tư, nối
+liền tới mua sắm:
+
+```
+Máy 2/3/4 lập   →  Máy trưởng duyệt cấp tàu    →  Công ty duyệt  →  Mua sắm
+Máy trưởng lập  →  Thuyền trưởng duyệt cấp tàu →  Công ty duyệt  →  Mua sắm
+Đại phó lập     →  Thuyền trưởng duyệt cấp tàu →  Công ty duyệt  →  Mua sắm
+```
+
+**Không ai duyệt yêu cầu do chính mình lập.** Máy trưởng quản toàn bộ dầu, dầu nhờn và hóa
+chất của tàu, nhưng khi chính ông ấy xin cấp thì chữ ký duyệt phải là người khác — nếu không
+thì "duyệt" chỉ là ký hai lần vào cùng một tờ giấy. Chặn theo **id tài khoản**, không so bằng
+tên: hai người trùng tên là quyền kiểm soát thủng ngay.
+
+**Thuyền trưởng lập thì đi thẳng lên công ty.** Trên tàu không còn ai trên thuyền trưởng để ký
+cấp tàu, mà chính ông ấy lại bị chặn tự duyệt. Không có lối này thì yêu cầu của thuyền trưởng
+nằm kẹt vĩnh viễn ở *Chờ tàu duyệt*. Ô ký cấp tàu vẫn được điền tên thuyền trưởng và nhật ký
+ghi rõ lý do, nên không có bậc nào trống trên chứng từ.
+
+Đi kèm: bỏ qua bước cấp tàu thì **số lượng tàu duyệt bằng số xin** — chữ ký lúc lập chính là
+chữ ký cấp tàu. Để 0 thì cấp công ty chỉ duyệt được tối đa 0, vì trần của họ là số tàu đã duyệt.
 
 ### Bốn quy tắc nghiệp vụ được cài sẵn
 

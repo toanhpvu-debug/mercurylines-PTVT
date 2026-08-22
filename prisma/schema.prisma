@@ -204,6 +204,11 @@ model MaterialRequest {
   // Chép lại chứ không tra ngược qua User: sĩ quan hết hạn hợp đồng rời tàu,
   // đổi chức danh hay bị xóa tài khoản thì chứng từ đã in vẫn phải đúng.
   requestedByRole String?
+  // Id tài khoản người lập — dùng để chặn TỰ DUYỆT yêu cầu của chính mình.
+  // Không so bằng tên: hai người trùng tên là quyền kiểm soát thủng ngay.
+  // Không có khóa ngoại tới User: xóa tài khoản thì chứng từ vẫn phải giữ
+  // nguyên vết ai đã lập.
+  requestedById   Int?
   department   String
   status       String                @default("DRAFT")
   priority     String                @default("NORMAL")

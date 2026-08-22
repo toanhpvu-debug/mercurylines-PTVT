@@ -2,7 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser, vesselScope } from "@/lib/auth";
-import { nhomNhienLieuChoPhep } from "@/lib/roles";
+import {
+  ROLE_LABEL,
+  boPhanCuaChucDanh,
+  nguoiDuyetCapTau,
+  nhomNhienLieuChoPhep,
+  trinhThangLenCongTy,
+} from "@/lib/roles";
 import {
   CATEGORY_ICON,
   CATEGORY_LABEL,
@@ -21,6 +27,7 @@ import {
   ConsumableReceiptForm,
 } from "@/components/ConsumableForms";
 import ConsumableReceiptDeleteButton from "@/components/ConsumableReceiptDeleteButton";
+import ConsumableRequestForm from "@/components/ConsumableRequestForm";
 
 export const dynamic = "force-dynamic";
 
@@ -108,6 +115,30 @@ export default async function ConsumableVesselPage({
       category: p.category,
       shelfLifeMonths: p.shelfLifeMonths,
     }));
+
+  // Dòng cho bảng xin cấp: mọi mặt hàng thuộc nhóm người này phụ trách, kèm tồn
+  // và định mức của tàu. Mặt hàng chưa từng nhận thì chưa có bản ghi tồn nên coi
+  // như 0 — vẫn phải xin được, đó chính là lúc cần xin nhất.
+  const dongXinCap = products
+    .filter((p) => nhomGhiDuoc.includes(p.category) && hopNhom(p.category))
+    .map((p) => {
+      const st = stocks.find((x) => x.productId === p.id);
+      return {
+        productId: p.id,
+        label: nhanMatHang(p),
+        uom: p.uom,
+        category: p.category,
+        ton: st?.quantity ?? 0,
+        minQty: st?.minQty ?? 0,
+      };
+    });
+  // Ai ký ở cấp tàu cho yêu cầu do NGƯỜI NÀY lập. Thuyền trưởng / quản trị thì
+  // không còn ai trên mình nên đi thẳng lên công ty.
+  const nguoiDuyetCuaToi = trinhThangLenCongTy(user.role)
+    ? null
+    : (ROLE_LABEL[
+        nguoiDuyetCapTau(boPhanCuaChucDanh(user.role) ?? "ENGINE")
+      ] ?? null);
 
   // Cảnh báo gom một chỗ: dưới định mức, lô sắp/đã hết hạn, mẫu dầu hết hạn giữ.
   const duoiDinhMuc = stocks.filter(
@@ -329,6 +360,22 @@ export default async function ConsumableVesselPage({
           </h3>
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
             <ConsumableMoveForm vesselId={vesselId} products={optionsChoNhom} />
+          </div>
+        </section>
+      )}
+
+      {/* ── Yêu cầu cấp ──────────────────────────────────────────────── */}
+      {coTheGhi && (
+        <section className="space-y-3">
+          <h3 className="text-xl font-semibold text-blue-950">
+            Yêu cầu cấp — gửi lên phê duyệt
+          </h3>
+          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
+            <ConsumableRequestForm
+              vesselId={vesselId}
+              lines={dongXinCap}
+              nguoiDuyet={nguoiDuyetCuaToi}
+            />
           </div>
         </section>
       )}

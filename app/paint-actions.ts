@@ -988,6 +988,7 @@ export async function taoYeuCauSon(
         vesselId,
         requestedBy: actor.name,
         requestedByRole: actor.role,
+        requestedById: actor.id,
         department,
         priority,
         // Lập và trình trong một lần bấm, nhưng vẫn ghi đủ hai mốc ở nhật ký

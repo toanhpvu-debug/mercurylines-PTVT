@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser } from "@/lib/auth";
-import { VAN_HANH_HOA_CHAT } from "@/lib/roles";
+import { QUAN_DANH_MUC_NHIEN_LIEU, VAN_HANH_HOA_CHAT } from "@/lib/roles";
 import {
   CATEGORY_ICON,
   CONSUMABLE_CATEGORIES,
@@ -22,7 +22,9 @@ export default async function ConsumableProductsPage() {
   if (!VAN_HANH_HOA_CHAT.includes(user.role)) {
     redirect("/consumables");
   }
-  const laVanPhong = ["ADMIN", "MASTER"].includes(user.role);
+  // Máy trưởng sửa/ngừng/xóa được mặt hàng như quản trị — danh mục dầu và hóa
+  // chất là nghiệp vụ buồng máy.
+  const laVanPhong = QUAN_DANH_MUC_NHIEN_LIEU.includes(user.role);
 
   const products = await prisma.consumableProduct.findMany({
     orderBy: [{ category: "asc" }, { grade: "asc" }, { name: "asc" }],

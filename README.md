@@ -271,9 +271,36 @@ tư của tàu — cho đại phó quyền đó là mở rộng ngoài ý muốn
 | | Sơn của tàu mình | Danh mục sơn toàn đội · chép sơ đồ giữa tàu |
 |---|---|---|
 | Quản trị, Thuyền trưởng | ✓ | ✓ |
-| Đại phó | ✓ | ✗ |
+| Đại phó | ✓ (kể cả thêm loại sơn mới) | ✗ |
 | Máy trưởng (sơn buồng máy) | ✓ | ✗ |
 | Sĩ quan còn lại, thuyền viên, quản lý kỹ thuật | ✗ (chỉ xem) | ✗ |
+
+#### Nhập / xuất sơn: từng dòng, hàng loạt từ Excel, và loại sơn mới
+
+Ở trang sơn của tàu, mục **Nhập / xuất sơn** có hai đường:
+
+| | Dùng khi | Cột số lượng nghĩa là |
+|---|---|---|
+| **Từng dòng** | Nhận vài lon, xuất cho một việc | (gõ tay) |
+| **Hàng loạt từ file Excel** hoặc dán bảng từ PDF | Nhận nguyên phiếu giao hàng, xuất theo phiếu lĩnh | **cộng thêm / trừ đi** |
+| Trang **Nhập danh mục sơn từ file** (quản trị · thuyền trưởng) | Dựng danh mục ban đầu, chốt kiểm kê | **tồn chốt lại** = đúng số trong file |
+
+Hai nghĩa của cột số lượng nằm ở hai chỗ khác nhau có chủ ý — lẫn "cộng thêm 10" với "đặt tồn
+bằng 10" là sai tồn kho mà không ai biết sai từ đâu, nên form nói rõ ngay trên đầu.
+
+Vài điểm của phần hàng loạt:
+
+- **Loại sơn chưa có trong danh mục thì tạo mới luôn.** Sơn mới nhận lên tàu thường chưa nằm
+  sẵn trong danh mục; bắt khai báo trước rồi mới nhập được là đẩy người dùng sang gõ tay từng
+  dòng. Đại phó cũng **thêm mới** được một loại sơn bằng tay, nhưng **sửa** một loại đang dùng
+  chung thì không — thêm loại mới không ảnh hưởng tàu khác, còn sửa định nghĩa dùng chung thì
+  đổi luôn sơ đồ sơn và tồn kho của cả đội.
+- **Dòng trùng loại trong cùng file được gộp trước khi ghi** — file thật hay có cùng một loại
+  ở nhiều dòng (nhiều lô, nhiều thùng).
+- **Xuất mà có dòng thiếu tồn thì dừng cả lô**, báo rõ dòng nào, không ghi dòng nào. Ghi được
+  nửa phiếu rồi báo lỗi là để lại tồn kho sai mà không biết sửa từ đâu.
+- Cột nhận diện tự động: tên sơn, hãng, loại, mã màu, tên màu, ĐVT, dung tích, độ phủ, DFT,
+  dung môi, số lượng — cùng bộ đọc với trang nhập danh mục.
 
 **Yêu cầu cấp sơn** (nút *Gửi yêu cầu phê duyệt* ở trang sơn của tàu) **không** dựng một đường
 phê duyệt riêng. Nó tạo một yêu cầu vật tư bình thường và đi đúng dây chuyền đang có:

@@ -71,10 +71,22 @@ export async function savePaintProduct(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  if (!(await requireFleetPaintAccess())) {
-    return { message: NO_PERMISSION };
-  }
   const id = Number(formData.get("id") || 0);
+  // THÊM MỚI thì người quản sơn trên tàu làm được; SỬA một loại đang có thì
+  // không. Thêm một loại sơn mới không ảnh hưởng tàu khác, còn sửa định nghĩa
+  // dùng chung thì đổi luôn sơ đồ sơn và tồn kho của cả đội.
+  const duocPhep =
+    id > 0
+      ? await requireFleetPaintAccess()
+      : await requireActiveRole([...VAN_HANH_SON]);
+  if (!duocPhep) {
+    return {
+      message:
+        id > 0
+          ? "Sửa loại sơn đang dùng chung là việc của thuyền trưởng hoặc văn phòng. Bạn thêm loại mới được."
+          : NO_PERMISSION,
+    };
+  }
   const name = text(formData, "name");
   const code = text(formData, "code");
   const paintType = text(formData, "paintType") || "OTHER";
@@ -983,4 +995,202 @@ export async function taoYeuCauSon(
     message: `Đã gửi yêu cầu ${created.requestNo} (${dong.length} loại sơn) lên phê duyệt.`,
     success: true,
   };
+}
+
+// ─── Nhập / xuất sơn hàng loạt từ file ───────────────────────────────────────
+
+/**
+ * Nhập hoặc xuất nhiều loại sơn một lần từ file Excel (hoặc dán từ PDF).
+ *
+ * Khác với "Nhập danh mục sơn từ file": ở đó cột số lượng là TỒN CHỐT LẠI
+ * (đặt tồn bằng đúng số trong file, dùng khi dựng dữ liệu ban đầu hay kiểm kê).
+ * Ở đây cột số lượng là SỐ CỘNG THÊM hoặc TRỪ ĐI theo phiếu giao hàng / phiếu
+ * lĩnh. Lẫn hai cái này là sai tồn kho, nên tách hẳn hai chỗ.
+ *
+ * Loại sơn chưa có trong danh mục thì tạo mới luôn — sơn mới nhận lên tàu
+ * thường chưa nằm sẵn trong danh mục, bắt khai báo trước rồi mới nhập được là
+ * đẩy người dùng sang gõ tay từng dòng.
+ *
+ * Xuất mà có dòng thiếu tồn thì DỪNG CẢ LÔ và báo rõ dòng nào. Ghi được nửa
+ * phiếu rồi báo lỗi là để lại tồn kho sai mà không ai biết phải sửa từ đâu.
+ */
+export async function nhapXuatSonHangLoat(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const vesselId = Number(formData.get("vesselId"));
+  const actor = await requireVesselAccess(vesselId);
+  if (!actor) return { message: NO_PERMISSION };
+
+  const type = text(formData, "type");
+  if (!["IN", "OUT"].includes(type)) {
+    return { message: "Chọn Nhập hoặc Xuất." };
+  }
+
+  const occurredRaw = text(formData, "occurredAt");
+  let occurredAt = new Date();
+  if (occurredRaw) {
+    const d = new Date(occurredRaw);
+    if (Number.isNaN(d.getTime())) return { message: "Thời điểm không hợp lệ." };
+    if (d.getTime() > Date.now()) {
+      return { message: "Không ghi được thời điểm ở tương lai." };
+    }
+    occurredAt = d;
+  }
+
+  const { parsePaintExcel, parsePaintText } = await import("@/lib/paintImport");
+  const pasted = text(formData, "pasted");
+  const file = formData.get("file");
+  let parsed;
+  if (pasted) {
+    parsed = parsePaintText(pasted);
+  } else if (file instanceof File && file.size > 0) {
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".pdf")) {
+      return {
+        message:
+          "Chưa đọc trực tiếp được file PDF. Mở PDF, bôi đen bảng (Ctrl+A), copy rồi dán vào ô bên dưới.",
+      };
+    }
+    if (!/\.(xls|xlsx)$/.test(name)) {
+      return { message: "File phải là Excel (.xls hoặc .xlsx)." };
+    }
+    if (file.size > 10 * 1024 * 1024) return { message: "File vượt quá 10MB." };
+    parsed = parsePaintExcel(Buffer.from(await file.arrayBuffer()));
+  } else {
+    return { message: "Hãy chọn file Excel hoặc dán nội dung bảng." };
+  }
+  if (parsed.error) return { message: parsed.error };
+
+  // Chỉ lấy dòng có số lượng > 0. Dòng không có cột số lượng là dòng danh mục,
+  // không phải phiếu nhập/xuất.
+  const dong = parsed.items.filter(
+    (i) => i.quantity !== null && i.quantity > 0
+  );
+  if (dong.length === 0) {
+    return {
+      message:
+        "File không có dòng nào kèm số lượng. Bảng cần một cột số lượng (Tồn / Số lượng / Qty).",
+    };
+  }
+
+  const norm = (v: string) =>
+    v.normalize("NFC").toLowerCase().replace(/\s+/g, " ").trim();
+  const existing = await prisma.paintProduct.findMany();
+  const byName = new Map(existing.map((p) => [norm(p.name), p]));
+  const byCode = new Map(existing.map((p) => [norm(p.code), p]));
+
+  // Gộp các dòng trùng loại sơn trong cùng một file trước khi ghi — file thật
+  // hay có cùng một loại ở nhiều dòng (nhiều lô, nhiều thùng).
+  const gop = new Map<string, { item: (typeof dong)[number]; quantity: number }>();
+  for (const i of dong) {
+    const key = norm(i.name);
+    const cu = gop.get(key);
+    if (cu) cu.quantity += i.quantity!;
+    else gop.set(key, { item: i, quantity: i.quantity! });
+  }
+
+  // Với XUẤT: kiểm tra đủ tồn cho TOÀN BỘ lô trước khi ghi dòng đầu tiên.
+  const thieu: string[] = [];
+  if (type === "OUT") {
+    const stocks = await prisma.paintStock.findMany({ where: { vesselId } });
+    const tonTheoId = new Map(stocks.map((s) => [s.productId, s.quantity]));
+    for (const [key, { item, quantity }] of gop) {
+      const p = byName.get(key) ?? byCode.get(key);
+      const ton = p ? (tonTheoId.get(p.id) ?? 0) : 0;
+      if (quantity > ton) {
+        thieu.push(`${item.name}: cần ${quantity}, còn ${ton}`);
+      }
+    }
+    if (thieu.length) {
+      return {
+        message:
+          `Không xuất được, ${thieu.length} dòng thiếu tồn (chưa ghi gì cả): ` +
+          thieu.slice(0, 5).join(" · ") +
+          (thieu.length > 5 ? ` … và ${thieu.length - 5} dòng nữa` : ""),
+      };
+    }
+  }
+
+  const note = text(formData, "note") || null;
+  let taoMoi = 0;
+  let soDong = 0;
+  let tongSL = 0;
+
+  await prisma.$transaction(
+    async (tx) => {
+      let seq = existing.length + 1;
+      const usedCodes = new Set(existing.map((p) => p.code));
+      const nextCode = () => {
+        let code = `SON-${String(seq).padStart(4, "0")}`;
+        while (usedCodes.has(code)) {
+          seq += 1;
+          code = `SON-${String(seq).padStart(4, "0")}`;
+        }
+        seq += 1;
+        usedCodes.add(code);
+        return code;
+      };
+
+      for (const [key, { item, quantity }] of gop) {
+        let product = byName.get(key) ?? byCode.get(key);
+        if (!product) {
+          product = await tx.paintProduct.create({
+            data: {
+              code: nextCode(),
+              name: item.name,
+              maker: item.maker,
+              paintType: item.paintType ?? "OTHER",
+              colorCode: item.colorCode,
+              colorName: item.colorName,
+              uom: item.uom || "L",
+              packSize: item.packSize ?? 0,
+              coverage: item.coverage ?? 0,
+              dftPerCoat: item.dftPerCoat ?? 0,
+              thinner: item.thinner,
+            },
+          });
+          byName.set(key, product);
+          taoMoi += 1;
+        }
+
+        const stock = await tx.paintStock.findUnique({
+          where: { vesselId_productId: { vesselId, productId: product.id } },
+        });
+        const current = stock?.quantity ?? 0;
+        const next = type === "IN" ? current + quantity : current - quantity;
+        if (next < 0) {
+          // Chốt chặn cuối: tồn đổi giữa lúc kiểm tra và lúc ghi.
+          throw new Error(`Không đủ tồn cho "${item.name}".`);
+        }
+        await tx.paintStock.upsert({
+          where: { vesselId_productId: { vesselId, productId: product.id } },
+          update: { quantity: next },
+          create: { vesselId, productId: product.id, quantity: next },
+        });
+        await tx.paintTransaction.create({
+          data: {
+            vesselId,
+            productId: product.id,
+            type,
+            quantity,
+            note,
+            occurredAt,
+            performedBy: actor.name,
+          },
+        });
+        soDong += 1;
+        tongSL += quantity;
+      }
+    },
+    { timeout: 120_000 }
+  );
+
+  revalidateVessel(vesselId);
+  const phan = [
+    `${type === "IN" ? "Đã nhập" : "Đã xuất"} ${soDong} loại sơn, tổng ${tongSL}`,
+  ];
+  if (taoMoi) phan.push(`${taoMoi} loại sơn mới được thêm vào danh mục`);
+  if (parsed.skippedRows) phan.push(`bỏ qua ${parsed.skippedRows} dòng không đọc được`);
+  return { message: phan.join(" · ") + ".", success: true };
 }

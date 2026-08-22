@@ -16,6 +16,7 @@ import { PaintStockMinForm, PaintStockMoveForm } from "@/components/PaintStockFo
 import { PaintJobDeleteButton, PaintJobForm } from "@/components/PaintJobForm";
 import PaintSchemeCopyForm from "@/components/PaintSchemeCopyForm";
 import PaintRequestForm from "@/components/PaintRequestForm";
+import PaintStockBulkForm from "@/components/PaintStockBulkForm";
 import PrintButton from "@/components/PrintButton";
 
 export const dynamic = "force-dynamic";
@@ -442,15 +443,26 @@ export default async function PaintVesselPage({
             <summary className="cursor-pointer font-semibold text-blue-950">
               Nhập / xuất sơn
             </summary>
-            <div className="mt-3">
-              <PaintStockMoveForm
-                vesselId={vesselId}
-                products={productOptions.map((p) => ({
-                  id: p.id,
-                  label: p.label,
-                  uom: p.uom,
-                }))}
-              />
+            <div className="mt-3 space-y-6">
+              <div>
+                <h4 className="mb-2 text-sm font-semibold text-slate-700">
+                  Từng dòng
+                </h4>
+                <PaintStockMoveForm
+                  vesselId={vesselId}
+                  products={productOptions.map((p) => ({
+                    id: p.id,
+                    label: p.label,
+                    uom: p.uom,
+                  }))}
+                />
+              </div>
+              <div className="border-t pt-4">
+                <h4 className="mb-2 text-sm font-semibold text-slate-700">
+                  Hàng loạt từ file Excel
+                </h4>
+                <PaintStockBulkForm vesselId={vesselId} />
+              </div>
             </div>
           </details>
         )}

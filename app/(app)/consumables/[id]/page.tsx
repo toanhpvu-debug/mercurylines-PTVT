@@ -30,6 +30,7 @@ import {
 } from "@/components/ConsumableForms";
 import ConsumableReceiptDeleteButton from "@/components/ConsumableReceiptDeleteButton";
 import ConsumableRequestForm from "@/components/ConsumableRequestForm";
+import VesselSwitcher from "@/components/VesselSwitcher";
 
 export const dynamic = "force-dynamic";
 
@@ -314,6 +315,15 @@ export default async function ConsumableVesselPage({
           </p>
         )}
       </div>
+
+      {/* Giữ nguyên tab nhóm đang xem khi nhảy sang tàu khác — đang so tồn dầu
+          giữa các tàu mà mỗi lần bấm lại về "Tất cả" thì phải chọn lại. */}
+      <VesselSwitcher
+        hienTai={vesselId}
+        duongDan={(id) =>
+          nhomChon ? `/consumables/${id}?nhom=${nhomChon}` : `/consumables/${id}`
+        }
+      />
 
       {/* ── Tách nhóm ────────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-2">

@@ -146,7 +146,14 @@ export default async function ConsumablesPage() {
                       {t.v.code}
                     </Link>
                   </td>
-                  <td className="p-2">{t.v.name}</td>
+                  <td className="p-2">
+                    <Link
+                      href={`/consumables/${t.v.id}`}
+                      className="font-medium text-blue-900 hover:underline"
+                    >
+                      {t.v.name}
+                    </Link>
+                  </td>
                   <td className="p-2 text-right">{t.soMatHang}</td>
                   <td className="p-2 text-right">
                     {t.thieu > 0 ? (

@@ -426,6 +426,19 @@ Danh mục và yêu cầu vật tư được dựng theo 3 mẫu Excel của cô
   - **Ô ký trên bản in** điền sẵn tên người lập (kèm ngày trình) và người duyệt (kèm ngày duyệt) thay vì để trống trơn.
   - **Xóa yêu cầu** (nút Xóa ở danh sách, trang chi tiết và trong trang tàu, có hộp xác nhận): **quản trị viên xóa được mọi yêu cầu**; thuyền trưởng/thuyền viên chỉ xóa yêu cầu **của tàu mình khi chưa duyệt** (nháp / chờ / từ chối / hủy) — yêu cầu đã duyệt hoặc đã chuyển mua sắm chỉ quản trị viên mới xóa được, để bảo toàn hồ sơ. Xóa yêu cầu thì các dòng vật tư trong đó cũng bị xóa theo.
 
+## Chuyển tàu ngay tại chỗ
+
+Mọi trang gắn với **một tàu** (`/vessels/[id]`, `/paint/[id]`, `/consumables/[id]`) đều có dải
+nút chọn tàu ở đầu trang. Trước đây muốn xem tàu khác trong cùng nghiệp vụ phải quay ra trang
+tổng quan rồi bấm vào tàu kia — hai bước cho một việc làm liên tục (so tồn giữa các tàu, đi
+lần lượt từng tàu để kiểm tra).
+
+Nút giữ nguyên **nghiệp vụ và bộ lọc đang xem**: đang ở tab *Dầu nhờn* của ML-006, bấm sang
+ML-001 thì vẫn ở tab *Dầu nhờn* chứ không nhảy về "Tất cả".
+
+Dải nút **tự ẩn** với người chỉ được gán một tàu — một ô chọn với đúng một lựa chọn là nhiễu.
+Trong bảng danh sách, cả **mã tàu lẫn tên tàu** đều bấm được.
+
 ## Nguyên tắc bố cục: mỗi nghiệp vụ một chỗ
 
 Trang **hồ sơ tàu** (`/vessels/[id]`) chỉ để *xem*: thông tin tàu, danh sách kho, bảng tóm tắt

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireScopedUser, vesselScope } from "@/lib/auth";
 import VesselEditForm from "@/components/VesselEditForm";
 import VesselDeleteButton from "@/components/VesselDeleteButton";
+import VesselSwitcher from "@/components/VesselSwitcher";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +95,8 @@ export default async function VesselDetailPage({
           {vessel.vesselType || "—"} · {vessel.warehouses.length} kho
         </p>
       </div>
+
+      <VesselSwitcher hienTai={vessel.id} duongDan={(id) => `/vessels/${id}`} />
 
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
         <div className="mb-4 flex items-center justify-between">

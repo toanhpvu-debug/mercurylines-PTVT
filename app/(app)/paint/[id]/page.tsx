@@ -18,6 +18,7 @@ import PaintSchemeCopyForm from "@/components/PaintSchemeCopyForm";
 import PaintRequestForm from "@/components/PaintRequestForm";
 import PaintStockBulkForm from "@/components/PaintStockBulkForm";
 import PrintButton from "@/components/PrintButton";
+import VesselSwitcher from "@/components/VesselSwitcher";
 
 export const dynamic = "force-dynamic";
 
@@ -238,6 +239,13 @@ export default async function PaintVesselPage({
           </ul>
         </div>
       )}
+
+      <div className="no-print">
+        <VesselSwitcher
+          hienTai={vesselId}
+          duongDan={(id) => `/paint/${id}`}
+        />
+      </div>
 
       {/* ── Sơ đồ sơn ─────────────────────────────────────────────────── */}
       <section className="space-y-3">

@@ -438,8 +438,13 @@ export default async function PaintVesselPage({
           )}
         </div>
 
+        {/* Mở sẵn: nhập/xuất sơn là việc làm hằng ngày, gập lại thì phải bấm
+            thêm một lần mỗi lần dùng và dễ tưởng là không có chức năng. */}
         {canEdit && (
-          <details className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100 print:hidden">
+          <details
+            open
+            className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100 print:hidden"
+          >
             <summary className="cursor-pointer font-semibold text-blue-950">
               Nhập / xuất sơn
             </summary>

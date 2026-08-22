@@ -337,13 +337,63 @@ export async function paintStockMove(
   const actor = await requireVesselAccess(vesselId);
   if (!actor) return { message: NO_PERMISSION };
 
-  const productId = Number(formData.get("productId"));
   const type = text(formData, "type");
   const quantity = num(formData, "quantity");
-  if (!productId) return { message: "Chọn loại sơn." };
   if (!["IN", "OUT"].includes(type)) {
     return { message: "Loại giao dịch không hợp lệ." };
   }
+
+  // Hai đường chọn sơn: lấy từ danh mục, hoặc khai một loại MỚI ngay tại đây.
+  // Đường nhập hàng loạt từ file đã tự tạo loại chưa có; bắt đường thủ công
+  // phải sang trang danh mục khai trước rồi quay lại là bắt làm hai lần cùng
+  // một việc, mà lúc nhận sơn ở cầu cảng thì loại mới là chuyện thường.
+  let productId = Number(formData.get("productId"));
+  const tenMoi = text(formData, "newName");
+  if (!productId && tenMoi) {
+    if (type === "OUT") {
+      return {
+        message:
+          "Loại sơn mới thì chưa có tồn để xuất. Chọn “Nhận sơn lên tàu” cho lần ghi đầu tiên.",
+      };
+    }
+    const paintTypeMoi = text(formData, "newPaintType") || "OTHER";
+    if (!PAINT_TYPE_VALUES.includes(paintTypeMoi)) {
+      return { message: "Loại sơn không hợp lệ." };
+    }
+    // Ghép theo TÊN với loại đã có để không sinh bản trùng khi gõ lại đúng tên
+    // một loại đang có trong danh mục.
+    const norm = (v: string) =>
+      v.normalize("NFC").toLowerCase().replace(/\s+/g, " ").trim();
+    const daCo = (await prisma.paintProduct.findMany()).find(
+      (p) => norm(p.name) === norm(tenMoi)
+    );
+    if (daCo) {
+      productId = daCo.id;
+    } else {
+      const count = await prisma.paintProduct.count();
+      let seq = count + 1;
+      let finalCode = `SON-${String(seq).padStart(4, "0")}`;
+      while (
+        await prisma.paintProduct.findUnique({ where: { code: finalCode } })
+      ) {
+        seq += 1;
+        finalCode = `SON-${String(seq).padStart(4, "0")}`;
+      }
+      const moi = await prisma.paintProduct.create({
+        data: {
+          code: finalCode,
+          name: tenMoi,
+          maker: text(formData, "newMaker") || null,
+          paintType: paintTypeMoi,
+          colorName: text(formData, "newColorName") || null,
+          uom: text(formData, "newUom") || "L",
+          packSize: num(formData, "newPackSize"),
+        },
+      });
+      productId = moi.id;
+    }
+  }
+  if (!productId) return { message: "Chọn loại sơn hoặc khai loại sơn mới." };
   if (!(quantity > 0)) {
     return { message: "Số lượng phải lớn hơn 0." };
   }

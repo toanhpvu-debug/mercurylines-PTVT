@@ -281,12 +281,22 @@ tư của tàu — cho đại phó quyền đó là mở rộng ngoài ý muốn
 
 | | Dùng khi | Cột số lượng nghĩa là |
 |---|---|---|
-| **Từng dòng** | Nhận vài lon, xuất cho một việc | (gõ tay) |
+| **Từng dòng (thủ công)** | Nhận vài lon, xuất cho một việc | (gõ tay) |
 | **Hàng loạt từ file Excel** hoặc dán bảng từ PDF | Nhận nguyên phiếu giao hàng, xuất theo phiếu lĩnh | **cộng thêm / trừ đi** |
 | Trang **Nhập danh mục sơn từ file** (quản trị · thuyền trưởng) | Dựng danh mục ban đầu, chốt kiểm kê | **tồn chốt lại** = đúng số trong file |
 
 Hai nghĩa của cột số lượng nằm ở hai chỗ khác nhau có chủ ý — lẫn "cộng thêm 10" với "đặt tồn
 bằng 10" là sai tồn kho mà không ai biết sai từ đâu, nên form nói rõ ngay trên đầu.
+
+Form thủ công có hai chế độ: **chọn từ danh mục**, hoặc **khai một loại sơn mới** ngay tại chỗ
+(tên, hãng, hệ sơn, màu, ĐVT, dung tích). Đường nhập hàng loạt từ file đã tự tạo loại chưa có
+trong danh mục; bắt đường thủ công phải sang trang Danh mục sơn khai trước rồi quay lại là bắt
+làm hai lần cùng một việc, mà lúc nhận sơn ở cầu cảng thì loại mới là chuyện thường. Gõ trùng
+tên một loại đang có thì dùng lại loại đó (bỏ qua hoa thường và khoảng trắng thừa), không tạo
+bản trùng. Loại mới thì chưa có tồn nên ô thao tác chỉ còn "Nhận sơn lên tàu".
+
+Mục **Nhập / xuất sơn** mở sẵn chứ không gập lại — đây là việc làm hằng ngày, gập lại thì phải
+bấm thêm một lần mỗi lần dùng và dễ tưởng là không có chức năng.
 
 Vài điểm của phần hàng loạt:
 

@@ -12,6 +12,7 @@ export type { VesselScope } from "@/lib/roles";
 export {
   canManageVesselCatalog,
   capDuyetChoPhep,
+  coQuanLySon,
   vesselScope,
 } from "@/lib/roles";
 

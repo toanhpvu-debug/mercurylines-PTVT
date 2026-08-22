@@ -22,6 +22,7 @@ import {
 } from "@/lib/auth";
 import {
   CHI_HUY_TAU,
+  ROLES,
   DUYET_CONG_TY,
   LAP_YEU_CAU,
   ROLE_LABEL,
@@ -2338,7 +2339,10 @@ export async function deleteReportDocument(
   return { message: "", success: true };
 }
 
-const USER_ROLES = ["ADMIN", "MASTER", "CREW"];
+// Danh sách vai trò hợp lệ lấy thẳng từ lib/roles.ts — trước đây là một mảng
+// chép tay ở đây, thêm vai trò mới vào ô chọn mà quên sửa mảng này là server
+// từ chối với thông báo "Vai trò không hợp lệ" mà giao diện không hề báo trước.
+const USER_ROLES: readonly string[] = ROLES;
 
 async function parseVesselAssignment(
   formData: FormData

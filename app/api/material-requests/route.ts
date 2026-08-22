@@ -17,7 +17,11 @@ export async function POST(request: Request) {
     const body = await request.json();
     const kind = body.kind === "SPARE" ? "SPARE" : "STORE";
     const vesselId = Number(body.vesselId);
-    const requestedBy = String(body.requestedBy || "").trim();
+    // Tên người yêu cầu lấy từ TÀI KHOẢN ĐANG ĐĂNG NHẬP, không nhận từ body.
+    // Trước đây đây là ô nhập tay nên chứng từ ghi được bất kỳ tên nào, không
+    // đối chiếu được với ai thật sự bấm nút.
+    const requestedBy = user.name;
+    const requestedByRole = user.role;
     const department = String(body.department || "GENERAL").trim();
     const priority = String(body.priority || "NORMAL").trim();
     const purpose = body.purpose ? String(body.purpose).trim() : null;
@@ -31,11 +35,8 @@ export async function POST(request: Request) {
         requiredDate = d;
       }
     }
-    if (!vesselId || !requestedBy) {
-      return NextResponse.json(
-        { error: "Tàu và người yêu cầu là bắt buộc." },
-        { status: 400 }
-      );
+    if (!vesselId) {
+      return NextResponse.json({ error: "Tàu là bắt buộc." }, { status: 400 });
     }
     const scope = vesselScope(user);
     if (!scope.all && vesselId !== scope.vesselId) {
@@ -164,6 +165,7 @@ export async function POST(request: Request) {
         kind,
         vesselId,
         requestedBy,
+        requestedByRole,
         department,
         priority,
         status: "DRAFT",

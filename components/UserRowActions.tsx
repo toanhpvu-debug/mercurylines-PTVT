@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { toggleUserActive, updateUserRole } from "@/app/actions";
+import { NHOM_CHUC_DANH, ROLE_LABEL } from "@/lib/roles";
 
 type VesselOption = {
   id: number;
@@ -35,11 +36,15 @@ export function UserRoleForm({
           disabled={disabled}
           className="rounded border p-1 text-sm disabled:bg-slate-100 disabled:text-slate-400"
         >
-          <option value="CREW">CREW</option>
-          <option value="CHIEF_ENGINEER">CHIEF_ENGINEER</option>
-          <option value="MASTER">MASTER</option>
-          <option value="TECH_MANAGER">TECH_MANAGER</option>
-          <option value="ADMIN">ADMIN</option>
+          {NHOM_CHUC_DANH.map((g) => (
+            <optgroup key={g.nhom} label={g.nhom}>
+              {g.vaiTro.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABEL[r]}
+                </option>
+              ))}
+            </optgroup>
+          ))}
         </select>
         <select
           name="vesselId"

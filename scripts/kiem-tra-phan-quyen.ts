@@ -14,20 +14,20 @@
  */
 import { REQUEST_ALLOWED_FROM } from "@/lib/requestStatus";
 import {
+  ROLES,
+  ROLE_LABEL,
+  SI_QUAN,
+  boPhanCuaChucDanh,
   capDuyetChoPhep,
   coDuyetCapTau,
+  coQuanLySon,
   nguoiDuyetCapTau,
 } from "@/lib/roles";
 
 type KetQua = "TAU" | "CONG_TY" | null;
 
-const VAI_TRO = [
-  "CREW",
-  "CHIEF_ENGINEER",
-  "MASTER",
-  "TECH_MANAGER",
-  "ADMIN",
-] as const;
+// Toàn bộ vai trò trong hệ thống, kể cả các chức danh sĩ quan mới.
+const VAI_TRO = ROLES;
 const BO_PHAN = ["ENGINE", "ELECTRICAL", "DECK", "GENERAL"] as const;
 const TRANG_THAI = [
   "DRAFT",
@@ -61,6 +61,7 @@ function mongDoi(
     if (!cungTau && vaiTro !== "ADMIN" && vaiTro !== "TECH_MANAGER") return null;
     if (vaiTro === "ADMIN" || vaiTro === "MASTER") return "TAU";
     if (vaiTro === "CHIEF_ENGINEER" && boPhanMay) return "TAU";
+    // Đại phó, Phó 2/3, Máy 2/3/4, thuyền viên: lập yêu cầu, KHÔNG duyệt.
     return null;
   }
   if (trangThai === "PENDING_OFFICE") {
@@ -163,6 +164,63 @@ console.log("\n=== NGUOI DUYET THEO BO PHAN ===");
 for (const bp of BO_PHAN) {
   console.log(
     `  ${bp.padEnd(12)} -> ${nguoiDuyetCapTau(bp)}   (may truong duyet duoc: ${coDuyetCapTau("CHIEF_ENGINEER", bp)})`
+  );
+}
+
+// --- Chuc danh si quan: khong ai duyet duoc, va bo phan mac dinh dung ---
+console.log("\n=== CHUC DANH SI QUAN ===");
+for (const r of SI_QUAN) {
+  const boong = capDuyetChoPhep(
+    { role: r, vesselId: 1 },
+    { vesselId: 1, status: "PENDING_MASTER", department: "DECK" }
+  );
+  const may = capDuyetChoPhep(
+    { role: r, vesselId: 1 },
+    { vesselId: 1, status: "PENDING_MASTER", department: "ENGINE" }
+  );
+  const congTy = capDuyetChoPhep(
+    { role: r, vesselId: 1 },
+    { vesselId: 1, status: "PENDING_OFFICE", department: "ENGINE" }
+  );
+  const ok = boong === null && may === null && congTy === null;
+  if (ok) dat++;
+  else truot++;
+  console.log(
+    `  ${ok ? "OK  " : "TRUOT"} ${(ROLE_LABEL[r] ?? r).padEnd(12)} khong duyet duoc buoc nao  | bo phan mac dinh khi lap: ${boPhanCuaChucDanh(r) ?? "(khong doan)"}`
+  );
+}
+
+// --- Quyen phan SON ---
+// Ky vong viet tay: son la viec cua bo phan boong (dai pho la truong bo phan),
+// may truong giu phan son buong may; quan tri toan quyen; van phong khong thao
+// tac tren tau; si quan cap duoi va thuyen vien khong sua.
+console.log("\n=== QUYEN PHAN SON ===");
+const MONG_SON: Record<string, boolean> = {
+  ADMIN: true,
+  MASTER: true,
+  CHIEF_OFFICER: true,
+  CHIEF_ENGINEER: true,
+  TECH_MANAGER: false,
+  SECOND_OFFICER: false,
+  THIRD_OFFICER: false,
+  SECOND_ENGINEER: false,
+  THIRD_ENGINEER: false,
+  FOURTH_ENGINEER: false,
+  CREW: false,
+};
+for (const r of ROLES) {
+  const vanPhong = r === "ADMIN" || r === "TECH_MANAGER";
+  const user = { role: r, vesselId: vanPhong ? null : 1 };
+  const tauMinh = coQuanLySon(user, 1);
+  const tauKhac = coQuanLySon(user, 2);
+  // Nguoi gan tau khong duoc dung sang tau khac; van phong thi toan doi.
+  const mongTauMinh = MONG_SON[r];
+  const mongTauKhac = MONG_SON[r] && vanPhong;
+  const ok = tauMinh === mongTauMinh && tauKhac === mongTauKhac;
+  if (ok) dat++;
+  else truot++;
+  console.log(
+    `  ${ok ? "OK  " : "TRUOT"} ${(ROLE_LABEL[r] ?? r).padEnd(26)} tau minh: ${tauMinh ? "co" : "khong"}   tau khac: ${tauKhac ? "co" : "khong"}`
   );
 }
 

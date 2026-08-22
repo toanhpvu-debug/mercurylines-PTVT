@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ROLE_LABEL, boPhanCuaChucDanh } from "@/lib/roles";
 
 type VesselOption = {
   id: number;
@@ -43,10 +44,13 @@ export default function RequestForm({
   vessels,
   materials,
   defaultVesselId,
+  nguoiLap,
 }: {
   vessels: VesselOption[];
   materials: MaterialOption[];
   defaultVesselId?: number;
+  /** Người đang đăng nhập — tên và chức danh đi thẳng vào yêu cầu. */
+  nguoiLap: { name: string; role: string };
 }) {
   const router = useRouter();
   const [message, setMessage] = useState("");
@@ -56,8 +60,11 @@ export default function RequestForm({
   const [vesselId, setVesselId] = useState(
     defaultVesselId ? String(defaultVesselId) : ""
   );
-  const [requestedBy, setRequestedBy] = useState("");
-  const [department, setDepartment] = useState("ENGINE");
+  // Bộ phận chọn sẵn theo chức danh: Máy 2 mở form là đã ở bộ phận Máy, Phó 3
+  // là ở Boong. Chọn nhầm bộ phận nghĩa là yêu cầu đi lạc sang người duyệt khác.
+  const [department, setDepartment] = useState(
+    boPhanCuaChucDanh(nguoiLap.role) ?? "ENGINE"
+  );
   const [requiredDate, setRequiredDate] = useState("");
   const [priority, setPriority] = useState("NORMAL");
   const [purpose, setPurpose] = useState("");
@@ -93,7 +100,6 @@ export default function RequestForm({
       const payload = {
         kind,
         vesselId: Number(vesselId),
-        requestedBy,
         department,
         requiredDate,
         priority,
@@ -124,8 +130,8 @@ export default function RequestForm({
                 }
           ),
       };
-      if (!payload.vesselId || !payload.requestedBy) {
-        setMessage("Vui lòng chọn tàu và nhập người yêu cầu.");
+      if (!payload.vesselId) {
+        setMessage("Vui lòng chọn tàu.");
         setIsError(true);
         setLoading(false);
         return;
@@ -218,13 +224,16 @@ export default function RequestForm({
               </option>
             ))}
           </select>
-          <input
-            value={requestedBy}
-            onChange={(e) => setRequestedBy(e.target.value)}
-            placeholder="Người yêu cầu"
-            className="rounded border p-2"
-            required
-          />
+          {/* Người yêu cầu không gõ tay nữa — lấy thẳng từ tài khoản đăng nhập
+              để chứng từ và nhật ký khớp với người thật sự bấm nút. */}
+          <div className="rounded border border-slate-200 bg-slate-50 p-2 text-sm">
+            <span className="text-slate-500">Người yêu cầu: </span>
+            <b>{nguoiLap.name}</b>
+            <span className="text-slate-600">
+              {" · "}
+              {ROLE_LABEL[nguoiLap.role] ?? nguoiLap.role}
+            </span>
+          </div>
           <select
             value={department}
             onChange={(e) => setDepartment(e.target.value)}

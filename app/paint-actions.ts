@@ -6,10 +6,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   canManageVesselCatalog,
+  coQuanLySon,
   requireActiveRole,
   vesselScope,
 } from "@/lib/auth";
 import { PAINT_TYPE_VALUES } from "@/lib/paintTypes";
+import { VAN_HANH_SON, boPhanCuaChucDanh } from "@/lib/roles";
 
 // Server action cho module Quản lý sơn. Tách khỏi app/actions.ts (đã 2200 dòng)
 // để phần sơn đứng riêng, dễ đọc và dễ sửa.
@@ -40,12 +42,22 @@ function numOrNull(formData: FormData, key: string) {
   return Number.isFinite(n) ? n : null;
 }
 
-// Kiểm tra quyền thao tác trên một tàu, trả về user hoặc null.
+// Kiểm tra quyền thao tác phần SƠN của một tàu, trả về user hoặc null.
+//
+// Dùng quyền riêng của phần sơn (VAN_HANH_SON) chứ không phải quyền danh mục
+// vật tư: đại phó là trưởng bộ phận boong nên quản kho sơn, nhưng không vì thế
+// mà được sửa danh mục vật tư của tàu.
 async function requireVesselAccess(vesselId: number) {
-  const actor = await requireActiveRole(["ADMIN", "MASTER"]);
+  const actor = await requireActiveRole([...VAN_HANH_SON]);
   if (!actor) return null;
-  if (!canManageVesselCatalog(actor, vesselId)) return null;
+  if (!coQuanLySon(actor, vesselId)) return null;
   return actor;
+}
+
+// Danh mục sơn dùng chung toàn đội và việc chép sơ đồ giữa các tàu vẫn thuộc
+// văn phòng / thuyền trưởng — không phải việc của một bộ phận trên tàu.
+async function requireFleetPaintAccess() {
+  return requireActiveRole(["ADMIN", "MASTER"]);
 }
 
 function revalidateVessel(vesselId: number) {
@@ -59,7 +71,7 @@ export async function savePaintProduct(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  if (!(await requireActiveRole(["ADMIN", "MASTER"]))) {
+  if (!(await requireFleetPaintAccess())) {
     return { message: NO_PERMISSION };
   }
   const id = Number(formData.get("id") || 0);
@@ -579,7 +591,7 @@ export async function copyPaintScheme(
     return { message: "Chọn một tàu khác để sao chép sơ đồ." };
   }
   // Chỉ đọc sơ đồ của tàu người dùng được phép xem.
-  const actor = await requireActiveRole(["ADMIN", "MASTER"]);
+  const actor = await requireFleetPaintAccess();
   if (!actor) return { message: NO_PERMISSION };
   const scope = vesselScope(actor);
   if (!scope.all && scope.vesselId !== fromVesselId) {
@@ -656,7 +668,7 @@ export async function importPaintProducts(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  const actor = await requireActiveRole(["ADMIN", "MASTER"]);
+  const actor = await requireFleetPaintAccess();
   if (!actor) return { message: NO_PERMISSION };
 
   // Tàu để ghi tồn — tùy chọn. Bỏ trống thì chỉ nạp danh mục dùng chung.
@@ -819,4 +831,156 @@ export async function importPaintProducts(
       );
   }
   return { message: parts.join(" · "), success: true };
+}
+
+// ─── Yêu cầu cấp sơn gửi lên phê duyệt ───────────────────────────────────────
+
+/**
+ * Lập yêu cầu cấp sơn từ trang Quản lý sơn của tàu và trình lên luôn.
+ *
+ * KHÔNG dựng một đường phê duyệt riêng cho sơn. Yêu cầu sơn đi đúng dây chuyền
+ * đang có của yêu cầu vật tư:
+ *
+ *   Đại phó lập  ->  Thuyền trưởng duyệt cấp tàu  ->  Công ty duyệt  ->  Mua sắm
+ *
+ * Bộ phận của yêu cầu lấy theo chức danh người lập, nên yêu cầu của đại phó
+ * (boong) về đúng bàn thuyền trưởng, còn yêu cầu sơn buồng máy của máy trưởng
+ * nằm trong thẩm quyền máy trưởng. Dựng đường duyệt thứ hai chỉ để phục vụ sơn
+ * là tự tạo ra một bộ quy tắc nữa phải giữ cho khớp với bộ đang có.
+ */
+export async function taoYeuCauSon(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const vesselId = Number(formData.get("vesselId"));
+  const actor = await requireVesselAccess(vesselId);
+  if (!actor) return { message: NO_PERMISSION };
+
+  const vessel = await prisma.vessel.findUnique({
+    where: { id: vesselId },
+    select: { code: true, name: true },
+  });
+  if (!vessel) return { message: "Tàu không tồn tại." };
+
+  // Các dòng gửi lên: sl_<productId> = số lượng xin cấp.
+  const dong: { productId: number; quantity: number }[] = [];
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith("sl_")) continue;
+    const productId = Number(key.slice(3));
+    const quantity = Number(String(value).replace(",", "."));
+    if (!Number.isInteger(productId) || productId <= 0) continue;
+    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+    dong.push({ productId, quantity });
+  }
+  if (dong.length === 0) {
+    return { message: "Nhập số lượng cho ít nhất một loại sơn." };
+  }
+
+  const products = await prisma.paintProduct.findMany({
+    where: { id: { in: dong.map((d) => d.productId) } },
+  });
+  if (products.length !== dong.length) {
+    return { message: "Có loại sơn không còn trong danh mục." };
+  }
+  const theoId = new Map(products.map((p) => [p.id, p]));
+
+  // Tồn sơn hiện tại của tàu — in vào cột ROB của chứng từ để người duyệt thấy
+  // ngay còn bao nhiêu mà xin thêm bấy nhiêu.
+  const stocks = await prisma.paintStock.findMany({
+    where: { vesselId, productId: { in: dong.map((d) => d.productId) } },
+  });
+  const tonTheoId = new Map(stocks.map((s) => [s.productId, s.quantity]));
+
+  const ghiChu = text(formData, "purpose");
+  const priority = ["LOW", "NORMAL", "HIGH", "URGENT"].includes(
+    text(formData, "priority")
+  )
+    ? text(formData, "priority")
+    : "NORMAL";
+  // Bộ phận theo chức danh người lập; không đoán được thì về boong vì sơn vỏ
+  // là việc của boong.
+  const department = boPhanCuaChucDanh(actor.role) ?? "DECK";
+
+  // Số yêu cầu theo đúng quy ước chứng từ đang dùng: MR-<mã tàu>-<năm>-<số>.
+  const vesselTag = vessel.code.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const base = `MR-${vesselTag}-${String(new Date().getFullYear()).slice(-2)}-`;
+  const latest = await prisma.materialRequest.findFirst({
+    where: { requestNo: { startsWith: base } },
+    orderBy: { requestNo: "desc" },
+    select: { requestNo: true },
+  });
+  let seq = latest ? Number(latest.requestNo.slice(base.length)) + 1 : 1;
+  if (!Number.isFinite(seq) || seq < 1) seq = 1;
+  let requestNo = `${base}${String(seq).padStart(4, "0")}`;
+  while (await prisma.materialRequest.findUnique({ where: { requestNo } })) {
+    seq += 1;
+    requestNo = `${base}${String(seq).padStart(4, "0")}`;
+  }
+
+  const now = new Date();
+  const created = await prisma.$transaction(async (tx) => {
+    const req = await tx.materialRequest.create({
+      data: {
+        requestNo,
+        kind: "STORE",
+        vesselId,
+        requestedBy: actor.name,
+        requestedByRole: actor.role,
+        department,
+        priority,
+        // Lập và trình trong một lần bấm, nhưng vẫn ghi đủ hai mốc ở nhật ký
+        // để dấu vết giống hệt đường lập tay.
+        status: "PENDING_MASTER",
+        submittedBy: actor.name,
+        submittedAt: now,
+        purpose: ghiChu || `Yêu cầu cấp sơn cho ${vessel.name}`,
+        items: {
+          create: dong.map((d) => {
+            const p = theoId.get(d.productId)!;
+            const mau = p.colorName ? ` · ${p.colorName}` : "";
+            return {
+              // Sơn nằm ở danh mục sơn, không phải danh mục vật tư, nên ghi
+              // thành dòng nhập tay thay vì trỏ materialId sang bảng khác.
+              materialId: null,
+              itemName: `${p.name}${p.maker ? ` (${p.maker})` : ""}${mau}`,
+              itemCode: p.code,
+              itemUom: p.uom,
+              quantity: d.quantity,
+              robSnapshot: tonTheoId.get(d.productId) ?? 0,
+              approvedQuantity: 0,
+              note: null,
+            };
+          }),
+        },
+      },
+    });
+    await tx.materialRequestEvent.createMany({
+      data: [
+        {
+          requestId: req.id,
+          fromStatus: null,
+          toStatus: "DRAFT",
+          actorName: actor.name,
+          actorRole: actor.role,
+          note: `Lập yêu cầu cấp sơn ${dong.length} dòng từ trang Quản lý sơn`,
+        },
+        {
+          requestId: req.id,
+          fromStatus: "DRAFT",
+          toStatus: "PENDING_MASTER",
+          actorName: actor.name,
+          actorRole: actor.role,
+          note: "Trình duyệt",
+        },
+      ],
+    });
+    return req;
+  });
+
+  revalidateVessel(vesselId);
+  revalidatePath("/requests");
+  return {
+    message: `Đã gửi yêu cầu ${created.requestNo} (${dong.length} loại sơn) lên phê duyệt.`,
+    success: true,
+  };
 }

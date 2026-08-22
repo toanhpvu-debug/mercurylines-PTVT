@@ -26,7 +26,13 @@ export const ROLES = [
   "ADMIN",
   "TECH_MANAGER",
   "MASTER",
+  "CHIEF_OFFICER",
+  "SECOND_OFFICER",
+  "THIRD_OFFICER",
   "CHIEF_ENGINEER",
+  "SECOND_ENGINEER",
+  "THIRD_ENGINEER",
+  "FOURTH_ENGINEER",
   "CREW",
 ] as const;
 
@@ -36,8 +42,29 @@ export const ROLE_LABEL: Record<string, string> = {
   ADMIN: "Quản trị hệ thống",
   TECH_MANAGER: "Quản lý kỹ thuật (công ty)",
   MASTER: "Thuyền trưởng",
+  CHIEF_OFFICER: "Đại phó",
+  SECOND_OFFICER: "Phó 2",
+  THIRD_OFFICER: "Phó 3",
   CHIEF_ENGINEER: "Máy trưởng",
-  CREW: "Sĩ quan / thuyền viên",
+  SECOND_ENGINEER: "Máy 2",
+  THIRD_ENGINEER: "Máy 3",
+  FOURTH_ENGINEER: "Máy 4",
+  CREW: "Thuyền viên",
+};
+
+/** Chức danh tiếng Anh — in lên biểu mẫu song ngữ MLS-11-05. */
+export const ROLE_LABEL_EN: Record<string, string> = {
+  MASTER: "Master",
+  CHIEF_OFFICER: "Chief Officer",
+  SECOND_OFFICER: "2nd Officer",
+  THIRD_OFFICER: "3rd Officer",
+  CHIEF_ENGINEER: "Chief Engineer",
+  SECOND_ENGINEER: "2nd Engineer",
+  THIRD_ENGINEER: "3rd Engineer",
+  FOURTH_ENGINEER: "4th Engineer",
+  CREW: "Crew",
+  TECH_MANAGER: "Technical Manager",
+  ADMIN: "Administrator",
 };
 
 export const ROLE_DESC: Record<string, string> = {
@@ -47,8 +74,64 @@ export const ROLE_DESC: Record<string, string> = {
   MASTER: "Trên tàu: duyệt cấp tàu MỌI bộ phận, nhập xuất kho, danh mục tàu.",
   CHIEF_ENGINEER:
     "Trên tàu: duyệt cấp tàu bộ phận Máy/Điện, nhập xuất kho, danh mục tàu.",
+  CHIEF_OFFICER:
+    "Sĩ quan boong: lập và trình yêu cầu vật tư; quản lý sơn của tàu (nhập/xuất sơn, sơ đồ sơn, nhật ký thi công) và gửi yêu cầu cấp sơn. Không duyệt.",
+  SECOND_OFFICER: "Sĩ quan boong: lập và trình yêu cầu vật tư. Không duyệt.",
+  THIRD_OFFICER: "Sĩ quan boong: lập và trình yêu cầu vật tư. Không duyệt.",
+  SECOND_ENGINEER: "Sĩ quan máy: lập và trình yêu cầu vật tư. Không duyệt.",
+  THIRD_ENGINEER: "Sĩ quan máy: lập và trình yêu cầu vật tư. Không duyệt.",
+  FOURTH_ENGINEER: "Sĩ quan máy: lập và trình yêu cầu vật tư. Không duyệt.",
   CREW: "Lập và trình yêu cầu vật tư của tàu mình. Không duyệt.",
 };
+
+/**
+ * Sĩ quan dưới quyền thuyền trưởng / máy trưởng.
+ *
+ * Chức danh khác nhau nhưng QUYỀN giống hệt nhau: lập và trình yêu cầu, không
+ * duyệt. Tách chức danh ra khỏi quyền như vậy để biểu mẫu và nhật ký ghi đúng
+ * "Máy 2 Nguyễn Văn A" thay vì "CREW", mà không làm ma trận phân quyền nở ra
+ * theo số chức danh.
+ */
+export const SI_QUAN: readonly string[] = [
+  "CHIEF_OFFICER",
+  "SECOND_OFFICER",
+  "THIRD_OFFICER",
+  "SECOND_ENGINEER",
+  "THIRD_ENGINEER",
+  "FOURTH_ENGINEER",
+  "CREW",
+];
+
+/** Thứ tự hiển thị trong ô chọn chức danh — theo cấp bậc thật trên tàu. */
+export const NHOM_CHUC_DANH: { nhom: string; vaiTro: string[] }[] = [
+  { nhom: "Boong", vaiTro: ["MASTER", "CHIEF_OFFICER", "SECOND_OFFICER", "THIRD_OFFICER"] },
+  {
+    nhom: "Máy",
+    vaiTro: [
+      "CHIEF_ENGINEER",
+      "SECOND_ENGINEER",
+      "THIRD_ENGINEER",
+      "FOURTH_ENGINEER",
+    ],
+  },
+  { nhom: "Khác trên tàu", vaiTro: ["CREW"] },
+  { nhom: "Văn phòng", vaiTro: ["TECH_MANAGER", "ADMIN"] },
+];
+
+/**
+ * Bộ phận mặc định của một chức danh — dùng để chọn sẵn bộ phận khi sĩ quan
+ * lập yêu cầu, đỡ phải chọn tay và đỡ chọn nhầm (chọn nhầm là yêu cầu đi lạc
+ * sang người duyệt khác).
+ */
+export function boPhanCuaChucDanh(role: string): string | null {
+  if (["CHIEF_ENGINEER", "SECOND_ENGINEER", "THIRD_ENGINEER", "FOURTH_ENGINEER"].includes(role)) {
+    return "ENGINE";
+  }
+  if (["MASTER", "CHIEF_OFFICER", "SECOND_OFFICER", "THIRD_OFFICER"].includes(role)) {
+    return "DECK";
+  }
+  return null;
+}
 
 /** Chỉ huy trên tàu — duyệt bước cấp tàu. */
 export const CHI_HUY_TAU: readonly string[] = ["MASTER", "CHIEF_ENGINEER"];
@@ -63,12 +146,31 @@ export const VAN_HANH_TAU: readonly string[] = [
   "CHIEF_ENGINEER",
 ];
 
+/**
+ * Ai vận hành module Sơn của một tàu: nhập/xuất sơn, khu vực, sơ đồ sơn, nhật
+ * ký thi công, và lập yêu cầu cấp sơn gửi lên.
+ *
+ * Có ĐẠI PHÓ vì trên tàu, sơn và bảo quản vỏ là việc của bộ phận boong mà đại
+ * phó là trưởng bộ phận — kho sơn nằm dưới quyền đại phó. Máy trưởng vẫn giữ
+ * vì phần sơn buồng máy thuộc bộ phận máy.
+ *
+ * Đây là quyền RIÊNG cho phần sơn, không dùng canManageVesselCatalog: quyền đó
+ * dành cho danh mục vật tư của tàu, cho đại phó quyền đó là mở rộng ngoài ý
+ * muốn sang một nghiệp vụ khác.
+ */
+export const VAN_HANH_SON: readonly string[] = [
+  "ADMIN",
+  "MASTER",
+  "CHIEF_OFFICER",
+  "CHIEF_ENGINEER",
+];
+
 /** Ai được lập và trình yêu cầu vật tư. */
 export const LAP_YEU_CAU: readonly string[] = [
   "ADMIN",
   "MASTER",
   "CHIEF_ENGINEER",
-  "CREW",
+  ...SI_QUAN,
 ];
 
 /** Bộ phận thuộc quyền máy trưởng. */
@@ -103,7 +205,7 @@ export function coDuyetCongTy(role: string): boolean {
  * "Bạn không có quyền" chung chung.
  */
 export function viSaoKhongDuyetDuoc(role: string): string {
-  if (role === "CREW") {
+  if (SI_QUAN.includes(role)) {
     return "Yêu cầu phải do thuyền trưởng hoặc máy trưởng duyệt.";
   }
   if (role === "CHIEF_ENGINEER") {
@@ -158,6 +260,21 @@ export function canManageVesselCatalog(
     return scope.all || scope.vesselId === vesselId;
   }
   return false;
+}
+
+/**
+ * Người này có được vận hành phần Sơn của tàu này không.
+ *
+ * Cùng khuôn với canManageVesselCatalog: đúng vai trò VÀ đúng tàu. Người bị
+ * giới hạn tàu không đụng được sang tàu khác kể cả gõ thẳng URL.
+ */
+export function coQuanLySon(
+  user: { role: string; vesselId: number | null },
+  vesselId: number
+) {
+  if (!VAN_HANH_SON.includes(user.role)) return false;
+  const scope = vesselScope(user);
+  return scope.all || scope.vesselId === vesselId;
 }
 
 /**

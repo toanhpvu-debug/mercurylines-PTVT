@@ -2,10 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
-  canManageVesselCatalog,
+  coQuanLySon,
   requireScopedUser,
   vesselScope,
 } from "@/lib/auth";
+import { LAP_YEU_CAU, ROLE_LABEL, nguoiDuyetCapTau, boPhanCuaChucDanh } from "@/lib/roles";
 import { PAINT_TYPE_LABEL } from "@/lib/paintTypes";
 import {
   PaintAreaAddForm,
@@ -14,6 +15,7 @@ import {
 import { PaintStockMinForm, PaintStockMoveForm } from "@/components/PaintStockForm";
 import { PaintJobDeleteButton, PaintJobForm } from "@/components/PaintJobForm";
 import PaintSchemeCopyForm from "@/components/PaintSchemeCopyForm";
+import PaintRequestForm from "@/components/PaintRequestForm";
 import PrintButton from "@/components/PrintButton";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +50,12 @@ export default async function PaintVesselPage({
 
   const vessel = await prisma.vessel.findUnique({ where: { id: vesselId } });
   if (!vessel) notFound();
-  const canEdit = canManageVesselCatalog(user, vesselId);
+  // Quyền phần sơn tách riêng khỏi quyền danh mục vật tư: đại phó quản kho sơn
+  // của tàu mình nhưng không vì thế mà sửa được danh mục vật tư.
+  const canEdit = coQuanLySon(user, vesselId);
+  // Chép sơ đồ sơn giữa các tàu là việc toàn đội, giữ ở thuyền trưởng/quản trị.
+  const canCopyScheme = ["ADMIN", "MASTER"].includes(user.role);
+  const canRequest = canEdit && LAP_YEU_CAU.includes(user.role);
 
   const [areas, products, stocks, jobs, transactions] = await Promise.all([
     prisma.paintArea.findMany({
@@ -114,6 +121,20 @@ export default async function PaintVesselPage({
       onHand: s.quantity,
     }));
   const lowStocks = stocks.filter((s) => s.minQty > 0 && s.quantity < s.minQty);
+  const duoiDinhMuc = lowStocks.length;
+  // Dòng cho bảng xin cấp sơn: mọi loại sơn đang dùng, kèm tồn và định mức của
+  // tàu này. Loại chưa từng nhập chưa có bản ghi tồn nên coi như tồn 0 — vẫn
+  // phải xin được, đó chính là lúc cần xin nhất.
+  const yeuCauLines = products.map((p) => {
+    const st = stocks.find((s) => s.productId === p.id);
+    return {
+      productId: p.id,
+      label: productLabel(p),
+      uom: p.uom,
+      ton: st?.quantity ?? 0,
+      minQty: st?.minQty ?? 0,
+    };
+  });
   const totalPaintedM2 = jobs.reduce((sum, j) => sum + j.paintedM2, 0);
   const defaultDate = new Date().toISOString().slice(0, 10);
 
@@ -225,14 +246,16 @@ export default async function PaintVesselPage({
           </h3>
           {canEdit && (
             <div className="flex flex-wrap items-center gap-3">
-              <PaintSchemeCopyForm
-                vesselId={vesselId}
-                sources={copySources.map((v) => ({
-                  id: v.id,
-                  label: `${v.code} — ${v.name}`,
-                  areaCount: v._count.paintAreas,
-                }))}
-              />
+              {canCopyScheme && (
+                <PaintSchemeCopyForm
+                  vesselId={vesselId}
+                  sources={copySources.map((v) => ({
+                    id: v.id,
+                    label: `${v.code} — ${v.name}`,
+                    areaCount: v._count.paintAreas,
+                  }))}
+                />
+              )}
               <PaintAreaAddForm vesselId={vesselId} />
             </div>
           )}
@@ -427,6 +450,38 @@ export default async function PaintVesselPage({
                   label: p.label,
                   uom: p.uom,
                 }))}
+              />
+            </div>
+          </details>
+        )}
+
+        {canRequest && (
+          <details className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100 print:hidden">
+            <summary className="cursor-pointer font-semibold text-blue-950">
+              Yêu cầu cấp sơn — gửi lên phê duyệt
+              {duoiDinhMuc > 0 && (
+                <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                  {duoiDinhMuc} loại dưới định mức
+                </span>
+              )}
+            </summary>
+            <div className="mt-3 space-y-3">
+              <p className="rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                Bạn lập với chức danh <b>{ROLE_LABEL[user.role] ?? user.role}</b>{" "}
+                (bộ phận{" "}
+                {boPhanCuaChucDanh(user.role) === "ENGINE" ? "Máy" : "Boong"}).
+                Yêu cầu sẽ về bàn{" "}
+                <b>
+                  {ROLE_LABEL[
+                    nguoiDuyetCapTau(boPhanCuaChucDanh(user.role) ?? "DECK")
+                  ]}
+                </b>{" "}
+                duyệt cấp tàu, rồi chuyển tiếp lên{" "}
+                <b>{ROLE_LABEL.TECH_MANAGER}</b> duyệt cấp công ty.
+              </p>
+              <PaintRequestForm
+                vesselId={vesselId}
+                lines={yeuCauLines}
               />
             </div>
           </details>

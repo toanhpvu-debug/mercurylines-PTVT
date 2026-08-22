@@ -15,7 +15,7 @@ import {
   vesselScope,
   vesselWhere,
 } from "@/lib/auth";
-import { LAP_YEU_CAU } from "@/lib/roles";
+import { LAP_YEU_CAU, ROLE_LABEL } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +94,7 @@ export default async function RequestsPage({
           vessels={vessels}
           materials={materials}
           defaultVesselId={scope.vesselId ?? undefined}
+          nguoiLap={{ name: user.name, role: user.role }}
         />
       )}
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
@@ -149,6 +150,7 @@ export default async function RequestsPage({
                 <th className="p-2">Loại</th>
                 <th className="p-2">Tàu</th>
                 <th className="p-2">Người yêu cầu</th>
+                <th className="p-2">Lập lúc</th>
                 <th className="p-2">Bộ phận</th>
                 <th className="p-2">Ưu tiên</th>
                 <th className="p-2">Nội dung</th>
@@ -186,7 +188,26 @@ export default async function RequestsPage({
                       {request.vessel.name}
                     </Link>
                   </td>
-                  <td className="p-2">{request.requestedBy}</td>
+                  <td className="p-2">
+                    {request.requestedBy}
+                    {request.requestedByRole && (
+                      <span className="block text-xs text-slate-500">
+                        {ROLE_LABEL[request.requestedByRole] ??
+                          request.requestedByRole}
+                      </span>
+                    )}
+                  </td>
+                  {/* Đến phút, không chỉ ngày: hai yêu cầu cùng ngày phải phân
+                      biệt được cái nào lập trước. */}
+                  <td className="p-2 whitespace-nowrap text-slate-600">
+                    {request.createdAt.toLocaleString("vi-VN", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </td>
                   <td className="p-2">{request.department}</td>
                   <td className="p-2">{request.priority}</td>
                   <td className="p-2">

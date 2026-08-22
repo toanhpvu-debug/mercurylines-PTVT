@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { createUser } from "@/app/actions";
+import { NHOM_CHUC_DANH, ROLE_LABEL } from "@/lib/roles";
 
 type VesselOption = {
   id: number;
@@ -43,13 +44,15 @@ export default function UserForm({ vessels }: { vessels: VesselOption[] }) {
         className="w-full rounded border p-2"
         defaultValue={v.role ?? "CREW"}
       >
-        <option value="CREW">Sĩ quan / thuyền viên (CREW)</option>
-        <option value="CHIEF_ENGINEER">Máy trưởng (CHIEF_ENGINEER)</option>
-        <option value="MASTER">Thuyền trưởng (MASTER)</option>
-        <option value="TECH_MANAGER">
-          Quản lý kỹ thuật công ty (TECH_MANAGER)
-        </option>
-        <option value="ADMIN">Quản trị viên (ADMIN)</option>
+        {NHOM_CHUC_DANH.map((g) => (
+          <optgroup key={g.nhom} label={g.nhom}>
+            {g.vaiTro.map((r) => (
+              <option key={r} value={r}>
+                {ROLE_LABEL[r]} ({r})
+              </option>
+            ))}
+          </optgroup>
+        ))}
       </select>
       <select
         name="vesselId"

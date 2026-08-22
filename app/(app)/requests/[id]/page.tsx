@@ -14,6 +14,7 @@ import {
 import {
   LAP_YEU_CAU,
   ROLE_LABEL,
+  ROLE_LABEL_EN,
   nguoiDuyetCapTau,
   viSaoKhongDuyetDuoc,
 } from "@/lib/roles";
@@ -192,7 +193,31 @@ export default async function RequestDetailPage({
           <p className="col-span-2">
             <span className="font-semibold">Người yêu cầu:</span>{" "}
             {request.requestedBy}
+            {request.requestedByRole
+              ? ` · ${ROLE_LABEL[request.requestedByRole] ?? request.requestedByRole}`
+              : ""}
             {request.purpose ? ` · Mục đích: ${request.purpose}` : ""}
+          </p>
+          {/* Thời điểm lập ghi đến PHÚT, không chỉ ngày: hai yêu cầu cùng ngày
+              cần phân biệt được cái nào trước, nhất là khi tranh chấp tồn kho. */}
+          <p className="col-span-2">
+            <span className="font-semibold">Lập lúc:</span>{" "}
+            {request.createdAt.toLocaleString("vi-VN", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            {request.submittedAt
+              ? ` · Trình duyệt lúc ${request.submittedAt.toLocaleString("vi-VN", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}`
+              : ""}
           </p>
         </div>
 
@@ -276,8 +301,19 @@ export default async function RequestDetailPage({
 
         <div className="mt-10 grid grid-cols-4 gap-2 text-center text-xs">
           <div>
-            <p className="font-bold">Chief Officer / Chief Engineer</p>
-            <p className="italic">Đại phó / Máy trưởng</p>
+            {/* Ô ký của người lập: ghi đúng chức danh trong tài khoản thay vì
+                luôn in cứng "Đại phó / Máy trưởng" như bản cũ. */}
+            <p className="font-bold">
+              {request.requestedByRole
+                ? (ROLE_LABEL_EN[request.requestedByRole] ??
+                  "Chief Officer / Chief Engineer")
+                : "Chief Officer / Chief Engineer"}
+            </p>
+            <p className="italic">
+              {request.requestedByRole
+                ? (ROLE_LABEL[request.requestedByRole] ?? "Đại phó / Máy trưởng")
+                : "Đại phó / Máy trưởng"}
+            </p>
             <div className="mt-12" />
             {/* Điền sẵn tên người lập & người duyệt mà hệ thống đã ghi nhận,
                 thay vì để ô ký trống trơn như bản in cũ. */}
@@ -286,7 +322,13 @@ export default async function RequestDetailPage({
             </p>
             <p className="text-[10px] text-slate-500">
               {request.submittedAt
-                ? `Trình ngày ${request.submittedAt.toLocaleDateString("vi-VN")}`
+                ? `Trình ${request.submittedAt.toLocaleString("vi-VN", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}`
                 : " "}
             </p>
           </div>

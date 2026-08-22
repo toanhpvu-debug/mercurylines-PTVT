@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser } from "@/lib/auth";
-import { ROLE_DESC } from "@/lib/roles";
+import { ROLE_DESC, ROLE_LABEL, SI_QUAN } from "@/lib/roles";
 import UserForm from "@/components/UserForm";
 import {
   UserActiveToggle,
@@ -43,13 +43,20 @@ export default async function UsersPage() {
           <UserForm vessels={vesselOptions} />
           <div className="mt-6 rounded bg-slate-50 p-3 text-xs text-slate-600">
             <p className="mb-1 font-semibold">Quyền theo vai trò:</p>
-            {["ADMIN", "TECH_MANAGER", "MASTER", "CHIEF_ENGINEER", "CREW"].map(
-              (r) => (
-                <p key={r}>
-                  <b>{r}</b> — {ROLE_DESC[r]}
-                </p>
-              )
-            )}
+            {["ADMIN", "TECH_MANAGER", "MASTER", "CHIEF_ENGINEER"].map((r) => (
+              <p key={r}>
+                <b>{ROLE_LABEL[r]}</b> — {ROLE_DESC[r]}
+              </p>
+            ))}
+            <p>
+              <b>
+                {SI_QUAN.filter((r) => r !== "CREW")
+                  .map((r) => ROLE_LABEL[r])
+                  .join(", ")}
+                , Thuyền viên
+              </b>{" "}
+              — lập và trình yêu cầu vật tư của tàu mình. Không duyệt.
+            </p>
             <p className="mt-2 font-semibold">Đường đi phê duyệt yêu cầu:</p>
             <p>
               Nháp → <b>tàu duyệt</b> (thuyền trưởng, hoặc máy trưởng với bộ

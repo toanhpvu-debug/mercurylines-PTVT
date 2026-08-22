@@ -197,6 +197,10 @@ model MaterialRequest {
   vesselId     Int
   vessel       Vessel                @relation(fields: [vesselId], references: [id])
   requestedBy  String
+  // Chức danh của người lập, lấy từ tài khoản lúc lập (Đại phó, Máy 2...).
+  // Chép lại chứ không tra ngược qua User: sĩ quan hết hạn hợp đồng rời tàu,
+  // đổi chức danh hay bị xóa tài khoản thì chứng từ đã in vẫn phải đúng.
+  requestedByRole String?
   department   String
   status       String                @default("DRAFT")
   priority     String                @default("NORMAL")

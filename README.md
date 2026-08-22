@@ -82,7 +82,7 @@ Bấm đúp thẳng trong thư mục gốc của app, không cần mở terminal
 | `doi-chieu-danh-muc.cmd` | Đối chiếu danh mục vật tư từng tàu với file kiểm kê gốc |
 | `sao-luu-du-lieu.cmd` | Nén bản chụp PostgreSQL (`pg_dump`) + file upload + `.env` + biểu mẫu thành bản sao lưu, kèm dấu vân tay để đối chiếu |
 | `khoi-phuc-du-lieu.cmd` | Đưa dữ liệu trở lại từ một bản sao lưu — tự chụp đường lùi trước, đối chiếu vân tay sau |
-| `kiem-tra-phan-quyen.cmd` | Chạy ma trận phân quyền duyệt yêu cầu (221 phép thử, không đụng database) |
+| `kiem-tra-phan-quyen.cmd` | Chạy ma trận phân quyền duyệt yêu cầu và quyền phần sơn (479 phép thử, không đụng database) |
 | `dong-bo-github.cmd` | Đẩy thay đổi mã nguồn lên GitHub |
 | `run-dev.cmd` | Chỉ khi đang **sửa code** (có hot-reload). Chậm hơn production ~50 lần |
 | `khai-bao-ban-cai.cmd` | Khai báo bản cài này là của tàu nào (`ML-001`) hay là văn phòng (`VANPHONG`) — chạy một lần sau khi cài |
@@ -245,13 +245,70 @@ Thư mục `dong-bo/` chứa dữ liệu thật của công ty nên **không** �
 
 App yêu cầu đăng nhập (session cookie ký JWT, hạn 7 ngày). Tài khoản seed sẵn dùng chung mật khẩu đặt ở biến môi trường `SEED_PASSWORD`; bỏ trống thì seed dùng tạm `ChangeMe@123` và in cảnh báo — **đổi ngay sau lần đăng nhập đầu tiên**:
 
-| Vai trò | Phạm vi | Quyền |
+| Chức danh | Vai trò trong hệ thống | Phạm vi | Quyền |
+|---|---|---|---|
+| Quản trị hệ thống | `ADMIN` | Toàn đội | Toàn quyền + quản lý người dùng (trang **Người dùng**: tạo tài khoản, đổi chức danh, gán tàu, khóa/mở khóa) |
+| Quản lý kỹ thuật | `TECH_MANAGER` | Toàn đội (văn phòng) | **Duyệt cấp công ty** các yêu cầu tàu đã duyệt, xem toàn đội |
+| Thuyền trưởng | `MASTER` | Tàu mình (hoặc toàn đội nếu không gán tàu) | **Duyệt cấp tàu mọi bộ phận**, nhập/xuất kho, danh mục tàu |
+| Máy trưởng | `CHIEF_ENGINEER` | Tàu mình | **Duyệt cấp tàu bộ phận Máy/Điện**, nhập/xuất kho, danh mục tàu |
+| Đại phó | `CHIEF_OFFICER` | Tàu mình | Lập và trình yêu cầu vật tư; **quản lý sơn của tàu** (nhập/xuất sơn, khu vực, sơ đồ, nhật ký thi công) và gửi yêu cầu cấp sơn. Không duyệt |
+| Phó 2 | `SECOND_OFFICER` | Tàu mình | Lập và trình yêu cầu vật tư. Không duyệt |
+| Phó 3 | `THIRD_OFFICER` | Tàu mình | Lập và trình yêu cầu vật tư. Không duyệt |
+| Máy 2 | `SECOND_ENGINEER` | Tàu mình | Lập và trình yêu cầu vật tư. Không duyệt |
+| Máy 3 | `THIRD_ENGINEER` | Tàu mình | Lập và trình yêu cầu vật tư. Không duyệt |
+| Máy 4 | `FOURTH_ENGINEER` | Tàu mình | Lập và trình yêu cầu vật tư. Không duyệt |
+| Thuyền viên | `CREW` | Tàu mình | Lập và trình yêu cầu vật tư. Không duyệt |
+
+### Quản lý sơn — quyền của bộ phận boong
+
+Trên tàu, sơn và bảo quản vỏ là việc của **bộ phận boong**, mà đại phó là trưởng bộ phận —
+kho sơn nằm dưới quyền đại phó. Vì vậy đại phó thao tác được toàn bộ phần Sơn của tàu mình:
+nhập/xuất sơn, khu vực sơn, sơ đồ sơn, nhật ký thi công, định mức tối thiểu.
+
+Quyền này là **quyền riêng của phần sơn** (`VAN_HANH_SON`), không dùng lại quyền danh mục vật
+tư của tàu — cho đại phó quyền đó là mở rộng ngoài ý muốn sang một nghiệp vụ khác. Ai có:
+
+| | Sơn của tàu mình | Danh mục sơn toàn đội · chép sơ đồ giữa tàu |
 |---|---|---|
-| `ADMIN` | Toàn đội | Toàn quyền + quản lý người dùng (trang **Người dùng**: tạo tài khoản, đổi vai trò, gán tàu, khóa/mở khóa) |
-| `TECH_MANAGER` | Toàn đội (văn phòng) | Quản lý kỹ thuật công ty: **duyệt cấp công ty** các yêu cầu tàu đã duyệt, xem toàn đội |
-| `MASTER` | Tàu mình (hoặc toàn đội nếu không gán tàu) | Thuyền trưởng: **duyệt cấp tàu mọi bộ phận**, nhập/xuất kho, danh mục tàu |
-| `CHIEF_ENGINEER` | Tàu mình | Máy trưởng: **duyệt cấp tàu bộ phận Máy/Điện**, nhập/xuất kho, danh mục tàu |
-| `CREW` | Tàu mình | Sĩ quan / thuyền viên: lập và trình yêu cầu vật tư. Không duyệt |
+| Quản trị, Thuyền trưởng | ✓ | ✓ |
+| Đại phó | ✓ | ✗ |
+| Máy trưởng (sơn buồng máy) | ✓ | ✗ |
+| Sĩ quan còn lại, thuyền viên, quản lý kỹ thuật | ✗ (chỉ xem) | ✗ |
+
+**Yêu cầu cấp sơn** (nút *Gửi yêu cầu phê duyệt* ở trang sơn của tàu) **không** dựng một đường
+phê duyệt riêng. Nó tạo một yêu cầu vật tư bình thường và đi đúng dây chuyền đang có:
+
+```
+Đại phó lập  →  Thuyền trưởng duyệt cấp tàu  →  Công ty duyệt  →  Mua sắm
+```
+
+Bộ phận của yêu cầu lấy theo chức danh người lập, nên yêu cầu của đại phó (boong) về đúng bàn
+thuyền trưởng, còn yêu cầu sơn buồng máy của máy trưởng nằm trong thẩm quyền máy trưởng. Dựng
+đường duyệt thứ hai chỉ để phục vụ sơn là tự tạo thêm một bộ quy tắc nữa phải giữ cho khớp với
+bộ đang có.
+
+Bảng xin cấp điền sẵn phần thiếu so với định mức (định mức − tồn) cho những loại đang dưới
+mức, và ghi tồn hiện tại vào cột ROB của chứng từ để người duyệt thấy ngay còn bao nhiêu mà
+xin thêm bấy nhiêu.
+
+Sáu chức danh sĩ quan có **quyền giống hệt nhau** ở phần yêu cầu vật tư — tách chức danh khỏi quyền như vậy để
+chứng từ và nhật ký ghi đúng "Máy 2 · Nguyễn Văn A" thay vì "CREW", mà ma trận phân quyền
+không nở ra theo số chức danh.
+
+### Danh tính và thời điểm của người yêu cầu
+
+Ô "Người yêu cầu" trước đây là **ô gõ tay**, nghĩa là chứng từ ghi được bất kỳ tên nào và
+không đối chiếu được với ai thật sự bấm nút. Nay tên và chức danh lấy thẳng từ **tài khoản
+đang đăng nhập**, ghi lại vào yêu cầu ngay lúc lập:
+
+- Chức danh được **chép lại** vào bản ghi chứ không tra ngược qua tài khoản. Sĩ quan hết hạn
+  hợp đồng rời tàu, đổi chức danh, hay bị xóa tài khoản thì chứng từ đã in vẫn phải đúng.
+- Thời điểm hiển thị đến **phút** ở cả danh sách lẫn chi tiết (*Lập lúc* và *Trình duyệt lúc*),
+  không chỉ ngày — hai yêu cầu cùng ngày phải phân biệt được cái nào trước.
+- Ô ký đầu tiên trên biểu mẫu in ghi đúng chức danh (`2nd Engineer / Máy 2`) thay vì luôn in
+  cứng "Chief Officer / Chief Engineer".
+- Bộ phận được **chọn sẵn theo chức danh**: Máy 2 mở form là đã ở bộ phận Máy, Phó 3 ở Boong.
+  Chọn nhầm bộ phận nghĩa là yêu cầu đi lạc sang người duyệt khác.
 
 ### Phân cấp phê duyệt yêu cầu vật tư
 
@@ -287,7 +344,7 @@ Vài quyết định đáng nói:
   trong [`lib/auth.ts`](lib/auth.ts)), nên không thể lệch nhau: ai không có nút thì gọi thẳng
   server action cũng bị chặn.
 
-Ma trận phân quyền (5 vai trò × 4 bộ phận × 5 trạng thái × cùng/khác tàu) có bài kiểm tra
+Ma trận phân quyền (11 chức danh × 4 bộ phận × 5 trạng thái × cùng/khác tàu) có bài kiểm tra
 chạy lại được bằng `kiem-tra-phan-quyen.cmd` — gọi đúng hàm mà server dùng, kỳ vọng viết tay
 theo quy định chứ không suy ra từ chính hàm đang kiểm tra.
 

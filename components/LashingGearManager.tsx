@@ -6,6 +6,7 @@ import {
   deleteLashingGear,
   updateLashingGear,
 } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type Gear = {
   id: number;
@@ -16,6 +17,7 @@ type Gear = {
 };
 
 export function LashingGearRow({ gear }: { gear: Gear }) {
+  const { t } = useNgonNgu();
   const [uState, uAction, uPending] = useActionState(updateLashingGear, {
     message: "",
   });
@@ -47,7 +49,7 @@ export function LashingGearRow({ gear }: { gear: Gear }) {
             min="0"
             defaultValue={v.minQty ?? gear.minQty}
             className="w-24 rounded border p-1 text-sm"
-            title="SL tối thiểu (full load)"
+            title={t("vessels.slToiThieuFullLoad")}
           />
           <input
             name="standardQty"
@@ -56,13 +58,13 @@ export function LashingGearRow({ gear }: { gear: Gear }) {
             min="0"
             defaultValue={v.standardQty ?? gear.standardQty}
             className="w-24 rounded border p-1 text-sm"
-            title="Trang bị chuẩn"
+            title={t("vessels.trangBiChuan")}
           />
           <button
             disabled={uPending}
             className="rounded border px-2 py-1 text-sm hover:bg-blue-50 disabled:opacity-50"
           >
-            {uPending ? "..." : "Lưu"}
+            {uPending ? "..." : t("chung.luu")}
           </button>
           {uState.message && (
             <span
@@ -77,7 +79,11 @@ export function LashingGearRow({ gear }: { gear: Gear }) {
         <form
           action={dAction}
           onSubmit={(e) => {
-            if (!window.confirm(`Xóa dụng cụ "${gear.name}"?`)) {
+            if (
+              !window.confirm(
+                t("vessels.xacNhanXoaDungCu", { ten: gear.name })
+              )
+            ) {
               e.preventDefault();
             }
           }}
@@ -87,18 +93,21 @@ export function LashingGearRow({ gear }: { gear: Gear }) {
             disabled={dPending}
             className="rounded bg-red-100 px-2 py-1 text-sm text-red-700 hover:bg-red-200 disabled:opacity-50"
           >
-            Xóa
+            {t("chung.xoa")}
           </button>
         </form>
       </div>
       {dState.message && (
-        <p className="mt-1 text-xs text-red-600">Xóa: {dState.message}</p>
+        <p className="mt-1 text-xs text-red-600">
+          {t("chung.xoa")}: {dState.message}
+        </p>
       )}
     </div>
   );
 }
 
 export function LashingGearAddForm({ vesselId }: { vesselId: number }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(createLashingGear, {
     message: "",
   });
@@ -108,7 +117,7 @@ export function LashingGearAddForm({ vesselId }: { vesselId: number }) {
       <input type="hidden" name="vesselId" value={vesselId} />
       <input
         name="name"
-        placeholder="Tên dụng cụ mới"
+        placeholder={t("vessels.phTenDungCuMoi")}
         defaultValue={v.name ?? ""}
         className="w-64 rounded border p-1 text-sm"
         required
@@ -124,7 +133,7 @@ export function LashingGearAddForm({ vesselId }: { vesselId: number }) {
         type="number"
         step="1"
         min="0"
-        placeholder="SL tối thiểu"
+        placeholder={t("vessels.slToiThieu")}
         className="w-24 rounded border p-1 text-sm"
         defaultValue={v.minQty ?? 0}
       />
@@ -133,7 +142,7 @@ export function LashingGearAddForm({ vesselId }: { vesselId: number }) {
         type="number"
         step="1"
         min="0"
-        placeholder="Chuẩn"
+        placeholder={t("vessels.chuan")}
         className="w-24 rounded border p-1 text-sm"
         defaultValue={v.standardQty ?? 0}
       />
@@ -141,7 +150,7 @@ export function LashingGearAddForm({ vesselId }: { vesselId: number }) {
         disabled={pending}
         className="rounded bg-blue-700 px-3 py-1 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
       >
-        {pending ? "..." : "Thêm dụng cụ"}
+        {pending ? "..." : t("vessels.themDungCu")}
       </button>
       {state.message && (
         <p

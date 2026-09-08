@@ -9,16 +9,16 @@ import {
 import VesselEditForm from "@/components/VesselEditForm";
 import VesselDeleteButton from "@/components/VesselDeleteButton";
 import VesselSwitcher from "@/components/VesselSwitcher";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
-const statusLabels: Record<string, { label: string; className: string }> = {
-  ACTIVE: { label: "Hoạt động", className: "bg-green-100 text-green-700" },
-  MAINTENANCE: {
-    label: "Bảo dưỡng",
-    className: "bg-yellow-100 text-yellow-700",
-  },
-  INACTIVE: { label: "Ngừng khai thác", className: "bg-slate-200 text-slate-600" },
+// Chỉ giữ MÀU ở đây; nhãn trạng thái lấy từ từ điển (labels.vesselStatus_* cho
+// ACTIVE/INACTIVE, vessels.trangThaiBaoDuong cho MAINTENANCE).
+const mauTrangThai: Record<string, string> = {
+  ACTIVE: "bg-green-100 text-green-700",
+  MAINTENANCE: "bg-yellow-100 text-yellow-700",
+  INACTIVE: "bg-slate-200 text-slate-600",
 };
 
 export default async function VesselDetailPage({
@@ -27,6 +27,7 @@ export default async function VesselDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireScopedUser();
+  const { t, tTuDo, ngay } = await layT();
   const scope = vesselScopeDayDu(user);
   const canManage = user.role === "ADMIN";
 
@@ -82,27 +83,30 @@ export default async function VesselDetailPage({
       },
     }),
   ]);
-  const status = statusLabels[vessel.status] ?? {
-    label: vessel.status,
-    className: "bg-slate-100 text-slate-600",
-  };
+  const mauTT = mauTrangThai[vessel.status] ?? "bg-slate-100 text-slate-600";
+  const nhanTT =
+    vessel.status === "MAINTENANCE"
+      ? t("vessels.trangThaiBaoDuong")
+      : vessel.status in mauTrangThai
+        ? tTuDo(`labels.vesselStatus_${vessel.status}`)
+        : vessel.status;
   return (
     <div className="space-y-6">
       <div>
         <Link href="/vessels" className="text-sm text-blue-700 hover:underline">
-          ← Quay lại đội tàu
+          ← {t("vessels.quayLaiDoiTau")}
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h2 className="text-2xl font-bold text-blue-950">
             {vessel.code} — {vessel.name}
           </h2>
-          <span className={`rounded px-2 py-1 text-sm ${status.className}`}>
-            {status.label}
-          </span>
+          <span className={`rounded px-2 py-1 text-sm ${mauTT}`}>{nhanTT}</span>
         </div>
         <p className="text-slate-600">
-          IMO: {vessel.imo || "—"} · Cờ: {vessel.flag || "—"} · Loại:{" "}
-          {vessel.vesselType || "—"} · {vessel.warehouses.length} kho
+          IMO: {vessel.imo || "—"} · {t("vessels.nhanCo")}:{" "}
+          {vessel.flag || "—"} · {t("vessels.nhanLoai")}:{" "}
+          {vessel.vesselType || "—"} ·{" "}
+          {t("vessels.nKho", { n: vessel.warehouses.length })}
         </p>
       </div>
 
@@ -110,21 +114,19 @@ export default async function VesselDetailPage({
 
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">
-            Báo cáo từ tàu — xem nhanh
-          </h3>
+          <h3 className="text-lg font-semibold">{t("vessels.baoCaoNhanh")}</h3>
           <Link
             href="/documents"
             className="text-sm text-blue-700 hover:underline"
           >
-            Tải lên / xem tất cả →
+            {t("vessels.taiLenXemTatCa")}
           </Link>
         </div>
         {documents.length === 0 ? (
           <p className="text-slate-600">
-            Tàu chưa có báo cáo nào được tải lên.{" "}
+            {t("vessels.chuaCoBaoCaoTau")}{" "}
             <Link href="/documents" className="text-blue-700 hover:underline">
-              Tải báo cáo lên
+              {t("vessels.taiBaoCaoLen")}
             </Link>
             .
           </p>
@@ -133,12 +135,12 @@ export default async function VesselDetailPage({
             <table className="w-full border text-sm">
               <thead>
                 <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">Ngày tải</th>
-                  <th className="p-2">Loại</th>
-                  <th className="p-2">Kỳ</th>
-                  <th className="p-2">Tiêu đề / File</th>
-                  <th className="p-2">Cỡ</th>
-                  <th className="p-2">Người tải</th>
+                  <th className="p-2">{t("vessels.cotNgayTai")}</th>
+                  <th className="p-2">{t("vessels.cotLoai")}</th>
+                  <th className="p-2">{t("vessels.cotKy")}</th>
+                  <th className="p-2">{t("vessels.cotTieuDeFile")}</th>
+                  <th className="p-2">{t("vessels.cotCoFile")}</th>
+                  <th className="p-2">{t("vessels.cotNguoiTai")}</th>
                   <th className="p-2"></th>
                 </tr>
               </thead>
@@ -146,7 +148,7 @@ export default async function VesselDetailPage({
                 {documents.map((doc) => (
                   <tr key={doc.id} className="border-b align-top">
                     <td className="p-2 whitespace-nowrap">
-                      {doc.createdAt.toLocaleDateString("vi-VN")}
+                      {ngay(doc.createdAt)}
                     </td>
                     <td className="p-2 whitespace-nowrap">{doc.reportType}</td>
                     <td className="p-2 whitespace-nowrap">{doc.period}</td>
@@ -169,7 +171,7 @@ export default async function VesselDetailPage({
                         rel="noopener noreferrer"
                         className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200"
                       >
-                        Xem / Tải
+                        {t("vessels.xemTaiFile")}
                       </a>
                     </td>
                   </tr>
@@ -183,7 +185,9 @@ export default async function VesselDetailPage({
       {canManage && (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 xl:col-span-2">
-            <h3 className="mb-4 text-lg font-semibold">Chỉnh sửa thông tin tàu</h3>
+            <h3 className="mb-4 text-lg font-semibold">
+              {t("vessels.suaThongTinTau")}
+            </h3>
             <VesselEditForm
               vessel={{
                 id: vessel.id,
@@ -199,10 +203,11 @@ export default async function VesselDetailPage({
             />
           </div>
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <h3 className="mb-4 text-lg font-semibold">Xóa tàu</h3>
+            <h3 className="mb-4 text-lg font-semibold">
+              {t("vessels.xoaTau")}
+            </h3>
             <p className="mb-4 text-sm text-slate-600">
-              Chỉ xóa được khi tàu chưa có yêu cầu vật tư và không còn người
-              dùng được gán phụ trách. Kho và tồn kho của tàu sẽ bị xóa theo.
+              {t("vessels.luuYXoaTau")}
             </p>
             <VesselDeleteButton
               id={vessel.id}
@@ -214,17 +219,19 @@ export default async function VesselDetailPage({
       )}
 
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <h3 className="mb-4 text-lg font-semibold">Kho trên tàu</h3>
+        <h3 className="mb-4 text-lg font-semibold">
+          {t("vessels.khoTrenTau")}
+        </h3>
         {vessel.warehouses.length === 0 ? (
-          <p className="text-slate-600">Tàu chưa có kho nào.</p>
+          <p className="text-slate-600">{t("vessels.chuaCoKho")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border text-sm">
               <thead>
                 <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">Mã kho</th>
-                  <th className="p-2">Tên kho</th>
-                  <th className="p-2">Loại</th>
+                  <th className="p-2">{t("vessels.cotMaKho")}</th>
+                  <th className="p-2">{t("vessels.cotTenKho")}</th>
+                  <th className="p-2">{t("vessels.cotLoai")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -243,29 +250,31 @@ export default async function VesselDetailPage({
 
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-lg font-semibold">Tồn kho của {vessel.name}</h3>
+          <h3 className="text-lg font-semibold">
+            {t("vessels.tonKhoCuaTau", { ten: vessel.name })}
+          </h3>
           {/* Nhập/xuất và xuất kiểm kê làm ở module Tồn kho — ở đây chỉ xem. */}
           <Link
             href={`/inventory?vessel=${vessel.id}`}
             className="rounded border border-blue-200 bg-white px-3 py-1.5 text-sm text-blue-800 hover:bg-blue-50"
           >
-            Nhập / xuất kho · Xuất kiểm kê →
+            {t("vessels.nhapXuatKiemKe")}
           </Link>
         </div>
         {tongTonKho === 0 ? (
-          <p className="text-slate-600">Chưa có tồn kho.</p>
+          <p className="text-slate-600">{t("vessels.chuaCoTonKho")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border text-sm">
               <thead>
                 <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">Kho</th>
-                  <th className="p-2">Mã VT</th>
-                  <th className="p-2">Tên vật tư</th>
-                  <th className="p-2">ĐVT</th>
-                  <th className="p-2">Tồn</th>
-                  <th className="p-2">Giữ</th>
-                  <th className="p-2">Khả dụng</th>
+                  <th className="p-2">{t("chung.kho")}</th>
+                  <th className="p-2">{t("vessels.cotMaVatTu")}</th>
+                  <th className="p-2">{t("vessels.cotTenVatTu")}</th>
+                  <th className="p-2">{t("chung.donVi")}</th>
+                  <th className="p-2">{t("vessels.cotTon")}</th>
+                  <th className="p-2">{t("vessels.cotGiu")}</th>
+                  <th className="p-2">{t("vessels.cotKhaDung")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -295,13 +304,13 @@ export default async function VesselDetailPage({
                 {tongTonKho > inventories.length && (
                   <tr className="border-b bg-slate-50/60">
                     <td colSpan={7} className="p-2 text-xs text-slate-500">
-                      Đang hiện {inventories.length} trong tổng{" "}
-                      <b>{tongTonKho}</b> dòng.{" "}
+                      {t("vessels.dangHienTruoc", { n: inventories.length })}{" "}
+                      <b>{tongTonKho}</b> {t("vessels.dangHienSau")}{" "}
                       <Link
                         href={`/inventory?vessel=${vessel.id}`}
                         className="text-blue-700 hover:underline"
                       >
-                        Xem đầy đủ ở trang Tồn kho
+                        {t("vessels.xemDayDuTonKho")}
                       </Link>
                     </td>
                   </tr>
@@ -315,31 +324,31 @@ export default async function VesselDetailPage({
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-lg font-semibold">
-            Yêu cầu vật tư của {vessel.name}
+            {t("vessels.yeuCauCuaTau", { ten: vessel.name })}
           </h3>
           {/* Tạo, duyệt, xóa yêu cầu làm ở module Yêu cầu vật tư. */}
           <Link
             href={`/requests?vessel=${vessel.id}`}
             className="rounded border border-blue-200 bg-white px-3 py-1.5 text-sm text-blue-800 hover:bg-blue-50"
           >
-            Tạo / duyệt yêu cầu →
+            {t("vessels.taoDuyetYeuCau")}
           </Link>
         </div>
         {requests.length === 0 ? (
-          <p className="text-slate-600">Chưa có yêu cầu vật tư nào.</p>
+          <p className="text-slate-600">{t("vessels.chuaCoYeuCau")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border text-sm">
               <thead>
                 <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">Số yêu cầu</th>
-                  <th className="p-2">Loại</th>
-                  <th className="p-2">Người yêu cầu</th>
-                  <th className="p-2">Bộ phận</th>
-                  <th className="p-2">Ưu tiên</th>
-                  <th className="p-2">Nội dung</th>
-                  <th className="p-2">Trạng thái</th>
-                  <th className="p-2">Thao tác</th>
+                  <th className="p-2">{t("vessels.cotSoHieuYeuCau")}</th>
+                  <th className="p-2">{t("vessels.cotLoai")}</th>
+                  <th className="p-2">{t("vessels.cotNguoiYeuCau")}</th>
+                  <th className="p-2">{t("vessels.cotBoPhan")}</th>
+                  <th className="p-2">{t("vessels.cotUuTien")}</th>
+                  <th className="p-2">{t("vessels.cotNoiDung")}</th>
+                  <th className="p-2">{t("chung.trangThai")}</th>
+                  <th className="p-2">{t("chung.thaoTac")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -354,24 +363,30 @@ export default async function VesselDetailPage({
                       </Link>
                     </td>
                     <td className="p-2">
-                      {request.kind === "SPARE" ? "Phụ tùng" : "Vật tư"}
+                      {tTuDo(`labels.type_${request.kind}`)}
                     </td>
                     <td className="p-2">{request.requestedBy}</td>
-                    <td className="p-2">{request.department}</td>
-                    <td className="p-2">{request.priority}</td>
+                    <td className="p-2">
+                      {tTuDo(`labels.reqDept_${request.department}`)}
+                    </td>
+                    <td className="p-2">
+                      {tTuDo(`labels.priority_${request.priority}`)}
+                    </td>
                     <td className="p-2">
                       {request.items.map((item) => (
                         <p key={item.id}>
                           {item.material
                             ? item.material.code
-                            : `${item.itemName ?? "(mới)"} (mới)`}{" "}
+                            : `${item.itemName ?? t("vessels.vatTuMoi")} ${t(
+                                "vessels.vatTuMoi"
+                              )}`}{" "}
                           x {item.quantity}
                         </p>
                       ))}
                     </td>
                     <td className="p-2">
                       <span className="rounded bg-slate-100 px-2 py-1">
-                        {request.status}
+                        {tTuDo(`labels.reqStatus_${request.status}`)}
                       </span>
                     </td>
                     <td className="p-2">
@@ -380,7 +395,7 @@ export default async function VesselDetailPage({
                           href={`/requests/${request.id}`}
                           className="rounded bg-slate-100 px-3 py-1 text-center text-slate-700 hover:bg-slate-200"
                         >
-                          Xem / In
+                          {t("vessels.xemIn")}
                         </Link>
                       </div>
                     </td>

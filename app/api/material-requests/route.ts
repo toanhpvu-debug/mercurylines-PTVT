@@ -5,6 +5,7 @@ import {
   trongPhamVi,
   vesselScopeDayDu,
 } from "@/lib/auth";
+import { layT } from "@/lib/i18n/server";
 import { LAP_YEU_CAU } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -29,11 +30,13 @@ function khoaDaySoYeuCau(tienTo: string) {
 }
 
 export async function POST(request: Request) {
+  // Lấy trước khối try để câu báo lỗi ở khối catch cũng dùng được.
+  const { t } = await layT();
   try {
     const user = await requireActiveRole([...LAP_YEU_CAU]);
     if (!user) {
       return NextResponse.json(
-        { error: "Bạn không có quyền thực hiện thao tác này." },
+        { error: t("chung.khongCoQuyen") },
         { status: 403 }
       );
     }
@@ -60,22 +63,25 @@ export async function POST(request: Request) {
       }
     }
     if (!vesselId) {
-      return NextResponse.json({ error: "Tàu là bắt buộc." }, { status: 400 });
+      return NextResponse.json(
+        { error: t("actionsModule.yeuCau_tauBatBuoc") },
+        { status: 400 }
+      );
     }
     const scope = vesselScopeDayDu(user);
     if (!trongPhamVi(scope, vesselId)) {
       return NextResponse.json(
         {
           error: scope.unassigned
-            ? "Bạn chưa được gán tàu nên không thể tạo yêu cầu."
-            : "Bạn chỉ có thể tạo yêu cầu cho tàu mình phụ trách.",
+            ? t("actionsModule.yeuCau_chuaGanTau")
+            : t("actionsModule.yeuCau_chiTauPhuTrach"),
         },
         { status: 403 }
       );
     }
     if (!Array.isArray(body.items) || body.items.length === 0) {
       return NextResponse.json(
-        { error: "Yêu cầu phải có ít nhất một dòng." },
+        { error: t("actionsModule.yeuCau_itNhatMotDong") },
         { status: 400 }
       );
     }
@@ -119,7 +125,7 @@ export async function POST(request: Request) {
       .filter((x: ParsedItem | null): x is ParsedItem => x !== null);
     if (!items.length) {
       return NextResponse.json(
-        { error: "Danh sách vật tư không hợp lệ." },
+        { error: t("actionsModule.yeuCau_danhSachKhongHopLe") },
         { status: 400 }
       );
     }
@@ -139,7 +145,7 @@ export async function POST(request: Request) {
       });
       if (existing.length !== materialIds.length) {
         return NextResponse.json(
-          { error: "Có vật tư không tồn tại trong danh mục." },
+          { error: t("actionsModule.yeuCau_vatTuKhongTonTai") },
           { status: 400 }
         );
       }
@@ -162,7 +168,10 @@ export async function POST(request: Request) {
       select: { code: true },
     });
     if (!vessel) {
-      return NextResponse.json({ error: "Tàu không tồn tại." }, { status: 400 });
+      return NextResponse.json(
+        { error: t("actionsModule.tauKhongTonTai") },
+        { status: 400 }
+      );
     }
     const vesselTag = vessel.code.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
     const yearTag = String(new Date().getFullYear()).slice(-2);
@@ -241,7 +250,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error(error);
     return NextResponse.json(
-      { error: "Không thể tạo yêu cầu." },
+      { error: t("actionsModule.yeuCau_khongTaoDuoc") },
       { status: 500 }
     );
   }

@@ -7,17 +7,11 @@ import {
   taoUyQuyen,
   thuHoiUyQuyen,
 } from "@/app/quyen-actions";
-import { ROLE_LABEL, type TrangThaiUyQuyen } from "@/lib/roles";
+import { type TrangThaiUyQuyen } from "@/lib/roles";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type VesselOption = { id: number; label: string };
 type NguoiDung = { id: number; name: string; email: string; role: string };
-
-const ngayVN = (d: string | Date) =>
-  new Date(d).toLocaleDateString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
 
 /**
  * Phân công đội tàu cho MỘT tài khoản quản lý kỹ thuật.
@@ -35,6 +29,7 @@ export function PhanCongDoiTau({
   vessels: VesselOption[];
   daChon: number[];
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(capNhatPhanCongDoiTau, {
     message: "",
   });
@@ -60,12 +55,12 @@ export function PhanCongDoiTau({
           disabled={pending}
           className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {pending ? "Đang lưu..." : "Lưu phân công"}
+          {pending ? t("chung.dangLuu") : t("vessels.luuPhanCong")}
         </button>
         <span className="text-xs text-slate-500">
           {daChon.length
-            ? `Đang phụ trách ${daChon.length} tàu`
-            : "Chưa phân công tàu nào — tài khoản này đang thấy TOÀN ĐỘI"}
+            ? t("vessels.dangPhuTrachNTau", { n: daChon.length })
+            : t("vessels.chuaPhanCongTau")}
         </span>
       </div>
       {state.message && (
@@ -94,6 +89,7 @@ export function LapUyQuyen({
    */
   toiId?: number;
 }) {
+  const { t, tTuDo } = useNgonNgu();
   const [state, formAction, pending] = useActionState(taoUyQuyen, {
     message: "",
   });
@@ -102,7 +98,7 @@ export function LapUyQuyen({
     <form action={formAction} className="space-y-3">
       <div>
         <label className="mb-1 block text-sm font-medium">
-          Người giao quyền {laAdmin ? "*" : ""}
+          {t("vessels.cotNguoiGiaoQuyen")} {laAdmin ? "*" : ""}
         </label>
         {laAdmin ? (
           // KHÔNG chọn sẵn chính người đang mở trang.
@@ -124,22 +120,24 @@ export function LapUyQuyen({
             className="w-full rounded border p-2 text-sm"
           >
             <option value="" disabled>
-              — Chọn người giao quyền —
+              {t("vessels.chonNguoiGiaoQuyen")}
             </option>
             {nguoiCoQuyen.map((u) => (
               <option key={u.id} value={u.id}>
-                {u.name} — {ROLE_LABEL[u.role] ?? u.role}
+                {u.name} — {tTuDo(`labels.role_${u.role}`)}
               </option>
             ))}
           </select>
         ) : (
           <p className="rounded bg-slate-50 p-2 text-sm text-slate-600">
-            Bạn giao quyền của chính mình
+            {t("vessels.tuGiaoQuyen")}
           </p>
         )}
       </div>
       <div>
-        <label className="mb-1 block text-sm font-medium">Người nhận *</label>
+        <label className="mb-1 block text-sm font-medium">
+          {t("vessels.cotNguoiNhan")} *
+        </label>
         <select
           name="delegateId"
           required
@@ -147,18 +145,20 @@ export function LapUyQuyen({
           className="w-full rounded border p-2 text-sm"
         >
           <option value="" disabled>
-            — Chọn người nhận —
+            {t("vessels.chonNguoiNhan")}
           </option>
           {nguoiNhan.map((u) => (
             <option key={u.id} value={u.id}>
-              {u.name} — {ROLE_LABEL[u.role] ?? u.role}
+              {u.name} — {tTuDo(`labels.role_${u.role}`)}
             </option>
           ))}
         </select>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="mb-1 block text-sm font-medium">Từ ngày *</label>
+          <label className="mb-1 block text-sm font-medium">
+            {t("vessels.tuNgay")} *
+          </label>
           <input
             type="date"
             name="startAt"
@@ -168,7 +168,9 @@ export function LapUyQuyen({
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">Đến hết ngày *</label>
+          <label className="mb-1 block text-sm font-medium">
+            {t("vessels.denHetNgay")} *
+          </label>
           <input
             type="date"
             name="endAt"
@@ -178,10 +180,12 @@ export function LapUyQuyen({
         </div>
       </div>
       <div>
-        <label className="mb-1 block text-sm font-medium">Lý do</label>
+        <label className="mb-1 block text-sm font-medium">
+          {t("vessels.cotLyDo")}
+        </label>
         <input
           name="reason"
-          placeholder="Đi bờ, nghỉ phép, đi họp..."
+          placeholder={t("vessels.phLyDo")}
           className="w-full rounded border p-2 text-sm"
         />
       </div>
@@ -189,7 +193,7 @@ export function LapUyQuyen({
         disabled={pending}
         className="rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
       >
-        {pending ? "Đang lưu..." : "Lập ủy quyền"}
+        {pending ? t("chung.dangLuu") : t("vessels.lapUyQuyen")}
       </button>
       {state.message && (
         <p
@@ -203,6 +207,7 @@ export function LapUyQuyen({
 }
 
 export function ThuHoiUyQuyen({ id }: { id: number }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(thuHoiUyQuyen, {
     message: "",
   });
@@ -213,7 +218,7 @@ export function ThuHoiUyQuyen({ id }: { id: number }) {
         disabled={pending}
         className="rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
       >
-        {pending ? "..." : "Thu hồi"}
+        {pending ? "..." : t("vessels.thuHoi")}
       </button>
       {state.message && !state.success && (
         <span className="ml-2 text-xs text-red-600">{state.message}</span>
@@ -236,30 +241,38 @@ export function NhanTrangThaiUyQuyen({
   trangThai: TrangThaiUyQuyen;
   revokedAt: string | Date | null;
 }) {
+  const { t, ngay } = useNgonNgu();
   if (trangThai === "DA_THU_HOI") {
     return (
       <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-        Đã thu hồi{revokedAt ? ` ${ngayVN(revokedAt)}` : ""}
+        {t("vessels.daThuHoi")}
+        {revokedAt
+          ? ` ${ngay(revokedAt, {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            })}`
+          : ""}
       </span>
     );
   }
   if (trangThai === "HET_HAN") {
     return (
       <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-        Hết hạn
+        {t("vessels.hetHan")}
       </span>
     );
   }
   if (trangThai === "CHUA_TOI") {
     return (
       <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-        Chưa tới hạn
+        {t("vessels.chuaToiHan")}
       </span>
     );
   }
   return (
     <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">
-      Đang hiệu lực
+      {t("vessels.dangHieuLuc")}
     </span>
   );
 }

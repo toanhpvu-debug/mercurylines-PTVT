@@ -20,6 +20,7 @@ import {
   mocGiuMauDau,
   tinhHanDung,
 } from "@/lib/consumables";
+import { layT } from "@/lib/i18n/server";
 import {
   QUAN_DANH_MUC_NHIEN_LIEU,
   ROLE_LABEL,
@@ -33,8 +34,15 @@ import type { PhieuDeXuat } from "@/lib/bunkerParse";
 
 // Server action cho module Dầu · Dầu nhờn · Hóa chất. Tách khỏi app/actions.ts
 // và app/paint-actions.ts để mỗi nghiệp vụ đứng riêng.
+//
+// Câu trả về cho người dùng đi qua t() nên theo ngôn ngữ giao diện; chữ ghi vào
+// database (itemName, purpose, note của nhật ký phê duyệt và của giao dịch) giữ
+// nguyên tiếng Việt — hồ sơ không đổi theo người đang xem.
 
-const NO_PERMISSION = "Bạn không có quyền thực hiện thao tác này.";
+// Tiền tố đánh dấu lỗi "không đủ tồn" do chính hàm này nêu ra bên trong
+// transaction rồi bắt lại ở ngoài. Không có tiền tố thì phải so chuỗi tiếng
+// Việt, mà câu thông báo nay đổi theo ngôn ngữ nên chỗ bắt sẽ trượt.
+const LOI_TON = "LOI_TON:";
 
 // Vùng khóa tư vấn cho tồn dầu · dầu nhờn · hóa chất — khác vùng của tồn kho vật
 // tư (811001), số PO (811002) và số yêu cầu (811003) vì Postgres chỉ có MỘT
@@ -159,10 +167,11 @@ export async function saveConsumableProduct(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t } = await layT();
   const id = Number(formData.get("id") || 0);
   const category = text(formData, "category");
   if (!CATEGORY_VALUES.includes(category)) {
-    return { message: "Nhóm không hợp lệ." };
+    return { message: t("actionsModule.nhienLieu_nhomKhongHopLe") };
   }
   // Thêm mới thì người quản nhóm đó trên tàu làm được; sửa mặt hàng đang dùng
   // chung toàn đội thì không — cùng quy tắc với danh mục sơn.
@@ -174,16 +183,16 @@ export async function saveConsumableProduct(
     return {
       message:
         id > 0
-          ? "Sửa mặt hàng dùng chung là việc của thuyền trưởng hoặc văn phòng. Bạn thêm mặt hàng mới được."
-          : NO_PERMISSION,
+          ? t("actionsModule.nhienLieu_suaMatHangDungChung")
+          : t("chung.khongCoQuyen"),
     };
   }
 
   const name = text(formData, "name");
-  if (!name) return { message: "Tên mặt hàng là bắt buộc." };
+  if (!name) return { message: t("actionsModule.nhienLieu_tenMatHangBatBuoc") };
   const grade = text(formData, "grade") || "OTHER";
   if (!GRADES[category].some((g) => g.value === grade)) {
-    return { message: "Chủng loại không hợp lệ với nhóm đã chọn." };
+    return { message: t("actionsModule.nhienLieu_chungLoaiKhongHopLe") };
   }
 
   const shelfRaw = numOrNull(formData, "shelfLifeMonths");
@@ -234,30 +243,38 @@ export async function saveConsumableProduct(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return { message: `Mã "${code}" đã tồn tại.` };
+      return {
+        message: t("actionsModule.nhienLieu_maDaTonTai", { ma: code }),
+      };
     }
     throw error;
   }
   revalidatePath("/consumables/products");
   revalidatePath("/consumables");
-  return { message: `Đã lưu "${name}".`, success: true };
+  return {
+    message: t("actionsModule.nhienLieu_daLuuMatHang", { ten: name }),
+    success: true,
+  };
 }
 
 export async function toggleConsumableProduct(
   _prev: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
-  if (!(await requireFleet())) return { message: NO_PERMISSION };
+  const { t } = await layT();
+  if (!(await requireFleet())) return { message: t("chung.khongCoQuyen") };
   const id = Number(formData.get("id"));
   const p = await prisma.consumableProduct.findUnique({ where: { id } });
-  if (!p) return { message: "Không tìm thấy mặt hàng." };
+  if (!p) return { message: t("actionsModule.nhienLieu_khongTimThayMatHang") };
   await prisma.consumableProduct.update({
     where: { id },
     data: { isActive: !p.isActive },
   });
   revalidatePath("/consumables/products");
   return {
-    message: p.isActive ? `Đã ngừng dùng "${p.name}".` : `Đã dùng lại "${p.name}".`,
+    message: p.isActive
+      ? t("actionsModule.daNgungDungTen", { ten: p.name })
+      : t("actionsModule.daDungLaiTen", { ten: p.name }),
     success: true,
   };
 }
@@ -266,7 +283,8 @@ export async function deleteConsumableProduct(
   _prev: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
-  if (!(await requireFleet())) return { message: NO_PERMISSION };
+  const { t } = await layT();
+  if (!(await requireFleet())) return { message: t("chung.khongCoQuyen") };
   const id = Number(formData.get("id"));
   const p = await prisma.consumableProduct.findUnique({
     where: { id },
@@ -274,17 +292,24 @@ export async function deleteConsumableProduct(
       _count: { select: { transactions: true, receipts: true, stocks: true } },
     },
   });
-  if (!p) return { message: "Không tìm thấy mặt hàng." };
+  if (!p) return { message: t("actionsModule.nhienLieu_khongTimThayMatHang") };
   const dinhKem =
     p._count.transactions + p._count.receipts + p._count.stocks;
   if (dinhKem > 0) {
     return {
-      message: `Không xóa được: đã có ${p._count.receipts} phiếu nhận, ${p._count.transactions} giao dịch và ${p._count.stocks} dòng tồn gắn với mặt hàng này. Dùng "Ngừng dùng" để ẩn khỏi ô chọn mà vẫn giữ lịch sử.`,
+      message: t("actionsModule.nhienLieu_khongXoaDuoc", {
+        phieu: p._count.receipts,
+        gd: p._count.transactions,
+        ton: p._count.stocks,
+      }),
     };
   }
   await prisma.consumableProduct.delete({ where: { id } });
   revalidatePath("/consumables/products");
-  return { message: `Đã xóa "${p.name}".`, success: true };
+  return {
+    message: t("actionsModule.daXoaTen", { ten: p.name }),
+    success: true,
+  };
 }
 
 // ─── Nhận hàng (BDN / phiếu giao) ────────────────────────────────────────────
@@ -299,33 +324,40 @@ export async function createConsumableReceipt(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t, ngay } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   const productId = Number(formData.get("productId"));
-  if (!vesselId || !productId) return { message: "Thiếu tàu hoặc mặt hàng." };
+  if (!vesselId || !productId) {
+    return { message: t("actionsModule.nhienLieu_thieuTauHoacMatHang") };
+  }
 
   const product = await prisma.consumableProduct.findUnique({
     where: { id: productId },
   });
-  if (!product) return { message: "Mặt hàng không tồn tại." };
+  if (!product) {
+    return { message: t("actionsModule.nhienLieu_matHangKhongTonTai") };
+  }
 
   const actor = await requireNhom(vesselId, product.category);
-  if (!actor) return { message: NO_PERMISSION };
+  if (!actor) return { message: t("chung.khongCoQuyen") };
 
   const docNo = text(formData, "docNo");
   if (!docNo) {
     return {
       message:
         product.category === "FUEL"
-          ? "Số BDN là bắt buộc — không có số BDN thì lô dầu không đối chiếu được khi kiểm tra."
-          : "Số phiếu giao hàng là bắt buộc.",
+          ? t("actionsModule.nhienLieu_soBdnBatBuoc")
+          : t("actionsModule.nhienLieu_soPhieuGiaoBatBuoc"),
     };
   }
   const quantity = num(formData, "quantity");
-  if (!(quantity > 0)) return { message: "Số lượng phải lớn hơn 0." };
+  if (!(quantity > 0)) {
+    return { message: t("actionsModule.soLuongPhaiLonHonKhong") };
+  }
 
   const receivedAt = dateOrNull(formData, "receivedAt") ?? new Date();
   if (receivedAt.getTime() > Date.now()) {
-    return { message: "Không ghi được ngày nhận ở tương lai." };
+    return { message: t("actionsModule.nhienLieu_ngayNhanTuongLai") };
   }
 
   const sulphur = numOrNull(formData, "sulphur");
@@ -348,11 +380,11 @@ export async function createConsumableReceipt(
   const tepMoi = formData.get("attach");
   if (tepMoi instanceof File && tepMoi.size > 0) {
     if (tepMoi.size > MAX_UPLOAD_BYTES) {
-      return { message: "File đính kèm vượt quá 20MB." };
+      return { message: t("actionsModule.nhienLieu_dinhKemVuot20Mb") };
     }
     const dir = await ensureUploadDir();
     const ext = tepMoi.name.toLowerCase().endsWith(".pdf") ? ".pdf" : "";
-    if (!ext) return { message: "File đính kèm phải là PDF." };
+    if (!ext) return { message: t("actionsModule.nhienLieu_dinhKemPhaiPdf") };
     attachStored = `${randomUUID()}.pdf`;
     await writeFile(
       path.join(dir, attachStored),
@@ -432,14 +464,24 @@ export async function createConsumableReceipt(
   });
 
   revalidateVessel(vesselId);
-  const phan = [`Đã ghi nhận ${quantity} ${product.uom} theo ${docNo}.`];
+  const phan = [
+    t("actionsModule.nhienLieu_daGhiNhan", {
+      sl: quantity,
+      dv: product.uom,
+      so: docNo,
+    }),
+  ];
   if (sampleKeepUntil) {
     phan.push(
-      `Mẫu dầu giữ tới ${sampleKeepUntil.toLocaleDateString("vi-VN")} (MARPOL VI 18.8.1).`
+      t("actionsModule.nhienLieu_mauDauGiuToi", {
+        ngay: ngay(sampleKeepUntil),
+      })
     );
   }
   if (expiryDate) {
-    phan.push(`Hạn dùng lô: ${expiryDate.toLocaleDateString("vi-VN")}.`);
+    phan.push(
+      t("actionsModule.nhienLieu_hanDungLo", { ngay: ngay(expiryDate) })
+    );
   }
   return { message: phan.join(" "), success: true };
 }
@@ -448,14 +490,15 @@ export async function deleteConsumableReceipt(
   _prev: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const id = Number(formData.get("id"));
   const receipt = await prisma.consumableReceipt.findUnique({
     where: { id },
     include: { product: true },
   });
-  if (!receipt) return { message: "Không tìm thấy phiếu." };
+  if (!receipt) return { message: t("actionsModule.nhienLieu_khongTimThayPhieu") };
   const actor = await requireNhom(receipt.vesselId, receipt.product.category);
-  if (!actor) return { message: NO_PERMISSION };
+  if (!actor) return { message: t("chung.khongCoQuyen") };
 
   await prisma.$transaction(async (tx) => {
     // Cùng khóa với đường nhận/xuất: trừ lại tồn là một phép đọc-rồi-ghi, phải
@@ -486,7 +529,10 @@ export async function deleteConsumableReceipt(
     await unlink(path.join(getUploadDir(), receipt.attachStored)).catch(() => {});
   }
   revalidateVessel(receipt.vesselId);
-  return { message: `Đã xóa phiếu ${receipt.docNo} và hoàn lại tồn.`, success: true };
+  return {
+    message: t("actionsModule.nhienLieu_daXoaPhieu", { so: receipt.docNo }),
+    success: true,
+  };
 }
 
 // ─── Tiêu thụ / xuất ─────────────────────────────────────────────────────────
@@ -495,24 +541,31 @@ export async function createConsumableMove(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   const productId = Number(formData.get("productId"));
-  if (!vesselId || !productId) return { message: "Thiếu tàu hoặc mặt hàng." };
+  if (!vesselId || !productId) {
+    return { message: t("actionsModule.nhienLieu_thieuTauHoacMatHang") };
+  }
 
   const product = await prisma.consumableProduct.findUnique({
     where: { id: productId },
   });
-  if (!product) return { message: "Mặt hàng không tồn tại." };
+  if (!product) {
+    return { message: t("actionsModule.nhienLieu_matHangKhongTonTai") };
+  }
 
   const actor = await requireNhom(vesselId, product.category);
-  if (!actor) return { message: NO_PERMISSION };
+  if (!actor) return { message: t("chung.khongCoQuyen") };
 
   const type = text(formData, "type");
   if (!["IN", "OUT", "CONSUME"].includes(type)) {
-    return { message: "Loại giao dịch không hợp lệ." };
+    return { message: t("actionsModule.loaiGiaoDichKhongHopLe") };
   }
   const quantity = num(formData, "quantity");
-  if (!(quantity > 0)) return { message: "Số lượng phải lớn hơn 0." };
+  if (!(quantity > 0)) {
+    return { message: t("actionsModule.soLuongPhaiLonHonKhong") };
+  }
 
   // Nơi tiêu thụ chỉ có nghĩa với CONSUME. Ghi vào IN/OUT là dữ liệu vô nghĩa
   // làm báo cáo cộng nhầm.
@@ -520,13 +573,13 @@ export async function createConsumableMove(
   if (type === "CONSUME") {
     consumer = text(formData, "consumer") || "OTHER";
     if (!CONSUMER_VALUES.includes(consumer)) {
-      return { message: "Nơi tiêu thụ không hợp lệ." };
+      return { message: t("actionsModule.nhienLieu_noiTieuThuKhongHopLe") };
     }
   }
 
   const occurredAt = dateOrNull(formData, "occurredAt") ?? new Date();
   if (occurredAt.getTime() > Date.now()) {
-    return { message: "Không ghi được thời điểm ở tương lai." };
+    return { message: t("actionsModule.khongGhiThoiDiemTuongLai") };
   }
 
   try {
@@ -541,7 +594,12 @@ export async function createConsumableMove(
       const current = stock?.quantity ?? 0;
       if (type !== "IN" && quantity > current) {
         throw new Error(
-          `Không đủ tồn: còn ${current} ${product.uom}, muốn ghi ${quantity}.`
+          LOI_TON +
+            t("actionsModule.nhienLieu_khongDuTon", {
+              con: current,
+              dv: product.uom,
+              muon: quantity,
+            })
         );
       }
       const next = type === "IN" ? current + quantity : current - quantity;
@@ -564,8 +622,8 @@ export async function createConsumableMove(
       });
     });
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("Không đủ tồn")) {
-      return { message: error.message };
+    if (error instanceof Error && error.message.startsWith(LOI_TON)) {
+      return { message: error.message.slice(LOI_TON.length) };
     }
     throw error;
   }
@@ -574,10 +632,10 @@ export async function createConsumableMove(
   return {
     message:
       type === "IN"
-        ? "Đã ghi nhận vào tồn."
+        ? t("actionsModule.nhienLieu_daGhiNhanVaoTon")
         : type === "CONSUME"
-          ? "Đã ghi tiêu thụ."
-          : "Đã ghi xuất.",
+          ? t("actionsModule.nhienLieu_daGhiTieuThu")
+          : t("actionsModule.nhienLieu_daGhiXuat"),
     success: true,
   };
 }
@@ -586,14 +644,17 @@ export async function saveConsumableMin(
   _prev: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   const productId = Number(formData.get("productId"));
   const product = await prisma.consumableProduct.findUnique({
     where: { id: productId },
   });
-  if (!product) return { message: "Mặt hàng không tồn tại." };
+  if (!product) {
+    return { message: t("actionsModule.nhienLieu_matHangKhongTonTai") };
+  }
   if (!(await requireNhom(vesselId, product.category))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const minQty = num(formData, "minQty");
   await prisma.consumableStock.upsert({
@@ -602,7 +663,10 @@ export async function saveConsumableMin(
     create: { vesselId, productId, minQty, quantity: 0 },
   });
   revalidateVessel(vesselId);
-  return { message: "Đã lưu định mức.", success: true };
+  return {
+    message: t("actionsModule.nhienLieu_daLuuDinhMuc"),
+    success: true,
+  };
 }
 
 // ─── Đọc phiếu từ file PDF (kể cả bản scan) ──────────────────────────────────
@@ -628,23 +692,24 @@ export async function docPhieuTuPdf(
   _prev: KetQuaDocPhieu,
   formData: FormData
 ): Promise<KetQuaDocPhieu> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   // Chỉ cần là người thao tác được ít nhất một nhóm trên tàu này — bước này
   // chưa ghi gì, quyền ghi kiểm ở lúc lưu phiếu.
   const actor = await requireActiveRole([...VAN_HANH_HOA_CHAT]);
   if (!actor || !coQuanLyNhienLieu(actor, vesselId)) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
-    return { message: "Hãy chọn file PDF." };
+    return { message: t("actionsModule.nhienLieu_hayChonPdf") };
   }
   if (!file.name.toLowerCase().endsWith(".pdf")) {
-    return { message: "File phải là PDF (.pdf)." };
+    return { message: t("actionsModule.nhienLieu_filePhaiLaPdf") };
   }
   if (file.size > MAX_UPLOAD_BYTES) {
-    return { message: "File vượt quá 20MB." };
+    return { message: t("actionsModule.nhienLieu_fileVuot20Mb") };
   }
 
   const { docPdfBangOcr } = await import("@/lib/pdfOcr");
@@ -663,6 +728,7 @@ export async function docPhieuTuPdf(
   const kq = await docPdfBangOcr(fullPath);
   if (!kq.ok) {
     // Giữ lại file: người dùng vẫn đính kèm được dù máy không đọc ra chữ.
+    // kq.loi do lib/pdfOcr.ts sinh ra — đưa thẳng ra, không dịch ở đây.
     return {
       message: kq.loi,
       deXuat: undefined,
@@ -675,8 +741,8 @@ export async function docPhieuTuPdf(
   return {
     message:
       soO === 0
-        ? "Đọc được chữ nhưng không nhận ra ô nào quen thuộc. Hãy nhập tay và đối chiếu với bản gốc."
-        : `Đã đọc ${soO} ô từ bản scan. Đối chiếu lại với bản gốc trước khi lưu — chữ nhận dạng từ ảnh không bao giờ đúng tuyệt đối.`,
+        ? t("actionsModule.nhienLieu_docKhongNhanRaO")
+        : t("actionsModule.nhienLieu_daDocNO", { n: soO }),
     success: soO > 0,
     deXuat,
     chu: kq.text.slice(0, 4000),
@@ -703,15 +769,16 @@ export async function taoYeuCauNhienLieu(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   const actor = await requireActiveRole([...XIN_CAP_NHIEN_LIEU]);
-  if (!actor) return { message: NO_PERMISSION };
+  if (!actor) return { message: t("chung.khongCoQuyen") };
 
   const vessel = await prisma.vessel.findUnique({
     where: { id: vesselId },
     select: { code: true, name: true },
   });
-  if (!vessel) return { message: "Tàu không tồn tại." };
+  if (!vessel) return { message: t("actionsModule.tauKhongTonTai") };
 
   // Các dòng gửi lên: sl_<productId> = số lượng xin cấp.
   const dong: { productId: number; quantity: number }[] = [];
@@ -724,21 +791,25 @@ export async function taoYeuCauNhienLieu(
     dong.push({ productId, quantity });
   }
   if (dong.length === 0) {
-    return { message: "Nhập số lượng cho ít nhất một mặt hàng." };
+    return { message: t("actionsModule.nhienLieu_nhapSoLuongItNhatMot") };
   }
 
   const products = await prisma.consumableProduct.findMany({
     where: { id: { in: dong.map((d) => d.productId) } },
   });
   if (products.length !== dong.length) {
-    return { message: "Có mặt hàng không còn trong danh mục." };
+    return {
+      message: t("actionsModule.nhienLieu_matHangKhongConTrongDanhMuc"),
+    };
   }
   // Xin cấp nhóm nào thì phải có quyền nhóm đó — không mượn form để xin hộ
   // nhóm mình không phụ trách.
   for (const p of products) {
     if (!coXinCapNhienLieu(actor, vesselId, p.category)) {
       return {
-        message: `Bạn không phụ trách nhóm của mặt hàng "${p.name}" nên không xin cấp được.`,
+        message: t("actionsModule.nhienLieu_khongPhuTrachNhom", {
+          ten: p.name,
+        }),
       };
     }
   }
@@ -852,9 +923,13 @@ export async function taoYeuCauNhienLieu(
   revalidateVessel(vesselId);
   revalidatePath("/requests");
   return {
-    message: `Đã gửi yêu cầu ${created.requestNo} (${dong.length} mặt hàng) lên ${
-      thangLenCongTy ? "quản lý kỹ thuật công ty" : "duyệt cấp tàu"
-    }.`,
+    message: t("actionsModule.nhienLieu_daGuiYeuCau", {
+      so: created.requestNo,
+      n: dong.length,
+      noi: thangLenCongTy
+        ? t("actionsModule.noiDuyetCongTy")
+        : t("actionsModule.noiDuyetCapTau"),
+    }),
     success: true,
   };
 }

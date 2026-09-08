@@ -45,9 +45,9 @@ import {
   DUYET_CONG_TY,
   LAP_YEU_CAU,
   ROLE_LABEL,
+  SI_QUAN,
   VAN_HANH_TAU,
   trinhThangLenCongTy,
-  viSaoKhongDuyetDuoc,
 } from "@/lib/roles";
 import {
   ALLOWED_EXTENSIONS,
@@ -56,10 +56,23 @@ import {
   fileExtension,
   getUploadDir,
 } from "@/lib/uploads";
+import type { HamDich, KhoaDich } from "@/lib/i18n";
+import { layT } from "@/lib/i18n/server";
 
 class ActionError extends Error {}
 
-const NO_PERMISSION = "Bạn không có quyền thực hiện thao tác này.";
+/**
+ * Vì sao người này không được duyệt — cùng phân nhánh với viSaoKhongDuyetDuoc()
+ * ở lib/roles, nhưng trả về KHÓA từ điển để câu giải thích đổi theo ngôn ngữ
+ * đang chọn. lib/roles là mã dùng chung (script cũng gọi) nên không nhận hàm
+ * dịch; bản tiếng Việt ở đó vẫn giữ nguyên, chỗ này mới là chỗ hiện ra màn hình.
+ */
+function khoaViSaoKhongDuyet(role: string): KhoaDich {
+  if (SI_QUAN.includes(role)) return "requests.viSaoSiQuan";
+  if (role === "CHIEF_ENGINEER") return "requests.viSaoMayTruong";
+  if (role === "TECH_MANAGER") return "requests.viSaoQuanLyKyThuat";
+  return "chung.khongCoQuyen";
+}
 
 /**
  * Hạn mức dành cho những giao dịch có xin khóa tư vấn bên trong.
@@ -79,24 +92,24 @@ const NO_PERMISSION = "Bạn không có quyền thực hiện thao tác này.";
 const GIAO_DICH_GIU_KHOA = { timeout: 20_000, maxWait: 10_000 };
 
 /**
- * Dịch lỗi hạ tầng của một giao dịch thành câu tiếng Việt; null nếu không phải
- * loại đã biết (nơi gọi ném tiếp).
+ * Dịch lỗi hạ tầng của một giao dịch thành câu theo ngôn ngữ đang chọn; null
+ * nếu không phải loại đã biết (nơi gọi ném tiếp).
  *
  * Ba mã này đều KHÔNG phải ActionError nên khối catch sẵn có không giữ chúng
  * lại: không dịch thì chúng bay thẳng ra màn hình 500 và người dùng mất toàn bộ
  * dữ liệu vừa nhập, trong khi cả ba đều là chuyện thử lại được.
  */
-function thongBaoLoiGiaoDich(error: unknown): string | null {
+function thongBaoLoiGiaoDich(t: HamDich, error: unknown): string | null {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return null;
   switch (error.code) {
     // P2028: giao dịch quá hạn (thường vì nằm chờ khóa quá lâu).
     // P2024: hết kết nối rảnh trong pool.
     case "P2028":
     case "P2024":
-      return "Hệ thống đang bận xử lý một thao tác khác trên cùng dữ liệu. Vui lòng thử lại sau ít giây.";
+      return t("actions.giaoDich_heThongBan");
     // P2002: hai người ghi cùng lúc lọt qua được khe hẹp và đụng khóa duy nhất.
     case "P2002":
-      return "Có người vừa ghi một bản ghi trùng. Vui lòng tải lại trang và thử lại.";
+      return t("actions.giaoDich_ghiTrung");
     default:
       return null;
   }
@@ -132,13 +145,14 @@ export async function login(
   _prevState: { message: string; email?: string },
   formData: FormData
 ): Promise<{ message: string; email?: string }> {
+  const { t } = await layT();
   const email = String(formData.get("email") || "")
     .trim()
     .toLowerCase();
   const password = String(formData.get("password") || "");
   const next = String(formData.get("next") || "");
   if (!email || !password) {
-    return { message: "Vui lòng nhập email và mật khẩu.", email };
+    return { message: t("actions.dangNhap_thieuEmailMatKhau"), email };
   }
   // Lấy IP đúng cách proxy.ts đang lấy: đứng sau reverse proxy thì địa chỉ TCP
   // là của chính proxy, đếm theo nó là gộp cả thế giới vào một khóa.
@@ -171,7 +185,7 @@ export async function login(
     // cho cả email không tồn tại nên câu này không tiết lộ email nào có thật,
     // mà người dùng thật thì biết đường chờ thay vì gõ lại thêm mười lần.
     return {
-      message: `Đã thử sai quá nhiều lần. Vui lòng chờ ${phut} phút rồi thử lại.`,
+      message: t("actions.dangNhap_tamKhoa", { phut }),
       email,
     };
   }
@@ -207,7 +221,7 @@ export async function login(
       userAgent: h.get("user-agent"),
     });
     ghiNhanHong(email, ip);
-    return { message: "Email hoặc mật khẩu không đúng.", email };
+    return { message: t("actions.dangNhap_saiThongTin"), email };
   }
   // Mật khẩu đã đúng — xóa bộ đếm ngay tại đây chứ không đợi tạo phiên xong.
   // Nhánh createSession hỏng bên dưới là lỗi CẤU HÌNH MÁY CHỦ, không phải người
@@ -236,8 +250,7 @@ export async function login(
       detail: `không tạo được phiên: ${error instanceof Error ? error.message : String(error)}`,
     });
     return {
-      message:
-        "Máy chủ chưa cấu hình SESSION_SECRET nên không tạo được phiên đăng nhập. Liên hệ quản trị hệ thống.",
+      message: t("actions.dangNhap_thieuSessionSecret"),
       email,
     };
   }
@@ -267,8 +280,9 @@ export async function createVessel(
   success?: boolean;
   values?: Record<string, string>;
 }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, [
     "code",
@@ -284,12 +298,12 @@ export async function createVessel(
   const imo = String(formData.get("imo") || "").trim();
   const flag = String(formData.get("flag") || "").trim();
   const vesselType = String(formData.get("vesselType") || "").trim();
-  const may = docMayChinh(formData);
+  const may = docMayChinh(t, formData);
   if ("error" in may) {
     return { message: may.error, values };
   }
   if (!code || !name) {
-    return { message: "Mã tàu và tên tàu là bắt buộc.", values };
+    return { message: t("actions.tau_maVaTenBatBuoc"), values };
   }
   try {
     await prisma.vessel.create({
@@ -307,12 +321,12 @@ export async function createVessel(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return { message: `Mã tàu "${code}" đã tồn tại.`, values };
+      return { message: t("actions.tau_maDaTonTai", { ma: code }), values };
     }
     throw error;
   }
   revalidatePath("/vessels");
-  return { message: `Đã thêm tàu "${name}".`, success: true };
+  return { message: t("actions.tau_daThem", { ten: name }), success: true };
 }
 
 /**
@@ -323,12 +337,15 @@ export async function createVessel(
  * điện, bếp trưởng) mới bắt buộc khai tay, vì họ đều đăng nhập bằng CREW.
  */
 function docChucDanhGiuVatTu(
+  t: HamDich,
   formData: FormData
 ): { rankCode: string | null } | { error: string } {
   const raw = String(formData.get("rankCode") || "").trim();
   if (!raw) return { rankCode: null };
   if (!CHUC_DANH[raw]) {
-    return { error: `Chức danh giữ vật tư "${raw}" không có trong quy ước.` };
+    return {
+      error: t("actions.taiKhoan_chucDanhKhongCoTrongQuyUoc", { ma: raw }),
+    };
   }
   return { rankCode: raw };
 }
@@ -415,6 +432,7 @@ const VESSEL_STATUSES = ["ACTIVE", "MAINTENANCE", "INACTIVE"];
  * trong quy ước, vì phụ tùng máy chính xếp nhóm theo đúng chuỗi này.
  */
 function docMayChinh(
+  t: HamDich,
   formData: FormData
 ):
   | { data: { mainEngineGroup: string | null; mainEngineModel: string | null } }
@@ -422,7 +440,7 @@ function docMayChinh(
   const nhom = String(formData.get("mainEngineGroup") || "").trim();
   const model = String(formData.get("mainEngineModel") || "").trim();
   if (nhom && !(NHOM_MAY_CHINH as readonly string[]).includes(nhom)) {
-    return { error: `Họ máy chính "${nhom}" không có trong quy ước.` };
+    return { error: t("actions.tau_hoMayChinhKhongCoTrongQuyUoc", { nhom }) };
   }
   return {
     data: { mainEngineGroup: nhom || null, mainEngineModel: model || null },
@@ -438,12 +456,13 @@ export async function updateVessel(
   success?: boolean;
   values?: Record<string, string>;
 }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Không tìm thấy tàu." };
+    return { message: t("actions.tau_khongTimThay") };
   }
   const values = formValues(formData, [
     "code",
@@ -461,22 +480,22 @@ export async function updateVessel(
   const flag = String(formData.get("flag") || "").trim();
   const vesselType = String(formData.get("vesselType") || "").trim();
   const status = String(formData.get("status") || "ACTIVE");
-  const may = docMayChinh(formData);
+  const may = docMayChinh(t, formData);
   if ("error" in may) {
     return { message: may.error, values };
   }
   if (!code || !name) {
-    return { message: "Mã tàu và tên tàu là bắt buộc.", values };
+    return { message: t("actions.tau_maVaTenBatBuoc"), values };
   }
   if (!VESSEL_STATUSES.includes(status)) {
-    return { message: "Trạng thái tàu không hợp lệ.", values };
+    return { message: t("actions.tau_trangThaiKhongHopLe"), values };
   }
   const before = await prisma.vessel.findUnique({
     where: { id },
     select: { name: true },
   });
   if (!before) {
-    return { message: "Không tìm thấy tàu." };
+    return { message: t("actions.tau_khongTimThay") };
   }
   let renamedWarehouses = 0;
   try {
@@ -515,10 +534,10 @@ export async function updateVessel(
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
-        return { message: `Mã tàu "${code}" đã tồn tại.`, values };
+        return { message: t("actions.tau_maDaTonTai", { ma: code }), values };
       }
       if (error.code === "P2025") {
-        return { message: "Không tìm thấy tàu." };
+        return { message: t("actions.tau_khongTimThay") };
       }
     }
     throw error;
@@ -528,8 +547,8 @@ export async function updateVessel(
   revalidatePath("/inventory");
   return {
     message: renamedWarehouses
-      ? `Đã lưu thay đổi và đổi tên ${renamedWarehouses} kho theo tên tàu mới.`
-      : "Đã lưu thay đổi.",
+      ? t("actions.tau_daLuuVaDoiTenKho", { n: renamedWarehouses })
+      : t("actions.daLuuThayDoi"),
     success: true,
   };
 }
@@ -538,13 +557,14 @@ export async function deleteVessel(
   _prevState: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const admin = await requireActiveRole(["ADMIN"]);
   if (!admin) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Không tìm thấy tàu." };
+    return { message: t("actions.tau_khongTimThay") };
   }
   const [requestCount, assignedUserCount] = await Promise.all([
     prisma.materialRequest.count({ where: { vesselId: id } }),
@@ -552,12 +572,14 @@ export async function deleteVessel(
   ]);
   if (requestCount > 0) {
     return {
-      message: `Tàu đang có ${requestCount} yêu cầu vật tư nên không thể xóa. Hãy chuyển trạng thái sang "Ngừng khai thác" thay vì xóa.`,
+      message: t("actions.tau_conYeuCauKhongXoaDuoc", { n: requestCount }),
     };
   }
   if (assignedUserCount > 0) {
     return {
-      message: `Tàu đang có ${assignedUserCount} người dùng được gán phụ trách. Hãy gỡ gán hoặc chuyển tàu cho họ trong trang Người dùng trước khi xóa.`,
+      message: t("actions.tau_conNguoiDungKhongXoaDuoc", {
+        n: assignedUserCount,
+      }),
     };
   }
   let daXoa;
@@ -568,13 +590,10 @@ export async function deleteVessel(
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2025") {
-        return { message: "Không tìm thấy tàu." };
+        return { message: t("actions.tau_khongTimThay") };
       }
       if (error.code === "P2003") {
-        return {
-          message:
-            "Tàu đang có dữ liệu liên quan (yêu cầu vật tư) nên không thể xóa.",
-        };
+        return { message: t("actions.tau_conDuLieuLienQuan") };
       }
     }
     throw error;
@@ -637,8 +656,9 @@ export async function createMaterial(
   success?: boolean;
   values?: Record<string, string>;
 }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, [
     "code",
@@ -672,7 +692,7 @@ export async function createMaterial(
   const maxStock = Number(formData.get("maxStock") || 0);
   const isCritical = formData.get("isCritical") === "on";
   if (!code || !nameVn) {
-    return { message: "Mã vật tư và tên vật tư là bắt buộc.", values };
+    return { message: t("actions.vatTu_maVaTenBatBuoc"), values };
   }
   try {
     await prisma.material.create({
@@ -698,12 +718,12 @@ export async function createMaterial(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return { message: `Mã vật tư "${code}" đã tồn tại.`, values };
+      return { message: t("actions.vatTu_maDaTonTai", { ma: code }), values };
     }
     throw error;
   }
   revalidatePath("/materials");
-  return { message: `Đã thêm vật tư "${nameVn}".`, success: true };
+  return { message: t("actions.vatTu_daThem", { ten: nameVn }), success: true };
 }
 
 // Ngừng / mở lại sử dụng vật tư — giữ nguyên tồn kho và lịch sử.
@@ -711,13 +731,14 @@ export async function setMaterialActive(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   const active = String(formData.get("active") || "") === "true";
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   try {
     await prisma.material.update({
@@ -729,7 +750,7 @@ export async function setMaterialActive(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2025"
     ) {
-      return { message: "Không tìm thấy vật tư." };
+      return { message: t("actions.vatTu_khongTimThay") };
     }
     throw error;
   }
@@ -742,29 +763,24 @@ export async function deleteMaterial(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const admin = await requireActiveRole(["ADMIN"]);
   if (!admin) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   const [requestItemCount, inventoryCount] = await Promise.all([
     prisma.materialRequestItem.count({ where: { materialId: id } }),
     prisma.inventory.count({ where: { materialId: id } }),
   ]);
   if (requestItemCount > 0) {
-    return {
-      message:
-        "Vật tư đã dùng trong yêu cầu vật tư nên không thể xóa. Hãy chọn Ngừng sử dụng để giữ lịch sử.",
-    };
+    return { message: t("actions.vatTu_daDungTrongYeuCau") };
   }
   if (inventoryCount > 0) {
-    return {
-      message:
-        "Vật tư đang có bản ghi tồn kho trên tàu nên không thể xóa (tránh mất số liệu tồn). Hãy chọn Ngừng sử dụng.",
-    };
+    return { message: t("actions.vatTu_dangCoTonKho") };
   }
   let daXoa;
   try {
@@ -772,13 +788,10 @@ export async function deleteMaterial(
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2025") {
-        return { message: "Vật tư đã bị xóa." };
+        return { message: t("actions.vatTu_daBiXoa") };
       }
       if (error.code === "P2003") {
-        return {
-          message:
-            "Vật tư đang được tham chiếu ở nơi khác nên không thể xóa. Hãy chọn Ngừng sử dụng.",
-        };
+        return { message: t("actions.vatTu_dangDuocThamChieu") };
       }
     }
     throw error;
@@ -805,9 +818,10 @@ export async function assignMaterialToVessel(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const actor = await requireActiveRole([...VAN_HANH_TAU]);
   if (!actor) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const vesselId = Number(formData.get("vesselId"));
   const materialId = Number(formData.get("materialId"));
@@ -817,16 +831,16 @@ export async function assignMaterialToVessel(
     !Number.isInteger(materialId) ||
     materialId <= 0
   ) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   if (!canManageVesselCatalog(actor, vesselId)) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const material = await prisma.material.findUnique({
     where: { id: materialId },
   });
   if (!material) {
-    return { message: "Vật tư không tồn tại." };
+    return { message: t("actions.vatTu_khongTonTai") };
   }
   await prisma.vesselMaterial.upsert({
     where: { vesselId_materialId: { vesselId, materialId } },
@@ -871,9 +885,10 @@ export async function khaiVatTuMoiChoTau(
   success?: boolean;
   values?: Record<string, string>;
 }> {
+  const { t, tenChucDanh } = await layT();
   const actor = await requireActiveRole([...VAN_HANH_TAU]);
   if (!actor) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, [
     "rankCode",
@@ -892,10 +907,10 @@ export async function khaiVatTuMoiChoTau(
   ]);
   const vesselId = Number(formData.get("vesselId"));
   if (!Number.isInteger(vesselId) || vesselId <= 0) {
-    return { message: "Dữ liệu không hợp lệ.", values };
+    return { message: t("chung.duLieuKhongHopLe"), values };
   }
   if (!canManageVesselCatalog(actor, vesselId)) {
-    return { message: NO_PERMISSION, values };
+    return { message: t("chung.khongCoQuyen"), values };
   }
   const doc = docKhaiMoi(values);
   if (!doc.ok) {
@@ -916,10 +931,10 @@ export async function khaiVatTuMoiChoTau(
         }),
   ]);
   if (!vessel) {
-    return { message: "Tàu không tồn tại.", values };
+    return { message: t("actions.tau_khongTonTai"), values };
   }
   if (khai.categoryId !== null && !nhom) {
-    return { message: "Nhóm thiết bị không tồn tại.", values };
+    return { message: t("actions.nhomThietBi_khongTonTai"), values };
   }
 
   const loai = doanLoai(khai.materialType);
@@ -957,7 +972,9 @@ export async function khaiVatTuMoiChoTau(
         ma = sinhMaNgan({ boPhan: khai.boPhan, loai, stt });
       }
       if ("loi" in ma) {
-        throw new ActionError(`Không cấp được mã: ${ma.loi}`);
+        throw new ActionError(
+          t("actions.vatTu_khongCapDuocMa", { loi: ma.loi })
+        );
       }
       const material = await tx.material.create({
         data: {
@@ -995,18 +1012,22 @@ export async function khaiVatTuMoiChoTau(
     revalidatePath("/materials");
     revalidatePath("/inventory");
     revalidatePath("/dashboard");
-    const cd = CHUC_DANH[khai.rankCode];
-    let message = `Đã tạo ${kq.ma} — "${khai.nameVn}", giữ bởi ${cd.ten} (${khai.rankCode}), đã thêm vào danh mục ${vessel.name}.`;
+    let message = t("actions.vatTu_daTaoChoTau", {
+      ma: kq.ma,
+      ten: khai.nameVn,
+      chucDanh: tenChucDanh(khai.rankCode),
+      maChucDanh: khai.rankCode,
+      tau: vessel.name,
+    });
     if (!kq.trongKhoi) {
-      message +=
-        " Khối mã của nhóm đã kín nên mã xếp tạm cuối dãy — khi tiện, chạy doi-ma-vat-tu.cmd --theo-nhom để xếp lại.";
+      message += ` ${t("actions.vatTu_khoiMaDaKin")}`;
     }
     return { message, success: true };
   } catch (error) {
     if (error instanceof ActionError) {
       return { message: error.message, values };
     }
-    const dich = thongBaoLoiGiaoDich(error);
+    const dich = thongBaoLoiGiaoDich(t, error);
     if (dich) {
       return { message: dich, values };
     }
@@ -1019,9 +1040,10 @@ export async function unassignMaterialFromVessel(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const actor = await requireActiveRole([...VAN_HANH_TAU]);
   if (!actor) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const vesselId = Number(formData.get("vesselId"));
   const materialId = Number(formData.get("materialId"));
@@ -1031,10 +1053,10 @@ export async function unassignMaterialFromVessel(
     !Number.isInteger(materialId) ||
     materialId <= 0
   ) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   if (!canManageVesselCatalog(actor, vesselId)) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   await prisma.vesselMaterial.deleteMany({
     where: { vesselId, materialId },
@@ -1068,9 +1090,10 @@ export async function createInventoryTransaction(
   success?: boolean;
   values?: Record<string, string>;
 }> {
+  const { t } = await layT();
   const actor = await requireActiveRole([...VAN_HANH_TAU]);
   if (!actor) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const scope = vesselScopeDayDu(actor);
   const values = formValues(formData, [
@@ -1091,10 +1114,10 @@ export async function createInventoryTransaction(
   const quantity = Number(formData.get("quantity"));
   const note = String(formData.get("note") || "").trim();
   if (!["IN", "OUT"].includes(type)) {
-    return { message: "Loại giao dịch không hợp lệ.", values };
+    return { message: t("actions.kho_loaiGiaoDichKhongHopLe"), values };
   }
   if (!materialId || !warehouseId || !(quantity > 0)) {
-    return { message: "Dữ liệu nhập/xuất không hợp lệ.", values };
+    return { message: t("actions.kho_duLieuNhapXuatKhongHopLe"), values };
   }
   // Thời điểm thực hiện: để trống = bây giờ; cho phép ghi lùi, không cho ghi trước tương lai.
   const occurredRaw = String(formData.get("occurredAt") || "").trim();
@@ -1102,11 +1125,11 @@ export async function createInventoryTransaction(
   if (occurredRaw) {
     const d = new Date(occurredRaw);
     if (isNaN(d.getTime()) || d.getFullYear() < 2000) {
-      return { message: "Thời điểm thực hiện không hợp lệ.", values };
+      return { message: t("actions.kho_thoiDiemKhongHopLe"), values };
     }
     if (d.getTime() > Date.now() + 5 * 60 * 1000) {
       return {
-        message: "Thời điểm thực hiện không được ở tương lai.",
+        message: t("actions.kho_thoiDiemTuongLai"),
         values,
       };
     }
@@ -1118,12 +1141,10 @@ export async function createInventoryTransaction(
         where: { id: warehouseId },
       });
       if (!warehouse || !warehouse.vesselId) {
-        throw new ActionError("Kho không hợp lệ hoặc không thuộc tàu.");
+        throw new ActionError(t("actions.kho_khongHopLeHoacKhongThuocTau"));
       }
       if (!trongPhamVi(scope, warehouse.vesselId)) {
-        throw new ActionError(
-          "Bạn chỉ được nhập/xuất kho của tàu mình phụ trách."
-        );
+        throw new ActionError(t("actions.kho_chiTauMinhPhuTrach"));
       }
       const vesselId = warehouse.vesselId;
       // Xếp hàng mọi phiếu động tới CÙNG một dòng tồn. Khóa tự nhả khi giao
@@ -1159,7 +1180,7 @@ export async function createInventoryTransaction(
         // count === 0 gồm cả hai khả năng: chưa có dòng tồn, hoặc tồn không đủ.
         // Với người dùng thì cùng một việc — không xuất được vì thiếu hàng.
         if (daTru.count === 0) {
-          throw new ActionError("Không đủ tồn kho để xuất.");
+          throw new ActionError(t("actions.kho_khongDuTon"));
         }
       } else {
         await tx.inventory.upsert({
@@ -1200,7 +1221,7 @@ export async function createInventoryTransaction(
     if (error instanceof ActionError) {
       return { message: error.message, values };
     }
-    const thongBao = thongBaoLoiGiaoDich(error);
+    const thongBao = thongBaoLoiGiaoDich(t, error);
     if (thongBao) {
       return { message: thongBao, values };
     }
@@ -1208,7 +1229,7 @@ export async function createInventoryTransaction(
   }
   revalidatePath("/inventory");
   revalidatePath(returnTo);
-  return { message: "Đã ghi nhận giao dịch nhập/xuất kho.", success: true };
+  return { message: t("actions.kho_daGhiNhanGiaoDich"), success: true };
 }
 
 const allowedFrom = REQUEST_ALLOWED_FROM;
@@ -1255,50 +1276,42 @@ export async function approveRequestQuantities(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const actor = await requireActiveRole([
     ...new Set([...CHI_HUY_TAU, ...DUYET_CONG_TY]),
   ]);
   if (!actor) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Yêu cầu không hợp lệ." };
+    return { message: t("actions.yeuCau_khongHopLe") };
   }
   const request = await prisma.materialRequest.findUnique({
     where: { id },
     include: { items: true },
   });
   if (!request) {
-    return { message: "Không tìm thấy yêu cầu." };
+    return { message: t("actions.yeuCau_khongTimThay") };
   }
 
   const { cap, uyQuyenTu } = capDuyetChiTiet(actor, request);
   if (!cap) {
     // Báo đúng lý do: sai cấp, sai bộ phận, hay yêu cầu chưa được trình.
     if (request.status === "DRAFT") {
-      return {
-        message:
-          "Yêu cầu còn ở trạng thái Nháp. Người lập cần bấm “Trình duyệt” trước khi phê duyệt.",
-      };
+      return { message: t("actions.yeuCau_conLaNhap") };
     }
     if (request.status !== "PENDING_MASTER" && request.status !== "PENDING_OFFICE") {
-      return { message: "Yêu cầu đã được xử lý, vui lòng tải lại trang." };
+      return { message: t("actions.yeuCau_daDuocXuLy") };
     }
     if (request.status === "PENDING_OFFICE") {
-      return {
-        message:
-          "Tàu đã duyệt, bước này thuộc quản lý kỹ thuật công ty.",
-      };
+      return { message: t("actions.yeuCau_buocCuaCongTy") };
     }
     // Tự lập tự duyệt: báo đúng lý do thay vì "không có quyền" chung chung.
     if (request.requestedById != null && request.requestedById === actor.id) {
-      return {
-        message:
-          "Bạn là người lập yêu cầu này nên không tự duyệt được. Yêu cầu của máy trưởng do thuyền trưởng duyệt ở cấp tàu.",
-      };
+      return { message: t("actions.yeuCau_tuLapTuDuyet") };
     }
-    return { message: viSaoKhongDuyetDuoc(actor.role) };
+    return { message: t(khoaViSaoKhongDuyet(actor.role)) };
   }
 
   const tuTrangThai = cap === "TAU" ? "PENDING_MASTER" : "PENDING_OFFICE";
@@ -1329,9 +1342,7 @@ export async function approveRequestQuantities(
         data: { status: denTrangThai, ...dau },
       });
       if (guard.count === 0) {
-        throw new ActionError(
-          "Yêu cầu đã được xử lý, vui lòng tải lại trang."
-        );
+        throw new ActionError(t("actions.yeuCau_daDuocXuLy"));
       }
       let totalApproved = 0;
       for (const item of request.items) {
@@ -1390,6 +1401,7 @@ export async function updateRequestStatus(
   _prevState: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t, tTuDo } = await layT();
   const status = String(formData.get("status") || "");
   // Những trạng thái này CHỈ được đặt bởi hành động chuyên trách, không bao giờ
   // qua đường chuyển trạng thái tay này:
@@ -1411,8 +1423,8 @@ export async function updateRequestStatus(
     return {
       message:
         status === "PENDING_OFFICE" || status === "APPROVED"
-          ? "Bước duyệt phải qua form phê duyệt (có số lượng duyệt), không chuyển trạng thái trực tiếp."
-          : "Trạng thái giao hàng do phiếu nhận của đơn mua tự cập nhật, không đặt tay.",
+          ? t("actions.yeuCau_phaiQuaFormDuyet")
+          : t("actions.yeuCau_trangThaiGiaoTuDong"),
     };
   }
   // Quyền theo từng bước chuyển, đúng phân cấp:
@@ -1428,7 +1440,7 @@ export async function updateRequestStatus(
         : [...new Set([...CHI_HUY_TAU, ...DUYET_CONG_TY])];
   const actor = await requireActiveRole([...roles]);
   if (!actor) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const scope = vesselScopeDayDu(actor);
   const id = Number(formData.get("id"));
@@ -1441,12 +1453,12 @@ export async function updateRequestStatus(
     id <= 0 ||
     !Object.hasOwn(allowedFrom, status)
   ) {
-    return { message: "Trạng thái yêu cầu không hợp lệ." };
+    return { message: t("actions.yeuCau_trangThaiKhongHopLe") };
   }
   // Từ chối phải nêu lý do — người lập cần biết sửa gì để trình lại.
   const note = String(formData.get("note") || "").trim();
   if (status === "REJECTED" && !note) {
-    return { message: "Vui lòng nhập lý do từ chối." };
+    return { message: t("actions.yeuCau_thieuLyDoTuChoi") };
   }
   const now = new Date();
   // Thuyền trưởng (và quản trị) trình yêu cầu của CHÍNH MÌNH thì bỏ qua bước
@@ -1494,10 +1506,10 @@ export async function updateRequestStatus(
         },
       });
       if (!before) {
-        throw new ActionError("Không tìm thấy yêu cầu.");
+        throw new ActionError(t("actions.yeuCau_khongTimThay"));
       }
       if (!trongPhamVi(scope, before.vesselId)) {
-        throw new ActionError(NO_PERMISSION);
+        throw new ActionError(t("chung.khongCoQuyen"));
       }
       trangThaiCu = before.status;
       tauCuaYeuCau = before.vesselId;
@@ -1514,8 +1526,8 @@ export async function updateRequestStatus(
         if (!capTuChoi) {
           throw new ActionError(
             before.status === "PENDING_OFFICE"
-              ? "Yêu cầu đang chờ công ty duyệt — chỉ quản lý kỹ thuật mới từ chối được ở bước này."
-              : viSaoKhongDuyetDuoc(actor.role)
+              ? t("actions.yeuCau_choCongTyDuyetMoiTuChoi")
+              : t(khoaViSaoKhongDuyet(actor.role))
           );
         }
       }
@@ -1529,11 +1541,10 @@ export async function updateRequestStatus(
       });
       if (result.count === 0) {
         throw new ActionError(
-          `Không chuyển được từ "${
-            REQUEST_STATUS_LABEL[before.status] ?? before.status
-          }" sang "${
-            REQUEST_STATUS_LABEL[status] ?? status
-          }". Có thể người khác vừa xử lý — hãy tải lại trang.`
+          t("actions.yeuCau_khongChuyenDuocTrangThai", {
+            tu: tTuDo(`labels.reqStatus_${before.status}`),
+            den: tTuDo(`labels.reqStatus_${status}`),
+          })
         );
       }
       if (diThangLenCongTy) {
@@ -1599,13 +1610,14 @@ export async function deleteMaterialRequest(
   _prevState: { message: string },
   formData: FormData
 ): Promise<{ message: string }> {
+  const { t } = await layT();
   const actor = await requireActiveRole([...LAP_YEU_CAU]);
   if (!actor) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   // returnTo mặc định về danh sách để không rơi vào trang chi tiết vừa bị xóa.
   const returnTo = safeNextPath(
@@ -1614,20 +1626,17 @@ export async function deleteMaterialRequest(
   );
   const request = await prisma.materialRequest.findUnique({ where: { id } });
   if (!request) {
-    return { message: "Yêu cầu đã bị xóa hoặc không tồn tại." };
+    return { message: t("actions.yeuCau_daXoaHoacKhongTonTai") };
   }
   const scope = vesselScopeDayDu(actor);
   if (!trongPhamVi(scope, request.vesselId)) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   if (
     actor.role !== "ADMIN" &&
     !REQUEST_DELETABLE_BY_NON_ADMIN.includes(request.status)
   ) {
-    return {
-      message:
-        "Yêu cầu đã được duyệt/chuyển mua sắm nên chỉ quản trị viên mới xóa được.",
-    };
+    return { message: t("actions.yeuCau_chiQuanTriXoaDuoc") };
   }
   try {
     await prisma.materialRequest.delete({ where: { id } });
@@ -1636,7 +1645,7 @@ export async function deleteMaterialRequest(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2025"
     ) {
-      return { message: "Yêu cầu đã bị xóa." };
+      return { message: t("actions.yeuCau_daBiXoa") };
     }
     throw error;
   }
@@ -1664,20 +1673,21 @@ export async function setVesselFormStandard(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   const formStandard = String(formData.get("formStandard") || "");
   const hullNo = String(formData.get("hullNo") || "").trim();
   if (!Number.isInteger(id) || id <= 0 || !formStandard) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   const std = await prisma.formStandard.findUnique({
     where: { code: formStandard },
   });
   if (!std || !std.isActive) {
-    return { message: "Biểu mẫu không hợp lệ." };
+    return { message: t("actions.bieuMau_khongHopLe") };
   }
   try {
     await prisma.vessel.update({
@@ -1689,12 +1699,12 @@ export async function setVesselFormStandard(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2025"
     ) {
-      return { message: "Không tìm thấy tàu." };
+      return { message: t("actions.tau_khongTimThay") };
     }
     throw error;
   }
   revalidatePath("/purchasing/forms");
-  return { message: "Đã lưu.", success: true };
+  return { message: t("actions.daLuu"), success: true };
 }
 
 // Thêm một biểu mẫu (công ty quản lý) mới.
@@ -1706,8 +1716,9 @@ export async function createFormStandard(
   success?: boolean;
   values?: Record<string, string>;
 }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, [
     "code",
@@ -1727,7 +1738,7 @@ export async function createFormStandard(
   const address = String(formData.get("address") || "").trim();
   if (!code || !companyName || !address) {
     return {
-      message: "Mã, tên công ty và địa chỉ là bắt buộc.",
+      message: t("actions.bieuMau_maTenDiaChiBatBuoc"),
       values,
     };
   }
@@ -1749,12 +1760,12 @@ export async function createFormStandard(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return { message: `Mã biểu mẫu "${code}" đã tồn tại.`, values };
+      return { message: t("actions.bieuMau_maDaTonTai", { ma: code }), values };
     }
     throw error;
   }
   revalidatePath("/purchasing/forms");
-  return { message: `Đã thêm biểu mẫu "${code}".`, success: true };
+  return { message: t("actions.bieuMau_daThem", { ma: code }), success: true };
 }
 
 // Sửa thông tin một biểu mẫu; nếu đổi mã thì cập nhật luôn các tàu đang gán mã cũ.
@@ -1766,8 +1777,9 @@ export async function updateFormStandard(
   success?: boolean;
   values?: Record<string, string>;
 }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, [
     "code",
@@ -1787,14 +1799,14 @@ export async function updateFormStandard(
   const companyName = String(formData.get("companyName") || "").trim();
   const address = String(formData.get("address") || "").trim();
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ.", values };
+    return { message: t("chung.duLieuKhongHopLe"), values };
   }
   if (!code || !companyName || !address) {
-    return { message: "Mã, tên công ty và địa chỉ là bắt buộc.", values };
+    return { message: t("actions.bieuMau_maTenDiaChiBatBuoc"), values };
   }
   const existing = await prisma.formStandard.findUnique({ where: { id } });
   if (!existing) {
-    return { message: "Không tìm thấy biểu mẫu.", values };
+    return { message: t("actions.bieuMau_khongTimThay"), values };
   }
   try {
     await prisma.$transaction(async (tx) => {
@@ -1824,29 +1836,30 @@ export async function updateFormStandard(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return { message: `Mã biểu mẫu "${code}" đã tồn tại.`, values };
+      return { message: t("actions.bieuMau_maDaTonTai", { ma: code }), values };
     }
     throw error;
   }
   revalidatePath("/purchasing/forms");
-  return { message: "Đã cập nhật biểu mẫu.", success: true };
+  return { message: t("actions.bieuMau_daCapNhat"), success: true };
 }
 
 export async function setFormStandardActive(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   const active = String(formData.get("active") || "") === "true";
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   const std = await prisma.formStandard.findUnique({ where: { id } });
   if (!std) {
-    return { message: "Không tìm thấy biểu mẫu." };
+    return { message: t("actions.bieuMau_khongTimThay") };
   }
   // Không cho ngừng dùng biểu mẫu vẫn còn tàu đang gán.
   if (!active) {
@@ -1854,9 +1867,7 @@ export async function setFormStandardActive(
       where: { formStandard: std.code },
     });
     if (inUse > 0) {
-      return {
-        message: `Còn ${inUse} tàu đang dùng biểu mẫu này. Hãy chuyển các tàu sang biểu mẫu khác trước.`,
-      };
+      return { message: t("actions.bieuMau_conTauDangDung", { n: inUse }) };
     }
   }
   await prisma.formStandard.update({
@@ -1871,24 +1882,28 @@ export async function deleteFormStandard(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const admin = await requireActiveRole(["ADMIN"]);
   if (!admin) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   const std = await prisma.formStandard.findUnique({ where: { id } });
   if (!std) {
-    return { message: "Không tìm thấy biểu mẫu." };
+    return { message: t("actions.bieuMau_khongTimThay") };
   }
   const inUse = await prisma.vessel.count({
     where: { formStandard: std.code },
   });
   if (inUse > 0) {
     return {
-      message: `Còn ${inUse} tàu đang dùng biểu mẫu "${std.code}" nên không thể xóa. Hãy chuyển các tàu sang biểu mẫu khác trước.`,
+      message: t("actions.bieuMau_conTauDangDungKhongXoaDuoc", {
+        n: inUse,
+        ma: std.code,
+      }),
     };
   }
   await prisma.formStandard.delete({ where: { id } });
@@ -1917,8 +1932,9 @@ export async function createSupplier(
   success?: boolean;
   values?: Record<string, string>;
 }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, [
     "code",
@@ -1931,7 +1947,7 @@ export async function createSupplier(
   const code = String(formData.get("code") || "").trim();
   const name = String(formData.get("name") || "").trim();
   if (!code || !name) {
-    return { message: "Mã và tên nhà cung cấp là bắt buộc.", values };
+    return { message: t("actions.ncc_maVaTenBatBuoc"), values };
   }
   try {
     await prisma.supplier.create({
@@ -1949,25 +1965,26 @@ export async function createSupplier(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return { message: `Mã nhà cung cấp "${code}" đã tồn tại.`, values };
+      return { message: t("actions.ncc_maDaTonTai", { ma: code }), values };
     }
     throw error;
   }
   revalidatePath("/purchasing/suppliers");
-  return { message: `Đã thêm nhà cung cấp "${name}".`, success: true };
+  return { message: t("actions.ncc_daThem", { ten: name }), success: true };
 }
 
 export async function setSupplierActive(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   const active = String(formData.get("active") || "") === "true";
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   await prisma.supplier.update({ where: { id }, data: { isActive: active } });
   revalidatePath("/purchasing/suppliers");
@@ -1983,8 +2000,9 @@ export async function updateSupplier(
   success?: boolean;
   values?: Record<string, string>;
 }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, [
     "code",
@@ -1998,10 +2016,10 @@ export async function updateSupplier(
   const code = String(formData.get("code") || "").trim();
   const name = String(formData.get("name") || "").trim();
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ.", values };
+    return { message: t("chung.duLieuKhongHopLe"), values };
   }
   if (!code || !name) {
-    return { message: "Mã và tên nhà cung cấp là bắt buộc.", values };
+    return { message: t("actions.ncc_maVaTenBatBuoc"), values };
   }
   try {
     await prisma.supplier.update({
@@ -2018,17 +2036,17 @@ export async function updateSupplier(
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
-        return { message: `Mã nhà cung cấp "${code}" đã tồn tại.`, values };
+        return { message: t("actions.ncc_maDaTonTai", { ma: code }), values };
       }
       if (error.code === "P2025") {
-        return { message: "Không tìm thấy nhà cung cấp.", values };
+        return { message: t("actions.ncc_khongTimThay"), values };
       }
     }
     throw error;
   }
   revalidatePath("/purchasing/suppliers");
   revalidatePath("/purchasing");
-  return { message: "Đã cập nhật nhà cung cấp.", success: true };
+  return { message: t("actions.ncc_daCapNhat"), success: true };
 }
 
 // Xóa nhà cung cấp — chặn khi đã có đơn mua tham chiếu (dùng Ngừng dùng thay thế).
@@ -2036,25 +2054,24 @@ export async function deleteSupplier(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const admin = await requireActiveRole(["ADMIN"]);
   if (!admin) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   const supplier = await prisma.supplier.findUnique({ where: { id } });
   if (!supplier) {
-    return { message: "Không tìm thấy nhà cung cấp." };
+    return { message: t("actions.ncc_khongTimThay") };
   }
   const poCount = await prisma.purchaseOrder.count({
     where: { supplierId: id },
   });
   if (poCount > 0) {
-    return {
-      message: `Nhà cung cấp đã có ${poCount} đơn mua nên không thể xóa (để giữ lịch sử). Hãy dùng "Ngừng dùng".`,
-    };
+    return { message: t("actions.ncc_daCoDonMua", { n: poCount }) };
   }
   await prisma.supplier.delete({ where: { id } });
   // Nhà cung cấp chưa có đơn nào mới xóa được, nhưng hồ sơ liên hệ vẫn là dữ
@@ -2079,24 +2096,25 @@ export async function importMaterials(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t, tTuDo } = await layT();
   const actor = await requireActiveRole(["ADMIN", "MASTER"]);
   if (!actor) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const vesselId = Number(formData.get("vesselId"));
   if (!Number.isInteger(vesselId) || vesselId <= 0) {
-    return { message: "Vui lòng chọn tàu." };
+    return { message: t("actions.vuiLongChonTau") };
   }
   if (!canManageVesselCatalog(actor, vesselId)) {
-    return { message: "Bạn chỉ được nhập danh mục cho tàu mình phụ trách." };
+    return { message: t("actions.danhMuc_chiTauMinhPhuTrach") };
   }
   const vessel = await prisma.vessel.findUnique({ where: { id: vesselId } });
   if (!vessel) {
-    return { message: "Tàu không tồn tại." };
+    return { message: t("actions.tau_khongTonTai") };
   }
   const kind = String(formData.get("kind") || "STORE");
   if (!["STORE", "SPARE"].includes(kind)) {
-    return { message: "Loại vật tư không hợp lệ." };
+    return { message: t("actions.vatTu_loaiKhongHopLe") };
   }
   // Kho ghi tồn (tùy chọn) — phải thuộc tàu đã chọn.
   const warehouseRaw = String(formData.get("warehouseId") || "");
@@ -2117,33 +2135,30 @@ export async function importMaterials(
       else if (/-STORE$/i.test(w.code)) map.STORE = w.id;
     }
     if (!map.ENG && !map.DECK && !map.STORE) {
-      return {
-        message:
-          "Tàu này chưa có kho nào có mã kết thúc bằng -ENG / -DECK / -STORE nên không tự định tuyến được. Hãy chọn một kho cụ thể.",
-      };
+      return { message: t("actions.kho_khongTuDinhTuyenDuoc") };
     }
     warehouseByKind = map;
   } else if (warehouseRaw) {
     const wid = Number(warehouseRaw);
     if (!Number.isInteger(wid) || wid <= 0) {
-      return { message: "Kho không hợp lệ." };
+      return { message: t("actions.kho_khongHopLe") };
     }
     const warehouse = await prisma.warehouse.findUnique({ where: { id: wid } });
     if (!warehouse || warehouse.vesselId !== vesselId) {
-      return { message: "Kho không thuộc tàu đã chọn." };
+      return { message: t("actions.kho_khongThuocTauDaChon") };
     }
     warehouseId = wid;
   }
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
-    return { message: "Vui lòng chọn file danh mục (.xls/.xlsx/.doc/.docx)." };
+    return { message: t("actions.nhap_vuiLongChonFile") };
   }
   const ext = fileExtension(file.name);
   if (![".xls", ".xlsx", ".doc", ".docx"].includes(ext)) {
-    return { message: "File phải là Excel (.xls/.xlsx) hoặc Word (.doc/.docx)." };
+    return { message: t("actions.nhap_fileSaiDinhDang") };
   }
   if (file.size > 10 * 1024 * 1024) {
-    return { message: "File vượt quá 10MB." };
+    return { message: t("actions.nhap_fileQua10MB") };
   }
   const buffer = Buffer.from(await file.arrayBuffer());
   const { parseMaterialExcel, parseMaterialDoc } = await import(
@@ -2168,29 +2183,28 @@ export async function importMaterials(
       actorName: actor.name,
     });
   if (conflict) {
-    return {
-      message:
-        "Có phiên nhập liệu khác chạy đồng thời nên mã tự sinh bị trùng. Vui lòng bấm nhập lại.",
-    };
+    return { message: t("actions.nhap_trungMaDoDongThoi") };
   }
 
   revalidatePath("/materials");
   revalidatePath("/inventory");
   const parts = [
-    `Đã nhập ${parsed.items.length} dòng cho tàu ${vessel.name}:`,
-    `${createdCount} vật tư mới`,
-    `${linkedCount} vật tư đã có (gán vào tàu)`,
+    t("actions.nhap_daNhapDong", {
+      n: parsed.items.length,
+      tau: vessel.name,
+    }),
+    t("actions.nhap_vatTuMoi", { n: createdCount }),
+    t("actions.nhap_vatTuDaCo", { n: linkedCount }),
   ];
-  if (robCount > 0) parts.push(`${robCount} dòng ghi tồn kho`);
+  if (robCount > 0) parts.push(t("actions.nhap_dongGhiTon", { n: robCount }));
   if (parsed.skippedRows > 0)
-    parts.push(`${parsed.skippedRows} dòng bị bỏ qua`);
+    parts.push(t("actions.nhap_dongBoQua", { n: parsed.skippedRows }));
   // Báo ngay khi bố cục khối bắt đầu chật: mã vẫn đúng và không trùng, chỉ là
   // hàng mới không còn nằm cạnh hàng cùng nhóm nữa. Để im thì danh mục cứ lộn
   // xộn dần cho tới lúc không ai lần ra vì sao.
   if (khoiDay?.length) {
     parts.push(
-      `Khuôn ${khoiDay.join(", ")} đã kín khối nên mã mới xếp vào cuối dãy — ` +
-        "chạy doi-ma-vat-tu.cmd --theo-nhom --dong-y để xếp lại theo nhóm."
+      t("actions.nhap_khoiMaDaKin", { khuon: khoiDay.join(", ") })
     );
   }
   // Liệt kê từng sheet để người dùng đối chiếu — file kiểm kê thật tách nhiều sheet
@@ -2199,34 +2213,35 @@ export async function importMaterials(
     const read = parsed.sheets.filter((s) => !s.skipped);
     const ignored = parsed.sheets.filter((s) => s.skipped);
     if (read.length) {
-      const labels: Record<string, string> = {
-        STORE: "Vật tư",
-        SPARE: "Phụ tùng",
-      };
       parts.push(
-        "Sheet đã đọc: " +
-          read
-            .map(
-              (s) =>
-                `${s.name} (${s.count} dòng${
-                  s.materialType ? `, ${labels[s.materialType]}` : ""
-                })`
+        t("actions.nhap_sheetDaDoc", {
+          ds: read
+            .map((s) =>
+              s.materialType
+                ? t("actions.nhap_sheetMoTa", {
+                    ten: s.name,
+                    n: s.count,
+                    loai: tTuDo(`labels.type_${s.materialType}`),
+                  })
+                : t("actions.nhap_sheetMoTaKhongLoai", {
+                    ten: s.name,
+                    n: s.count,
+                  })
             )
-            .join("; ")
+            .join("; "),
+        })
       );
     }
     if (ignored.length) {
       parts.push(
-        `Sheet không có bảng danh mục nên bỏ qua: ${ignored
-          .map((s) => s.name)
-          .join("; ")}`
+        t("actions.nhap_sheetBoQua", {
+          ds: ignored.map((s) => s.name).join("; "),
+        })
       );
     }
   }
   if (parsed.truncated) {
-    parts.push(
-      "⚠ File vượt quá giới hạn 3000 dòng — phần còn lại chưa được nhập, hãy tách file nhỏ hơn"
-    );
+    parts.push(t("actions.nhap_vuotGioiHan3000"));
   }
   return { message: parts.join(" · "), success: true };
 }
@@ -2237,31 +2252,32 @@ export async function createDirectPurchaseOrder(
   _prevState: { message: string },
   formData: FormData
 ): Promise<{ message: string }> {
+  const { t } = await layT();
   const actor = await requireActiveRole(["ADMIN", "MASTER"]);
   if (!actor) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const scope = vesselScopeDayDu(actor);
   const vesselId = Number(formData.get("vesselId"));
   const supplierId = Number(formData.get("supplierId"));
   if (!Number.isInteger(vesselId) || vesselId <= 0) {
-    return { message: "Vui lòng chọn tàu." };
+    return { message: t("actions.vuiLongChonTau") };
   }
   if (!trongPhamVi(scope, vesselId)) {
-    return { message: "Bạn chỉ được mua sắm cho tàu mình phụ trách." };
+    return { message: t("actions.muaSam_chiTauMinhPhuTrach") };
   }
   const vessel = await prisma.vessel.findUnique({ where: { id: vesselId } });
   if (!vessel) {
-    return { message: "Tàu không tồn tại." };
+    return { message: t("actions.tau_khongTonTai") };
   }
   if (!Number.isInteger(supplierId) || supplierId <= 0) {
-    return { message: "Vui lòng chọn nhà cung cấp." };
+    return { message: t("actions.vuiLongChonNcc") };
   }
   const supplier = await prisma.supplier.findUnique({
     where: { id: supplierId },
   });
   if (!supplier || !supplier.isActive) {
-    return { message: "Nhà cung cấp không hợp lệ." };
+    return { message: t("actions.ncc_khongHopLe") };
   }
   const currency = String(formData.get("currency") || "USD").trim() || "USD";
   const notes = String(formData.get("notes") || "").trim() || null;
@@ -2299,10 +2315,10 @@ export async function createDirectPurchaseOrder(
   if (excel instanceof File && excel.size > 0) {
     const ext = fileExtension(excel.name);
     if (![".xls", ".xlsx"].includes(ext)) {
-      return { message: "File vật tư phải là Excel (.xls hoặc .xlsx)." };
+      return { message: t("actions.donMua_fileExcelSaiDinhDang") };
     }
     if (excel.size > 10 * 1024 * 1024) {
-      return { message: "File Excel vượt quá 10MB." };
+      return { message: t("actions.donMua_fileExcelQua10MB") };
     }
     const { parsePurchaseExcel } = await import("@/lib/excelPurchase");
     const parsed = parsePurchaseExcel(Buffer.from(await excel.arrayBuffer()));
@@ -2325,11 +2341,15 @@ export async function createDirectPurchaseOrder(
     if (!description && !qtyRaw) continue; // dòng trống — bỏ qua
     const qty = Number(qtyRaw);
     if (!description) {
-      return { message: `Dòng nhập tay thứ ${i + 1} thiếu mô tả vật tư.` };
+      return {
+        message: t("actions.donMua_dongNhapTayThieuMoTa", { stt: i + 1 }),
+      };
     }
     if (!Number.isFinite(qty) || qty <= 0) {
       return {
-        message: `Dòng "${description.slice(0, 40)}" có số lượng không hợp lệ.`,
+        message: t("actions.donMua_dongSoLuongKhongHopLe", {
+          moTa: description.slice(0, 40),
+        }),
       };
     }
     lines.push({
@@ -2342,13 +2362,10 @@ export async function createDirectPurchaseOrder(
   }
 
   if (!lines.length) {
-    return {
-      message:
-        "Chưa có dòng vật tư nào — hãy upload file Excel theo form công ty hoặc nhập tay ít nhất một dòng.",
-    };
+    return { message: t("actions.donMua_chuaCoDongNao") };
   }
   if (lines.length > 200) {
-    return { message: "Tối đa 200 dòng vật tư mỗi đơn." };
+    return { message: t("actions.donMua_toiDa200Dong") };
   }
 
   // Cấp số PO và ghi đơn trong CÙNG một giao dịch, để sinhSoDonMua xin được
@@ -2382,7 +2399,7 @@ export async function createDirectPurchaseOrder(
       });
     }, GIAO_DICH_GIU_KHOA);
   } catch (error) {
-    const thongBao = thongBaoLoiGiaoDich(error);
+    const thongBao = thongBaoLoiGiaoDich(t, error);
     if (thongBao) {
       return { message: thongBao };
     }
@@ -2399,27 +2416,28 @@ export async function createPurchaseOrder(
   _prevState: { message: string },
   formData: FormData
 ): Promise<{ message: string }> {
+  const { t } = await layT();
   const actor = await requireActiveRole(["ADMIN", "MASTER"]);
   if (!actor) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const scope = vesselScopeDayDu(actor);
   const vesselId = Number(formData.get("vesselId"));
   const supplierId = Number(formData.get("supplierId"));
   if (!Number.isInteger(vesselId) || vesselId <= 0) {
-    return { message: "Tàu không hợp lệ." };
+    return { message: t("actions.tau_khongHopLe") };
   }
   if (!trongPhamVi(scope, vesselId)) {
-    return { message: "Bạn chỉ được mua sắm cho tàu mình phụ trách." };
+    return { message: t("actions.muaSam_chiTauMinhPhuTrach") };
   }
   if (!Number.isInteger(supplierId) || supplierId <= 0) {
-    return { message: "Vui lòng chọn nhà cung cấp." };
+    return { message: t("actions.vuiLongChonNcc") };
   }
   const supplier = await prisma.supplier.findUnique({
     where: { id: supplierId },
   });
   if (!supplier || !supplier.isActive) {
-    return { message: "Nhà cung cấp không hợp lệ." };
+    return { message: t("actions.ncc_khongHopLe") };
   }
   const currency = String(formData.get("currency") || "USD").trim() || "USD";
   const notes = String(formData.get("notes") || "").trim() || null;
@@ -2444,14 +2462,14 @@ export async function createPurchaseOrder(
     .map((k) => Number(k.slice(4)))
     .filter((n) => Number.isInteger(n) && n > 0);
   if (!selectedIds.length) {
-    return { message: "Vui lòng chọn ít nhất một dòng vật tư để mua." };
+    return { message: t("actions.donMua_chonItNhatMotDong") };
   }
   // Chặn số dòng ngang với createDirectPurchaseOrder. Mỗi dòng là một INSERT
   // nằm trong giao dịch đang giữ khóa, nên đơn càng dài thì người xếp hàng sau
   // càng lâu được vào; không chặn thì độ dài đơn phụ thuộc hoàn toàn vào việc
   // người dùng tick bao nhiêu ô.
   if (selectedIds.length > 200) {
-    return { message: "Tối đa 200 dòng vật tư mỗi đơn." };
+    return { message: t("actions.donMua_toiDa200Dong") };
   }
   // Nới 1e-9 vì số lượng là Float: 10 chia ba lần rồi cộng lại có thể ra
   // 10.000000000000002, chặn cứng sẽ báo vượt oan.
@@ -2489,9 +2507,7 @@ export async function createPurchaseOrder(
         },
       });
       if (!requestItems.length) {
-        throw new ActionError(
-          "Không có dòng hợp lệ (yêu cầu phải đang ở trạng thái mua sắm hoặc giao một phần)."
-        );
+        throw new ActionError(t("actions.donMua_khongCoDongHopLe"));
       }
       // Trần đặt mua của mỗi dòng là phần CÒN LẠI của số đã duyệt, đo bằng SỐ
       // ĐÃ ĐẶT — tổng dòng đơn của các PO chưa hủy — đúng công thức mà
@@ -2522,14 +2538,23 @@ export async function createPurchaseOrder(
           Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : remaining;
         if (remaining <= NGUONG_LAM_TRON) {
           vuotDuyet.push(
-            `"${ten}" đã đặt đủ ${approved} ${donVi} nên không còn gì để đặt`
+            t("actions.donMua_daDatDu", {
+              ten,
+              sl: approved,
+              dvt: donVi,
+            })
           );
         } else if (quantity > remaining + NGUONG_LAM_TRON) {
           vuotDuyet.push(
-            `"${ten}" đặt ${quantity} ${donVi} trong khi chỉ còn được đặt ${remaining} ${donVi}` +
-              ` (duyệt ${approved}, đã đặt ${daDat}) — vượt ${
-                quantity - remaining
-              } ${donVi}`
+            t("actions.donMua_vuotConLai", {
+              ten,
+              dat: quantity,
+              dvt: donVi,
+              conLai: remaining,
+              duyet: approved,
+              daDat: daDat,
+              vuot: quantity - remaining,
+            })
           );
         }
         return {
@@ -2546,7 +2571,7 @@ export async function createPurchaseOrder(
       });
       if (vuotDuyet.length) {
         throw new ActionError(
-          `Số lượng đặt mua vượt số đã duyệt — ${vuotDuyet.join("; ")}.`
+          t("actions.donMua_vuotSoDuyet", { chiTiet: vuotDuyet.join("; ") })
         );
       }
       return tx.purchaseOrder.create({
@@ -2573,7 +2598,7 @@ export async function createPurchaseOrder(
     if (error instanceof ActionError) {
       return { message: error.message };
     }
-    const thongBao = thongBaoLoiGiaoDich(error);
+    const thongBao = thongBaoLoiGiaoDich(t, error);
     if (thongBao) {
       return { message: thongBao };
     }
@@ -2594,29 +2619,30 @@ export async function updatePurchaseOrderStatus(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const actor = await requireActiveRole(["ADMIN", "MASTER"]);
   if (!actor) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   const status = String(formData.get("status") || "");
   if (!Number.isInteger(id) || id <= 0 || !PO_ALLOWED_FROM[status]) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   const po = await prisma.purchaseOrder.findUnique({ where: { id } });
   if (!po) {
-    return { message: "Không tìm thấy đơn mua." };
+    return { message: t("actions.donMua_khongTimThay") };
   }
   const scope = vesselScopeDayDu(actor);
   if (!trongPhamVi(scope, po.vesselId)) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const result = await prisma.purchaseOrder.updateMany({
     where: { id, status: { in: PO_ALLOWED_FROM[status] } },
     data: { status },
   });
   if (result.count === 0) {
-    return { message: "Đơn đã đổi trạng thái, vui lòng tải lại trang." };
+    return { message: t("actions.donMua_daDoiTrangThai") };
   }
   revalidatePath("/purchasing");
   revalidatePath(`/purchasing/${id}`);
@@ -2628,30 +2654,29 @@ export async function receivePurchaseOrder(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const actor = await requireActiveRole(["ADMIN", "MASTER"]);
   if (!actor) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   const warehouseId = Number(formData.get("warehouseId"));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   const po = await prisma.purchaseOrder.findUnique({
     where: { id },
     include: { items: true },
   });
   if (!po) {
-    return { message: "Không tìm thấy đơn mua." };
+    return { message: t("actions.donMua_khongTimThay") };
   }
   const scope = vesselScopeDayDu(actor);
   if (!trongPhamVi(scope, po.vesselId)) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   if (!["SENT", "CONFIRMED", "PARTIALLY_RECEIVED"].includes(po.status)) {
-    return {
-      message: "Chỉ nhận hàng khi đơn đã gửi/xác nhận. Vui lòng tải lại trang.",
-    };
+    return { message: t("actions.donMua_chiNhanKhiDaGui") };
   }
   // Kho nhận phải thuộc tàu của đơn (chỉ bắt buộc khi có dòng gắn vật tư danh mục).
   const hasMaterialLine = po.items.some((it) => it.materialId !== null);
@@ -2661,10 +2686,10 @@ export async function receivePurchaseOrder(
       where: { id: warehouseId },
     });
     if (!warehouse || warehouse.vesselId !== po.vesselId) {
-      return { message: "Kho nhận không thuộc tàu của đơn." };
+      return { message: t("actions.kho_nhanKhongThuocTauCuaDon") };
     }
   } else if (hasMaterialLine) {
-    return { message: "Vui lòng chọn kho nhận cho vật tư có trong danh mục." };
+    return { message: t("actions.kho_vuiLongChonKhoNhan") };
   }
 
   // SL người dùng muốn nhận cho từng dòng (chưa kẹp — kẹp lại trong transaction từ dữ liệu mới).
@@ -2674,7 +2699,7 @@ export async function receivePurchaseOrder(
     if (Number.isFinite(raw) && raw > 0) requestedByItem.set(it.id, raw);
   }
   if (requestedByItem.size === 0) {
-    return { message: "Chưa nhập số lượng nhận cho dòng nào." };
+    return { message: t("actions.donMua_chuaNhapSoLuongNhan") };
   }
 
   try {
@@ -2684,13 +2709,11 @@ export async function receivePurchaseOrder(
         where: { id },
         include: { items: true },
       });
-      if (!fresh) throw new ActionError("Không tìm thấy đơn mua.");
+      if (!fresh) throw new ActionError(t("actions.donMua_khongTimThay"));
       if (
         !["SENT", "CONFIRMED", "PARTIALLY_RECEIVED"].includes(fresh.status)
       ) {
-        throw new ActionError(
-          "Đơn đã đổi trạng thái, vui lòng tải lại trang."
-        );
+        throw new ActionError(t("actions.donMua_daDoiTrangThai"));
       }
       // Xin khóa tồn kho TRƯỚC vòng lặp, y hệt createInventoryTransaction.
       // Đường nhận hàng bên dưới cũng upsert vào Inventory trên cùng cặp (vật
@@ -2772,7 +2795,7 @@ export async function receivePurchaseOrder(
         }
       }
       if (totalReceived === 0) {
-        throw new ActionError("Các dòng đã nhận đủ, không còn gì để nhận.");
+        throw new ActionError(t("actions.donMua_daNhanDu"));
       }
       // Cuộn trạng thái PO
       const freshItems = await tx.purchaseOrderItem.findMany({
@@ -2822,7 +2845,7 @@ export async function receivePurchaseOrder(
     if (error instanceof ActionError) {
       return { message: error.message };
     }
-    const thongBao = thongBaoLoiGiaoDich(error);
+    const thongBao = thongBaoLoiGiaoDich(t, error);
     if (thongBao) {
       return { message: thongBao };
     }
@@ -2832,7 +2855,7 @@ export async function receivePurchaseOrder(
   revalidatePath(`/purchasing/${id}`);
   revalidatePath("/requests");
   revalidatePath("/inventory");
-  return { message: "Đã ghi nhận nhận hàng.", success: true };
+  return { message: t("actions.donMua_daGhiNhanNhanHang"), success: true };
 }
 
 export async function createLashingReport(
@@ -2848,25 +2871,26 @@ export async function createLashingReport(
     }
     return values;
   };
+  const { t } = await layT();
   const actor = await requireActiveRole(["ADMIN", "MASTER"]);
   if (!actor) {
-    return { message: NO_PERMISSION, values: echoValues() };
+    return { message: t("chung.khongCoQuyen"), values: echoValues() };
   }
   const scope = vesselScopeDayDu(actor);
   const vesselId = Number(formData.get("vesselId"));
   if (!Number.isInteger(vesselId) || vesselId <= 0) {
-    return { message: "Tàu không hợp lệ.", values: echoValues() };
+    return { message: t("actions.tau_khongHopLe"), values: echoValues() };
   }
   if (!trongPhamVi(scope, vesselId)) {
     return {
-      message: "Bạn chỉ được lập báo cáo cho tàu mình phụ trách.",
+      message: t("actions.baoCao_chiTauMinhPhuTrach"),
       values: echoValues(),
     };
   }
   const reportDateRaw = String(formData.get("reportDate") || "");
   const reportDate = new Date(reportDateRaw);
   if (isNaN(reportDate.getTime())) {
-    return { message: "Ngày báo cáo không hợp lệ.", values: echoValues() };
+    return { message: t("actions.baoCao_ngayKhongHopLe"), values: echoValues() };
   }
   const voyageNo = String(formData.get("voyageNo") || "").trim();
   const position = String(formData.get("position") || "").trim();
@@ -2876,7 +2900,7 @@ export async function createLashingReport(
   });
   if (!gears.length) {
     return {
-      message: "Tàu chưa có danh mục dụng cụ chằng buộc.",
+      message: t("actions.changBuoc_chuaCoDanhMuc"),
       values: echoValues(),
     };
   }
@@ -2886,8 +2910,7 @@ export async function createLashingReport(
     const rawOut = formData.get(`outOfOrder_${gear.id}`);
     if (rawIn === null || rawOut === null) {
       return {
-        message:
-          "Danh mục dụng cụ vừa thay đổi. Vui lòng tải lại trang và nhập lại số liệu.",
+        message: t("actions.changBuoc_danhMucVuaDoi"),
         values: echoValues(),
       };
     }
@@ -2930,8 +2953,9 @@ export async function updateLashingGear(
   success?: boolean;
   values?: Record<string, string>;
 }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, [
     "name",
@@ -2945,10 +2969,10 @@ export async function updateLashingGear(
   const minQty = Number(formData.get("minQty") || 0);
   const standardQty = Number(formData.get("standardQty") || 0);
   if (!Number.isInteger(id) || id <= 0 || !name) {
-    return { message: "Dữ liệu không hợp lệ.", values };
+    return { message: t("chung.duLieuKhongHopLe"), values };
   }
   if (!(minQty >= 0) || !(standardQty >= 0)) {
-    return { message: "Số lượng không hợp lệ.", values };
+    return { message: t("actions.soLuongKhongHopLe"), values };
   }
   try {
     await prisma.lashingGear.update({
@@ -2958,11 +2982,11 @@ export async function updateLashingGear(
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2025") {
-        return { message: "Không tìm thấy dụng cụ.", values };
+        return { message: t("actions.changBuoc_khongTimThayDungCu"), values };
       }
       if (error.code === "P2002") {
         return {
-          message: `Tên dụng cụ "${name}" đã tồn tại trên tàu này.`,
+          message: t("actions.changBuoc_tenDaTonTai", { ten: name }),
           values,
         };
       }
@@ -2970,7 +2994,7 @@ export async function updateLashingGear(
     throw error;
   }
   revalidatePath("/lashing");
-  return { message: "Đã lưu.", success: true };
+  return { message: t("actions.daLuu"), success: true };
 }
 
 export async function createLashingGear(
@@ -2985,8 +3009,9 @@ export async function createLashingGear(
   success?: boolean;
   values?: Record<string, string>;
 }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, [
     "name",
@@ -3000,10 +3025,10 @@ export async function createLashingGear(
   const minQty = Number(formData.get("minQty") || 0);
   const standardQty = Number(formData.get("standardQty") || 0);
   if (!Number.isInteger(vesselId) || vesselId <= 0 || !name) {
-    return { message: "Tên dụng cụ là bắt buộc.", values };
+    return { message: t("actions.changBuoc_tenBatBuoc"), values };
   }
   if (!(minQty >= 0) || !(standardQty >= 0)) {
-    return { message: "Số lượng không hợp lệ.", values };
+    return { message: t("actions.soLuongKhongHopLe"), values };
   }
   const maxOrder = await prisma.lashingGear.aggregate({
     where: { vesselId },
@@ -3026,36 +3051,34 @@ export async function createLashingGear(
       error.code === "P2002"
     ) {
       return {
-        message: `Tên dụng cụ "${name}" đã tồn tại trên tàu này.`,
+        message: t("actions.changBuoc_tenDaTonTai", { ten: name }),
         values,
       };
     }
     throw error;
   }
   revalidatePath("/lashing");
-  return { message: `Đã thêm dụng cụ "${name}".`, success: true };
+  return { message: t("actions.changBuoc_daThem", { ten: name }), success: true };
 }
 
 export async function deleteLashingGear(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const admin = await requireActiveRole(["ADMIN"]);
   if (!admin) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   const lineCount = await prisma.lashingReportLine.count({
     where: { gearId: id },
   });
   if (lineCount > 0) {
-    return {
-      message:
-        "Dụng cụ đã xuất hiện trong báo cáo cũ nên không thể xóa (bảo toàn lịch sử).",
-    };
+    return { message: t("actions.changBuoc_daCoTrongBaoCao") };
   }
   let daXoa;
   try {
@@ -3065,7 +3088,7 @@ export async function deleteLashingGear(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2025"
     ) {
-      return { message: "Không tìm thấy dụng cụ." };
+      return { message: t("actions.changBuoc_khongTimThayDungCu") };
     }
     throw error;
   }
@@ -3101,9 +3124,10 @@ export async function uploadReportDocument(
   success?: boolean;
   values?: Record<string, string>;
 }> {
+  const { t } = await layT();
   const actor = await requireActiveRole([...LAP_YEU_CAU]);
   if (!actor) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const scope = vesselScopeDayDu(actor);
   const values = formValues(formData, [
@@ -3115,41 +3139,41 @@ export async function uploadReportDocument(
   ]);
   const vesselId = Number(formData.get("vesselId"));
   if (!Number.isInteger(vesselId) || vesselId <= 0) {
-    return { message: "Tàu không hợp lệ.", values };
+    return { message: t("actions.tau_khongHopLe"), values };
   }
   if (!trongPhamVi(scope, vesselId)) {
     return {
       message: scope.unassigned
-        ? "Bạn chưa được gán tàu nên chưa thể tải báo cáo lên."
-        : "Bạn chỉ được tải báo cáo cho tàu mình phụ trách.",
+        ? t("actions.hoSo_chuaGanTau")
+        : t("actions.hoSo_chiTauMinhPhuTrach"),
       values,
     };
   }
   const vessel = await prisma.vessel.findUnique({ where: { id: vesselId } });
   if (!vessel) {
-    return { message: "Tàu không tồn tại.", values };
+    return { message: t("actions.tau_khongTonTai"), values };
   }
   const reportType = String(formData.get("reportType") || "");
   if (!REPORT_TYPES.includes(reportType)) {
-    return { message: "Loại báo cáo không hợp lệ.", values };
+    return { message: t("actions.hoSo_loaiBaoCaoKhongHopLe"), values };
   }
   const period = String(formData.get("period") || "").trim();
   const title = String(formData.get("title") || "").trim();
   const note = String(formData.get("note") || "").trim();
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
-    return { message: "Vui lòng chọn file báo cáo.", values };
+    return { message: t("actions.hoSo_vuiLongChonFile"), values };
   }
   const ext = fileExtension(file.name);
   const allowed = ALLOWED_EXTENSIONS[ext];
   if (!allowed) {
     return {
-      message: "Chỉ chấp nhận file PDF hoặc Excel (.pdf, .xls, .xlsx).",
+      message: t("actions.hoSo_dinhDangKhongHoTro"),
       values,
     };
   }
   if (file.size > MAX_UPLOAD_BYTES) {
-    return { message: "File vượt quá giới hạn 20MB.", values };
+    return { message: t("actions.hoSo_fileQua20MB"), values };
   }
   const buffer = Buffer.from(await file.arrayBuffer());
   const sha256 = createHash("sha256").update(buffer).digest("hex");
@@ -3180,7 +3204,11 @@ export async function uploadReportDocument(
   }
   revalidatePath("/documents");
   return {
-    message: `Đã lưu "${file.name}" vào hồ sơ ${vessel.code}. Mã toàn vẹn SHA-256: ${sha256.slice(0, 16)}…`,
+    message: t("actions.hoSo_daLuuFile", {
+      ten: file.name,
+      tau: vessel.code,
+      bam: sha256.slice(0, 16),
+    }),
     success: true,
   };
 }
@@ -3189,17 +3217,18 @@ export async function deleteReportDocument(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const admin = await requireActiveRole(["ADMIN"]);
   if (!admin) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   const doc = await prisma.reportDocument.findUnique({ where: { id } });
   if (!doc) {
-    return { message: "Không tìm thấy hồ sơ." };
+    return { message: t("actions.hoSo_khongTimThay") };
   }
   await prisma.reportDocument.delete({ where: { id } });
   // Ghi vết TRƯỚC khi đụng tới đĩa: bản ghi đã mất, file sắp mất, và dòng nhật
@@ -3235,6 +3264,7 @@ export async function deleteReportDocument(
 const USER_ROLES: readonly string[] = ROLES;
 
 async function parseVesselAssignment(
+  t: HamDich,
   formData: FormData
 ): Promise<{ vesselId: number | null } | { error: string }> {
   const raw = String(formData.get("vesselId") || "");
@@ -3243,11 +3273,11 @@ async function parseVesselAssignment(
   }
   const parsed = Number(raw);
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    return { error: "Tàu phụ trách không hợp lệ." };
+    return { error: t("actions.tauPhuTrach_khongHopLe") };
   }
   const vessel = await prisma.vessel.findUnique({ where: { id: parsed } });
   if (!vessel) {
-    return { error: "Tàu phụ trách không tồn tại." };
+    return { error: t("actions.tauPhuTrach_khongTonTai") };
   }
   return { vesselId: parsed };
 }
@@ -3260,9 +3290,10 @@ export async function createUser(
   success?: boolean;
   values?: Record<string, string>;
 }> {
+  const { t } = await layT();
   const admin = await requireActiveRole(["ADMIN"]);
   if (!admin) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, [
     "name",
@@ -3278,22 +3309,22 @@ export async function createUser(
   const password = String(formData.get("password") || "");
   const role = String(formData.get("role") || "");
   if (!name || !email || !password) {
-    return { message: "Tên, email và mật khẩu là bắt buộc.", values };
+    return { message: t("actions.taiKhoan_tenEmailMatKhauBatBuoc"), values };
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { message: "Email không hợp lệ.", values };
+    return { message: t("actions.taiKhoan_emailKhongHopLe"), values };
   }
   if (password.length < 8) {
-    return { message: "Mật khẩu phải có ít nhất 8 ký tự.", values };
+    return { message: t("actions.taiKhoan_matKhauToiThieu8"), values };
   }
   if (!USER_ROLES.includes(role)) {
-    return { message: "Vai trò không hợp lệ.", values };
+    return { message: t("actions.taiKhoan_vaiTroKhongHopLe"), values };
   }
-  const vesselResult = await parseVesselAssignment(formData);
+  const vesselResult = await parseVesselAssignment(t, formData);
   if ("error" in vesselResult) {
     return { message: vesselResult.error, values };
   }
-  const chucDanh = docChucDanhGiuVatTu(formData);
+  const chucDanh = docChucDanhGiuVatTu(t, formData);
   if ("error" in chucDanh) {
     return { message: chucDanh.error, values };
   }
@@ -3314,7 +3345,7 @@ export async function createUser(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return { message: `Email "${email}" đã được sử dụng.`, values };
+      return { message: t("actions.taiKhoan_emailDaDung", { email }), values };
     }
     throw error;
   }
@@ -3341,7 +3372,7 @@ export async function createUser(
       `, chức danh giữ vật tư ${chucDanh.rankCode ?? "không đặt"}`,
   });
   revalidatePath("/users");
-  return { message: `Đã tạo người dùng "${email}".`, success: true };
+  return { message: t("actions.taiKhoan_daTao", { email }), success: true };
 }
 
 export async function updateUserRole(
@@ -3352,24 +3383,25 @@ export async function updateUserRole(
   success?: boolean;
   values?: Record<string, string>;
 }> {
+  const { t } = await layT();
   const admin = await requireActiveRole(["ADMIN"]);
   if (!admin) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, ["role", "vesselId", "rankCode"]);
   const id = Number(formData.get("id"));
   const role = String(formData.get("role") || "");
   if (!Number.isInteger(id) || id <= 0 || !USER_ROLES.includes(role)) {
-    return { message: "Dữ liệu không hợp lệ.", values };
+    return { message: t("chung.duLieuKhongHopLe"), values };
   }
   if (id === admin.id) {
-    return { message: "Không thể tự thay đổi quyền của chính mình.", values };
+    return { message: t("actions.taiKhoan_khongTuDoiQuyen"), values };
   }
-  const vesselResult = await parseVesselAssignment(formData);
+  const vesselResult = await parseVesselAssignment(t, formData);
   if ("error" in vesselResult) {
     return { message: vesselResult.error, values };
   }
-  const chucDanh = docChucDanhGiuVatTu(formData);
+  const chucDanh = docChucDanhGiuVatTu(t, formData);
   if ("error" in chucDanh) {
     return { message: chucDanh.error, values };
   }
@@ -3378,7 +3410,7 @@ export async function updateUserRole(
   // cái "trước đó" mới là thứ cần khi soát lại một thao tác đáng ngờ.
   const before = await prisma.user.findUnique({ where: { id } });
   if (!before) {
-    return { message: "Không tìm thấy người dùng.", values };
+    return { message: t("actions.taiKhoan_khongTimThay"), values };
   }
   await prisma.user.update({
     where: { id },
@@ -3413,20 +3445,21 @@ export async function toggleUserActive(
   _prevState: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const admin = await requireActiveRole(["ADMIN"]);
   if (!admin) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   if (!id) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   if (id === admin.id) {
-    return { message: "Không thể tự khóa tài khoản của chính mình." };
+    return { message: t("actions.taiKhoan_khongTuKhoa") };
   }
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) {
-    return { message: "Không tìm thấy người dùng." };
+    return { message: t("actions.taiKhoan_khongTimThay") };
   }
   const trangThaiMoi = !user.isActive;
   await prisma.user.update({
@@ -3476,23 +3509,21 @@ export async function deleteUser(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const admin = await requireActiveRole(["ADMIN"]);
   if (!admin) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   if (id === admin.id) {
-    return {
-      message:
-        "Không thể tự xóa tài khoản của chính mình. Nhờ một quản trị khác xóa hộ.",
-    };
+    return { message: t("actions.taiKhoan_khongTuXoa") };
   }
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) {
-    return { message: "Không tìm thấy người dùng." };
+    return { message: t("actions.taiKhoan_khongTimThay") };
   }
 
   const [soFile, soYeuCau, soUyQuyen, soPhanCong] = await Promise.all([
@@ -3506,9 +3537,7 @@ export async function deleteUser(
 
   if (soFile > 0) {
     return {
-      message:
-        `Tài khoản này đã tải lên ${soFile} file báo cáo. File là bản lưu bất biến và phải giữ được vết ai đã nộp, ` +
-        "nên không xóa tài khoản được — hãy KHÓA tài khoản thay vì xóa.",
+      message: t("actions.taiKhoan_daTaiFileKhongXoaDuoc", { n: soFile }),
     };
   }
 
@@ -3517,13 +3546,10 @@ export async function deleteUser(
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2025") {
-        return { message: "Không tìm thấy người dùng." };
+        return { message: t("actions.taiKhoan_khongTimThay") };
       }
       if (error.code === "P2003") {
-        return {
-          message:
-            "Tài khoản đang gắn với dữ liệu khác nên không xóa được. Hãy khóa tài khoản thay vì xóa.",
-        };
+        return { message: t("actions.taiKhoan_conDuLieuLienQuan") };
       }
     }
     throw error;
@@ -3546,7 +3572,10 @@ export async function deleteUser(
   });
 
   revalidatePath("/users");
-  return { message: `Đã xóa tài khoản "${user.email}".`, success: true };
+  return {
+    message: t("actions.taiKhoan_daXoa", { email: user.email }),
+    success: true,
+  };
 }
 
 // Xóa hẳn một đơn mua ĐÃ HỦY. Đơn hủy là rác trong danh sách nhưng vẫn phải
@@ -3555,38 +3584,36 @@ export async function deletePurchaseOrder(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   // Xóa chứng từ mua sắm là việc hệ trọng — chỉ quản trị viên.
   const actor = await requireActiveRole(["ADMIN"]);
   if (!actor) {
-    return { message: "Chỉ quản trị viên mới xóa được đơn mua." };
+    return { message: t("actions.donMua_chiQuanTriXoaDuoc") };
   }
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   const po = await prisma.purchaseOrder.findUnique({
     where: { id },
     include: { items: true },
   });
   if (!po) {
-    return { message: "Đơn mua đã bị xóa hoặc không tồn tại." };
+    return { message: t("actions.donMua_daXoaHoacKhongTonTai") };
   }
   const scope = vesselScopeDayDu(actor);
   if (!trongPhamVi(scope, po.vesselId)) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   if (po.status !== "CANCELLED") {
-    return {
-      message:
-        "Chỉ xóa được đơn ĐÃ HỦY. Đơn đang xử lý thì hãy bấm Hủy trước, để giữ vết là nó từng tồn tại.",
-    };
+    return { message: t("actions.donMua_chiXoaDonDaHuy") };
   }
   // Đã nhận hàng nghĩa là tồn kho đã bị tác động — xóa đơn sẽ mất căn cứ của
   // số tồn đó, nên chặn lại kể cả khi đơn đã hủy.
   const received = po.items.reduce((s, i) => s + i.quantityReceived, 0);
   if (received > 0) {
     return {
-      message: `Không xóa được: đơn này đã nhận ${received} đơn vị hàng, xóa đi sẽ mất căn cứ của số tồn kho đã ghi.`,
+      message: t("actions.donMua_daNhanHangKhongXoaDuoc", { n: received }),
     };
   }
 
@@ -3619,7 +3646,7 @@ export async function deletePurchaseOrder(
 
   revalidatePath("/purchasing");
   revalidatePath("/dashboard");
-  return { message: `Đã xóa đơn ${po.poNo}.`, success: true };
+  return { message: t("actions.donMua_daXoa", { ma: po.poNo }), success: true };
 }
 
 // Sửa vật tư ngay tại dòng trong bảng danh mục — không phải mở form riêng.
@@ -3627,23 +3654,24 @@ export async function updateMaterial(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   const before = await prisma.material.findUnique({ where: { id } });
   if (!before) {
-    return { message: "Vật tư đã bị xóa hoặc không tồn tại." };
+    return { message: t("actions.vatTu_daXoaHoacKhongTonTai") };
   }
 
   const str = (k: string) => String(formData.get(k) || "").trim();
   const code = str("code");
   const nameVn = str("nameVn");
   if (!code || !nameVn) {
-    return { message: "Mã vật tư và tên vật tư là bắt buộc." };
+    return { message: t("actions.vatTu_maVaTenBatBuoc") };
   }
   const materialType = str("materialType") === "SPARE" ? "SPARE" : "STORE";
   const equipment = str("equipment");
@@ -3651,10 +3679,10 @@ export async function updateMaterial(
   const minStock = Number(formData.get("minStock") || 0);
   const maxStock = Number(formData.get("maxStock") || 0);
   if (!Number.isFinite(minStock) || minStock < 0) {
-    return { message: "Tồn tối thiểu không hợp lệ." };
+    return { message: t("actions.vatTu_tonToiThieuKhongHopLe") };
   }
   if (!Number.isFinite(maxStock) || maxStock < 0) {
-    return { message: "Tồn tối đa không hợp lệ." };
+    return { message: t("actions.vatTu_tonToiDaKhongHopLe") };
   }
 
   try {
@@ -3686,11 +3714,11 @@ export async function updateMaterial(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return { message: `Mã vật tư "${code}" đã có ở vật tư khác.` };
+      return { message: t("actions.vatTu_maDaCoOVatTuKhac", { ma: code }) };
     }
     throw error;
   }
   revalidatePath("/materials");
   revalidatePath("/inventory");
-  return { message: `Đã lưu "${nameVn}".`, success: true };
+  return { message: t("actions.daLuuTen", { ten: nameVn }), success: true };
 }

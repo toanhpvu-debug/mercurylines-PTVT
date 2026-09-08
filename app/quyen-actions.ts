@@ -5,13 +5,15 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, requireActiveRole } from "@/lib/auth";
 import { ghiNhatKyNguoiDung } from "@/lib/audit";
+import { layT } from "@/lib/i18n/server";
 import { ROLE_LABEL } from "@/lib/roles";
 
 // Server action cho phần phân quyền nâng cao: phân công đội tàu cho tài khoản
 // bờ, và ủy quyền có thời hạn. Tách khỏi app/actions.ts vì đây là nghiệp vụ
 // quản trị, không phải nghiệp vụ vật tư.
-
-const NO_PERMISSION = "Bạn không có quyền thực hiện thao tác này.";
+//
+// Câu trả về cho người dùng đi qua t(); riêng phần `detail` của nhật ký người
+// dùng giữ nguyên tiếng Việt — hồ sơ không đổi theo ngôn ngữ người đang xem.
 
 type ActionState = { message: string; success?: boolean };
 
@@ -26,20 +28,23 @@ export async function capNhatPhanCongDoiTau(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t } = await layT();
   const admin = await requireActiveRole(["ADMIN"]);
-  if (!admin) return { message: NO_PERMISSION };
+  if (!admin) return { message: t("chung.khongCoQuyen") };
 
   const userId = Number(formData.get("userId"));
   if (!Number.isInteger(userId) || userId <= 0) {
-    return { message: "Dữ liệu không hợp lệ." };
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) return { message: "Không tìm thấy người dùng." };
+  if (!user) return { message: t("actionsModule.quyen_khongTimThayNguoiDung") };
   if (user.role !== "TECH_MANAGER") {
     // ADMIN luôn thấy toàn đội; người trên tàu bị giới hạn bằng cột vesselId.
     // Phân công đội tàu chỉ có nghĩa với quản lý kỹ thuật.
     return {
-      message: `Phân công đội tàu chỉ áp dụng cho ${ROLE_LABEL.TECH_MANAGER}.`,
+      message: t("actionsModule.quyen_chiApDungCho", {
+        vaiTro: t("labels.role_TECH_MANAGER"),
+      }),
     };
   }
 
@@ -79,8 +84,11 @@ export async function capNhatPhanCongDoiTau(
   revalidatePath("/users");
   return {
     message: hopLe.length
-      ? `Đã phân công ${hopLe.length} tàu cho ${user.name}.`
-      : `Đã bỏ phân công tàu của ${user.name} — tài khoản này trở lại thấy toàn đội.`,
+      ? t("actionsModule.quyen_daPhanCong", {
+          n: hopLe.length,
+          ten: user.name,
+        })
+      : t("actionsModule.quyen_daBoPhanCong", { ten: user.name }),
     success: true,
   };
 }
@@ -96,27 +104,31 @@ export async function taoUyQuyen(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  // Đặt tên khác cho hàm định dạng ngày vì file này đã có hàm ngay() riêng.
+  const { t, ngay: dinhDangNgay } = await layT();
   const me = await getCurrentUser();
-  if (!me || !me.isActive) return { message: NO_PERMISSION };
+  if (!me || !me.isActive) return { message: t("chung.khongCoQuyen") };
 
   const delegatorId = Number(formData.get("delegatorId")) || me.id;
   const delegateId = Number(formData.get("delegateId"));
   const laAdmin = me.role === "ADMIN";
   if (!laAdmin && delegatorId !== me.id) {
-    return { message: "Chỉ ủy quyền được phần quyền của chính mình." };
+    return { message: t("actionsModule.quyen_chiUyQuyenCuaMinh") };
   }
   if (!Number.isInteger(delegateId) || delegateId <= 0) {
-    return { message: "Chọn người nhận ủy quyền." };
+    return { message: t("actionsModule.quyen_chonNguoiNhan") };
   }
   if (delegateId === delegatorId) {
-    return { message: "Không thể ủy quyền cho chính mình." };
+    return { message: t("actionsModule.quyen_khongUyQuyenChoMinh") };
   }
 
   const [delegator, delegate] = await Promise.all([
     prisma.user.findUnique({ where: { id: delegatorId } }),
     prisma.user.findUnique({ where: { id: delegateId } }),
   ]);
-  if (!delegator || !delegate) return { message: "Không tìm thấy người dùng." };
+  if (!delegator || !delegate) {
+    return { message: t("actionsModule.quyen_khongTimThayNguoiDung") };
+  }
   // Quyền quản trị hệ thống KHÔNG phải thẩm quyền nghiệp vụ: nó là quyền trên
   // chính cái hệ thống này, không gắn với một chức danh trên tàu nào để mà đi
   // vắng và giao lại. Cho mượn được thì một dòng ủy quyền biến người nhận thành
@@ -126,26 +138,29 @@ export async function taoUyQuyen(
   // ô "Người giao quyền", nhưng delegatorId vẫn tới từ FormData nên không được
   // tin. Đừng gỡ nhánh này vì thấy form đã an toàn.
   if (delegator.role === "ADMIN") {
-    return {
-      message:
-        "Không ủy quyền được quyền quản trị hệ thống. Hãy chọn người giao quyền là thuyền trưởng / máy trưởng / quản lý kỹ thuật.",
-    };
+    return { message: t("actionsModule.quyen_khongUyQuyenAdmin") };
   }
   if (!delegate.isActive) {
-    return { message: `Tài khoản ${delegate.email} đang bị khóa.` };
+    return {
+      message: t("actionsModule.quyen_taiKhoanBiKhoa", {
+        email: delegate.email,
+      }),
+    };
   }
 
   const startAt = ngay(formData.get("startAt"));
   const endAt = ngay(formData.get("endAt"), true);
-  if (!startAt || !endAt) return { message: "Nhập đủ ngày bắt đầu và ngày hết hạn." };
+  if (!startAt || !endAt) {
+    return { message: t("actionsModule.quyen_nhapDuNgay") };
+  }
   if (endAt <= startAt) {
-    return { message: "Ngày hết hạn phải sau ngày bắt đầu." };
+    return { message: t("actionsModule.quyen_ngayHetHanSauBatDau") };
   }
   // Ủy quyền VÔ THỜI HẠN là thứ nguy hiểm nhất ở đây: người ta lập một lần rồi
   // quên, và quyền cứ nằm đó. Chặn cứng ở một năm.
   const MOT_NAM = 366 * 24 * 60 * 60 * 1000;
   if (endAt.getTime() - startAt.getTime() > MOT_NAM) {
-    return { message: "Ủy quyền tối đa một năm. Hết hạn thì lập lại." };
+    return { message: t("actionsModule.quyen_toiDaMotNam") };
   }
 
   const reason = String(formData.get("reason") || "").trim() || null;
@@ -173,7 +188,10 @@ export async function taoUyQuyen(
 
   revalidatePath("/users");
   return {
-    message: `Đã ủy quyền cho ${delegate.name} tới ${endAt.toLocaleDateString("vi-VN")}.`,
+    message: t("actionsModule.quyen_daUyQuyen", {
+      ten: delegate.name,
+      ngay: dinhDangNgay(endAt),
+    }),
     success: true,
   };
 }
@@ -188,20 +206,23 @@ export async function thuHoiUyQuyen(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t } = await layT();
   const me = await getCurrentUser();
-  if (!me || !me.isActive) return { message: NO_PERMISSION };
+  if (!me || !me.isActive) return { message: t("chung.khongCoQuyen") };
 
   const id = Number(formData.get("id"));
-  if (!Number.isInteger(id) || id <= 0) return { message: "Dữ liệu không hợp lệ." };
+  if (!Number.isInteger(id) || id <= 0) {
+    return { message: t("chung.duLieuKhongHopLe") };
+  }
   const uq = await prisma.delegation.findUnique({
     where: { id },
     include: { delegate: true, delegator: true },
   });
-  if (!uq) return { message: "Không tìm thấy ủy quyền." };
+  if (!uq) return { message: t("actionsModule.quyen_khongTimThayUyQuyen") };
   if (me.role !== "ADMIN" && uq.delegatorId !== me.id) {
-    return { message: "Chỉ người đã ủy quyền hoặc quản trị mới thu hồi được." };
+    return { message: t("actionsModule.quyen_chiNguoiUyQuyenThuHoi") };
   }
-  if (uq.revokedAt) return { message: "Ủy quyền này đã được thu hồi." };
+  if (uq.revokedAt) return { message: t("actionsModule.quyen_daThuHoiRoi") };
 
   await prisma.delegation.update({
     where: { id },
@@ -216,7 +237,10 @@ export async function thuHoiUyQuyen(
   });
 
   revalidatePath("/users");
-  return { message: `Đã thu hồi ủy quyền cho ${uq.delegate.name}.`, success: true };
+  return {
+    message: t("actionsModule.quyen_daThuHoi", { ten: uq.delegate.name }),
+    success: true,
+  };
 }
 
 /** Đọc ngày từ ô <input type="date">; cuối ngày cho mốc hết hạn. */

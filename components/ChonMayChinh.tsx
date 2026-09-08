@@ -1,6 +1,7 @@
 "use client";
 
-import { NHOM_MAY_CHINH, NHOM_THIET_BI } from "@/lib/maVatTu";
+import { NHOM_MAY_CHINH } from "@/lib/maVatTu";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 /**
  * Khai máy chính của tàu: họ máy (MAN B&W / Mitsubishi UEC) và model cụ thể.
@@ -20,25 +21,30 @@ export default function ChonMayChinh({
   nhom: string;
   model: string;
 }) {
+  const { t, tenNhomThietBi } = useNgonNgu();
   return (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <div>
-        <label className="mb-1 block text-sm text-slate-600">Máy chính</label>
+        <label className="mb-1 block text-sm text-slate-600">
+          {t("vessels.mayChinh")}
+        </label>
         <select
           name="mainEngineGroup"
           defaultValue={nhom}
           className="w-full rounded border p-2"
         >
-          <option value="">— Chưa khai —</option>
+          <option value="">{t("vessels.chuaKhaiMay")}</option>
           {NHOM_MAY_CHINH.map((ma) => (
             <option key={ma} value={ma}>
-              {NHOM_THIET_BI[ma].tenEn} ({ma})
+              {tenNhomThietBi(ma)} ({ma})
             </option>
           ))}
         </select>
       </div>
       <div>
-        <label className="mb-1 block text-sm text-slate-600">Model máy</label>
+        <label className="mb-1 block text-sm text-slate-600">
+          {t("vessels.modelMay")}
+        </label>
         <input
           name="mainEngineModel"
           defaultValue={model}

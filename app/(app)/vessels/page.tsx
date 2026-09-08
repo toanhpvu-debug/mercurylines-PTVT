@@ -6,23 +6,21 @@ import {
   vesselIdWhere,
   vesselScopeDayDu,
 } from "@/lib/auth";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
-const statusBadges: Record<string, { label: string; className: string }> = {
-  ACTIVE: { label: "Hoạt động", className: "bg-green-100 text-green-700" },
-  MAINTENANCE: {
-    label: "Bảo dưỡng",
-    className: "bg-yellow-100 text-yellow-700",
-  },
-  INACTIVE: {
-    label: "Ngừng khai thác",
-    className: "bg-slate-200 text-slate-600",
-  },
+// Chỉ giữ MÀU ở đây; nhãn trạng thái lấy từ từ điển (labels.vesselStatus_* cho
+// ACTIVE/INACTIVE, vessels.trangThaiBaoDuong cho MAINTENANCE).
+const mauTrangThai: Record<string, string> = {
+  ACTIVE: "bg-green-100 text-green-700",
+  MAINTENANCE: "bg-yellow-100 text-yellow-700",
+  INACTIVE: "bg-slate-200 text-slate-600",
 };
 
 export default async function VesselsPage() {
   const user = await requireScopedUser();
+  const { t, tTuDo } = await layT();
   const scope = vesselScopeDayDu(user);
   const canManage = user.role === "ADMIN";
   const vessels = await prisma.vessel.findMany({
@@ -37,23 +35,29 @@ export default async function VesselsPage() {
       },
     },
   });
+  const nhanTrangThai = (ma: string) =>
+    ma === "MAINTENANCE"
+      ? t("vessels.trangThaiBaoDuong")
+      : tTuDo(`labels.vesselStatus_${ma in mauTrangThai ? ma : "ACTIVE"}`);
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-blue-950">
-          {scope.all ? "Đội tàu Mercury Lines" : "Tàu của bạn"}
+          {scope.all ? t("vessels.doiTauTieuDe") : t("vessels.tauCuaBan")}
         </h2>
-        <p className="text-slate-600">Quản lý tàu và thông tin cơ bản</p>
+        <p className="text-slate-600">{t("vessels.doiTauMoTa")}</p>
       </div>
       {scope.unassigned && (
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          Bạn chưa được gán tàu phụ trách. Vui lòng liên hệ quản trị viên.
+          {t("chung.chuaGanTau")}
         </div>
       )}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {canManage && (
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <h3 className="mb-4 text-lg font-semibold">Thêm tàu mới</h3>
+            <h3 className="mb-4 text-lg font-semibold">
+              {t("vessels.themTauMoi")}
+            </h3>
             <VesselForm />
           </div>
         )}
@@ -62,18 +66,20 @@ export default async function VesselsPage() {
             canManage ? "xl:col-span-2" : "xl:col-span-3"
           }`}
         >
-          <h3 className="mb-4 text-lg font-semibold">Danh sách tàu</h3>
+          <h3 className="mb-4 text-lg font-semibold">
+            {t("vessels.danhSachTau")}
+          </h3>
           <div className="overflow-x-auto">
             <table className="w-full border text-sm">
               <thead>
                 <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">Mã tàu</th>
-                  <th className="p-2">Tên tàu</th>
+                  <th className="p-2">{t("vessels.maTau")}</th>
+                  <th className="p-2">{t("vessels.tenTau")}</th>
                   <th className="p-2">IMO</th>
-                  <th className="p-2">Loại tàu</th>
-                  <th className="p-2">Số kho</th>
-                  <th className="p-2">Số yêu cầu</th>
-                  <th className="p-2">Trạng thái</th>
+                  <th className="p-2">{t("vessels.loaiTau")}</th>
+                  <th className="p-2">{t("vessels.cotSoKho")}</th>
+                  <th className="p-2">{t("vessels.cotSoYeuCau")}</th>
+                  <th className="p-2">{t("chung.trangThai")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -102,12 +108,10 @@ export default async function VesselsPage() {
                     <td className="p-2">
                       <span
                         className={`rounded px-2 py-1 ${
-                          (statusBadges[vessel.status] ?? statusBadges.ACTIVE)
-                            .className
+                          mauTrangThai[vessel.status] ?? mauTrangThai.ACTIVE
                         }`}
                       >
-                        {(statusBadges[vessel.status] ?? statusBadges.ACTIVE)
-                          .label}
+                        {nhanTrangThai(vessel.status)}
                       </span>
                     </td>
                   </tr>

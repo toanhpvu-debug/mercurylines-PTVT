@@ -8,6 +8,7 @@ import {
   trongPhamVi,
   vesselScopeDayDu,
 } from "@/lib/auth";
+import { layT } from "@/lib/i18n/server";
 import { XIN_CAP_NHIEN_LIEU } from "@/lib/roles";
 import { getUploadDir } from "@/lib/uploads";
 
@@ -38,6 +39,7 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { t } = await layT();
   const user = await requireActiveRole([...XIN_CAP_NHIEN_LIEU, "TECH_MANAGER"]);
   if (!user) {
     // Nhánh này gộp cả "chưa đăng nhập" lẫn "đăng nhập rồi nhưng sai chức
@@ -45,18 +47,24 @@ export async function GET(
     // đăng nhập hẳn hoi mà đọc câu đó sẽ tưởng phiên hết hạn và đi đăng nhập
     // lại mãi không xong. Nói đúng cái thiếu là quyền.
     return NextResponse.json(
-      { error: "Bạn không có quyền xem bản gốc phiếu này." },
+      { error: t("actionsModule.taiLieu_khongXemDuocBanGoc") },
       { status: 401 }
     );
   }
   const { id: idRaw } = await context.params;
   const id = Number(idRaw);
   if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ error: "Không tìm thấy." }, { status: 404 });
+    return NextResponse.json(
+      { error: t("chung.khongTimThay") },
+      { status: 404 }
+    );
   }
   const receipt = await prisma.consumableReceipt.findUnique({ where: { id } });
   if (!receipt || !receipt.attachStored) {
-    return NextResponse.json({ error: "Không tìm thấy." }, { status: 404 });
+    return NextResponse.json(
+      { error: t("chung.khongTimThay") },
+      { status: 404 }
+    );
   }
   // Phải dùng trongPhamVi() chứ không so tay: người phụ trách từ 2 tàu trở lên
   // được xếp vào scope.vesselIds (mảng) và scope.vesselId khi đó là null, nên
@@ -66,7 +74,10 @@ export async function GET(
     trongPhamVi(scope, receipt.vesselId) ||
     coQuanLyNhienLieu(user, receipt.vesselId);
   if (!duocXem) {
-    return NextResponse.json({ error: "Không tìm thấy." }, { status: 404 });
+    return NextResponse.json(
+      { error: t("chung.khongTimThay") },
+      { status: 404 }
+    );
   }
 
   // Tên file lưu là UUID do hệ thống sinh, nhưng vẫn ghép đường dẫn tường minh
@@ -77,7 +88,7 @@ export async function GET(
     data = await readFile(path.join(getUploadDir(), ten));
   } catch {
     return NextResponse.json(
-      { error: "File không còn trên máy chủ." },
+      { error: t("actionsModule.fileKhongConTrenMayChu") },
       { status: 404 }
     );
   }

@@ -2,8 +2,9 @@
 
 import { useActionState } from "react";
 import { deleteUser, toggleUserActive, updateUserRole } from "@/app/actions";
-import { NHOM_CHUC_DANH, ROLE_LABEL } from "@/lib/roles";
+import { NHOM_CHUC_DANH } from "@/lib/roles";
 import ChonChucDanhGiuVatTu from "@/components/ChonChucDanhGiuVatTu";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type VesselOption = {
   id: number;
@@ -25,6 +26,7 @@ export function UserRoleForm({
   vessels: VesselOption[];
   disabled: boolean;
 }) {
+  const { t, tTuDo } = useNgonNgu();
   const [state, formAction, pending] = useActionState(updateUserRole, {
     message: "",
   });
@@ -39,11 +41,16 @@ export function UserRoleForm({
           disabled={disabled}
           className="rounded border p-1 text-sm disabled:bg-slate-100 disabled:text-slate-400"
         >
+          {/* Tên nhóm nằm trong lib/roles.ts (dữ liệu, không sửa) — tra từ
+              điển theo chức danh đứng đầu nhóm. */}
           {NHOM_CHUC_DANH.map((g) => (
-            <optgroup key={g.nhom} label={g.nhom}>
+            <optgroup
+              key={g.nhom}
+              label={tTuDo(`vessels.nhomChucDanh_${g.vaiTro[0]}`)}
+            >
               {g.vaiTro.map((r) => (
                 <option key={r} value={r}>
-                  {ROLE_LABEL[r]}
+                  {tTuDo(`labels.role_${r}`)}
                 </option>
               ))}
             </optgroup>
@@ -55,7 +62,7 @@ export function UserRoleForm({
           disabled={disabled}
           className="max-w-44 rounded border p-1 text-sm disabled:bg-slate-100 disabled:text-slate-400"
         >
-          <option value="">Không gán tàu</option>
+          <option value="">{t("vessels.khongGanTau")}</option>
           {vessels.map((vessel) => (
             <option key={vessel.id} value={vessel.id}>
               {vessel.label}
@@ -73,7 +80,7 @@ export function UserRoleForm({
             disabled={pending}
             className="rounded border px-2 py-1 text-sm hover:bg-blue-50 disabled:opacity-50"
           >
-            {pending ? "..." : "Lưu"}
+            {pending ? "..." : t("chung.luu")}
           </button>
         )}
       </div>
@@ -93,6 +100,7 @@ export function UserActiveToggle({
   isActive: boolean;
   disabled: boolean;
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(toggleUserActive, {
     message: "",
   });
@@ -110,7 +118,11 @@ export function UserActiveToggle({
             : "bg-green-100 text-green-700 hover:bg-green-200"
         }`}
       >
-        {pending ? "..." : isActive ? "Khóa" : "Mở khóa"}
+        {pending
+          ? "..."
+          : isActive
+            ? t("vessels.khoaTaiKhoan")
+            : t("vessels.moKhoaTaiKhoan")}
       </button>
       {state.message && (
         <p className="mt-1 text-xs text-red-600">{state.message}</p>
@@ -135,6 +147,7 @@ export function UserDeleteButton({
   email: string;
   disabled: boolean;
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(deleteUser, {
     message: "",
   });
@@ -145,14 +158,7 @@ export function UserDeleteButton({
     <form
       action={formAction}
       onSubmit={(e) => {
-        if (
-          !window.confirm(
-            `Xóa hẳn tài khoản "${email}"?\n\n` +
-              "Thao tác này KHÔNG hoàn tác được. Ủy quyền và phân công đội tàu của " +
-              "người này bị xóa theo; yêu cầu vật tư họ đã lập vẫn giữ nguyên.\n\n" +
-              "Thuyền viên rời tàu thì nên KHÓA thay vì xóa — khóa xong vẫn tra lại được."
-          )
-        ) {
+        if (!window.confirm(t("vessels.xacNhanXoaTaiKhoan", { email }))) {
           e.preventDefault();
         }
       }}
@@ -162,7 +168,7 @@ export function UserDeleteButton({
         disabled={pending}
         className="rounded px-3 py-1 text-sm text-red-700 underline decoration-dotted hover:bg-red-50 disabled:opacity-50"
       >
-        {pending ? "Đang xóa..." : "Xóa"}
+        {pending ? t("vessels.dangXoa") : t("chung.xoa")}
       </button>
       {state.message && !state.success && (
         <p className="mt-1 max-w-56 text-xs text-red-600">{state.message}</p>

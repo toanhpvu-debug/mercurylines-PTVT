@@ -12,6 +12,8 @@ import {
   vesselIdWhere,
   vesselScopeDayDu,
 } from "@/lib/auth";
+import type { HamDich } from "@/lib/i18n";
+import { layT } from "@/lib/i18n/server";
 import { PAINT_TYPE_VALUES } from "@/lib/paintTypes";
 import {
   ROLE_LABEL,
@@ -22,8 +24,11 @@ import {
 
 // Server action cho module Quản lý sơn. Tách khỏi app/actions.ts (đã 2200 dòng)
 // để phần sơn đứng riêng, dễ đọc và dễ sửa.
-
-const NO_PERMISSION = "Bạn không có quyền thực hiện thao tác này.";
+//
+// Câu trả về cho người dùng đi qua t() nên theo ngôn ngữ giao diện; chữ ghi vào
+// database (itemName, purpose, note của giao dịch và của nhật ký phê duyệt) giữ
+// nguyên tiếng Việt — hồ sơ không đổi theo người đang xem. Chữ do bộ đọc file
+// sinh ra (lib/paintImport.ts) cũng đi thẳng ra, không dịch lại ở đây.
 
 type ActionState = {
   message: string;
@@ -63,7 +68,10 @@ function laBanGhiDaMat(error: unknown) {
   );
 }
 
-const DA_XOA_TRUOC = "Bản ghi đã bị xóa trước đó.";
+// Tiền tố đánh dấu lỗi "không đủ tồn" do chính file này nêu ra bên trong
+// transaction rồi bắt lại ở ngoài — cùng lý do với LOI_NHAP_SON ở cuối file:
+// câu thông báo nay đổi theo ngôn ngữ nên không so chuỗi được nữa.
+const LOI_TON = "LOI_TON:";
 
 // Kiểm tra quyền thao tác phần SƠN của một tàu, trả về user hoặc null.
 //
@@ -94,6 +102,7 @@ export async function savePaintProduct(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t } = await layT();
   const id = Number(formData.get("id") || 0);
   // THÊM MỚI thì người quản sơn trên tàu làm được; SỬA một loại đang có thì
   // không. Thêm một loại sơn mới không ảnh hưởng tàu khác, còn sửa định nghĩa
@@ -106,18 +115,18 @@ export async function savePaintProduct(
     return {
       message:
         id > 0
-          ? "Sửa loại sơn đang dùng chung là việc của thuyền trưởng hoặc văn phòng. Bạn thêm loại mới được."
-          : NO_PERMISSION,
+          ? t("actionsModule.son_suaLoaiSonDungChung")
+          : t("chung.khongCoQuyen"),
     };
   }
   const name = text(formData, "name");
   const code = text(formData, "code");
   const paintType = text(formData, "paintType") || "OTHER";
   if (!name) {
-    return { message: "Tên sơn là bắt buộc." };
+    return { message: t("actionsModule.son_tenSonBatBuoc") };
   }
   if (!PAINT_TYPE_VALUES.includes(paintType)) {
-    return { message: "Loại sơn không hợp lệ." };
+    return { message: t("actionsModule.son_loaiSonKhongHopLe") };
   }
   const data = {
     name,
@@ -159,28 +168,32 @@ export async function savePaintProduct(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return { message: `Mã sơn "${code}" đã tồn tại.` };
+      return { message: t("actionsModule.son_maSonDaTonTai", { ma: code }) };
     }
     if (laBanGhiDaMat(error)) {
-      return { message: "Loại sơn này đã bị xóa trước đó." };
+      return { message: t("actionsModule.son_loaiSonNayDaXoa") };
     }
     throw error;
   }
   revalidatePath("/paint/products");
   revalidatePath("/paint");
-  return { message: `Đã lưu sơn "${name}".`, success: true };
+  return {
+    message: t("actionsModule.son_daLuuSon", { ten: name }),
+    success: true,
+  };
 }
 
 export async function togglePaintProduct(
   _prev: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   const product = await prisma.paintProduct.findUnique({ where: { id } });
-  if (!product) return { message: "Không tìm thấy loại sơn." };
+  if (!product) return { message: t("actionsModule.son_khongTimThayLoaiSon") };
   try {
     await prisma.paintProduct.update({
       where: { id },
@@ -188,15 +201,15 @@ export async function togglePaintProduct(
     });
   } catch (error) {
     if (laBanGhiDaMat(error)) {
-      return { message: "Loại sơn đã bị xóa trước đó." };
+      return { message: t("actionsModule.son_loaiSonDaXoa") };
     }
     throw error;
   }
   revalidatePath("/paint/products");
   return {
     message: product.isActive
-      ? `Đã ngừng dùng "${product.name}".`
-      : `Đã dùng lại "${product.name}".`,
+      ? t("actionsModule.daNgungDungTen", { ten: product.name })
+      : t("actionsModule.daDungLaiTen", { ten: product.name }),
     success: true,
   };
 }
@@ -205,8 +218,9 @@ export async function deletePaintProduct(
   _prev: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   if (!(await requireActiveRole(["ADMIN"]))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   const product = await prisma.paintProduct.findUnique({
@@ -222,7 +236,7 @@ export async function deletePaintProduct(
       },
     },
   });
-  if (!product) return { message: "Không tìm thấy loại sơn." };
+  if (!product) return { message: t("actionsModule.son_khongTimThayLoaiSon") };
   // Giữ lịch sử: đã dùng trong sơ đồ sơn, nhật ký thi công, hoặc đã từng
   // nhập/xuất trên tàu thì không xóa được. Khóa ngoại PaintTransaction là
   // ON DELETE RESTRICT nên bỏ sót "transactions" ở đây sẽ khiến lệnh xóa
@@ -233,7 +247,12 @@ export async function deletePaintProduct(
     product._count.transactions;
   if (used > 0) {
     return {
-      message: `Không xóa được: "${product.name}" đã có ${product._count.transactions} giao dịch nhập/xuất, ${product._count.schemeLayers} lớp sơ đồ, ${product._count.jobLines} dòng nhật ký. Hãy dùng "Ngừng dùng".`,
+      message: t("actionsModule.son_khongXoaDuocDaDung", {
+        ten: product.name,
+        gd: product._count.transactions,
+        lop: product._count.schemeLayers,
+        nk: product._count.jobLines,
+      }),
     };
   }
   const stocked = await prisma.paintStock.count({
@@ -241,7 +260,7 @@ export async function deletePaintProduct(
   });
   if (stocked > 0) {
     return {
-      message: `Không xóa được: còn tồn trên ${stocked} tàu. Hãy xuất hết hoặc dùng "Ngừng dùng".`,
+      message: t("actionsModule.son_khongXoaDuocConTon", { n: stocked }),
     };
   }
   // Hai lệnh phải đi chung một transaction: nếu lệnh sau vỡ vì còn tham
@@ -255,18 +274,23 @@ export async function deletePaintProduct(
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2003") {
         return {
-          message: `Không xóa được: "${product.name}" còn được tham chiếu ở nơi khác. Hãy dùng "Ngừng dùng".`,
+          message: t("actionsModule.son_khongXoaDuocConThamChieu", {
+            ten: product.name,
+          }),
         };
       }
       if (error.code === "P2025") {
-        return { message: "Loại sơn đã bị xóa trước đó." };
+        return { message: t("actionsModule.son_loaiSonDaXoa") };
       }
     }
     throw error;
   }
   revalidatePath("/paint/products");
   revalidatePath("/paint");
-  return { message: `Đã xóa "${product.name}".`, success: true };
+  return {
+    message: t("actionsModule.daXoaTen", { ten: product.name }),
+    success: true,
+  };
 }
 
 // ─── Khu vực sơn của tàu ─────────────────────────────────────────────────────
@@ -275,13 +299,14 @@ export async function savePaintArea(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   if (!(await requireVesselAccess(vesselId))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id") || 0);
   const name = text(formData, "name");
-  if (!name) return { message: "Tên khu vực là bắt buộc." };
+  if (!name) return { message: t("actionsModule.son_tenKhuVucBatBuoc") };
   const data = {
     name,
     areaM2: num(formData, "areaM2"),
@@ -299,24 +324,28 @@ export async function savePaintArea(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return { message: `Tàu này đã có khu vực tên "${name}".` };
+      return { message: t("actionsModule.son_khuVucTrungTen", { ten: name }) };
     }
     if (laBanGhiDaMat(error)) {
-      return { message: "Khu vực này đã bị xóa trước đó." };
+      return { message: t("actionsModule.son_khuVucDaXoa") };
     }
     throw error;
   }
   revalidateVessel(vesselId);
-  return { message: `Đã lưu khu vực "${name}".`, success: true };
+  return {
+    message: t("actionsModule.son_daLuuKhuVuc", { ten: name }),
+    success: true,
+  };
 }
 
 export async function deletePaintArea(
   _prev: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   if (!(await requireVesselAccess(vesselId))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   const area = await prisma.paintArea.findUnique({
@@ -324,22 +353,29 @@ export async function deletePaintArea(
     include: { _count: { select: { jobs: true } } },
   });
   if (!area || area.vesselId !== vesselId) {
-    return { message: "Không tìm thấy khu vực." };
+    return { message: t("actionsModule.son_khongTimThayKhuVuc") };
   }
   if (area._count.jobs > 0) {
     return {
-      message: `Không xóa được: đã có ${area._count.jobs} lần thi công ghi vào khu vực này. Xóa các bản ghi nhật ký trước nếu thật sự cần.`,
+      message: t("actionsModule.son_khongXoaDuocKhuVuc", {
+        n: area._count.jobs,
+      }),
     };
   }
   // Xóa khu vực thì các lớp sơ đồ của nó bị xóa theo (onDelete: Cascade).
   try {
     await prisma.paintArea.delete({ where: { id } });
   } catch (error) {
-    if (laBanGhiDaMat(error)) return { message: DA_XOA_TRUOC };
+    if (laBanGhiDaMat(error)) {
+      return { message: t("actionsModule.banGhiDaXoaTruoc") };
+    }
     throw error;
   }
   revalidateVessel(vesselId);
-  return { message: `Đã xóa khu vực "${area.name}".`, success: true };
+  return {
+    message: t("actionsModule.son_daXoaKhuVuc", { ten: area.name }),
+    success: true,
+  };
 }
 
 // ─── Sơ đồ sơn: các lớp của một khu vực ──────────────────────────────────────
@@ -348,18 +384,19 @@ export async function savePaintSchemeLayer(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   if (!(await requireVesselAccess(vesselId))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const areaId = Number(formData.get("areaId"));
   const productId = Number(formData.get("productId"));
   if (!areaId || !productId) {
-    return { message: "Chọn khu vực và loại sơn." };
+    return { message: t("actionsModule.son_chonKhuVucVaLoaiSon") };
   }
   const area = await prisma.paintArea.findUnique({ where: { id: areaId } });
   if (!area || area.vesselId !== vesselId) {
-    return { message: "Khu vực không thuộc tàu này." };
+    return { message: t("actionsModule.son_khuVucKhongThuocTau") };
   }
   const id = Number(formData.get("id") || 0);
   // id đến thẳng từ form và KHÔNG ràng buộc gì với areaId vừa kiểm tra ở trên:
@@ -373,7 +410,7 @@ export async function savePaintSchemeLayer(
       include: { area: true },
     });
     if (!hienCo || hienCo.area.vesselId !== vesselId) {
-      return { message: "Không tìm thấy lớp sơn." };
+      return { message: t("actionsModule.son_khongTimThayLopSon") };
     }
   }
   const data = {
@@ -391,21 +428,22 @@ export async function savePaintSchemeLayer(
     }
   } catch (error) {
     if (laBanGhiDaMat(error)) {
-      return { message: "Lớp sơn này đã bị xóa trước đó." };
+      return { message: t("actionsModule.son_lopSonDaXoa") };
     }
     throw error;
   }
   revalidateVessel(vesselId);
-  return { message: "Đã lưu lớp sơn.", success: true };
+  return { message: t("actionsModule.son_daLuuLopSon"), success: true };
 }
 
 export async function deletePaintSchemeLayer(
   _prev: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   if (!(await requireVesselAccess(vesselId))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
   const layer = await prisma.paintSchemeLayer.findUnique({
@@ -413,16 +451,18 @@ export async function deletePaintSchemeLayer(
     include: { area: true },
   });
   if (!layer || layer.area.vesselId !== vesselId) {
-    return { message: "Không tìm thấy lớp sơn." };
+    return { message: t("actionsModule.son_khongTimThayLopSon") };
   }
   try {
     await prisma.paintSchemeLayer.delete({ where: { id } });
   } catch (error) {
-    if (laBanGhiDaMat(error)) return { message: DA_XOA_TRUOC };
+    if (laBanGhiDaMat(error)) {
+      return { message: t("actionsModule.banGhiDaXoaTruoc") };
+    }
     throw error;
   }
   revalidateVessel(vesselId);
-  return { message: "Đã xóa lớp sơn.", success: true };
+  return { message: t("actionsModule.son_daXoaLopSon"), success: true };
 }
 
 // ─── Tồn sơn: nhập / xuất ────────────────────────────────────────────────────
@@ -431,14 +471,15 @@ export async function paintStockMove(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   const actor = await requireVesselAccess(vesselId);
-  if (!actor) return { message: NO_PERMISSION };
+  if (!actor) return { message: t("chung.khongCoQuyen") };
 
   const type = text(formData, "type");
   const quantity = num(formData, "quantity");
   if (!["IN", "OUT"].includes(type)) {
-    return { message: "Loại giao dịch không hợp lệ." };
+    return { message: t("actionsModule.loaiGiaoDichKhongHopLe") };
   }
 
   // Hai đường chọn sơn: lấy từ danh mục, hoặc khai một loại MỚI ngay tại đây.
@@ -449,14 +490,11 @@ export async function paintStockMove(
   const tenMoi = text(formData, "newName");
   if (!productId && tenMoi) {
     if (type === "OUT") {
-      return {
-        message:
-          "Loại sơn mới thì chưa có tồn để xuất. Chọn “Nhận sơn lên tàu” cho lần ghi đầu tiên.",
-      };
+      return { message: t("actionsModule.son_loaiMoiChuaCoTon") };
     }
     const paintTypeMoi = text(formData, "newPaintType") || "OTHER";
     if (!PAINT_TYPE_VALUES.includes(paintTypeMoi)) {
-      return { message: "Loại sơn không hợp lệ." };
+      return { message: t("actionsModule.son_loaiSonKhongHopLe") };
     }
     // Ghép theo TÊN với loại đã có để không sinh bản trùng khi gõ lại đúng tên
     // một loại đang có trong danh mục.
@@ -491,19 +529,21 @@ export async function paintStockMove(
       productId = moi.id;
     }
   }
-  if (!productId) return { message: "Chọn loại sơn hoặc khai loại sơn mới." };
+  if (!productId) {
+    return { message: t("actionsModule.son_chonHoacKhaiLoaiSon") };
+  }
   if (!(quantity > 0)) {
-    return { message: "Số lượng phải lớn hơn 0." };
+    return { message: t("actionsModule.soLuongPhaiLonHonKhong") };
   }
   const occurredRaw = text(formData, "occurredAt");
   let occurredAt = new Date();
   if (occurredRaw) {
     const d = new Date(occurredRaw);
     if (Number.isNaN(d.getTime())) {
-      return { message: "Thời điểm không hợp lệ." };
+      return { message: t("actionsModule.thoiDiemKhongHopLe") };
     }
     if (d.getTime() > Date.now()) {
-      return { message: "Không ghi được thời điểm ở tương lai." };
+      return { message: t("actionsModule.khongGhiThoiDiemTuongLai") };
     }
     occurredAt = d;
   }
@@ -540,7 +580,11 @@ export async function paintStockMove(
             where: { vesselId_productId: { vesselId, productId } },
           });
           throw new Error(
-            `Không đủ tồn: còn ${con?.quantity ?? 0}, muốn xuất ${quantity}.`
+            LOI_TON +
+              t("actionsModule.son_khongDuTonXuat", {
+                con: con?.quantity ?? 0,
+                muon: quantity,
+              })
           );
         }
       }
@@ -557,14 +601,17 @@ export async function paintStockMove(
       });
     });
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("Không đủ tồn")) {
-      return { message: error.message };
+    if (error instanceof Error && error.message.startsWith(LOI_TON)) {
+      return { message: error.message.slice(LOI_TON.length) };
     }
     throw error;
   }
   revalidateVessel(vesselId);
   return {
-    message: type === "IN" ? "Đã nhập sơn." : "Đã xuất sơn.",
+    message:
+      type === "IN"
+        ? t("actionsModule.son_daNhapSon")
+        : t("actionsModule.son_daXuatSon"),
     success: true,
   };
 }
@@ -573,20 +620,24 @@ export async function savePaintStockMin(
   _prev: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   if (!(await requireVesselAccess(vesselId))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const productId = Number(formData.get("productId"));
   const minQty = num(formData, "minQty");
-  if (!productId) return { message: "Thiếu loại sơn." };
+  if (!productId) return { message: t("actionsModule.son_thieuLoaiSon") };
   await prisma.paintStock.upsert({
     where: { vesselId_productId: { vesselId, productId } },
     update: { minQty },
     create: { vesselId, productId, minQty, quantity: 0 },
   });
   revalidateVessel(vesselId);
-  return { message: "Đã lưu định mức tối thiểu.", success: true };
+  return {
+    message: t("actionsModule.son_daLuuDinhMucToiThieu"),
+    success: true,
+  };
 }
 
 // ─── Nhật ký thi công sơn ────────────────────────────────────────────────────
@@ -595,18 +646,19 @@ export async function createPaintJob(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   const actor = await requireVesselAccess(vesselId);
-  if (!actor) return { message: NO_PERMISSION };
+  if (!actor) return { message: t("chung.khongCoQuyen") };
 
   const jobDateRaw = text(formData, "jobDate");
-  if (!jobDateRaw) return { message: "Chọn ngày thi công." };
+  if (!jobDateRaw) return { message: t("actionsModule.son_chonNgayThiCong") };
   const jobDate = new Date(jobDateRaw);
   if (Number.isNaN(jobDate.getTime())) {
-    return { message: "Ngày thi công không hợp lệ." };
+    return { message: t("actionsModule.son_ngayThiCongKhongHopLe") };
   }
   if (jobDate.getTime() > Date.now() + 24 * 3600 * 1000) {
-    return { message: "Không ghi được ngày ở tương lai." };
+    return { message: t("actionsModule.son_khongGhiNgayTuongLai") };
   }
 
   const areaIdRaw = text(formData, "areaId");
@@ -615,7 +667,7 @@ export async function createPaintJob(
     const aid = Number(areaIdRaw);
     const area = await prisma.paintArea.findUnique({ where: { id: aid } });
     if (!area || area.vesselId !== vesselId) {
-      return { message: "Khu vực không thuộc tàu này." };
+      return { message: t("actionsModule.son_khuVucKhongThuocTau") };
     }
     areaId = aid;
   }
@@ -634,7 +686,7 @@ export async function createPaintJob(
     else lines.push({ productId: pid, quantity: qty });
   }
   if (!lines.length) {
-    return { message: "Nhập ít nhất một dòng sơn đã dùng (loại sơn + số lượng)." };
+    return { message: t("actionsModule.son_nhapItNhatMotDong") };
   }
   // Trừ tồn theo THỨ TỰ productId tăng dần. `updateMany ... decrement` giữ khóa
   // dòng tới hết giao dịch, nên hai nhật ký thi công lưu cùng lúc mà chạm hai
@@ -692,7 +744,12 @@ export async function createPaintJob(
             con?.product ??
             (await tx.paintProduct.findUnique({ where: { id: line.productId } }));
           throw new Error(
-            `Không đủ tồn "${p?.name ?? line.productId}": còn ${con?.quantity ?? 0}, cần ${line.quantity}.`
+            LOI_TON +
+              t("actionsModule.son_khongDuTonSon", {
+                ten: p?.name ?? line.productId,
+                con: con?.quantity ?? 0,
+                can: line.quantity,
+              })
           );
         }
         await tx.paintTransaction.create({
@@ -710,17 +767,14 @@ export async function createPaintJob(
       }
     });
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("Không đủ tồn")) {
-      return { message: error.message };
+    if (error instanceof Error && error.message.startsWith(LOI_TON)) {
+      return { message: error.message.slice(LOI_TON.length) };
     }
     // Dòng tồn của một loại sơn vừa bị xóa xong giữa lúc ghi — lệnh theo id ném
     // P2025, để lọt ra ngoài là trang lỗi trắng. Chỉ nói phạm vi thật của nhánh
     // này là DÒNG TỒN / LOẠI SƠN: khu vực bị xóa không rơi vào đây.
     if (laBanGhiDaMat(error)) {
-      return {
-        message:
-          "Một loại sơn trong bản ghi vừa bị người khác xóa. Chưa ghi gì cả, hãy mở lại trang rồi nhập lại.",
-      };
+      return { message: t("actionsModule.son_loaiSonVuaBiXoa") };
     }
     // Khu vực bị xóa giữa lúc kiểm tra ở trên và lúc tạo bản ghi thì KHÔNG ném
     // P2025 mà ném P2003 (vi phạm khóa ngoại areaId, hoặc productId của một
@@ -730,31 +784,29 @@ export async function createPaintJob(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2003"
     ) {
-      return {
-        message:
-          "Khu vực hoặc loại sơn trong bản ghi vừa bị xóa. Chưa ghi gì cả, hãy mở lại trang rồi nhập lại.",
-      };
+      return { message: t("actionsModule.son_khuVucHoacLoaiSonVuaBiXoa") };
     }
     throw error;
   }
   revalidateVessel(vesselId);
-  return { message: "Đã ghi nhật ký thi công và trừ tồn sơn.", success: true };
+  return { message: t("actionsModule.son_daGhiNhatKy"), success: true };
 }
 
 export async function deletePaintJob(
   _prev: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   const actor = await requireVesselAccess(vesselId);
-  if (!actor) return { message: NO_PERMISSION };
+  if (!actor) return { message: t("chung.khongCoQuyen") };
   const id = Number(formData.get("id"));
   const job = await prisma.paintJob.findUnique({
     where: { id },
     include: { lines: true },
   });
   if (!job || job.vesselId !== vesselId) {
-    return { message: "Không tìm thấy bản ghi thi công." };
+    return { message: t("actionsModule.son_khongTimThayThiCong") };
   }
   // Xóa nhật ký thì hoàn lại tồn đã trừ, nếu không sổ sơn sẽ lệch vĩnh viễn.
   try {
@@ -779,15 +831,12 @@ export async function deletePaintJob(
     // Người thứ hai bấm xóa cùng một bản ghi thi công: transaction đã hoàn lại
     // hết nên tồn không bị cộng hai lần, chỉ cần báo là bản ghi không còn nữa.
     if (laBanGhiDaMat(error)) {
-      return { message: "Bản ghi thi công đã bị xóa trước đó." };
+      return { message: t("actionsModule.son_banGhiThiCongDaXoa") };
     }
     throw error;
   }
   revalidateVessel(vesselId);
-  return {
-    message: "Đã xóa bản ghi thi công và hoàn lại tồn sơn.",
-    success: true,
-  };
+  return { message: t("actionsModule.son_daXoaNhatKy"), success: true };
 }
 
 // Danh sách tàu theo phạm vi của người dùng — dùng cho trang tổng quan sơn.
@@ -810,20 +859,21 @@ export async function copyPaintScheme(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   if (!(await requireVesselAccess(vesselId))) {
-    return { message: NO_PERMISSION };
+    return { message: t("chung.khongCoQuyen") };
   }
   const fromVesselId = Number(formData.get("fromVesselId"));
   if (!fromVesselId || fromVesselId === vesselId) {
-    return { message: "Chọn một tàu khác để sao chép sơ đồ." };
+    return { message: t("actionsModule.son_chonTauKhac") };
   }
   // Chỉ đọc sơ đồ của tàu người dùng được phép xem.
   const actor = await requireFleetPaintAccess();
-  if (!actor) return { message: NO_PERMISSION };
+  if (!actor) return { message: t("chung.khongCoQuyen") };
   const scope = vesselScopeDayDu(actor);
   if (!trongPhamVi(scope, fromVesselId)) {
-    return { message: "Bạn không được xem sơ đồ của tàu nguồn." };
+    return { message: t("actionsModule.son_khongXemDuocTauNguon") };
   }
 
   const source = await prisma.paintArea.findMany({
@@ -832,7 +882,7 @@ export async function copyPaintScheme(
     orderBy: { sortOrder: "asc" },
   });
   if (!source.length) {
-    return { message: "Tàu nguồn chưa có khu vực sơn nào." };
+    return { message: t("actionsModule.son_tauNguonChuaCoKhuVuc") };
   }
   const existing = await prisma.paintArea.findMany({
     where: { vesselId },
@@ -879,13 +929,15 @@ export async function copyPaintScheme(
   revalidateVessel(vesselId);
   if (!addedAreas) {
     return {
-      message: `Không sao chép được khu vực nào — cả ${skipped} khu vực đều đã tồn tại trên tàu này.`,
+      message: t("actionsModule.son_khongSaoChepDuoc", { n: skipped }),
     };
   }
   return {
     message:
-      `Đã sao chép ${addedAreas} khu vực và ${addedLayers} lớp sơn.` +
-      (skipped ? ` Bỏ qua ${skipped} khu vực đã có sẵn.` : ""),
+      t("actionsModule.son_daSaoChep", { kv: addedAreas, lop: addedLayers }) +
+      (skipped
+        ? " " + t("actionsModule.son_boQuaKhuVucDaCo", { n: skipped })
+        : ""),
     success: true,
   };
 }
@@ -909,11 +961,15 @@ function moTaDongSon(item: { name: string; sheet: string | null }) {
 // riêng nó. Cả khối ghi nằm trong MỘT transaction nên mọi trường hợp dưới đây
 // đều là "chưa ghi dòng nào"; nói rõ ra để người dùng khỏi phải đi dò xem file
 // đã vào được đến đâu rồi mới dám bấm lại.
-function loiGhiFileSon(error: unknown, viTri: string): string | null {
+function loiGhiFileSon(
+  error: unknown,
+  viTri: string,
+  t: HamDich
+): string | null {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return null;
   switch (error.code) {
     case "P2002":
-      return `Có phiên nhập sơn khác chạy cùng lúc nên mã sơn tự sinh bị trùng khi ghi ${viTri}. Chưa ghi dòng nào, hãy bấm nhập lại.`;
+      return t("actionsModule.son_loiTrungMa", { viTri });
     // P2034 = write conflict / deadlock. Không phải mã lý thuyết: hai đường
     // nhập file đều khóa từng dòng PaintStock theo đúng thứ tự sơn trong file,
     // nên hai người nhập hai file liệt kê sơn ngược thứ tự nhau là công thức
@@ -921,18 +977,18 @@ function loiGhiFileSon(error: unknown, viTri: string): string | null {
     // trong file" thì người dùng đi sửa hoặc xóa một dòng hoàn toàn lành, mất
     // luôn số lượng của dòng đó — trong khi chỉ cần bấm lại y nguyên là xong.
     case "P2034":
-      return `Có phiên nhập/xuất sơn khác chạy cùng lúc nên hai bên tranh nhau cùng một dòng tồn (dừng ở ${viTri}). Chưa ghi dòng nào, hãy bấm nhập lại — không cần sửa file.`;
+      return t("actionsModule.son_loiTranhTon", { viTri });
     case "P2025":
-      return `Loại sơn ở ${viTri} vừa bị người khác xóa khỏi danh mục. Chưa ghi dòng nào, hãy mở lại trang rồi nhập lại.`;
+      return t("actionsModule.son_loiLoaiSonVuaXoa", { viTri });
     case "P2003":
-      return `Không ghi được ${viTri}: tàu hoặc loại sơn liên quan không còn tồn tại. Chưa ghi dòng nào.`;
+      return t("actionsModule.son_loiKhoaNgoai", { viTri });
     // P2028 là mã chung của Transaction API: hết thời gian chạy vì file dài,
     // NHƯNG cũng ném ra khi không xin được transaction trong maxWait lúc pool
     // kết nối đang bận. Quy về một nguyên nhân "file quá dài" là bắt người dùng
     // ngồi cắt nhỏ một file 20 dòng giữa giờ cao điểm — mà mỗi mảnh lại là một
     // transaction riêng nên mất luôn tính "cả lô hoặc không gì cả".
     case "P2028":
-      return `Quá thời gian ghi khi tới ${viTri} — hoặc file quá dài, hoặc hệ thống đang bận. Chưa ghi dòng nào; hãy thử lại, nếu vẫn vậy thì tách file thành nhiều phần nhỏ hơn.`;
+      return t("actionsModule.son_loiQuaThoiGian", { viTri });
     default:
       return null;
   }
@@ -944,8 +1000,9 @@ export async function importPaintProducts(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t } = await layT();
   const actor = await requireFleetPaintAccess();
-  if (!actor) return { message: NO_PERMISSION };
+  if (!actor) return { message: t("chung.khongCoQuyen") };
 
   // Tàu để ghi tồn — tùy chọn. Bỏ trống thì chỉ nạp danh mục dùng chung.
   const vesselRaw = text(formData, "vesselId");
@@ -953,10 +1010,10 @@ export async function importPaintProducts(
   if (vesselRaw) {
     const vid = Number(vesselRaw);
     if (!Number.isInteger(vid) || vid <= 0) {
-      return { message: "Tàu không hợp lệ." };
+      return { message: t("actionsModule.son_tauKhongHopLe") };
     }
     if (!canManageVesselCatalog(actor, vid)) {
-      return { message: "Bạn chỉ ghi tồn được cho tàu mình phụ trách." };
+      return { message: t("actionsModule.son_chiGhiTonTauPhuTrach") };
     }
     vesselId = vid;
   }
@@ -971,22 +1028,20 @@ export async function importPaintProducts(
   } else if (file instanceof File && file.size > 0) {
     const name = file.name.toLowerCase();
     if (name.endsWith(".pdf")) {
-      return {
-        message:
-          "Chưa đọc trực tiếp được file PDF. Hãy mở PDF, bôi đen bảng (Ctrl+A), copy (Ctrl+C) rồi dán vào ô “Dán từ PDF” bên dưới — cách này chính xác hơn vì trình đọc PDF lo phần trích chữ.",
-      };
+      return { message: t("actionsModule.son_chuaDocPdfDanhMuc") };
     }
     if (!/\.(xls|xlsx)$/.test(name)) {
-      return { message: "File phải là Excel (.xls hoặc .xlsx)." };
+      return { message: t("actionsModule.filePhaiLaExcel") };
     }
     if (file.size > 10 * 1024 * 1024) {
-      return { message: "File vượt quá 10MB." };
+      return { message: t("actionsModule.fileVuotQua10Mb") };
     }
     parsed = parsePaintExcel(Buffer.from(await file.arrayBuffer()));
   } else {
-    return { message: "Hãy chọn file Excel hoặc dán nội dung từ PDF." };
+    return { message: t("actionsModule.son_chonFileHoacDanPdf") };
   }
 
+  // parsed.error do lib/paintImport.ts sinh ra — đưa thẳng ra, không dịch lại.
   if (parsed.error) return { message: parsed.error };
 
   // Ghép với sơn đã có theo TÊN (không phân biệt hoa thường) để nhập lại cùng
@@ -1101,16 +1156,17 @@ export async function importPaintProducts(
     // ràng. Đường này còn dễ vỡ hơn: duyệt toàn bộ parsed.items (tới 2000 dòng,
     // không gộp trùng) trong một transaction chỉ 60 giây, và mã SON-#### sinh
     // theo bộ đếm trong bộ nhớ nên hai phiên nhập song song rất dễ đâm P2002.
-    const loi = loiGhiFileSon(error, viTri.dong || "dòng đầu tiên");
+    const oDau = viTri.dong || t("actionsModule.son_dongDauTien");
+    const loi = loiGhiFileSon(error, oDau, t);
     if (loi) return { message: loi };
-    // Lỗi chưa lường trước: người dùng vẫn phải nhận câu tiếng Việt, nhưng nuốt
+    // Lỗi chưa lường trước: người dùng vẫn phải nhận một câu rõ ràng, nhưng nuốt
     // luôn cả nguyên nhân thì không ai lần ra được nữa — ghi ra log server.
     console.error(
       `[nhap-danh-muc-son] tàu ${vesselId ?? "không chọn"}, ${viTri.dong || "dòng đầu"}:`,
       error
     );
     return {
-      message: `Không nhập được danh mục sơn, hỏng ở ${viTri.dong || "dòng đầu tiên"}. Chưa ghi dòng nào — hãy kiểm tra lại dòng đó trong file rồi thử lại.`,
+      message: t("actionsModule.son_khongNhapDuocDanhMuc", { viTri: oDau }),
     };
   }
 
@@ -1119,26 +1175,30 @@ export async function importPaintProducts(
   if (vesselId) revalidatePath(`/paint/${vesselId}`);
 
   const parts = [
-    `Đã đọc ${parsed.items.length} dòng:`,
-    `${created} loại sơn mới`,
-    `${updated} loại đã có được bổ sung thông tin`,
+    t("actionsModule.son_daDocNDong", { n: parsed.items.length }),
+    t("actionsModule.son_nLoaiSonMoi", { n: created }),
+    t("actionsModule.son_nLoaiBoSung", { n: updated }),
   ];
-  if (stockRows) parts.push(`${stockRows} dòng ghi tồn`);
-  if (parsed.skippedRows) parts.push(`${parsed.skippedRows} dòng bỏ qua`);
+  if (stockRows) {
+    parts.push(t("actionsModule.son_nDongGhiTon", { n: stockRows }));
+  }
+  if (parsed.skippedRows) {
+    parts.push(t("actionsModule.son_nDongBoQua", { n: parsed.skippedRows }));
+  }
   if (parsed.sheets?.length) {
     const read = parsed.sheets.filter((s) => !s.skipped);
     if (read.length)
       parts.push(
-        "Sheet đã đọc: " + read.map((s) => `${s.name} (${s.count})`).join("; ")
+        t("actionsModule.son_sheetDaDoc", {
+          ds: read.map((s) => `${s.name} (${s.count})`).join("; "),
+        })
       );
   }
   // Bộ đọc file cắt bớt khi vượt ngưỡng dòng/cột và chỉ bật cờ truncated. Im
   // lặng thì người dùng đọc "Đã đọc N dòng" rồi tin là cả danh mục đã vào, mà
   // chính những loại sơn bị cắt mới là những loại họ đi tìm sau này.
   if (parsed.truncated) {
-    parts.push(
-      "⚠ File vượt quá giới hạn đọc nên phần cuối chưa được nhập — hãy tách file nhỏ hơn rồi nhập nốt phần còn lại"
-    );
+    parts.push(t("actionsModule.son_fileBiCatDanhMuc"));
   }
   return { message: parts.join(" · "), success: true };
 }
@@ -1162,15 +1222,16 @@ export async function taoYeuCauSon(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   const actor = await requireVesselAccess(vesselId);
-  if (!actor) return { message: NO_PERMISSION };
+  if (!actor) return { message: t("chung.khongCoQuyen") };
 
   const vessel = await prisma.vessel.findUnique({
     where: { id: vesselId },
     select: { code: true, name: true },
   });
-  if (!vessel) return { message: "Tàu không tồn tại." };
+  if (!vessel) return { message: t("actionsModule.tauKhongTonTai") };
 
   // Các dòng gửi lên: sl_<productId> = số lượng xin cấp.
   const dong: { productId: number; quantity: number }[] = [];
@@ -1183,14 +1244,14 @@ export async function taoYeuCauSon(
     dong.push({ productId, quantity });
   }
   if (dong.length === 0) {
-    return { message: "Nhập số lượng cho ít nhất một loại sơn." };
+    return { message: t("actionsModule.son_nhapSoLuongItNhatMot") };
   }
 
   const products = await prisma.paintProduct.findMany({
     where: { id: { in: dong.map((d) => d.productId) } },
   });
   if (products.length !== dong.length) {
-    return { message: "Có loại sơn không còn trong danh mục." };
+    return { message: t("actionsModule.son_loaiSonKhongConTrongDanhMuc") };
   }
   const theoId = new Map(products.map((p) => [p.id, p]));
 
@@ -1308,9 +1369,13 @@ export async function taoYeuCauSon(
   revalidateVessel(vesselId);
   revalidatePath("/requests");
   return {
-    message: `Đã gửi yêu cầu ${created.requestNo} (${dong.length} loại sơn) lên ${
-      thangLenCongTy ? "quản lý kỹ thuật công ty" : "duyệt cấp tàu"
-    }.`,
+    message: t("actionsModule.son_daGuiYeuCau", {
+      so: created.requestNo,
+      n: dong.length,
+      noi: thangLenCongTy
+        ? t("actionsModule.noiDuyetCongTy")
+        : t("actionsModule.noiDuyetCapTau"),
+    }),
     success: true,
   };
 }
@@ -1329,11 +1394,15 @@ const LOI_NHAP_SON = "LOI_NHAP_SON:";
 // nữa phải sửa.
 function moTaKhoanSon(
   item: { name: string; sheet: string | null },
-  sheets: Set<string>
+  sheets: Set<string>,
+  t: HamDich
 ) {
   const ds = [...sheets];
   if (ds.length > 1) {
-    return `“${item.name}” (cộng dồn từ các sheet: ${ds.join(", ")})`;
+    return t("actionsModule.son_khoanCongDon", {
+      ten: item.name,
+      ds: ds.join(", "),
+    });
   }
   return moTaDongSon(item);
 }
@@ -1357,22 +1426,25 @@ export async function nhapXuatSonHangLoat(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const { t } = await layT();
   const vesselId = Number(formData.get("vesselId"));
   const actor = await requireVesselAccess(vesselId);
-  if (!actor) return { message: NO_PERMISSION };
+  if (!actor) return { message: t("chung.khongCoQuyen") };
 
   const type = text(formData, "type");
   if (!["IN", "OUT"].includes(type)) {
-    return { message: "Chọn Nhập hoặc Xuất." };
+    return { message: t("actionsModule.son_chonNhapHoacXuat") };
   }
 
   const occurredRaw = text(formData, "occurredAt");
   let occurredAt = new Date();
   if (occurredRaw) {
     const d = new Date(occurredRaw);
-    if (Number.isNaN(d.getTime())) return { message: "Thời điểm không hợp lệ." };
+    if (Number.isNaN(d.getTime())) {
+      return { message: t("actionsModule.thoiDiemKhongHopLe") };
+    }
     if (d.getTime() > Date.now()) {
-      return { message: "Không ghi được thời điểm ở tương lai." };
+      return { message: t("actionsModule.khongGhiThoiDiemTuongLai") };
     }
     occurredAt = d;
   }
@@ -1386,19 +1458,19 @@ export async function nhapXuatSonHangLoat(
   } else if (file instanceof File && file.size > 0) {
     const name = file.name.toLowerCase();
     if (name.endsWith(".pdf")) {
-      return {
-        message:
-          "Chưa đọc trực tiếp được file PDF. Mở PDF, bôi đen bảng (Ctrl+A), copy rồi dán vào ô bên dưới.",
-      };
+      return { message: t("actionsModule.son_chuaDocPdfHangLoat") };
     }
     if (!/\.(xls|xlsx)$/.test(name)) {
-      return { message: "File phải là Excel (.xls hoặc .xlsx)." };
+      return { message: t("actionsModule.filePhaiLaExcel") };
     }
-    if (file.size > 10 * 1024 * 1024) return { message: "File vượt quá 10MB." };
+    if (file.size > 10 * 1024 * 1024) {
+      return { message: t("actionsModule.fileVuotQua10Mb") };
+    }
     parsed = parsePaintExcel(Buffer.from(await file.arrayBuffer()));
   } else {
-    return { message: "Hãy chọn file Excel hoặc dán nội dung bảng." };
+    return { message: t("actionsModule.son_chonFileHoacDanBang") };
   }
+  // parsed.error do lib/paintImport.ts sinh ra — đưa thẳng ra, không dịch lại.
   if (parsed.error) return { message: parsed.error };
 
   // Chỉ lấy dòng có số lượng > 0. Dòng không có cột số lượng là dòng danh mục,
@@ -1407,10 +1479,7 @@ export async function nhapXuatSonHangLoat(
     (i) => i.quantity !== null && i.quantity > 0
   );
   if (dong.length === 0) {
-    return {
-      message:
-        "File không có dòng nào kèm số lượng. Bảng cần một cột số lượng (Tồn / Số lượng / Qty).",
-    };
+    return { message: t("actionsModule.son_fileKhongCoSoLuong") };
   }
 
   const norm = (v: string) =>
@@ -1452,15 +1521,25 @@ export async function nhapXuatSonHangLoat(
       const p = byName.get(key) ?? byCode.get(key);
       const ton = p ? (tonTheoId.get(p.id) ?? 0) : 0;
       if (quantity > ton) {
-        thieu.push(`${moTaKhoanSon(item, sheets)}: cần ${quantity}, còn ${ton}`);
+        thieu.push(
+          t("actionsModule.son_dongThieuTon", {
+            mo: moTaKhoanSon(item, sheets, t),
+            can: quantity,
+            con: ton,
+          })
+        );
       }
     }
     if (thieu.length) {
       return {
         message:
-          `Không xuất được, ${thieu.length} dòng thiếu tồn (chưa ghi gì cả): ` +
+          t("actionsModule.son_khongXuatDuocThieuTon", { n: thieu.length }) +
+          " " +
           thieu.slice(0, 5).join(" · ") +
-          (thieu.length > 5 ? ` … và ${thieu.length - 5} dòng nữa` : ""),
+          (thieu.length > 5
+            ? " " +
+              t("actionsModule.son_conNDongNua", { n: thieu.length - 5 })
+            : ""),
       };
     }
   }
@@ -1492,7 +1571,7 @@ export async function nhapXuatSonHangLoat(
         };
 
         for (const [key, { item, quantity, sheets }] of gop) {
-          viTri.dong = moTaKhoanSon(item, sheets);
+          viTri.dong = moTaKhoanSon(item, sheets, t);
           let product = byName.get(key) ?? byCode.get(key);
           if (!product) {
             product = await tx.paintProduct.create({
@@ -1541,7 +1620,12 @@ export async function nhapXuatSonHangLoat(
                 },
               });
               throw new Error(
-                `${LOI_NHAP_SON}Không đủ tồn cho ${moTaKhoanSon(item, sheets)}: cần ${quantity}, còn ${con?.quantity ?? 0}.`
+                LOI_NHAP_SON +
+                  t("actionsModule.son_khongDuTonCho", {
+                    mo: moTaKhoanSon(item, sheets, t),
+                    can: quantity,
+                    con: con?.quantity ?? 0,
+                  })
               );
             }
           }
@@ -1574,37 +1658,45 @@ export async function nhapXuatSonHangLoat(
       return {
         message:
           error.message.slice(LOI_NHAP_SON.length) +
-          " Chưa ghi dòng nào, hãy sửa file rồi nhập lại.",
+          " " +
+          t("actionsModule.son_chuaGhiSuaFile"),
       };
     }
-    const loi = loiGhiFileSon(error, viTri.dong || "dòng đầu tiên");
+    const oDau = viTri.dong || t("actionsModule.son_dongDauTien");
+    const loi = loiGhiFileSon(error, oDau, t);
     if (loi) return { message: loi };
-    // Lỗi chưa lường trước: người dùng vẫn phải nhận câu tiếng Việt, nhưng
+    // Lỗi chưa lường trước: người dùng vẫn phải nhận một câu rõ ràng, nhưng
     // nuốt luôn cả nguyên nhân thì không ai lần ra được nữa — ghi ra log server.
     console.error(
       `[nhap-son-hang-loat] tàu ${vesselId}, ${viTri.dong || "dòng đầu"}:`,
       error
     );
     return {
-      message: `Không ghi được lô nhập/xuất sơn, hỏng ở ${viTri.dong || "dòng đầu tiên"}. Chưa ghi dòng nào — hãy kiểm tra lại dòng đó trong file rồi thử lại.`,
+      message: t("actionsModule.son_khongGhiDuocLo", { viTri: oDau }),
     };
   }
 
   revalidateVessel(vesselId);
   const phan = [
-    `${type === "IN" ? "Đã nhập" : "Đã xuất"} ${soDong} loại sơn, tổng ${tongSL}`,
+    type === "IN"
+      ? t("actionsModule.son_daNhapNLoai", { n: soDong, tong: tongSL })
+      : t("actionsModule.son_daXuatNLoai", { n: soDong, tong: tongSL }),
   ];
-  if (taoMoi) phan.push(`${taoMoi} loại sơn mới được thêm vào danh mục`);
-  if (parsed.skippedRows) phan.push(`bỏ qua ${parsed.skippedRows} dòng không đọc được`);
+  if (taoMoi) {
+    phan.push(t("actionsModule.son_nLoaiMoiThemVaoDanhMuc", { n: taoMoi }));
+  }
+  if (parsed.skippedRows) {
+    phan.push(
+      t("actionsModule.son_boQuaNDongKhongDoc", { n: parsed.skippedRows })
+    );
+  }
   // Bộ đọc file cắt bớt khi file vượt ngưỡng dòng/cột và chỉ bật cờ truncated —
   // không báo ra thì người dùng thấy "Đã xuất … thành công" và tin là cả file
   // đã vào. Ở đường này mỗi dòng là một phép cộng/trừ vào tồn, nên phần bị cắt
   // là phần tồn KHÔNG BAO GIỜ được ghi, và nhập lại nguyên file thì phần đã ghi
   // bị cộng/trừ hai lần.
   if (parsed.truncated) {
-    phan.push(
-      "⚠ File vượt quá giới hạn đọc nên phần cuối chưa được nhập — hãy tách phần còn lại ra file riêng rồi nhập nốt, đừng nhập lại cả file"
-    );
+    phan.push(t("actionsModule.son_fileBiCatHangLoat"));
   }
   return { message: phan.join(" · ") + ".", success: true };
 }

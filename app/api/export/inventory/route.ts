@@ -8,6 +8,7 @@ import {
   trongPhamVi,
   vesselScopeDayDu,
 } from "@/lib/auth";
+import { layT } from "@/lib/i18n/server";
 import { LAP_YEU_CAU } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -19,9 +20,13 @@ export async function GET(request: Request) {
   // thống chỉ có 3 vai trò. Nay có 11 chức danh: máy trưởng, đại phó, phó 2/3,
   // máy 2/3/4 đều TẢI LÊN / xem được ở giao diện, và quản lý kỹ thuật là người
   // soát chứng từ toàn đội. Chống xem chéo tàu vẫn do trongPhamVi() lo.
+  const { t } = await layT();
   const user = await requireActiveRole([...LAP_YEU_CAU, "TECH_MANAGER"]);
   if (!user) {
-    return NextResponse.json({ error: "Chưa đăng nhập." }, { status: 401 });
+    return NextResponse.json(
+      { error: t("actionsModule.chuaDangNhap") },
+      { status: 401 }
+    );
   }
   const scope = vesselScopeDayDu(user);
   const url = new URL(request.url);
@@ -29,14 +34,23 @@ export async function GET(request: Request) {
   const typeRaw = String(url.searchParams.get("type") || "ALL");
   const type = ["ALL", "STORE", "SPARE"].includes(typeRaw) ? typeRaw : "ALL";
   if (!Number.isInteger(vesselId) || vesselId <= 0) {
-    return NextResponse.json({ error: "Thiếu tàu." }, { status: 400 });
+    return NextResponse.json(
+      { error: t("actionsModule.taiLieu_thieuTau") },
+      { status: 400 }
+    );
   }
   if (!trongPhamVi(scope, vesselId)) {
-    return NextResponse.json({ error: "Không tìm thấy." }, { status: 404 });
+    return NextResponse.json(
+      { error: t("chung.khongTimThay") },
+      { status: 404 }
+    );
   }
   const vessel = await prisma.vessel.findUnique({ where: { id: vesselId } });
   if (!vessel) {
-    return NextResponse.json({ error: "Không tìm thấy." }, { status: 404 });
+    return NextResponse.json(
+      { error: t("chung.khongTimThay") },
+      { status: 404 }
+    );
   }
 
   const now = new Date();
@@ -123,10 +137,7 @@ export async function GET(request: Request) {
     templateBuffer = await readFile(templatePath);
   } catch {
     return NextResponse.json(
-      {
-        error:
-          "Chưa có file biểu mẫu templates/MLS-11-06.xlsx. Hãy chép biểu mẫu Excel của công ty vào thư mục templates/ (xem templates/README.md).",
-      },
+      { error: t("actionsModule.taiLieu_thieuBieuMau") },
       { status: 500 }
     );
   }

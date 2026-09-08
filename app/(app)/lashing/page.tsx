@@ -11,6 +11,7 @@ import {
   LashingGearAddForm,
   LashingGearRow,
 } from "@/components/LashingGearManager";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export default async function LashingPage({
   searchParams: Promise<{ vessel?: string }>;
 }) {
   const user = await requireScopedUser();
+  const { t, ngay } = await layT();
   const scope = vesselScopeDayDu(user);
   const canReport = ["ADMIN", "MASTER"].includes(user.role);
   const canManageGear = user.role === "ADMIN";
@@ -37,9 +39,11 @@ export default async function LashingPage({
   if (scope.unassigned || !selectedVessel) {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-blue-950">Dụng cụ chằng buộc container</h2>
+        <h2 className="text-2xl font-bold text-blue-950">
+          {t("vessels.changBuocTieuDe")}
+        </h2>
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          Bạn chưa được gán tàu phụ trách. Vui lòng liên hệ quản trị viên.
+          {t("chung.chuaGanTau")}
         </div>
       </div>
     );
@@ -70,10 +74,10 @@ export default async function LashingPage({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-blue-950">Dụng cụ chằng buộc container</h2>
-        <p className="text-slate-600">
-          Sổ trang bị chuẩn và báo cáo theo mẫu MLS-11-13
-        </p>
+        <h2 className="text-2xl font-bold text-blue-950">
+          {t("vessels.changBuocTieuDe")}
+        </h2>
+        <p className="text-slate-600">{t("vessels.changBuocMoTa")}</p>
       </div>
 
       {chonDuocTau(scope) && (
@@ -90,20 +94,19 @@ export default async function LashingPage({
             ))}
           </select>
           <button className="rounded border px-4 py-2 hover:bg-blue-50">
-            Xem tàu
+            {t("vessels.xemTau")}
           </button>
         </form>
       )}
 
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
         <h3 className="mb-2 text-lg font-semibold">
-          Danh mục trang bị — {selectedVessel.name}
+          {t("vessels.danhMucTrangBi", { ten: selectedVessel.name })}
         </h3>
         {canManageGear ? (
           <>
             <p className="mb-3 text-xs text-slate-500">
-              Tên dụng cụ · Part No. · SL tối thiểu (full load) · Trang bị
-              chuẩn
+              {t("vessels.goiYCotTrangBi")}
             </p>
             <div>
               {gears.map((gear) => (
@@ -117,10 +120,10 @@ export default async function LashingPage({
             <table className="w-full border text-sm">
               <thead>
                 <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">Dụng cụ</th>
+                  <th className="p-2">{t("vessels.cotDungCu")}</th>
                   <th className="p-2">Part No.</th>
-                  <th className="p-2">SL tối thiểu</th>
-                  <th className="p-2">Trang bị chuẩn</th>
+                  <th className="p-2">{t("vessels.slToiThieu")}</th>
+                  <th className="p-2">{t("vessels.trangBiChuan")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -141,7 +144,7 @@ export default async function LashingPage({
       {canReport && gears.length > 0 && (
         <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
           <h3 className="mb-4 text-lg font-semibold">
-            Lập báo cáo mới (kiểm đếm thực tế)
+            {t("vessels.lapBaoCaoMoi")}
           </h3>
           <LashingReportForm
             vesselId={selectedVessel.id}
@@ -163,19 +166,21 @@ export default async function LashingPage({
       )}
 
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <h3 className="mb-4 text-lg font-semibold">Báo cáo đã lập</h3>
+        <h3 className="mb-4 text-lg font-semibold">
+          {t("vessels.baoCaoDaLap")}
+        </h3>
         {reports.length === 0 ? (
-          <p className="text-slate-600">Chưa có báo cáo nào.</p>
+          <p className="text-slate-600">{t("vessels.chuaCoBaoCao")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border text-sm">
               <thead>
                 <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">Ngày</th>
-                  <th className="p-2">Chuyến</th>
-                  <th className="p-2">Vị trí</th>
-                  <th className="p-2">Người lập</th>
-                  <th className="p-2">Bị hỏng (tổng)</th>
+                  <th className="p-2">{t("chung.ngay")}</th>
+                  <th className="p-2">{t("vessels.cotChuyen")}</th>
+                  <th className="p-2">{t("vessels.cotViTri")}</th>
+                  <th className="p-2">{t("vessels.cotNguoiLap")}</th>
+                  <th className="p-2">{t("vessels.cotBiHongTong")}</th>
                   <th className="p-2"></th>
                 </tr>
               </thead>
@@ -187,9 +192,7 @@ export default async function LashingPage({
                   );
                   return (
                     <tr key={report.id} className="border-b">
-                      <td className="p-2">
-                        {report.reportDate.toLocaleDateString("vi-VN")}
-                      </td>
+                      <td className="p-2">{ngay(report.reportDate)}</td>
                       <td className="p-2">{report.voyageNo}</td>
                       <td className="p-2">{report.position}</td>
                       <td className="p-2">{report.createdBy}</td>
@@ -199,7 +202,7 @@ export default async function LashingPage({
                           href={`/lashing/${report.id}`}
                           className="text-blue-700 hover:underline"
                         >
-                          Xem / In
+                          {t("vessels.xemIn")}
                         </Link>
                       </td>
                     </tr>

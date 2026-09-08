@@ -7,6 +7,7 @@ import {
   vesselScopeDayDu,
 } from "@/lib/auth";
 import PrintButton from "@/components/PrintButton";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function LashingReportPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireScopedUser();
+  const { t } = await layT();
   const scope = vesselScopeDayDu(user);
   const { id: idRaw } = await params;
   const id = Number(idRaw);
@@ -53,9 +55,9 @@ export default async function LashingReportPage({
     <div className="space-y-4">
       <div className="no-print flex items-center justify-between">
         <Link href="/lashing" className="text-sm text-blue-700 hover:underline">
-          ← Quay lại danh sách báo cáo
+          ← {t("vessels.quayLaiDsBaoCao")}
         </Link>
-        <PrintButton label="In báo cáo MLS-11-13" />
+        <PrintButton label={t("vessels.inBaoCaoMLS1113")} />
       </div>
 
       <div className="print-area rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 print:rounded-none print:p-0 print:shadow-none">
@@ -233,19 +235,22 @@ export default async function LashingReportPage({
       {needOrder.length > 0 && (
         <div className="no-print rounded-lg border border-red-200 bg-red-50 p-4">
           <p className="mb-2 font-semibold text-red-700">
-            Cần đặt mua bổ sung ({needOrder.length} loại):
+            {t("vessels.canDatMuaBoSung", { n: needOrder.length })}
           </p>
           <ul className="list-inside list-disc text-sm text-red-700">
             {needOrder.map((row) => (
               <li key={row.line.id}>
-                {row.line.gearName} ({row.line.partNo}): cần {row.orderQty}{" "}
-                chiếc để đủ trang bị chuẩn
+                {row.line.gearName} ({row.line.partNo}):{" "}
+                {t("vessels.canNChiec", { n: row.orderQty })}
               </li>
             ))}
           </ul>
           <p className="mt-2 text-sm text-red-700">
-            Dùng trang <Link href="/requests" className="underline">Yêu cầu vật tư</Link>{" "}
-            để tạo yêu cầu mua sắm cho các mục trên.
+            {t("vessels.dungTrangTruoc")}{" "}
+            <Link href="/requests" className="underline">
+              {t("vessels.trangYeuCauVatTu")}
+            </Link>{" "}
+            {t("vessels.dungTrangSau")}
           </p>
         </div>
       )}

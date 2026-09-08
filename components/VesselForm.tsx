@@ -3,8 +3,10 @@
 import { useActionState } from "react";
 import { createVessel } from "@/app/actions";
 import ChonMayChinh from "@/components/ChonMayChinh";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export default function VesselForm() {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(createVessel, {
     message: "",
   });
@@ -13,14 +15,14 @@ export default function VesselForm() {
     <form action={formAction} className="space-y-3">
       <input
         name="code"
-        placeholder="Mã tàu, ví dụ: MLS-008"
+        placeholder={t("vessels.phMaTau")}
         className="w-full rounded border p-2"
         defaultValue={v.code ?? ""}
         required
       />
       <input
         name="name"
-        placeholder="Tên tàu, ví dụ: MERCURY FORTUNE"
+        placeholder={t("vessels.phTenTau")}
         className="w-full rounded border p-2"
         defaultValue={v.name ?? ""}
         required
@@ -33,13 +35,13 @@ export default function VesselForm() {
       />
       <input
         name="flag"
-        placeholder="Cờ tàu"
+        placeholder={t("vessels.coTau")}
         className="w-full rounded border p-2"
         defaultValue={v.flag ?? ""}
       />
       <input
         name="vesselType"
-        placeholder="Loại tàu"
+        placeholder={t("vessels.loaiTau")}
         className="w-full rounded border p-2"
         defaultValue={v.vesselType ?? ""}
       />
@@ -51,7 +53,7 @@ export default function VesselForm() {
         disabled={pending}
         className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
       >
-        {pending ? "Đang lưu..." : "Thêm tàu"}
+        {pending ? t("chung.dangLuu") : t("vessels.themTau")}
       </button>
       {state.message && (
         <p

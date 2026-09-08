@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { updateVessel } from "@/app/actions";
 import ChonMayChinh from "@/components/ChonMayChinh";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type VesselData = {
   id: number;
@@ -17,6 +18,7 @@ type VesselData = {
 };
 
 export default function VesselEditForm({ vessel }: { vessel: VesselData }) {
+  const { t, tTuDo } = useNgonNgu();
   const [state, formAction, pending] = useActionState(updateVessel, {
     message: "",
   });
@@ -25,7 +27,9 @@ export default function VesselEditForm({ vessel }: { vessel: VesselData }) {
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="id" value={vessel.id} />
       <div>
-        <label className="mb-1 block text-sm text-slate-600">Mã tàu</label>
+        <label className="mb-1 block text-sm text-slate-600">
+          {t("vessels.maTau")}
+        </label>
         <input
           name="code"
           className="w-full rounded border p-2"
@@ -34,7 +38,9 @@ export default function VesselEditForm({ vessel }: { vessel: VesselData }) {
         />
       </div>
       <div>
-        <label className="mb-1 block text-sm text-slate-600">Tên tàu</label>
+        <label className="mb-1 block text-sm text-slate-600">
+          {t("vessels.tenTau")}
+        </label>
         <input
           name="name"
           className="w-full rounded border p-2"
@@ -51,7 +57,9 @@ export default function VesselEditForm({ vessel }: { vessel: VesselData }) {
         />
       </div>
       <div>
-        <label className="mb-1 block text-sm text-slate-600">Cờ tàu</label>
+        <label className="mb-1 block text-sm text-slate-600">
+          {t("vessels.coTau")}
+        </label>
         <input
           name="flag"
           className="w-full rounded border p-2"
@@ -59,7 +67,9 @@ export default function VesselEditForm({ vessel }: { vessel: VesselData }) {
         />
       </div>
       <div>
-        <label className="mb-1 block text-sm text-slate-600">Loại tàu</label>
+        <label className="mb-1 block text-sm text-slate-600">
+          {t("vessels.loaiTau")}
+        </label>
         <input
           name="vesselType"
           className="w-full rounded border p-2"
@@ -71,22 +81,26 @@ export default function VesselEditForm({ vessel }: { vessel: VesselData }) {
         model={v.mainEngineModel ?? vessel.mainEngineModel ?? ""}
       />
       <div>
-        <label className="mb-1 block text-sm text-slate-600">Trạng thái</label>
+        <label className="mb-1 block text-sm text-slate-600">
+          {t("chung.trangThai")}
+        </label>
         <select
           name="status"
           className="w-full rounded border p-2"
           defaultValue={v.status ?? vessel.status}
         >
-          <option value="ACTIVE">Hoạt động</option>
-          <option value="MAINTENANCE">Bảo dưỡng</option>
-          <option value="INACTIVE">Ngừng khai thác</option>
+          <option value="ACTIVE">{tTuDo("labels.vesselStatus_ACTIVE")}</option>
+          <option value="MAINTENANCE">{t("vessels.trangThaiBaoDuong")}</option>
+          <option value="INACTIVE">
+            {tTuDo("labels.vesselStatus_INACTIVE")}
+          </option>
         </select>
       </div>
       <button
         disabled={pending}
         className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
       >
-        {pending ? "Đang lưu..." : "Lưu thay đổi"}
+        {pending ? t("chung.dangLuu") : t("vessels.luuThayDoi")}
       </button>
       {state.message && (
         <p

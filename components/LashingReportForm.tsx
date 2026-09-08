@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { createLashingReport } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type GearInput = {
   id: number;
@@ -22,6 +23,7 @@ export default function LashingReportForm({
   gears: GearInput[];
   defaultDate: string;
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(createLashingReport, {
     message: "",
   });
@@ -32,7 +34,7 @@ export default function LashingReportForm({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div>
           <label className="mb-1 block text-sm text-slate-600">
-            Ngày báo cáo
+            {t("vessels.ngayBaoCao")}
           </label>
           <input
             name="reportDate"
@@ -44,22 +46,22 @@ export default function LashingReportForm({
         </div>
         <div>
           <label className="mb-1 block text-sm text-slate-600">
-            Số chuyến (Voy No.)
+            {t("vessels.soChuyen")}
           </label>
           <input
             name="voyageNo"
-            placeholder="Ví dụ: 2629N"
+            placeholder={t("vessels.phSoChuyen")}
             defaultValue={v.voyageNo ?? ""}
             className="w-full rounded border p-2"
           />
         </div>
         <div>
           <label className="mb-1 block text-sm text-slate-600">
-            Vị trí (Position)
+            {t("vessels.viTriBaoCao")}
           </label>
           <input
             name="position"
-            placeholder="Ví dụ: THBKK"
+            placeholder={t("vessels.phViTri")}
             defaultValue={v.position ?? ""}
             className="w-full rounded border p-2"
           />
@@ -69,12 +71,12 @@ export default function LashingReportForm({
         <table className="w-full border text-sm">
           <thead>
             <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-              <th className="p-2">Dụng cụ chằng buộc</th>
+              <th className="p-2">{t("vessels.dungCuChangBuoc")}</th>
               <th className="p-2">Part No.</th>
-              <th className="p-2">SL tối thiểu</th>
-              <th className="p-2">Trang bị chuẩn</th>
-              <th className="p-2">Còn dùng được</th>
-              <th className="p-2">Bị hỏng</th>
+              <th className="p-2">{t("vessels.slToiThieu")}</th>
+              <th className="p-2">{t("vessels.trangBiChuan")}</th>
+              <th className="p-2">{t("vessels.conDungDuoc")}</th>
+              <th className="p-2">{t("vessels.biHong")}</th>
             </tr>
           </thead>
           <tbody>
@@ -119,7 +121,7 @@ export default function LashingReportForm({
         disabled={pending}
         className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
       >
-        {pending ? "Đang lưu..." : "Lập báo cáo & xem bản in"}
+        {pending ? t("chung.dangLuu") : t("vessels.lapBaoCaoVaIn")}
       </button>
       {state.message && (
         <p className="text-sm text-red-600">{state.message}</p>

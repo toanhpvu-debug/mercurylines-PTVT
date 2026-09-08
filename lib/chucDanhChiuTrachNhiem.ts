@@ -73,6 +73,17 @@ const THEO_CATEGORY: Record<string, string> = {
   "CAT-engine-store": "CE",
 };
 
+/**
+ * Chức danh thường giữ phụ tùng của một nhóm thiết bị (theo mã Category) — dùng
+ * để gợi ý khi khai mặt hàng mới. Null khi nhóm không có quy ước riêng.
+ */
+export function chucDanhTheoNhomThietBi(
+  categoryCode: string | null | undefined
+): string | null {
+  const cat = (categoryCode ?? "").trim();
+  return cat && THEO_CATEGORY[cat] ? THEO_CATEGORY[cat] : null;
+}
+
 export type NguonChucDanh = "gan" | "thiet-bi" | "bo-phan";
 
 export type MonChiuTrachNhiem = {
@@ -97,9 +108,9 @@ export function chucDanhChiuTrachNhiem(
   const daGan = (m.responsibleRank ?? "").trim();
   if (daGan) return { chucDanh: daGan, nguon: "gan" };
 
-  const cat = (m.categoryCode ?? "").trim();
-  if (cat && THEO_CATEGORY[cat]) {
-    return { chucDanh: THEO_CATEGORY[cat], nguon: "thiet-bi" };
+  const theoNhom = chucDanhTheoNhomThietBi(m.categoryCode);
+  if (theoNhom) {
+    return { chucDanh: theoNhom, nguon: "thiet-bi" };
   }
 
   const key = departmentOfMaterial(

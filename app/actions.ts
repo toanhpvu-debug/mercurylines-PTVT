@@ -30,7 +30,15 @@ import {
   kiemTraChan,
   xoaSauKhiThanhCong,
 } from "@/lib/chanDangNhap";
-import { CHUC_DANH, NHOM_MAY_CHINH, phanTichMa } from "@/lib/maVatTu";
+import {
+  CHUC_DANH,
+  NHOM_MAY_CHINH,
+  doanLoai,
+  phanTichMa,
+  sinhMaNgan,
+  sttTheoNhom,
+} from "@/lib/maVatTu";
+import { docKhaiMoi, loiTrung, timTrung } from "@/lib/vatTuMoiChoTau";
 import {
   CHI_HUY_TAU,
   ROLES,
@@ -827,6 +835,183 @@ export async function assignMaterialToVessel(
   });
   revalidatePath("/materials");
   return { message: "", success: true };
+}
+
+/**
+ * Vùng khóa tư vấn cho việc CẤP MÃ vật tư khai mới tại tàu. Cùng không gian với
+ * 811001 (tồn kho), 811002 (số PO), 811003 (số yêu cầu), 811004 (tồn nhiên
+ * liệu) — xem chú thích KHOA_TON_KHO về lý do mỗi nghiệp vụ một vùng riêng.
+ *
+ * Mã cấp theo "số lớn nhất đang có + 1" (sttTheoNhom), nên hai người khai cùng
+ * lúc mà không xếp hàng là cùng đọc thấy một số, cùng sinh một mã, và một bên
+ * vỡ vì `code` là khóa duy nhất. Khóa một chìa cho cả danh mục: cấp mã chỉ mất
+ * vài mili-giây, không đáng chia nhỏ theo khuôn.
+ */
+const KHOA_CAP_MA_VAT_TU = 811005;
+
+/**
+ * Khai một mặt hàng MỚI — chưa có trong danh mục gốc — ngay tại danh mục của
+ * một tàu, gắn chức danh giữ. Vì sao có và quy tắc: lib/vatTuMoiChoTau.ts.
+ *
+ * Quyền: cùng cửa với assignMaterialToVessel — chỉ huy của ĐÚNG tàu đó, hoặc
+ * ADMIN. Mã KHÔNG nhận từ form: cấp trong giao dịch có khóa, bằng đúng bộ đếm
+ * của bước nhập file (sttTheoNhom + sinhMaNgan) để hai cửa vào danh mục xếp số
+ * như nhau. Trùng với hàng sẵn có thì không tạo — chỉ sang ô "chọn từ danh mục
+ * gốc" với đúng mã.
+ */
+export async function khaiVatTuMoiChoTau(
+  _prevState: {
+    message: string;
+    success?: boolean;
+    values?: Record<string, string>;
+  },
+  formData: FormData
+): Promise<{
+  message: string;
+  success?: boolean;
+  values?: Record<string, string>;
+}> {
+  const actor = await requireActiveRole([...VAN_HANH_TAU]);
+  if (!actor) {
+    return { message: NO_PERMISSION };
+  }
+  const values = formValues(formData, [
+    "rankCode",
+    "boPhan",
+    "materialType",
+    "nameVn",
+    "nameEn",
+    "equipment",
+    "impa",
+    "partNumber",
+    "manufacturer",
+    "categoryId",
+    "uom",
+    "minStock",
+    "isCritical",
+  ]);
+  const vesselId = Number(formData.get("vesselId"));
+  if (!Number.isInteger(vesselId) || vesselId <= 0) {
+    return { message: "Dữ liệu không hợp lệ.", values };
+  }
+  if (!canManageVesselCatalog(actor, vesselId)) {
+    return { message: NO_PERMISSION, values };
+  }
+  const doc = docKhaiMoi(values);
+  if (!doc.ok) {
+    return { message: doc.loi, values };
+  }
+  const khai = doc.gt;
+
+  const [vessel, nhom] = await Promise.all([
+    prisma.vessel.findUnique({
+      where: { id: vesselId },
+      select: { name: true },
+    }),
+    khai.categoryId === null
+      ? null
+      : prisma.category.findUnique({
+          where: { id: khai.categoryId },
+          select: { id: true },
+        }),
+  ]);
+  if (!vessel) {
+    return { message: "Tàu không tồn tại.", values };
+  }
+  if (khai.categoryId !== null && !nhom) {
+    return { message: "Nhóm thiết bị không tồn tại.", values };
+  }
+
+  const loai = doanLoai(khai.materialType);
+  try {
+    const kq = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KHOA_CAP_MA_VAT_TU}::int, 0::int)`;
+      // Đọc danh mục SAU khi cầm khóa: người xếp hàng trước có thể vừa thêm
+      // một mã, và soát trùng cũng phải thấy được mặt hàng vừa thêm đó.
+      const daCo = await tx.material.findMany({
+        select: {
+          code: true,
+          categoryId: true,
+          nameVn: true,
+          equipment: true,
+          impa: true,
+          partNumber: true,
+          manufacturer: true,
+          isActive: true,
+        },
+      });
+      const trung = timTrung(khai, daCo);
+      if (trung) return { ket: "trung" as const, trung };
+
+      const cho = sttTheoNhom(
+        khai.boPhan,
+        loai,
+        daCo.map((m) => ({ ma: m.code, nhom: m.categoryId })),
+        khai.categoryId
+      );
+      const daDung = new Set(daCo.map((m) => m.code));
+      let stt = cho.stt;
+      let ma = sinhMaNgan({ boPhan: khai.boPhan, loai, stt });
+      while ("ma" in ma && daDung.has(ma.ma)) {
+        stt++;
+        ma = sinhMaNgan({ boPhan: khai.boPhan, loai, stt });
+      }
+      if ("loi" in ma) {
+        throw new ActionError(`Không cấp được mã: ${ma.loi}`);
+      }
+      const material = await tx.material.create({
+        data: {
+          code: ma.ma,
+          nameVn: khai.nameVn,
+          nameEn: khai.nameEn,
+          impa: khai.impa,
+          partNumber: khai.partNumber,
+          manufacturer: khai.manufacturer,
+          materialType: khai.materialType,
+          equipment: khai.equipment,
+          uom: khai.uom,
+          categoryId: khai.categoryId,
+          minStock: khai.minStock,
+          maxStock: 0,
+          isCritical: khai.isCritical,
+          // Ghi thẳng từ khai báo, không suy từ mã: mã ngắn chỉ nói bộ phận,
+          // còn người giữ là điều người khai vừa chọn — cột "Giữ bởi" và bộ
+          // lọc chức danh coi đây là nguồn "đã gán", tin cậy nhất.
+          department: khai.boPhan,
+          responsibleRank: khai.rankCode,
+        },
+        select: { id: true },
+      });
+      // Chỉ gắn vào tàu đang khai — tàu khác muốn dùng thì thêm từ danh mục gốc.
+      await tx.vesselMaterial.create({
+        data: { vesselId, materialId: material.id },
+      });
+      return { ket: "ok" as const, ma: ma.ma, trongKhoi: cho.trongKhoi };
+    }, GIAO_DICH_GIU_KHOA);
+
+    if (kq.ket === "trung") {
+      return { message: loiTrung(kq.trung), values };
+    }
+    revalidatePath("/materials");
+    revalidatePath("/inventory");
+    revalidatePath("/dashboard");
+    const cd = CHUC_DANH[khai.rankCode];
+    let message = `Đã tạo ${kq.ma} — "${khai.nameVn}", giữ bởi ${cd.ten} (${khai.rankCode}), đã thêm vào danh mục ${vessel.name}.`;
+    if (!kq.trongKhoi) {
+      message +=
+        " Khối mã của nhóm đã kín nên mã xếp tạm cuối dãy — khi tiện, chạy doi-ma-vat-tu.cmd --theo-nhom để xếp lại.";
+    }
+    return { message, success: true };
+  } catch (error) {
+    if (error instanceof ActionError) {
+      return { message: error.message, values };
+    }
+    const dich = thongBaoLoiGiaoDich(error);
+    if (dich) {
+      return { message: dich, values };
+    }
+    throw error;
+  }
 }
 
 // Gỡ một vật tư khỏi danh mục của một tàu (không xóa định nghĩa gốc, không xóa tồn kho).

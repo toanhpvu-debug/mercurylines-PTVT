@@ -37,6 +37,12 @@ import {
   chucDanhChiuTrachNhiem,
   laNguoiPhuTrach,
 } from "@/lib/chucDanhChiuTrachNhiem";
+import {
+  boPhanCuaChucDanh,
+  docKhaiMoi,
+  loiTrung,
+  timTrung,
+} from "@/lib/vatTuMoiChoTau";
 
 let dat = 0;
 let truot = 0;
@@ -654,6 +660,167 @@ kiemTra("Thuyen truong bao trum ca bep", laNguoiPhuTrach("MST", monBep), true);
 // Thuy thu truong giu boong; Pho 2 khong giu kho nen khong khop.
 kiemTra("Thuy thu truong giu boong", laNguoiPhuTrach("BSN", monBoong), true);
 kiemTra("Pho 2 khong giu kho boong", laNguoiPhuTrach("2O", monBoong), false);
+
+console.log("\n12. Khai mat hang moi tai tau, gan chuc danh (lib/vatTuMoiChoTau)");
+
+// Bo phan theo chuc danh: bo phan chinh truoc, kiem nhiem sau.
+kiemTra("May 2: May roi Dien", boPhanCuaChucDanh("2E"), ["E", "L"]);
+kiemTra("Thuyen truong: Boong roi Phuc vu", boPhanCuaChucDanh("MST"), ["D", "C"]);
+kiemTra("Thuy thu truong: chi Boong", boPhanCuaChucDanh("BSN"), ["D"]);
+kiemTra("chuc danh la: rong", boPhanCuaChucDanh("XYZ"), []);
+
+// Doc form dung -> du lieu da chuan hoa.
+const khaiDung = docKhaiMoi({
+  rankCode: "2e",
+  materialType: "SPARE",
+  nameVn: "  Vòi   phun ",
+  nameEn: "",
+  equipment: "Máy đèn số 2",
+  partNumber: " 123-A ",
+  uom: "set",
+  minStock: "2",
+  categoryId: "7",
+  isCritical: "on",
+});
+kiemTra("khai dung: ok", khaiDung.ok, true);
+if (khaiDung.ok) {
+  kiemTra("chuc danh viet hoa", khaiDung.gt.rankCode, "2E");
+  kiemTra("bo phan mac dinh theo chuc danh", khaiDung.gt.boPhan, "E");
+  kiemTra("ten gon khoang trang", khaiDung.gt.nameVn, "Vòi phun");
+  kiemTra("ten Anh trong -> null", khaiDung.gt.nameEn, null);
+  kiemTra("DVT viet hoa", khaiDung.gt.uom, "SET");
+  kiemTra("ton toi thieu thanh so", khaiDung.gt.minStock, 2);
+  kiemTra("nhom thanh so", khaiDung.gt.categoryId, 7);
+  kiemTra("critical", khaiDung.gt.isCritical, true);
+  kiemTra("part no gon", khaiDung.gt.partNumber, "123-A");
+}
+
+// Kiem nhiem: May 2 giu duoc hang Dien, KHONG giu duoc hang Boong.
+kiemTra(
+  "May 2 giu hang Dien: ok",
+  docKhaiMoi({ rankCode: "2E", boPhan: "L", nameVn: "Cầu chì" }).ok,
+  true
+);
+const saiBoPhan = docKhaiMoi({ rankCode: "2E", boPhan: "D", nameVn: "Dây" });
+kiemTra("May 2 giu hang Boong: tu choi", saiBoPhan.ok, false);
+kiemTra(
+  "...loi noi ro chon May hoac Dien",
+  !saiBoPhan.ok && saiBoPhan.loi.includes("Máy hoặc Điện"),
+  true
+);
+
+// Loi DAU TIEN, viet cho nguoi van hanh.
+kiemTra("thieu chuc danh", docKhaiMoi({ nameVn: "X" }), {
+  ok: false,
+  loi: "Chọn chức danh sẽ giữ mặt hàng này.",
+});
+const chucDanhLa = docKhaiMoi({ rankCode: "ABC", nameVn: "X" });
+kiemTra(
+  "chuc danh la",
+  !chucDanhLa.ok && chucDanhLa.loi.includes("không có trong quy ước"),
+  true
+);
+kiemTra("thieu ten", docKhaiMoi({ rankCode: "BSN", nameVn: "  " }).ok, false);
+kiemTra(
+  "phu tung thieu thiet bi",
+  docKhaiMoi({ rankCode: "3E", materialType: "SPARE", nameVn: "Bạc" }).ok,
+  false
+);
+kiemTra(
+  "vat tu khong can thiet bi",
+  docKhaiMoi({ rankCode: "BSN", materialType: "STORE", nameVn: "Giẻ lau" }).ok,
+  true
+);
+kiemTra(
+  "ton toi thieu am",
+  docKhaiMoi({ rankCode: "BSN", nameVn: "X", minStock: "-1" }).ok,
+  false
+);
+const vatTuCoThietBi = docKhaiMoi({
+  rankCode: "BSN",
+  materialType: "STORE",
+  nameVn: "X",
+  equipment: "Tời",
+});
+kiemTra(
+  "vat tu: thiet bi bi bo (chi phu tung moi co)",
+  vatTuCoThietBi.ok && vatTuCoThietBi.gt.equipment,
+  null
+);
+
+// Trung: cung ba tieu chi voi buoc nhap file.
+const daCo = [
+  {
+    code: "E-SPR-0301",
+    nameVn: "Bạc trục",
+    equipment: "Máy chính",
+    impa: null,
+    partNumber: "BT-01",
+    manufacturer: null,
+    isActive: true,
+  },
+  {
+    code: "D-IMPA-0075",
+    nameVn: "Găng tay da",
+    equipment: null,
+    impa: "190411",
+    partNumber: null,
+    manufacturer: null,
+    isActive: false,
+  },
+];
+kiemTra(
+  "trung IMPA",
+  timTrung(
+    { nameVn: "Găng khác", equipment: null, impa: " 190411 ", partNumber: null },
+    daCo
+  )?.theo,
+  "impa"
+);
+kiemTra(
+  "trung Part No (khong phan biet hoa thuong)",
+  timTrung(
+    { nameVn: "Tên khác", equipment: null, impa: null, partNumber: "bt-01" },
+    daCo
+  )?.theo,
+  "part-no"
+);
+kiemTra(
+  "trung ten + thiet bi",
+  timTrung(
+    { nameVn: "bạc  trục", equipment: "máy chính", impa: null, partNumber: null },
+    daCo
+  )?.theo,
+  "ten"
+);
+kiemTra(
+  "cung ten khac thiet bi: KHONG trung",
+  timTrung(
+    { nameVn: "Bạc trục", equipment: "Máy đèn", impa: null, partNumber: null },
+    daCo
+  ),
+  null
+);
+kiemTra(
+  "khong trung",
+  timTrung(
+    { nameVn: "Mới tinh", equipment: null, impa: null, partNumber: null },
+    daCo
+  ),
+  null
+);
+kiemTra(
+  "loi trung chi sang o chon",
+  loiTrung({ mon: daCo[0], theo: "part-no" }).includes(
+    "Chọn vật tư từ danh mục gốc"
+  ),
+  true
+);
+kiemTra(
+  "loi trung hang ngung dung",
+  loiTrung({ mon: daCo[1], theo: "impa" }).includes("Ngừng dùng"),
+  true
+);
 
 console.log(`\n=== TONG: ${dat} dat / ${truot} truot ===`);
 process.exit(truot ? 1 : 0);

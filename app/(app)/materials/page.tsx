@@ -24,6 +24,7 @@ import {
   VesselMaterialAddForm,
   VesselMaterialRemoveButton,
 } from "@/components/VesselCatalogActions";
+import VatTuMoiChoTauForm from "@/components/VatTuMoiChoTauForm";
 import {
   canManageVesselCatalog,
   chonDuocTau,
@@ -501,19 +502,20 @@ export default async function MaterialsPage({
                     available={availableToAdd}
                   />
                   <p className="mt-2 text-xs text-slate-500">
-                    Vật tư lấy từ danh mục gốc toàn đội. Cần vật tư mới hoàn
-                    toàn?{" "}
-                    {canManageMaster ? (
-                      <Link
-                        href={buildHref(filterType, null)}
-                        className="text-blue-700 hover:underline"
-                      >
-                        Tạo trong Danh mục gốc
-                      </Link>
-                    ) : (
-                      "Liên hệ quản trị viên tạo trong Danh mục gốc."
-                    )}
+                    Vật tư lấy từ danh mục gốc toàn đội.
                   </p>
+                  {/* Món hàng chưa có trong danh mục gốc: khai ngay tại tàu,
+                      gắn chức danh giữ — không phải nhờ quản trị tạo trước. */}
+                  <VatTuMoiChoTauForm
+                    vesselId={selectedVesselId!}
+                    vesselName={selectedVessel?.name ?? ""}
+                    categories={categories.map((c) => ({
+                      id: c.id,
+                      name: c.name,
+                      code: c.code,
+                    }))}
+                    chucDanhMacDinh={chucDanhCuaToi}
+                  />
                 </div>
               )
             : canManageMaster && (

@@ -10,6 +10,8 @@
 import { readFileSync, readdirSync, existsSync, statSync } from "fs";
 import path from "path";
 
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "@/lib/prisma";
 import {
   BANG_CUA_TAU,
@@ -27,12 +29,67 @@ const b = (ten: string) => (prisma as any)[ten];
 
 const THU_MUC = path.resolve(process.cwd(), "dong-bo");
 
+/** Tên cột vi phạm khóa duy nhất, nếu lỗi đúng là P2002 và cột đó là chuỗi. */
+function cotBiTrung(e: unknown, row: Record<string, unknown>): string | null {
+  if (
+    !(e instanceof Prisma.PrismaClientKnownRequestError) ||
+    e.code !== "P2002"
+  ) {
+    return null;
+  }
+  const dich = e.meta?.target;
+  const cot = Array.isArray(dich)
+    ? dich.map(String)
+    : typeof dich === "string"
+      ? [dich]
+      : [];
+  return cot.find((c) => typeof row[c] === "string") ?? null;
+}
+
+/**
+ * Ghi một bản ghi theo id: chưa có thì tạo, có rồi thì cập nhật.
+ *
+ * `hauTo` chỉ được truyền cho danh mục dùng chung do TÀU khai. Mã mặt hàng mới
+ * sinh theo số mặt hàng đang có của từng bản cài, nên MLS-001 và MLS-002 đều có
+ * thể ra "FO-0005" cho hai loại dầu KHÁC nhau. Id thì không đụng vì mỗi tàu
+ * một dải, nhưng cột mã là khóa duy nhất nên dòng thứ hai bị chặn.
+ *
+ * Bỏ dòng đó đi là mất theo cả tồn kho và phiếu nhận trỏ tới nó. Thay vào đó
+ * gắn mã tàu vào phần bị trùng ("FO-0005-MLS-002") và báo lên để văn phòng gộp
+ * bằng tay: dữ liệu còn nguyên, và người nhập thấy ngay hai dòng cần xem lại.
+ */
+async function ghiBanGhi(
+  ten: string,
+  row: Record<string, unknown>,
+  hauTo: string | null
+): Promise<{ tao: boolean; canhBao: string | null }> {
+  const id = row.id as number;
+  const daCo = await b(ten).findUnique({ where: { id } });
+  try {
+    if (daCo) await b(ten).update({ where: { id }, data: row });
+    else await b(ten).create({ data: row });
+    return { tao: !daCo, canhBao: null };
+  } catch (e) {
+    const truong = hauTo ? cotBiTrung(e, row) : null;
+    if (!truong) throw e;
+    const cu = row[truong] as string;
+    const moi = `${cu}-${hauTo}`;
+    const data = { ...row, [truong]: moi };
+    if (daCo) await b(ten).update({ where: { id }, data });
+    else await b(ten).create({ data });
+    return {
+      tao: !daCo,
+      canhBao: `${ten}#${id}: ${truong} "${cu}" đã có ở nơi nhận, đổi thành "${moi}" — kiểm tra rồi gộp lại.`,
+    };
+  }
+}
+
 function timFile(): string | null {
   const arg = process.argv.slice(2).find((a) => !a.startsWith("--"));
   if (arg) return path.resolve(arg);
   if (!existsSync(THU_MUC)) return null;
   // Sắp theo THỜI GIAN SỬA FILE, không theo tên: tên có tiền tố tàu
-  // (dongbo-VANPHONG-… so với dongbo-ML-001-…) nên sắp theo tên sẽ lấy nhầm gói cũ.
+  // (dongbo-VANPHONG-… so với dongbo-MLS-001-…) nên sắp theo tên sẽ lấy nhầm gói cũ.
   const files = readdirSync(THU_MUC)
     .filter((f) => f.endsWith(".json"))
     .map((f) => {
@@ -92,15 +149,23 @@ async function main() {
     process.exit(1);
   }
 
-  // Thứ tự nhập phải tôn trọng khóa ngoại — dùng đúng thứ tự lúc xuất.
+  // Thứ tự nhập phải tôn trọng khóa ngoại — dùng đúng thứ tự lúc xuất. Gói của
+  // tàu mở đầu bằng danh mục tàu tự khai: tồn kho và phiếu nhận ngay sau đó
+  // trỏ tới chính những mặt hàng ấy.
+  const danhMuc = BANG_DUNG_CHUNG.map((x) => x.ten) as string[];
   const thuTu =
     goi.huong === "TAU_LEN_VAN_PHONG"
-      ? [...BANG_CUA_TAU.map((x) => x.ten), ...BANG_CON.map((x) => x.ten)]
-      : BANG_DUNG_CHUNG.map((x) => x.ten);
+      ? [
+          ...danhMuc,
+          ...BANG_CUA_TAU.map((x) => x.ten),
+          ...BANG_CON.map((x) => x.ten),
+        ]
+      : danhMuc;
 
   let tao = 0;
   let capNhat = 0;
   const loi: string[] = [];
+  const canhBao: string[] = [];
 
   for (const ten of thuTu) {
     const rows = (goi.duLieu[ten] ?? []).map(khoiPhucKhiDoc) as Record<
@@ -110,17 +175,20 @@ async function main() {
     if (!rows.length) continue;
     let t = 0;
     let c = 0;
+    // Chỉ danh mục dùng chung trong gói CỦA TÀU mới được đổi mã khi trùng.
+    // Bảng nghiệp vụ trùng khóa duy nhất là dấu hiệu sai ở chỗ khác, phải báo
+    // lỗi ra cho người nhập xem chứ không tự sửa dữ liệu.
+    const hauTo =
+      goi.huong === "TAU_LEN_VAN_PHONG" && danhMuc.includes(ten)
+        ? goi.vesselCode
+        : null;
     for (const row of rows) {
       const id = row.id as number;
       try {
-        const daCo = await b(ten).findUnique({ where: { id } });
-        if (daCo) {
-          await b(ten).update({ where: { id }, data: row });
-          c++;
-        } else {
-          await b(ten).create({ data: row });
-          t++;
-        }
+        const kq = await ghiBanGhi(ten, row, hauTo);
+        if (kq.tao) t++;
+        else c++;
+        if (kq.canhBao) canhBao.push(kq.canhBao);
       } catch (e) {
         loi.push(`${ten}#${id}: ${(e as Error).message.split("\n")[0]}`);
       }
@@ -161,6 +229,10 @@ async function main() {
   }
 
   console.log(`\nTạo mới ${tao} · cập nhật ${capNhat} bản ghi.`);
+  if (canhBao.length) {
+    console.log(`\n${canhBao.length} mã bị trùng, đã đổi tên để giữ dữ liệu:`);
+    for (const c of canhBao) console.log("  - " + c);
+  }
   if (loi.length) {
     console.log(`\n${loi.length} bản ghi lỗi:`);
     for (const l of loi.slice(0, 15)) console.log("  - " + l);

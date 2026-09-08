@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireScopedUser, vesselScope } from "@/lib/auth";
+import {
+  requireScopedUser,
+  trongPhamVi,
+  vesselScopeDayDu,
+} from "@/lib/auth";
 import {
   ROLE_LABEL,
+  XIN_CAP_NHIEN_LIEU,
   boPhanCuaChucDanh,
+  danhTinhHieuLuc,
   nguoiDuyetCapTau,
   nhomNhienLieuChoPhep,
   nhomXinCapChoPhep,
@@ -31,6 +37,11 @@ import {
 import ConsumableReceiptDeleteButton from "@/components/ConsumableReceiptDeleteButton";
 import ConsumableRequestForm from "@/components/ConsumableRequestForm";
 import VesselSwitcher from "@/components/VesselSwitcher";
+
+// Băng tin hạn dùng nối mọi lô vào MỘT dòng chữ, nên phải có trần hiển thị:
+// không có nó thì một tàu tồn nhiều lô quá hạn sẽ đẩy ra một dòng dài vô tận,
+// người đọc cuộn qua rồi bỏ — cảnh báo dài quá hoá ra không cảnh báo được ai.
+const SO_LO_HIEN_TREN_BANG_TIN = 10;
 
 export const dynamic = "force-dynamic";
 
@@ -63,11 +74,11 @@ export default async function ConsumableVesselPage({
   searchParams: Promise<{ nhom?: string }>;
 }) {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const { id } = await params;
   const vesselId = Number(id);
   if (!Number.isInteger(vesselId) || vesselId <= 0) notFound();
-  if (!scope.all && scope.vesselId !== vesselId) notFound();
+  if (!trongPhamVi(scope, vesselId)) notFound();
 
   const vessel = await prisma.vessel.findUnique({ where: { id: vesselId } });
   if (!vessel) notFound();
@@ -81,6 +92,23 @@ export default async function ConsumableVesselPage({
   // xin được dầu — cả hai đều sai.
   const nhomXinDuoc = nhomXinCapChoPhep(user, vesselId);
   const coTheXinCap = nhomXinDuoc.length > 0;
+
+  // Ai được bấm "Xem bản gốc" (BDN scan) trong bảng lịch sử phiếu nhận.
+  //
+  // Phải soi ĐÚNG cổng của GET /api/consumable-receipts/[id]/file, không hơn
+  // không kém. Trang này chỉ đòi trongPhamVi() nên phó 2, phó 3 và thủy thủ vào
+  // xem được; trước đây link hiện vô điều kiện theo r.attachStored nên họ bấm
+  // vào là mở tab mới hiện JSON 401 — tệ hơn nữa là thông điệp cũ nói "chưa
+  // đăng nhập" khiến họ tưởng phiên hết hạn.
+  //
+  // Không dùng nhomXinDuoc ở đây: danh sách đó suy từ XIN_CAP_NHIEN_LIEU, mà
+  // route còn cho thêm TECH_MANAGER — quản lý kỹ thuật ở bờ chính là người có
+  // nghiệp vụ đối chiếu bunker với bản gốc, giấu link của họ là lệch ngược lại.
+  // Phần phạm vi tàu không cần hỏi lại: xuống được tới đây nghĩa là trongPhamVi
+  // ở đầu hàm đã đúng, mà đó cũng là điều kiện route xét.
+  const coXemBanGoc = danhTinhHieuLuc(user).some(
+    (d) => XIN_CAP_NHIEN_LIEU.includes(d.role) || d.role === "TECH_MANAGER"
+  );
 
   // Tách hẳn ba nhóm: dầu đốt, dầu nhờn và hóa chất là ba nghiệp vụ khác nhau,
   // do người khác nhau phụ trách và có chứng từ khác nhau. Xem lẫn cả ba trong
@@ -97,7 +125,25 @@ export default async function ConsumableVesselPage({
   const moc30Ngay = new Date();
   moc30Ngay.setDate(moc30Ngay.getDate() - 30);
 
-  const [products, stocks, receipts, transactions, tieuThu30] = await Promise.all([
+  // Cảnh báo hạn dùng và mẫu dầu KHÔNG được suy từ mảng receipts bên dưới: mảng
+  // đó lấy 50 phiếu MỚI NHẤT cho bảng lịch sử, mà lô sắp hết hạn và mẫu tới hạn
+  // hủy luôn là những lô CŨ NHẤT — đúng nhóm bị take:50 cắt đi trước tiên. Hệ
+  // quả cũ: trang tổng /consumables đếm 8 lô sắp hết hạn, mở trang chi tiết
+  // đúng tàu đó thì khối cảnh báo trống trơn.
+  const hanCanhBao = new Date();
+  hanCanhBao.setDate(hanCanhBao.getDate() + NGUONG_CANH_BAO_HAN_DUNG);
+  const bayGio = new Date();
+
+  const [
+    products,
+    stocks,
+    receipts,
+    transactions,
+    tieuThu30,
+    loSapHetHan,
+    mauQuaHanLuu,
+    mauConLuu,
+  ] = await Promise.all([
     prisma.consumableProduct.findMany({
       where: { isActive: true },
       orderBy: [{ category: "asc" }, { grade: "asc" }, { name: "asc" }],
@@ -122,6 +168,29 @@ export default async function ConsumableVesselPage({
       by: ["productId", "consumer"],
       where: { vesselId, type: "CONSUME", occurredAt: { gte: moc30Ngay } },
       _sum: { quantity: true },
+    }),
+    // lte đã tự loại NULL nên không cần thêm not: null.
+    // Sắp GIẢM dần chứ không tăng: trong số các lô đã dưới ngưỡng cảnh báo, 50 lô
+    // có hạn MUỘN nhất mới là nhóm cần hành động. Sắp tăng dần thì một tàu chạy
+    // vài năm có hàng chục lô quá hạn từ lâu sẽ nuốt sạch cửa sổ 50, và mấy lô
+    // sắp hết hạn — đúng thứ cần cảnh báo — bị cắt sạch chứ không phải ngẫu nhiên.
+    prisma.consumableReceipt.findMany({
+      where: { vesselId, expiryDate: { lte: hanCanhBao } },
+      include: { product: true },
+      orderBy: { expiryDate: "desc" },
+      take: 50,
+    }),
+    prisma.consumableReceipt.findMany({
+      where: { vesselId, sampleKeepUntil: { lt: bayGio } },
+      include: { product: true },
+      orderBy: { sampleKeepUntil: "asc" },
+      take: 10,
+    }),
+    prisma.consumableReceipt.findMany({
+      where: { vesselId, sampleKeepUntil: { gte: bayGio } },
+      include: { product: true },
+      orderBy: { sampleKeepUntil: "asc" },
+      take: 15,
     }),
   ]);
 
@@ -192,8 +261,10 @@ export default async function ConsumableVesselPage({
     (s) =>
       hopNhom(s.product.category) && s.minQty > 0 && s.quantity < s.minQty
   );
-  const loHetHan = receipts
-    .filter((r) => hopNhom(r.product.category) && r.expiryDate)
+  // Tính lại `con` bằng soNgayToi để không lệch một ngày so với mốc hanCanhBao
+  // (soNgayToi làm tròn lên), và vẫn lọc lại theo ngưỡng cho chắc.
+  const loHetHan = loSapHetHan
+    .filter((r) => hopNhom(r.product.category))
     .map((r) => ({ r, con: soNgayToi(r.expiryDate)! }))
     .filter((x) => x.con <= NGUONG_CANH_BAO_HAN_DUNG)
     .sort((a, b) => a.con - b.con);
@@ -205,14 +276,9 @@ export default async function ConsumableVesselPage({
     .filter((x) => x.ngay !== null && x.ngay < NGUONG_NGAY_SAP_HET)
     .sort((a, b) => a.ngay! - b.ngay!);
 
-  const mauHetHanGiu = receipts
-    .filter(
-      (r) =>
-        hopNhom(r.product.category) &&
-        r.sampleKeepUntil &&
-        soNgayToi(r.sampleKeepUntil)! < 0
-    )
-    .slice(0, 10);
+  const mauHetHanGiu = mauQuaHanLuu.filter((r) =>
+    hopNhom(r.product.category)
+  );
 
   // ── Tổng hợp riêng cho từng nhóm ──────────────────────────────────────────
   const theoId = new Map(products.map((p) => [p.id, p]));
@@ -275,11 +341,7 @@ export default async function ConsumableVesselPage({
     return { dungEca, ngoaiEca, chuaKhai, uom };
   };
 
-  const mauDangGiu = receipts
-    .filter(
-      (r) => r.sampleKeepUntil && soNgayToi(r.sampleKeepUntil)! >= 0
-    )
-    .slice(0, 15);
+  const mauDangGiu = mauConLuu.filter((r) => hopNhom(r.product.category));
 
   const hoaChatNguyHiem = products.filter(
     (p) => p.category === "CHEMICAL" && (p.hazardClass || p.msdsNote)
@@ -390,6 +452,7 @@ export default async function ConsumableVesselPage({
             <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900">
               <b>Hạn dùng:</b>{" "}
               {loHetHan
+                .slice(0, SO_LO_HIEN_TREN_BANG_TIN)
                 .map(
                   ({ r, con }) =>
                     `${r.product.name} (lô ${r.docNo}) ${
@@ -397,6 +460,8 @@ export default async function ConsumableVesselPage({
                     }`
                 )
                 .join(" · ")}
+              {loHetHan.length > SO_LO_HIEN_TREN_BANG_TIN &&
+                ` · và ${loHetHan.length - SO_LO_HIEN_TREN_BANG_TIN} lô khác`}
             </div>
           )}
           {mauHetHanGiu.length > 0 && (
@@ -864,7 +929,7 @@ export default async function ConsumableVesselPage({
                         {!r.sampleKeepUntil && !r.expiryDate && "—"}
                       </td>
                       <td className="p-2 text-xs">
-                        {r.attachStored ? (
+                        {r.attachStored && coXemBanGoc ? (
                           <a
                             href={`/api/consumable-receipts/${r.id}/file`}
                             target="_blank"

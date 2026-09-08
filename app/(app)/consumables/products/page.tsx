@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireScopedUser } from "@/lib/auth";
+import { danhTinhHieuLuc, requireScopedUser } from "@/lib/auth";
 import { QUAN_DANH_MUC_NHIEN_LIEU, VAN_HANH_HOA_CHAT } from "@/lib/roles";
 import {
   CATEGORY_ICON,
@@ -19,12 +19,24 @@ export default async function ConsumableProductsPage() {
   const user = await requireScopedUser();
   // Vào xem và THÊM mới thì người quản nhóm trên tàu cũng được; sửa/xóa một mặt
   // hàng đang dùng chung thì server chặn riêng ở từng action.
-  if (!VAN_HANH_HOA_CHAT.includes(user.role)) {
+  //
+  // Xét cả danh tính MƯỢN qua ủy quyền chứ không chỉ user.role thô, vì hai lý
+  // do: các server action của trang này đi qua requireActiveRole nên vốn đã
+  // nhận vai trò mượn — đọc user.role thô ở cổng là người được máy trưởng ủy
+  // quyền không vào nổi cái trang chứa đúng những action họ gọi được; và nút
+  // dẫn tới đây ở /consumables cũng tính theo danhTinhHieuLuc, lệch nhau thì họ
+  // thấy nút, bấm vào bị redirect ngược về chỗ vừa bấm, bấm mãi một vòng câm.
+  const danhTinh = danhTinhHieuLuc(user);
+  if (!danhTinh.some((d) => VAN_HANH_HOA_CHAT.includes(d.role))) {
     redirect("/consumables");
   }
   // Máy trưởng sửa/ngừng/xóa được mặt hàng như quản trị — danh mục dầu và hóa
-  // chất là nghiệp vụ buồng máy.
-  const laVanPhong = QUAN_DANH_MUC_NHIEN_LIEU.includes(user.role);
+  // chất là nghiệp vụ buồng máy. Cũng tính vai trò mượn, để khớp requireFleet()
+  // ở consumable-actions: nếu không, người nhận ủy quyền của máy trưởng sửa
+  // được thật mà giao diện lại giấu nút và báo họ chỉ thêm mới được.
+  const laVanPhong = danhTinh.some((d) =>
+    QUAN_DANH_MUC_NHIEN_LIEU.includes(d.role)
+  );
 
   const products = await prisma.consumableProduct.findMany({
     orderBy: [{ category: "asc" }, { grade: "asc" }, { name: "asc" }],

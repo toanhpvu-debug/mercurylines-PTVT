@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { updateVessel } from "@/app/actions";
+import ChonMayChinh from "@/components/ChonMayChinh";
 
 type VesselData = {
   id: number;
@@ -11,6 +12,8 @@ type VesselData = {
   flag: string | null;
   vesselType: string | null;
   status: string;
+  mainEngineGroup: string | null;
+  mainEngineModel: string | null;
 };
 
 export default function VesselEditForm({ vessel }: { vessel: VesselData }) {
@@ -63,6 +66,10 @@ export default function VesselEditForm({ vessel }: { vessel: VesselData }) {
           defaultValue={v.vesselType ?? vessel.vesselType ?? ""}
         />
       </div>
+      <ChonMayChinh
+        nhom={v.mainEngineGroup ?? vessel.mainEngineGroup ?? ""}
+        model={v.mainEngineModel ?? vessel.mainEngineModel ?? ""}
+      />
       <div>
         <label className="mb-1 block text-sm text-slate-600">Trạng thái</label>
         <select

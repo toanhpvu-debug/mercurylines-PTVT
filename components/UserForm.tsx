@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { createUser } from "@/app/actions";
+import ChonChucDanhGiuVatTu from "@/components/ChonChucDanhGiuVatTu";
 import { NHOM_CHUC_DANH, ROLE_LABEL } from "@/lib/roles";
 
 type VesselOption = {
@@ -66,6 +67,7 @@ export default function UserForm({ vessels }: { vessels: VesselOption[] }) {
           </option>
         ))}
       </select>
+      <ChonChucDanhGiuVatTu giaTri="" />
       <button
         disabled={pending}
         className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"

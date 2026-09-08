@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
   vesselIdWhere,
-  vesselScope,
+  vesselScopeDayDu,
 } from "@/lib/auth";
 import PrintButton from "@/components/PrintButton";
 
@@ -21,7 +21,7 @@ export default async function ReportsPage({
   searchParams: Promise<{ vessel?: string; dept?: string; month?: string }>;
 }) {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const vessels = await prisma.vessel.findMany({
     where: vesselIdWhere(scope),
     orderBy: { code: "asc" },

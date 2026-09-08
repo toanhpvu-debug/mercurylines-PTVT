@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
   vesselIdWhere,
-  vesselScope,
+  vesselScopeDayDu,
   vesselWhere,
 } from "@/lib/auth";
 import DocumentUploadForm from "@/components/DocumentUploadForm";
@@ -20,7 +20,7 @@ function formatSize(bytes: number) {
 
 export default async function DocumentsPage() {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const canDelete = user.role === "ADMIN";
   const [vessels, documents] = await Promise.all([
     prisma.vessel.findMany({

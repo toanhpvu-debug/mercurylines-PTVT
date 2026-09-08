@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireScopedUser, vesselScope } from "@/lib/auth";
+import {
+  requireScopedUser,
+  trongPhamVi,
+  vesselScopeDayDu,
+} from "@/lib/auth";
 import VesselEditForm from "@/components/VesselEditForm";
 import VesselDeleteButton from "@/components/VesselDeleteButton";
 import VesselSwitcher from "@/components/VesselSwitcher";
@@ -23,7 +27,7 @@ export default async function VesselDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const canManage = user.role === "ADMIN";
 
   const { id: idRaw } = await params;
@@ -31,7 +35,7 @@ export default async function VesselDetailPage({
   if (!Number.isInteger(id) || id <= 0) {
     notFound();
   }
-  if (!scope.all && id !== scope.vesselId) {
+  if (!trongPhamVi(scope, id)) {
     notFound();
   }
   const vessel = await prisma.vessel.findUnique({
@@ -43,15 +47,21 @@ export default async function VesselDetailPage({
   if (!vessel) {
     notFound();
   }
-  const [inventories, requests, documents] = await Promise.all([
+  // Bảng tồn kho ở đây chỉ để liếc nhanh: một tàu có vài trăm mặt hàng, dựng
+  // hết ra thì trang hồ sơ tàu nặng gấp đôi mà vẫn không ai đọc hết. Muốn xem
+  // đầy đủ, tìm kiếm hay lọc thì đã có trang Tồn kho ngay bên cạnh.
+  const GIOI_HAN_TON_KHO = 50;
+  const [inventories, tongTonKho, requests, documents] = await Promise.all([
     prisma.inventory.findMany({
       where: { vesselId: id },
       orderBy: [{ warehouseId: "asc" }, { materialId: "asc" }],
+      take: GIOI_HAN_TON_KHO,
       include: {
         warehouse: true,
         material: true,
       },
     }),
+    prisma.inventory.count({ where: { vesselId: id } }),
     prisma.materialRequest.findMany({
       where: { vesselId: id },
       orderBy: { createdAt: "desc" },
@@ -183,6 +193,8 @@ export default async function VesselDetailPage({
                 flag: vessel.flag,
                 vesselType: vessel.vesselType,
                 status: vessel.status,
+                mainEngineGroup: vessel.mainEngineGroup,
+                mainEngineModel: vessel.mainEngineModel,
               }}
             />
           </div>
@@ -240,7 +252,7 @@ export default async function VesselDetailPage({
             Nhập / xuất kho · Xuất kiểm kê →
           </Link>
         </div>
-        {inventories.length === 0 ? (
+        {tongTonKho === 0 ? (
           <p className="text-slate-600">Chưa có tồn kho.</p>
         ) : (
           <div className="overflow-x-auto">
@@ -280,6 +292,20 @@ export default async function VesselDetailPage({
                     </tr>
                   );
                 })}
+                {tongTonKho > inventories.length && (
+                  <tr className="border-b bg-slate-50/60">
+                    <td colSpan={7} className="p-2 text-xs text-slate-500">
+                      Đang hiện {inventories.length} trong tổng{" "}
+                      <b>{tongTonKho}</b> dòng.{" "}
+                      <Link
+                        href={`/inventory?vessel=${vessel.id}`}
+                        className="text-blue-700 hover:underline"
+                      >
+                        Xem đầy đủ ở trang Tồn kho
+                      </Link>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

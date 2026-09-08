@@ -4,7 +4,7 @@ import VesselForm from "@/components/VesselForm";
 import {
   requireScopedUser,
   vesselIdWhere,
-  vesselScope,
+  vesselScopeDayDu,
 } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ const statusBadges: Record<string, { label: string; className: string }> = {
 
 export default async function VesselsPage() {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const canManage = user.role === "ADMIN";
   const vessels = await prisma.vessel.findMany({
     where: vesselIdWhere(scope),

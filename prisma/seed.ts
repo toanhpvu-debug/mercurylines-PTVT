@@ -62,7 +62,7 @@ async function main() {
   ];
   const vessels = [];
   for (let i = 0; i < vesselSuffixes.length; i++) {
-    const code = `ML-${String(i + 1).padStart(3, "0")}`;
+    const code = `MLS-${String(i + 1).padStart(3, "0")}`;
     const name = `MERCURY ${vesselSuffixes[i]}`;
     // Xen kẽ vài tàu theo chuẩn NAVIS để minh họa chọn mẫu form.
     const formStandard = i % 3 === 2 ? "NAVIS" : "MLS";
@@ -159,9 +159,13 @@ async function main() {
       },
     });
   }
+  // Mã theo khuôn [bộ phận]-IMPA/SPR-#### (xem lib/maVatTu.ts). Số thứ tự ở đây
+  // KHÔNG liền nhau vì chúng là mã thật của chính những mặt hàng này trong danh
+  // mục đang chạy — seed dùng `upsert` theo mã, nên đặt số cho đẹp mắt sẽ khiến
+  // một dòng mẫu ghi đè lên một mặt hàng thật đang mang số đó.
   const materials = [
     {
-      code: "ML-ENG-0001",
+      code: "E-SPR-0001",
       nameVn: "Lõi lọc dầu bôi trơn máy chính",
       nameEn: "Main engine lube oil filter element",
       impa: "345678",
@@ -174,7 +178,7 @@ async function main() {
       isCritical: true,
     },
     {
-      code: "ML-ENG-0002",
+      code: "E-SPR-0002",
       nameVn: "Lõi lọc nhiên liệu",
       nameEn: "Fuel oil filter element",
       impa: "345679",
@@ -187,7 +191,7 @@ async function main() {
       isCritical: true,
     },
     {
-      code: "ML-ENG-0003",
+      code: "E-IMPA-0001",
       nameVn: "Dầu thủy lực",
       nameEn: "Hydraulic oil",
       impa: "349001",
@@ -200,7 +204,7 @@ async function main() {
       isCritical: false,
     },
     {
-      code: "ML-DECK-0001",
+      code: "D-IMPA-0278",
       nameVn: "Sơn chống rỉ",
       nameEn: "Anti-rust paint",
       impa: "350001",
@@ -213,7 +217,7 @@ async function main() {
       isCritical: false,
     },
     {
-      code: "ML-DECK-0002",
+      code: "D-IMPA-0001",
       nameVn: "Dây mooring",
       nameEn: "Mooring rope",
       impa: "351002",
@@ -226,7 +230,7 @@ async function main() {
       isCritical: false,
     },
     {
-      code: "ML-ELEC-0001",
+      code: "L-SPR-0001",
       nameVn: "Đèn hành trình",
       nameEn: "Navigation light",
       impa: "360001",
@@ -239,7 +243,7 @@ async function main() {
       isCritical: true,
     },
     {
-      code: "ML-ELEC-0002",
+      code: "L-IMPA-0001",
       nameVn: "Cáp điện hàng hải",
       nameEn: "Marine cable",
       impa: "360123",
@@ -252,7 +256,7 @@ async function main() {
       isCritical: false,
     },
     {
-      code: "ML-SAF-0001",
+      code: "D-IMPA-0276",
       nameVn: "Bình chữa cháy CO2",
       nameEn: "CO2 fire extinguisher",
       impa: "370001",
@@ -265,7 +269,7 @@ async function main() {
       isCritical: true,
     },
     {
-      code: "ML-SAF-0002",
+      code: "D-IMPA-0277",
       nameVn: "Phao áo",
       nameEn: "Life jacket",
       impa: "370100",
@@ -278,7 +282,7 @@ async function main() {
       isCritical: true,
     },
     {
-      code: "ML-CON-0001",
+      code: "C-IMPA-0001",
       nameVn: "Găng tay bảo hộ",
       nameEn: "Safety gloves",
       impa: "380001",
@@ -293,9 +297,9 @@ async function main() {
   ];
   // Phân loại phụ tùng (SPARE) gắn với thiết bị; còn lại là vật tư (STORE)
   const spareEquipment: Record<string, string> = {
-    "ML-ENG-0001": "Máy chính (Main Engine)",
-    "ML-ENG-0002": "Máy chính (Main Engine)",
-    "ML-ELEC-0001": "Hệ thống đèn hàng hải",
+    "E-SPR-0001": "Máy chính (Main Engine)",
+    "E-SPR-0002": "Máy chính (Main Engine)",
+    "L-SPR-0001": "Hệ thống đèn hàng hải",
   };
   for (const material of materials) {
     const category = await prisma.category.findUnique({

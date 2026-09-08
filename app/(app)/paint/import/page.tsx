@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireScopedUser, vesselIdWhere, vesselScope } from "@/lib/auth";
+import {
+  requireScopedUser,
+  vesselIdWhere,
+  vesselScopeDayDu,
+} from "@/lib/auth";
 import PaintImportForm from "@/components/PaintImportForm";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +15,7 @@ export default async function PaintImportPage() {
   if (!["ADMIN", "MASTER"].includes(user.role)) {
     redirect("/paint");
   }
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const vessels = await prisma.vessel.findMany({
     where: vesselIdWhere(scope),
     orderBy: { code: "asc" },

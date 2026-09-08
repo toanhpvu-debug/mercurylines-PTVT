@@ -10,12 +10,14 @@ import RequestDeleteButton from "@/components/RequestDeleteButton";
 import {
   canDeleteRequest,
   capDuyetChoPhep,
+  chonDuocTau,
+  danhTinhHieuLuc,
   requireScopedUser,
   vesselIdWhere,
-  vesselScope,
+  vesselScopeDayDu,
   vesselWhere,
 } from "@/lib/auth";
-import { LAP_YEU_CAU, ROLE_LABEL } from "@/lib/roles";
+import { CHI_HUY_TAU, DUYET_CONG_TY, LAP_YEU_CAU, ROLE_LABEL } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +28,12 @@ export default async function RequestsPage({
   searchParams: Promise<{ vessel?: string; status?: string }>;
 }) {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
-  const canModerate = ["ADMIN", "MASTER", "TECH_MANAGER"].includes(user.role);
+  const scope = vesselScopeDayDu(user);
+  // CHI_HUY_TAU ∪ DUYET_CONG_TY — đúng danh sách updateRequestStatus nhận.
+  // Liệt kê tay ở đây từng bỏ sót máy trưởng, làm họ không thấy nút duyệt.
+  const canModerate = danhTinhHieuLuc(user).some(
+    (d) => CHI_HUY_TAU.includes(d.role) || DUYET_CONG_TY.includes(d.role)
+  );
   const canSubmit = LAP_YEU_CAU.includes(user.role);
   const params = await searchParams;
   // Lọc theo tàu (link từ trang hồ sơ tàu) và theo trạng thái.
@@ -45,8 +51,11 @@ export default async function RequestsPage({
       include: {
         vessel: true,
         items: {
+          // Danh sách chỉ hiện đúng item.material.code; kéo cả bản ghi vật tư
+          // (15 cột) cho MỖI dòng của MỖI yêu cầu là tải thừa lớn dần theo số
+          // yêu cầu × số dòng. Chỉ lấy mã.
           include: {
-            material: true,
+            material: { select: { code: true } },
           },
         },
       },
@@ -103,7 +112,7 @@ export default async function RequestsPage({
             Danh sách yêu cầu ({requests.length})
           </h3>
           <form method="get" className="flex flex-wrap items-center gap-2">
-            {scope.all && (
+            {chonDuocTau(scope) && (
               <select
                 name="vessel"
                 defaultValue={vesselFilter ? String(vesselFilter) : ""}

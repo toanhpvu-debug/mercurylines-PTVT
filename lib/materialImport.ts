@@ -1,4 +1,5 @@
 import "server-only";
+import { docSo } from "@/lib/docSo";
 
 import * as XLSX from "xlsx";
 
@@ -108,14 +109,8 @@ export function looksLikeImpa(value: string): boolean {
   return true;
 }
 
-function cellNumber(v: unknown): number {
-  if (typeof v === "string") {
-    let s = v.trim();
-    if (s.includes(",")) s = s.replace(/\./g, "").replace(/,/g, ".");
-    return Number(s);
-  }
-  return Number(v);
-}
+// Đọc số ô Excel — xem lib/docSo.ts để biết vì sao không đoán tại chỗ.
+const cellNumber = docSo;
 
 // "2 set" / "8 pcs" / "1 pce" → { qty: 2, unit: "set" }
 function parseQtyUnit(text: string): { qty: number | null; unit: string | null } {
@@ -271,6 +266,8 @@ function parseSheet(
       (col.uom >= 0 ? cellText(row[col.uom]) : "") || minParsed.unit || "PCS";
     const impaCell = col.impa >= 0 ? cleanId(cellText(row[col.impa])) : null;
     const pnCell = col.pn >= 0 ? cleanId(cellText(row[col.pn])) : null;
+    const groupCell = col.group >= 0 ? cellText(row[col.group]) || null : null;
+    const laPhuTung = currentEquipment !== null || sheetType === "SPARE";
     items.push({
       name,
       // Cột "Mã IMPA" trong file công ty lẫn cả mã nhà sản xuất — phân loại
@@ -279,13 +276,16 @@ function parseSheet(
       partNumber:
         pnCell ?? (impaCell && !looksLikeImpa(impaCell) ? impaCell : null),
       uom,
-      equipment: currentEquipment,
-      group: col.group >= 0 ? cellText(row[col.group]) || null : null,
+      // Sheet phụ tùng thường không có dòng tiêu đề "A. Phụ tùng máy chính"
+      // mà ghi thẳng tên máy vào cột Nhóm. Bỏ qua nó thì hai chi tiết trùng tên
+      // của hai máy khác nhau bị gộp làm một và tồn kho đè lên nhau.
+      equipment: currentEquipment ?? (laPhuTung ? groupCell : null),
+      group: groupCell,
       minStock: minParsed.qty ?? 0,
       rob: Number.isFinite(robRaw) && robRaw >= 0 ? robRaw : null,
       sheet: sheetName,
       // Dòng có nhóm thiết bị luôn là phụ tùng, dù sheet đặt tên gì.
-      materialType: currentEquipment ? "SPARE" : sheetType,
+      materialType: laPhuTung ? "SPARE" : sheetType,
     });
     if (items.length >= remaining) {
       truncated = true;

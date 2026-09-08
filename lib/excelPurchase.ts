@@ -1,4 +1,5 @@
 import "server-only";
+import { docSo } from "@/lib/docSo";
 
 import * as XLSX from "xlsx";
 
@@ -33,17 +34,8 @@ function cellText(v: unknown): string {
   return String(v).trim();
 }
 
-// Đọc số kể cả khi ô là chữ kiểu Việt Nam: "1,5" → 1.5; "1.234,5" → 1234.5.
-function cellNumber(v: unknown): number {
-  if (typeof v === "string") {
-    let s = v.trim();
-    if (s.includes(",")) {
-      s = s.replace(/\./g, "").replace(/,/g, ".");
-    }
-    return Number(s);
-  }
-  return Number(v);
-}
+// Đọc số ô Excel — xem lib/docSo.ts để biết vì sao không đoán tại chỗ.
+const cellNumber = docSo;
 
 export function parsePurchaseExcel(buffer: Buffer): ParsePurchaseResult {
   let rows: unknown[][];

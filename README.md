@@ -51,6 +51,67 @@ CREATE ROLE mercury LOGIN PASSWORD 'MAT_KHAU_RIENG';
 CREATE DATABASE mercury OWNER mercury ENCODING 'UTF8';
 ```
 
+### Bản PostgreSQL riêng của dự án (không cần quyền quản trị)
+
+Máy này đang chạy **bản rời** thay cho dịch vụ Windows: bộ nhị phân EDB được giải nén
+thẳng vào thư mục cha của dự án, không đụng registry, không cần quyền quản trị.
+
+| Thư mục | Vai trò |
+| --- | --- |
+| `../pgsql` | Bộ nhị phân PostgreSQL 17.6 (`bin/postgres.exe`, `bin/psql.exe`, `bin/pg_ctl.exe`...) |
+| `../pgdata` | Toàn bộ dữ liệu. **Đây là thứ duy nhất phải sao lưu.** |
+| `../pg-logs` | Nhật ký máy chủ. Nằm ngoài `pgdata` là cố ý — xem ghi chú bên dưới. |
+
+Vì không phải dịch vụ Windows nên **nó không tự bật lại sau khi khởi động máy**:
+
+| Bấm đúp | Việc |
+| --- | --- |
+| [`khoi-dong-postgres.cmd`](khoi-dong-postgres.cmd) | Bật database (tự thoát sau ~5 giây, database chạy tiếp ở nền) |
+| [`dung-postgres.cmd`](dung-postgres.cmd) | Tắt database đúng cách |
+
+Thường thì không cần nhớ: [`chay-app.cmd`](chay-app.cmd) tự gọi `khoi-dong-postgres` khi
+thấy cổng 5432 im lặng, rồi mới chạy app.
+
+Ba điểm đã xử lý sẵn, ghi lại để sau này không ai "sửa" nhầm:
+
+- Tiến trình database được thả ra **console riêng** (`Start-Process -WindowStyle Hidden`,
+  không `-Wait`, không `-NoNewWindow`). Thêm `-Wait` vào là script treo vĩnh viễn vì
+  PowerShell chờ cả cây tiến trình, mà `postgres` thì chạy mãi; thêm `-NoNewWindow` vào là
+  đóng cửa sổ sẽ tắt luôn database.
+- Kiểm tra "đang chạy chưa" bằng `pg_isready` chứ không nhìn cổng 5432. Sau một lần tắt
+  đột ngột cổng còn ở trạng thái Listen thêm một lúc, nhìn cổng sẽ báo nhầm là đang chạy.
+- Nhật ký để ở `../pg-logs`. Để trong `pgdata` thì mỗi lần phục hồi sau tắt đột ngột,
+  PostgreSQL fsync cả thư mục dữ liệu và vấp đúng file log nó đang mở — báo "sharing
+  violation" rồi thử lại suốt 30 giây.
+
+Mật khẩu tài khoản quản trị nằm trong `../pg-superuser.txt` (ngoài repo). App vẫn kết nối
+bằng tài khoản riêng trong `DATABASE_URL`.
+
+### Máy mới: một bước thay vì bốn (`cai-postgres.cmd`)
+
+Cài xong PostgreSQL thì giữa đó và "app chạy được" vẫn còn bốn việc rời rạc phải làm đúng thứ
+tự: tạo tài khoản riêng, tạo database, tạo bảng theo schema, chép dữ liệu cũ sang. Bỏ sót một
+bước thì app **vẫn khởi động** nhưng mọi trang đều báo lỗi — kiểu hỏng khó đoán nhất, vì nó
+trông giống app hỏng chứ không giống thiếu cấu hình.
+
+Bấm đúp [`cai-postgres.cmd`](cai-postgres.cmd), nhập mật khẩu quản trị đã đặt lúc cài, script
+làm hết cả bốn và **dừng ngay ở bước đầu tiên thất bại**:
+
+| Bước | Việc |
+|---|---|
+| 1–3 | Tìm `psql`, bật dịch vụ `postgresql-x64-17`, đọc `DATABASE_URL` rồi thử cổng |
+| 4 | Tạo role + database đúng theo `.env`, cấp quyền trên `schema public` |
+| 5–6 | Tìm Node.js, chạy `prisma migrate deploy` + `generate` |
+| 7 | Chép dữ liệu từ `prisma/dev.db` (bỏ qua bằng cờ `-BoQuaDuLieu`, chép đè bằng `-GhiDe`) |
+
+Chưa cài PostgreSQL thì script **không tự cài** — nó in ra đúng lệnh `winget` cần chạy rồi
+dừng, vì bước đó cần quyền quản trị máy và một mật khẩu do người dùng tự chọn.
+
+Chạy lại được nhiều lần. Role đã có sẵn từ lần cài trước mà mật khẩu khác `.env` cũng được xử
+lý: script `ALTER ROLE` cho khớp lại, thay vì để lỗi *password authentication failed* hiện ra
+tận lúc mở trang đầu tiên. Từ PostgreSQL 15 thành viên thường không còn quyền tạo bảng trong
+`schema public` nên script cấp thẳng quyền đó — thiếu bước này thì `migrate deploy` trượt.
+
 ### Migration
 
 15 migration cũ là SQL kiểu SQLite, không chạy được trên PostgreSQL, nên đã gộp thành **một
@@ -79,14 +140,26 @@ Bấm đúp thẳng trong thư mục gốc của app, không cần mở terminal
 |---|---|
 | **`chay-app.cmd`** | **Dùng hằng ngày.** Chạy bản production, tự mở trình duyệt. Chỉ build lại khi mã nguồn đổi — không đổi thì sẵn sàng trong ~2 giây |
 | **`dung-app.cmd`** | Tắt app đang chạy ở cổng 3000 (khi lỡ mất cửa sổ, hoặc app còn chạy ngầm từ lần trước) |
+| **`tu-khoi-dong.cmd`** | **Bật chế độ tự chạy:** đăng nhập Windows là app có sẵn, không phải bấm gì. Chạy một lần, kèm lối tắt ngoài Desktop |
+| `tat-tu-khoi-dong.cmd` | Tắt chế độ tự chạy (app đang chạy vẫn chạy tiếp) |
+| `khoi-dong-postgres.cmd` | Bật bản PostgreSQL riêng của dự án (`../pgsql` + `../pgdata`). `chay-app.cmd` tự gọi khi cần |
+| `dung-postgres.cmd` | Tắt bản PostgreSQL riêng đúng cách trước khi tắt máy hoặc sao lưu `../pgdata` |
 | `doi-chieu-danh-muc.cmd` | Đối chiếu danh mục vật tư từng tàu với file kiểm kê gốc |
 | `sao-luu-du-lieu.cmd` | Nén bản chụp PostgreSQL (`pg_dump`) + file upload + `.env` + biểu mẫu thành bản sao lưu, kèm dấu vân tay để đối chiếu |
 | `khoi-phuc-du-lieu.cmd` | Đưa dữ liệu trở lại từ một bản sao lưu — tự chụp đường lùi trước, đối chiếu vân tay sau |
-| `kiem-tra-phan-quyen.cmd` | Chạy ma trận phân quyền: duyệt yêu cầu, phần sơn, dầu/hóa chất (522 phép thử, không đụng database) |
+| `lam-sach-du-lieu-mau.cmd` | Xóa dữ liệu mẫu để bắt đầu nhập dữ liệu thật. **Không có `--dong-y` thì chỉ liệt kê**, không xóa gì |
+| `kiem-tra-phan-quyen.cmd` | Ma trận phân quyền: duyệt, sơn, dầu/hóa chất, phân công đội tàu, ủy quyền (549 phép thử, không đụng database) |
 | `kiem-tra-doc-phieu.cmd` | Kiểm tra bộ tách dữ liệu phiếu nhận từ chữ OCR / bảng dán (7 tình huống) |
+| `kiem-tra-mau-danh-muc.cmd` | Dựng file Excel mẫu rồi đưa thẳng qua bộ đọc — chứng minh mẫu phát ra nhập lại được (40 phép thử) |
+| `kiem-tra-ma-vat-tu.cmd` | Kiểm tra bộ sinh và bộ soát mã vật tư (211 phép thử, không đụng database) |
+| `doi-ma-tau.cmd` | Đổi tiền tố mã tàu (`ML-001` → `MLS-001`), đổi theo cả mã kho. **Không có `--dong-y` thì chỉ liệt kê** |
+| `doi-ma-vat-tu.cmd` | Đổi mã danh mục sang khuôn theo bộ phận (`D-IMPA-####`, `E-SPR-####`...). Thêm `--theo-nhom` để xếp lại theo khối của từng nhóm vật tư. **Không có `--dong-y` thì chỉ liệt kê** |
+| `gan-ma-vat-tu.cmd` | Gán bộ phận · nhóm thiết bị · chức danh cho danh mục đang có. **Không có `--dong-y` thì chỉ đề xuất** |
+| `kiem-tra-dong-bo.cmd` | Đối chiếu gói đồng bộ với schema: bảng nào mới thêm mà chưa được đồng bộ thì trượt ngay (151 phép thử, không đụng database) |
 | `dong-bo-github.cmd` | Đẩy thay đổi mã nguồn lên GitHub |
 | `run-dev.cmd` | Chỉ khi đang **sửa code** (có hot-reload). Chậm hơn production ~50 lần |
-| `khai-bao-ban-cai.cmd` | Khai báo bản cài này là của tàu nào (`ML-001`) hay là văn phòng (`VANPHONG`) — chạy một lần sau khi cài |
+| `cai-postgres.cmd` | **Máy mới, chạy một lần.** Tạo tài khoản + database, tạo bảng, chép dữ liệu từ `prisma/dev.db`. Chưa cài PostgreSQL thì in lệnh `winget` rồi dừng |
+| `khai-bao-ban-cai.cmd` | Khai báo bản cài này là của tàu nào (`MLS-001`) hay là văn phòng (`VANPHONG`) — chạy một lần sau khi cài |
 | `dong-bo-xuat.cmd` | Xuất gói đồng bộ (`.json`) để gửi sang bên kia |
 | `dong-bo-nhap.cmd` | Nhập gói đồng bộ bên kia gửi tới |
 | `run-start.cmd` | Ép build lại từ đầu rồi chạy (~2 phút) |
@@ -102,6 +175,67 @@ cập nhật là cả 4 hỏng cùng lúc.
 **GitHub chỉ giữ mã nguồn, không giữ dữ liệu vận hành.** Đẩy code lên GitHub bao nhiêu lần
 cũng không sao lưu được tồn kho, đơn mua hay file báo cáo đã tải lên — việc đó là của
 `sao-luu-du-lieu.cmd`.
+
+### Tự chạy khi mở máy (`tu-khoi-dong.cmd`)
+
+Bấm đúp **một lần** [`tu-khoi-dong.cmd`](tu-khoi-dong.cmd). Từ đó về sau: mở máy, đăng nhập
+Windows, khoảng 20–30 giây sau app đã sẵn sàng — không cần mở cmd, không cần bấm gì.
+Trên màn hình Desktop có lối tắt **Mercury Materials** để mở app.
+
+| | |
+|---|---|
+| Bật | Bấm đúp [`tu-khoi-dong.cmd`](tu-khoi-dong.cmd) — đăng ký xong là bật app luôn, không phải khởi động lại máy |
+| Tắt chế độ này | Bấm đúp [`tat-tu-khoi-dong.cmd`](tat-tu-khoi-dong.cmd) |
+| Xem trạng thái | `powershell -File scripts	u-khoi-dong.ps1 -ViecCanLam trang-thai` |
+| Tắt app đang chạy | Bấm đúp [`dung-app.cmd`](dung-app.cmd) như thường lệ |
+| Đọc log | `..app-logsapp.log` (đọc được ngay cả lúc app đang chạy) |
+
+**Không cần quyền quản trị.** Việc được đăng ký trong Task Scheduler dưới đúng tài khoản đang
+dùng (`RunLevel Limited`), giống như bản PostgreSQL riêng của dự án cũng cố ý chạy trong quyền
+người dùng thường.
+
+Vài lựa chọn ở đây có lý do, đừng rút gọn:
+
+- **Task Scheduler chứ không phải thư mục Startup.** Thư mục Startup luôn bung một cửa sổ
+  console không giấu được, và không đặt được các quy tắc bên dưới.
+- **Chạy khi *đăng nhập*, không phải khi *khởi động máy*.** Chạy lúc khởi động máy thì phải là
+  tài khoản hệ thống — tức cần quyền quản trị và phải cất mật khẩu trong máy.
+- **Chờ 20 giây sau khi đăng nhập.** Lúc vừa đăng nhập, ổ đĩa còn đang bận hàng chục thứ khác;
+  PostgreSQL bật vào đúng lúc ấy chậm và dễ hỏng hơn hẳn.
+- **`ExecutionTimeLimit` = không giới hạn.** Mặc định của Windows là **3 ngày**, quá hạn thì
+  Task Scheduler tự giết tiến trình. Với một web server chạy liên tục, đó là "cứ ba ngày app tự
+  tắt một lần" — kiểu hỏng rất khó lần ra vì nó không để lại lỗi nào trong log của app.
+- **`MultipleInstances IgnoreNew`.** Khóa màn hình rồi đăng nhập lại không dựng thêm bản thứ
+  hai tranh cổng 3000 với bản đang chạy.
+- **Log mở ở chế độ chia sẻ (`FileShare.ReadWrite`).** Cách viết thông thường
+  (`Add-Content`) giữ file độc quyền suốt thời gian app chạy — nghĩa là đúng lúc cần đọc log
+  để xem vì sao app không lên thì lại không mở được file ra đọc.
+- **`next build` / `next start` chạy với `ErrorActionPreference = Continue`.** Chạy ngầm thì
+  stderr là một đường ống chứ không phải cửa sổ console, và Windows PowerShell 5.1 bọc mỗi dòng
+  stderr của tiến trình con thành `ErrorRecord` — với `Stop` ở đầu file, dòng tiến độ đầu tiên
+  mà Next in ra stderr là giết luôn cả bước build. Triệu chứng đã gặp thật: log dừng ở
+  *"Finalizing page optimization"*, việc trong Task Scheduler trả về `1`, và **không có lấy một
+  dòng lỗi nào để lần ra**.
+- **Build hỏng thì xóa `.next\BUILD_ID`.** `next build` ghi file đó từ giữa chừng, trước khi
+  xong hẳn. Để nguyên thì lần chạy sau thấy *"bản build còn mới"* và chạy server bằng một bản
+  build dở dang — app lên bình thường, chỉ vài trang là hỏng, và không còn dấu vết nào chỉ về
+  lần build thất bại.
+- **Log để *ngoài* thư mục dự án** (`../app-logs/`, cạnh `../pgdata`).
+  [`scripts/chay-app.ps1`](scripts/chay-app.ps1) quyết định có build lại hay không bằng cách so
+  mốc sửa đổi của file trong `app/`, `components/`, `lib/`, `prisma/`, `public/`; một file log
+  đổi liên tục mà rơi vào một trong các thư mục đó sẽ khiến nó tưởng mã nguồn vừa sửa và build
+  lại mỗi lần mở máy. Để hẳn ra ngoài thì không bao giờ phải nhớ luật ấy.
+- **[`scripts/chay-nen.ps1`](scripts/chay-nen.ps1) chỉ là lớp vỏ mỏng** quanh
+  `chay-app.ps1`. Mọi bước kiểm tra trước khi chạy — tìm Node, kiểm `.env`, bật hộ
+  PostgreSQL, so mốc thời gian để biết có phải build lại không — nằm nguyên ở đó. Chép sang thì
+  có hai bản sẽ lệch nhau theo thời gian, mà bản chạy ngầm đúng là bản không ai nhìn thấy lúc
+  nó lệch.
+
+Chạy ngầm nên `chay-app.ps1` được gọi kèm `-KhongMoTrinhDuyet`: bung sẵn một cửa sổ trình
+duyệt mỗi lần đăng nhập Windows là quấy rầy — người dùng bấm lối tắt ngoài Desktop khi nào cần.
+
+Vẫn dùng được [`chay-app.cmd`](chay-app.cmd) như cũ khi muốn nhìn thấy cửa sổ chạy app; nó tự
+báo nếu cổng 3000 đang bị bản chạy ngầm chiếm.
 
 ## Sao lưu & khôi phục
 
@@ -193,23 +327,31 @@ và `POSTGRES_PASSWORD` khi dùng container `db` của `docker-compose`.
 
 Tàu đi biển không có internet ổn định, nên app **không** phụ thuộc vào mạng: mỗi tàu chạy một
 bản app + PostgreSQL riêng ngay trên máy tàu. Toàn bộ nghiệp vụ (nhập xuất kho, yêu cầu vật
-tư, sơn, chằng buộc, báo cáo) làm bình thường khi mất mạng hoàn toàn. Khi có mạng trở lại thì
+tư, sơn, chằng buộc, dầu · dầu nhờn · hóa chất, báo cáo) làm bình thường khi mất mạng hoàn
+toàn. Khi có mạng trở lại thì
 trao đổi **gói đồng bộ** dạng một file `.json` — gửi qua email, USB, hay bất cứ cách nào.
 
-Chia được như vậy vì 13 bảng nghiệp vụ đều gắn với **một tàu cụ thể**: tàu A không bao giờ ghi
-vào dữ liệu tàu B, nên gộp lại gần như không có xung đột. Chỉ danh mục dùng chung (vật tư,
-nhóm, sơn, nhà cung cấp, biểu mẫu) là do văn phòng quản lý và tàu chỉ nhận về.
+Chia được như vậy vì 16 bảng nghiệp vụ đều gắn với **một tàu cụ thể** — tồn kho, giao dịch,
+yêu cầu, đơn mua, sơn, chằng buộc, và cả dầu · dầu nhờn · hóa chất: tàu A không bao giờ ghi
+vào dữ liệu tàu B, nên gộp lại gần như không có xung đột.
+
+Danh mục dùng chung (vật tư, nhóm, sơn, mặt hàng dầu/hóa chất, nhà cung cấp, biểu mẫu) chủ yếu
+do văn phòng quản lý, nhưng **không phải một chiều**: đại phó khai được loại sơn mới, máy
+trưởng khai được mặt hàng dầu mới, ngay trên tàu và giữa biển. Những dòng đó mang id thuộc dải
+của tàu nên phân biệt được với dòng của văn phòng, và cũng đi lên trong gói của tàu — đi trước
+tồn kho và phiếu nhận trỏ tới chúng. Không gửi kèm thì bên văn phòng nhận được một phiếu nhận
+dầu trỏ tới mặt hàng không tồn tại, và cả phiếu lẫn tồn kho đều bị từ chối.
 
 ### Khai báo bản cài (làm MỘT LẦN sau khi cài)
 
 ```bash
-khai-bao-ban-cai.cmd ML-001
+khai-bao-ban-cai.cmd MLS-001
 ```
 
 Trên máy văn phòng thì chạy `khai-bao-ban-cai.cmd VANPHONG`.
 
 Lệnh này còn đặt **dải id riêng** cho tàu — điểm mấu chốt để gộp dữ liệu. Văn phòng giữ dải
-`1 → 999.999`, mỗi tàu một triệu id: ML-001 từ `1.000.000`, ML-002 từ `2.000.000`… Nhờ vậy hai
+`1 → 999.999`, mỗi tàu một triệu id: MLS-001 từ `1.000.000`, MLS-002 từ `2.000.000`… Nhờ vậy hai
 tàu cùng tạo bản ghi mới sẽ không đụng id nhau khi gửi về văn phòng. Chưa khai báo thì các
 lệnh đồng bộ từ chối chạy.
 
@@ -217,7 +359,7 @@ lệnh đồng bộ từ chối chạy.
 
 | Bước | Chạy ở | Lệnh | Kết quả |
 |---|---|---|---|
-| 1 | Tàu | `dong-bo-xuat.cmd` | Tạo `dong-bo/dongbo-ML-001-….json` — dữ liệu tàu đã thay đổi |
+| 1 | Tàu | `dong-bo-xuat.cmd` | Tạo `dong-bo/dongbo-MLS-001-….json` — dữ liệu tàu đã thay đổi |
 | 2 | Văn phòng | `dong-bo-nhap.cmd <file>` | Gộp dữ liệu tàu vào cơ sở dữ liệu văn phòng |
 | 3 | Văn phòng | `dong-bo-xuat.cmd` | Tạo `dong-bo/dongbo-VANPHONG-….json` — danh mục dùng chung mới |
 | 4 | Tàu | `dong-bo-nhap.cmd <file>` | Tàu nhận danh mục cập nhật |
@@ -238,6 +380,24 @@ Vài điểm đã tính sẵn:
   trong bảng là id của tàu; nếu đặt bộ đếm theo id lớn nhất chung thì bản ghi văn phòng tạo
   sau đó sẽ rơi vào dải tàu và đụng độ ở lần đồng bộ sau. Vì vậy bộ đếm chỉ xét những id
   thuộc dải của chính bản cài này.
+- **Hai tàu khai trùng mã mặt hàng thì giữ cả hai.** Mã tự sinh chạy theo số mặt hàng đang có
+  của từng bản cài, nên MLS-001 và MLS-002 đều có thể ra `FO-0005` cho hai loại dầu *khác* nhau.
+  Id thì không đụng (mỗi tàu một dải) nhưng cột mã là khóa duy nhất, nên khi nhập, dòng thứ hai
+  được đổi thành `FO-0005-MLS-002` và báo lên cuối bản in để văn phòng gộp lại bằng tay. Bỏ dòng
+  đó đi thì mất theo cả tồn kho và phiếu nhận trỏ tới nó.
+- **File đính kèm không đi trong gói.** Gói `.json` chỉ chở số liệu; bản scan BDN và file báo
+  cáo tàu tải lên vẫn nằm trong `UPLOAD_DIR` của bản cài đó. Ở văn phòng, phiếu hiện đủ mọi số
+  liệu nhưng nút *📎 Xem bản gốc* không mở được — cần bản gốc thì chép cả thư mục `uploads/`,
+  hoặc lấy từ bản sao lưu của tàu.
+- **Thêm module mới là phải thêm vào gói.** Bảng mới nằm ngoài danh sách đồng bộ thì app vẫn
+  chạy đủ, chỉ có điều dữ liệu tàu ghi khi mất mạng không bao giờ về tới văn phòng — hỏng âm
+  thầm. `kiem-tra-dong-bo.cmd` đối chiếu thẳng với schema Prisma nên bảng mới bị bỏ quên sẽ
+  làm bài kiểm tra trượt ngay, kèm tên bảng và chỗ cần sửa.
+
+> **Nâng cấp từ bản trước tháng 8/2026:** chạy lại `khai-bao-ban-cai.cmd <mã tàu>` trên từng
+> bản cài của tàu. Bản cũ chưa đặt dải id cho các bảng dầu · dầu nhờn · hóa chất và cho danh
+> mục tàu tự khai, nên bản ghi mới ở đó vẫn mang id của dải văn phòng. Chạy lại là xong — lệnh
+> chỉ đẩy bộ đếm lên, không bao giờ kéo xuống dưới id đã cấp.
 
 Thư mục `dong-bo/` chứa dữ liệu thật của công ty nên **không** được đưa lên Git (đã có trong
 `.gitignore`).
@@ -259,6 +419,155 @@ App yêu cầu đăng nhập (session cookie ký JWT, hạn 7 ngày). Tài kho�
 | Máy 3 | `THIRD_ENGINEER` | Tàu mình | Lập và trình yêu cầu vật tư. Không duyệt |
 | Máy 4 | `FOURTH_ENGINEER` | Tàu mình | Lập và trình yêu cầu vật tư. Không duyệt |
 | Thuyền viên | `CREW` | Tàu mình | Lập và trình yêu cầu vật tư. Không duyệt |
+
+**Xóa tài khoản** (chỉ quản trị, nút *Xóa* ở cột Thao tác): dành cho tài khoản lập nhầm, trùng,
+hoặc thử nghiệm. Thuyền viên hết hạn hợp đồng rời tàu thì **khóa** mới đúng — khóa xong hồ sơ
+vẫn tra ngược được, còn xóa thì không hoàn tác.
+
+Ba lớp chặn:
+
+- Không tự xóa tài khoản của chính mình — xóa nhầm tài khoản quản trị cuối cùng là mất đường
+  vào hệ thống.
+- Không xóa tài khoản **đã tải file báo cáo lên**: file là bản lưu bất biến, phải giữ được vết
+  ai đã nộp. Trường hợp này hệ thống bắt khóa thay vì xóa.
+- Bắt luôn lỗi khóa ngoại của database và dịch ra tiếng người, phòng khi sau này có bảng mới
+  trỏ tới tài khoản mà quên xét ở đây.
+
+Yêu cầu vật tư người đó đã lập **không bị ảnh hưởng**: bảng đó cố ý không khai khóa ngoại tới
+tài khoản (tên và chức danh đã chép sẵn lúc lập), nên chứng từ vẫn nguyên vẹn sau khi tài khoản
+biến mất. Ủy quyền và phân công đội tàu của họ thì bị xóa theo — nhật ký thao tác ghi rõ số
+lượng từng loại.
+
+**Đổi mật khẩu:** app KHÔNG có chỗ đổi mật khẩu — trang Người dùng chỉ đặt mật khẩu lúc tạo tài
+khoản. Quên mật khẩu quản trị là mất đường vào hệ thống, nên có `doi-tai-khoan.cmd` chạy trên
+máy chủ:
+
+```bash
+doi-tai-khoan.cmd admin@example.com --email-moi=admin@mercurylines.com --mat-khau
+```
+
+Mật khẩu **gõ vào lúc chạy**, không truyền qua tham số: tham số dòng lệnh nằm lại trong lịch sử
+lệnh và hiện ra trong danh sách tiến trình đang chạy. Script hỏi hai lần rồi so lại — gõ nhầm
+một ký tự mà chỉ hỏi một lần thì người ta tự khóa mình ra ngoài. Mỗi lần đổi đều ghi vào nhật
+ký thao tác: ghi *đã đổi gì*, không ghi mật khẩu.
+
+### Phân công đội tàu cho quản lý kỹ thuật
+
+Công ty có nhiều tàu thì mỗi quản lý kỹ thuật phụ trách một nhóm. Trang **Người dùng** có bảng
+*Phân công đội tàu*: đánh dấu những tàu của từng người. Từ đó họ **chỉ thấy và chỉ duyệt được**
+yêu cầu của nhóm tàu ấy — trang danh sách, tồn kho, mua sắm, báo cáo đều lọc theo.
+
+**Không phân công tàu nào = giữ nguyên toàn đội.** Nếu chọn cách ngược lại thì ngay khi nâng
+cấp, mọi quản lý kỹ thuật mất sạch quyền cho tới khi ai đó nhớ ra phải đi gán tàu — hệ thống
+đang chạy không được phép dừng vì một lần cập nhật.
+
+Quản trị hệ thống **không** bị thu hẹp kể cả khi được phân công: người sửa lỗi phải vào được
+mọi tàu.
+
+### Ủy quyền khi nghỉ ca (`Delegations`)
+
+Máy trưởng đi bờ, quản lý kỹ thuật nghỉ phép — công việc không dừng theo. Trang **Người dùng**
+lập được ủy quyền có thời hạn: ai giao, giao cho ai, từ ngày nào đến ngày nào, vì sao.
+
+Cách hoạt động:
+
+- Người nhận **giữ nguyên chức danh của mình**, chỉ *mượn thêm* thẩm quyền của người ủy quyền
+  trong khoảng thời gian đã khai. Máy 2 vẫn là Máy 2 trên mọi chứng từ.
+- Phạm vi tàu đi theo người ủy quyền: nhận ủy quyền của quản lý kỹ thuật phụ trách 5 tàu thì
+  duyệt được đúng 5 tàu đó, không hơn.
+- Chứng từ ghi **cả hai**: *"Trần Văn B (ký thay Máy trưởng Nguyễn Văn A)"*. Ghi mỗi tên người
+  ký thì mất dấu vì sao họ có quyền; ghi mỗi tên người ủy quyền là ký khống cho một người
+  không có mặt.
+- **Không phá được quy tắc hai chữ ký.** Người nhận không duyệt yêu cầu do chính họ lập, và
+  cũng không duyệt yêu cầu do *chính người đã ủy quyền* lập — mượn thẩm quyền của người đang
+  xin cấp thì vẫn là tờ giấy tự ký, chỉ khác nét chữ.
+- **Người ủy quyền bị khóa tài khoản thì quyền mượn cũng hết hiệu lực** ngay lập tức. Khóa một
+  người mà quyền của họ vẫn chạy qua tay người khác là khóa hụt.
+- **Thu hồi trước hạn** được, và dòng ủy quyền vẫn nằm lại với dấu *đã thu hồi* thay vì bị xóa
+  — hồ sơ phải trả lời được câu "ngày 12/3 ai có quyền ký thay máy trưởng".
+- Tối đa **một năm** một lần lập. Ủy quyền vô thời hạn là thứ người ta lập một lần rồi quên.
+- Quyền động được đọc lại **ở mỗi request**, không nhét vào phiên đăng nhập: thu hồi là có hiệu
+  lực ngay, không chờ người kia đăng xuất.
+
+Ủy quyền **không** mở cửa trang quản trị (`/users`, `/audit`) — đó là quyền của quản trị hệ
+thống, không phải thẩm quyền nghiệp vụ đem cho mượn được.
+
+### Nhật ký thao tác (`/audit`, chỉ quản trị)
+
+Mọi request làm thay đổi dữ liệu đều để lại dấu vết, ghi ở **hai đường**:
+
+| Đường | Ghi ở đâu | Biết được gì |
+|---|---|---|
+| **Tự động** | [`proxy.ts`](proxy.ts) — mọi POST/PUT/PATCH/DELETE, kể cả server action | Ai, lúc nào, đường dẫn, IP, trình duyệt, và request **bị từ chối** vì chưa đăng nhập hay không đủ quyền |
+| **Theo nghiệp vụ** | [`ghiNhatKy()`](lib/audit.ts) gọi trong server action | Việc gì: *"Duyệt yêu cầu vật tư #12, cấp TÀU, tổng SL duyệt 150"*, kèm **ký thay ai** |
+
+**Đăng nhập hỏng được ghi kèm lý do.** Màn hình vẫn chỉ nói "email hoặc mật khẩu không
+đúng" — nói rõ hơn là chỉ cho người dò biết email nào có thật — nhưng trong nhật ký thì tách
+làm ba: *không có tài khoản nào mang email này* · *tài khoản đang bị khóa* · *sai mật khẩu*
+(kèm độ dài chuỗi vừa gõ, không kèm nội dung). Không tách ra thì mỗi lần có người báo "không
+đăng nhập được" lại phải ngồi đoán.
+
+Có cả hai vì mỗi đường bù chỗ hở của đường kia: đường tự động bắt được cả những thao tác mà
+người viết mã quên ghi log, nhưng chỉ biết đường dẫn; đường nghiệp vụ biết rõ nội dung nhưng
+phải nhớ mới ghi.
+
+Bảng `AuditLog` **cố ý không khai khóa ngoại tới `User`**: nhật ký phải sống lâu hơn tài khoản.
+Xóa một tài khoản mà kéo theo dấu vết thao tác của người đó là mất bằng chứng — nên ở đây chỉ
+chụp lại `userId`, email và chức danh **tại thời điểm thao tác**; sau này người đó đổi chức
+danh cũng không làm sai lịch sử.
+
+Ghi nhật ký không bao giờ được làm hỏng nghiệp vụ: lỗi khi ghi log chỉ in ra console. Mất một
+dòng log còn hơn chặn một phiếu xuất kho.
+
+Nhật ký **không đi trong gói đồng bộ** — mỗi bản cài giữ nhật ký của chính nó. Đây là bảng lớn
+nhanh nhất hệ thống; cần nhật ký của tàu thì lấy trong bản sao lưu của tàu đó.
+
+### Chặn dò mật khẩu ở `/login` (`lib/chanDangNhap.ts`)
+
+`/login` là endpoint **duy nhất** không cần đăng nhập mà vẫn ghi được vào database — mỗi lần gõ
+sai là một dòng `AuditLog`, và mỗi lần thử tốn một `bcrypt.compare` (cố ý chậm, chạy trên CPU).
+Không chặn thì một script chạy qua đêm vừa bơm hàng triệu dòng vào đúng cái bảng quản trị phải
+đọc khi có sự cố, vừa ghim CPU làm cả app đứng với mọi người còn lại.
+
+Hai bộ đếm, mỗi cái lo một chuyện khác nhau:
+
+| Đếm theo | Ngưỡng | Khóa | Lo chuyện gì |
+| --- | --- | --- | --- |
+| Email | 8 lần sai / 15 phút | 5 phút | Dò mật khẩu của **một tài khoản** cụ thể |
+| Địa chỉ IP | 40 lần sai / 15 phút | 15 phút | Bảng nhật ký phình to |
+
+Trần theo email **không** chặn được bảng nhật ký phình: script gửi mỗi email một lần cho một
+triệu email khác nhau thì không email nào chạm ngưỡng 8, mà vẫn ghi đủ một triệu dòng. Trần theo
+IP mới chặn được — mỗi địa chỉ ghi nhiều nhất 41 dòng mỗi 15 phút.
+
+Ba điểm dễ bị "sửa cho gọn" rồi mất tác dụng:
+
+- **Hỏi bộ đếm TRƯỚC khi chạm database và trước `bcrypt`.** Đặt sau thì mỗi lần bị chặn vẫn trả
+  đúng cái giá mà bộ đếm sinh ra để khỏi phải trả.
+- **Cả đợt khóa chỉ ghi MỘT dòng nhật ký**, không ghi từng lần bị chặn — ghi từng lần thì bảng vẫn
+  phình đúng như cũ, chỉ đổi nội dung dòng.
+- **Đếm trong bộ nhớ, cố ý không ghi database**: chống bơm dữ liệu mà lại đi bơm dữ liệu thì vô
+  nghĩa. Bản thân cái Map cũng có trần 10.000 khóa (bỏ khóa nguội nhất khi đầy), vì mỗi email lạ
+  sinh một khóa mới. Đo thử: bơm 30.000 email khác nhau chỉ tăng 7,8 MB heap.
+
+Đánh đổi đã cân nhắc: khóa theo **email** (chứ không theo cặp email+IP) nghĩa là người biết email
+thuyền trưởng có thể cố tình gõ sai 8 lần để khóa tài khoản ấy 5 phút. Vẫn chọn vậy vì cách kia vô
+dụng đúng ở nơi app này chạy — cả văn phòng ra Internet bằng một địa chỉ NAT duy nhất, nên "cặp
+email+IP" thực chất vẫn là "email". Bù lại thời gian khóa để ngắn.
+
+**Giới hạn cần biết:** bộ đếm nằm trong bộ nhớ của **một** tiến trình. Bản cài hiện tại chạy một
+tiến trình `next start` nên đúng. Ngày nào dựng thêm bản thứ hai sau load balancer thì mỗi bản
+đếm riêng, trần thật sự nhân lên theo số bản — lúc đó phải chuyển sang Redis, đừng để nó âm thầm
+mất tác dụng.
+
+### Chặn cửa trước (default deny)
+
+- Chưa đăng nhập: `proxy.ts` chặn mọi đường dẫn — trang thì chuyển về `/login`, API trả **401**.
+- `/users` và `/audit` chỉ quản trị: chặn ở `proxy.ts` (gõ thẳng URL không lọt) **và** chặn lại
+  trong chính trang (thao tác không lọt). Hai lớp vì chúng hỏng theo hai kiểu khác nhau.
+- Mọi server action tự kiểm tra vai trò + phạm vi tàu của riêng nó; phạm vi tàu áp thẳng vào
+  câu truy vấn (`vesselWhere`) chứ không lọc sau khi đã lấy dữ liệu ra.
+- Tài khoản bị khóa: đọc lại từ database ở mỗi request, không chờ phiên đăng nhập hết hạn.
 
 ### Quản lý sơn — quyền của bộ phận boong
 
@@ -433,8 +742,8 @@ nút chọn tàu ở đầu trang. Trước đây muốn xem tàu khác trong c�
 tổng quan rồi bấm vào tàu kia — hai bước cho một việc làm liên tục (so tồn giữa các tàu, đi
 lần lượt từng tàu để kiểm tra).
 
-Nút giữ nguyên **nghiệp vụ và bộ lọc đang xem**: đang ở tab *Dầu nhờn* của ML-006, bấm sang
-ML-001 thì vẫn ở tab *Dầu nhờn* chứ không nhảy về "Tất cả".
+Nút giữ nguyên **nghiệp vụ và bộ lọc đang xem**: đang ở tab *Dầu nhờn* của MLS-006, bấm sang
+MLS-001 thì vẫn ở tab *Dầu nhờn* chứ không nhảy về "Tất cả".
 
 Dải nút **tự ẩn** với người chỉ được gán một tàu — một ô chọn với đúng một lựa chọn là nhiễu.
 Trong bảng danh sách, cả **mã tàu lẫn tên tàu** đều bấm được.
@@ -464,6 +773,36 @@ Trang tồn kho bố cục theo luồng làm việc: **Tổng quan** (3 thẻ th
 
 Mỗi lần nhập/xuất đều ghi **thời điểm thực hiện** (`occurredAt`) và **người thực hiện** (tự động từ tài khoản đăng nhập). Form nhập/xuất có ô "Thời điểm thực hiện": để trống = bây giờ, hoặc chọn lùi ngày giờ khi nhập bù (không cho ghi tương lai). Trang **Tồn kho** có bảng **"Lịch sử nhập xuất gần đây"**: thời điểm, loại, vật tư, kho, SL, người thực hiện, ghi chú — cột "Ghi sổ lúc" chỉ hiện khi giao dịch nhập bù (thời điểm thực hiện ≠ thời điểm ghi hệ thống, phục vụ audit). Báo cáo MLS-11-01, xuất kiểm kê MLS-11-06 và Dashboard đều tính kỳ theo thời điểm thực hiện.
 
+## Bắt đầu từ dữ liệu trắng — xóa dữ liệu mẫu
+
+Bản cài mới được seed sẵn dữ liệu mẫu (tàu, vài vật tư, tồn kho, nhà cung cấp, sổ chằng buộc)
+để xem app chạy ra sao. Trước khi nhập dữ liệu thật của đội tàu thì dọn nó đi, nếu không tồn
+kho thật sẽ nằm lẫn với số liệu bịa.
+
+```bash
+lam-sach-du-lieu-mau.cmd
+```
+
+**Chạy không tham số thì chỉ LIỆT KÊ** số dòng của từng bảng sẽ bị xóa — đây là lệnh không
+hoàn tác được, gõ nhầm một tham số mà nó xóa ngay thì mất dữ liệu thật. Đối chiếu thấy đúng
+rồi mới chạy lại kèm `--dong-y`.
+
+| Tham số | Việc |
+|---|---|
+| *(không có)* | Chạy thử — in ra sẽ xóa gì, không đụng dữ liệu |
+| `--dong-y` | Xóa thật, trong **một** transaction: hỏng giữa chừng thì quay lại nguyên trạng |
+| `--nhom=son,dau` | Chọn nhóm khác mặc định. Nhóm: `vat-tu` · `nha-cung-cap` · `chang-buoc` · `son` · `dau` · `bao-cao` · `kho` (mặc định ba nhóm đầu) |
+| `--xoa-tau=MLS-008` | Xóa hẳn tàu (kèm kho, tồn, giao dịch của nó — khóa ngoại đã khai cascade) |
+
+**Không bao giờ đụng tới** tài khoản người dùng, biểu mẫu công ty, và cấu hình bản cài
+(`SiteConfig`, `SyncState`) — đó là thứ khai một lần lúc cài, xóa đi là phải khai lại từ đầu
+chứ không phải "làm sạch". Tàu và kho cũng được giữ, trừ khi gọi `--nhom=kho` / `--xoa-tau`.
+
+Xóa xong, bộ đếm id được đặt lại **trong đúng dải của bản cài** (xem mục đồng bộ), nên dữ liệu
+thật nhập vào bắt đầu từ đầu dải chứ không nối tiếp id của dữ liệu mẫu vừa bỏ.
+
+Nên chạy `sao-luu-du-lieu.cmd` trước cho chắc.
+
 ## Nhập danh mục vật tư & phụ tùng từ file (`/materials/import`)
 
 ADMIN/Thuyền trưởng upload file theo form công ty để nạp nhanh danh mục cho từng tàu:
@@ -471,7 +810,358 @@ ADMIN/Thuyền trưởng upload file theo form công ty để nạp nhanh danh m
 - **Excel MLS-11-06** (Store & Spare Part Inventory): tự dò bảng (cột Description/IMPA/Unit/Group/R.O.B) — nhóm (Group) tự thành Category; nếu chọn kho, cột **R.O.B được ghi thành tồn kho** (đặt số tuyệt đối + tự ghi giao dịch kiểm kê IN/OUT để giữ vết).
 - **Word MLS-11-04** (Danh mục phụ tùng thiết yếu, .doc/.docx): tự nhận nhóm thiết bị (Máy chính, Máy phát...), tên phụ tùng, **số lượng tối thiểu** ("2 set" → min 2, ĐVT SET) — phụ tùng cùng tên nhưng khác thiết bị được tách riêng.
 
-Vật tư trùng (theo IMPA / Part No / tên + thiết bị; mã giữ chỗ "-", "N/A" bị bỏ qua) chỉ được **gán vào tàu**, không tạo bản sao — nhập lại cùng file không sinh trùng lặp. Vật tư mới có mã `ML-IMP-####`. Trang **Dashboard** có mục **"Kiểm soát phụ tùng thiết yếu"**: đếm phụ tùng SPARE dưới mức tối thiểu trên toàn đội (theo phạm vi tàu) với thanh mức độ.
+Vật tư trùng (theo IMPA / Part No / tên + thiết bị; mã giữ chỗ "-", "N/A" bị bỏ qua) chỉ được **gán vào tàu**, không tạo bản sao — nhập lại cùng file không sinh trùng lặp. Vật tư mới có mã theo khuôn `[bộ phận]-IMPA-####` / `[bộ phận]-SPR-####` (xem mục dưới). Trang **Dashboard** có mục **"Kiểm soát phụ tùng thiết yếu"**: đếm phụ tùng SPARE dưới mức tối thiểu trên toàn đội (theo phạm vi tàu) với thanh mức độ.
+
+### Mã đang dùng: `[bộ phận]-IMPA-####` · `[bộ phận]-SPR-####`
+
+Toàn bộ danh mục dùng một khuôn duy nhất, nói được **bộ phận** và **loại hàng**:
+
+```
+D-IMPA-0075        E-SPR-0034
+└┬┘ └─┬┘ └─┬─┘
+ │    │    └── số thứ tự 4 chữ số TRONG KHUÔN ĐÓ (không phải mã IMPA)
+ │    └─────── loại hàng:  IMPA = vật tư  ·  SPR = phụ tùng
+ └──────────── bộ phận:    D Boong · E Máy · L Điện · C Phục vụ
+```
+
+| Khuôn | Nghĩa | Ví dụ |
+|---|---|---|
+| `D-IMPA-####` | Vật tư boong | `D-IMPA-0075` — Adjustable wrench |
+| `E-IMPA-####` | Vật tư máy | `E-IMPA-0012` — Băng mỡ quấn ống |
+| `L-IMPA-####` | Vật tư điện | `L-IMPA-0003` — Đồng hồ đo cách điện |
+| `C-IMPA-####` | Vật tư phục vụ | `C-IMPA-0007` — Dinner plate |
+| `D-SPR-####` · `E-SPR-####` · `L-SPR-####` · `C-SPR-####` | Phụ tùng của bộ phận đó | `E-SPR-0034` — Fuel valve, part no. E14200 |
+
+Mã trả lời ngay hai câu hỏi đầu tiên khi cầm một thùng hàng trong kho: **của bộ phận nào**, và
+**vật tư tiêu hao hay phụ tùng máy** — hai loại mua theo hai đường và kiểm kê theo hai chu kỳ
+khác nhau.
+
+Bốn ký tự `ML-` của khuôn cũ là hằng số (mọi dòng đều của Mercury Lines) nên không nói thêm
+điều gì; thay bằng chữ cái bộ phận thì cùng độ dài mà mang thông tin thật.
+
+Bốn chữ số cuối là **số thứ tự trong khuôn đó**, không phải mã IMPA — mã IMPA thật nằm ở cột
+IMPA riêng. Mỗi khuôn một dãy số riêng: đánh chung một dãy thì thêm/xóa bên này làm nhảy số
+bên kia. Số kế tiếp luôn lấy **số lớn nhất đang dùng + 1**, không phải số dòng + 1: xóa một mặt
+hàng giữa chừng mà đếm dòng thì mã vừa xóa được cấp lại, trong khi nó có thể còn nằm trên
+thùng hàng ngoài kho.
+
+**IMPA hay SPR lấy từ cột `materialType`, không suy từ "có mã IMPA hay không".** Một cái bơm dự
+phòng vẫn là phụ tùng dù nhà cung cấp có gán cho nó mã IMPA; một cuộn băng dính không có mã
+IMPA vẫn là vật tư.
+
+Một quy ước mã mà có hai nơi cùng sinh thì sớm muộn hai nơi nói khác nhau, nên chỉ có **một**
+bộ sinh mã: [`lib/maVatTu.ts`](lib/maVatTu.ts) (`sinhMaNgan` · `sttKeTiepNgan` · `doanLoai`).
+
+- [`lib/materialImportApply.ts`](lib/materialImportApply.ts) gọi sang đó khi nhập file, và lấy
+  bộ phận từ **cùng một hàm** mà giao diện dùng để gom nhóm — nên mã và chỗ hiển thị không bao
+  giờ nói hai điều khác nhau về cùng một món hàng.
+- `doi-ma-vat-tu.cmd` đổi danh mục đã có sang khuôn này. Mặc định **đánh số lại từ 0001** cho
+  từng khuôn; thêm `--giu-so` nếu cần giữ số cũ để lần lại nhãn đã dán.
+- `kiem-tra-ma-vat-tu.cmd` kiểm bộ sinh và bộ đọc (211 phép thử, không đụng database), trong đó
+  có 24 vòng *sinh mã rồi đọc lại* để bắt mọi lệch giữa hai bên.
+
+Việc đổi mã đi qua **mã tạm** rồi mới sang mã đích, trong một transaction: mã cũ và mã mới dùng
+chung không gian tên nên đổi thẳng thì dòng này có thể chiếm mã dòng kia còn đang giữ.
+
+Tồn kho, yêu cầu và đơn mua đều nối với vật tư bằng id nên đổi mã không làm hỏng dữ liệu — chỉ
+chuỗi hiển thị đổi.
+
+### Số thứ tự xếp theo khối — hàng cùng nhóm có mã liền nhau
+
+Trong mỗi khuôn, dãy `0001`–`9999` chia thành **khối 100 số**. Mỗi nhóm vật tư chiếm trọn một
+hoặc vài khối liền nhau, và trong nhóm hàng xếp theo tên A→Z:
+
+```
+D-IMPA-0001 … 0300   Boong (Deck)               142 mặt hàng   (đang dùng tới 0142)
+D-IMPA-0301 … 0400   Thiết bị an toàn             2 mặt hàng
+D-IMPA-0401 … 0500   Vật tư bảo hộ & an toàn     35 mặt hàng
+D-IMPA-0501 … 0600   Vật tư boong                 1 mặt hàng
+D-IMPA-0601 … 0800   Vật tư Boong                97 mặt hàng
+```
+
+Nhìn con số là đoán được nhóm, và hàng nằm cạnh nhau trên kệ cũng nằm cạnh nhau trong danh
+sách — đúng thứ tự người đi kiểm kê đi qua kệ hàng.
+
+**Mỗi nhóm được cấp đủ khối để chứa gấp đôi số hàng đang có.** Chỗ trống ấy chính là điểm của
+cách chia này: nhập thêm hàng vào một nhóm thì mã mới vẫn rơi đúng vào khối của nhóm đó
+(`Boong (Deck)` đang tới `0142`, món tiếp theo là `0143`), **không phải đánh số lại cả danh
+mục** — mà đánh số lại nghĩa là in lại toàn bộ nhãn dán ngoài kho.
+
+Khi nhập file, mã được cấp theo **ba quy tắc**, đúng thứ tự ưu tiên:
+
+| | Tình huống | Mã mới |
+|---|---|---|
+| 1 | Nhóm đã có mã, khối còn chỗ | Số liền sau mã lớn nhất của nhóm |
+| 2 | Nhóm hoàn toàn mới | Mở khối mới ở **mốc trăm** kế tiếp (`0701`, `0801`…) — không chen vào giữa khối người khác |
+| 3 | Khối đã kín | Xếp tạm vào cuối dãy, **và báo lên màn hình** để chạy `doi-ma-vat-tu.cmd --theo-nhom` xếp lại |
+
+Trường hợp 3 không phải lỗi: mã vẫn đúng khuôn và vẫn không trùng, chỉ là hàng mới không còn
+nằm cạnh hàng cùng nhóm. Nhưng **im lặng thì bố cục cứ xấu dần mà không ai biết vì sao**, nên
+trang nhập file nói thẳng ra.
+
+**Bố cục khối không được lưu ở đâu cả** — nó nằm ngay trong những mã đã cấp. Đọc mã hiện có là
+biết mỗi nhóm đang chiếm khoảng nào. Lưu thêm một bảng bố cục thì có hai nguồn sự thật, và
+nguồn sai sẽ là nguồn không ai đọc lại.
+
+Số kế tiếp luôn lấy **số lớn nhất đang dùng + 1**, không phải số dòng + 1: xóa một mặt hàng
+giữa chừng mà đếm dòng thì mã vừa xóa được cấp lại cho món khác, trong khi nó có thể còn nằm
+trên thùng hàng ngoài kho.
+
+**Thứ tự cấp mã không theo thứ tự dòng trong file Excel** mà theo *nhóm → thiết bị → tên hàng*.
+Thứ tự dòng trong file là ngẫu nhiên với người nhập — cùng một danh sách gõ lại lần nữa là ra
+bộ mã khác. Sắp trước khi cấp thì nhập bao nhiêu lần cũng ra cùng một kết quả. Chỉ **thứ tự cấp
+mã** đổi: dòng nào ghép vào hàng có sẵn, dòng nào ghi tồn kho đều không phụ thuộc thứ tự.
+
+#### Xếp lại cả danh mục: `doi-ma-vat-tu.cmd --theo-nhom`
+
+```
+doi-ma-vat-tu.cmd --theo-nhom                → chỉ liệt kê + in sơ đồ khối, không sửa gì
+doi-ma-vat-tu.cmd --theo-nhom --dong-y       → xếp lại thật
+```
+
+Nó in ra sơ đồ khối để đối chiếu trước khi đồng ý. Thứ tự nhóm theo **tên** chứ không theo số
+lượng: tên thì người tra cứu đoán được, còn số lượng đổi mỗi lần nhập thêm hàng.
+
+**Chạy lại khi nào?** Khi trang nhập file báo *"đã kín khối"*, hoặc sau một đợt nhập lớn muốn
+xếp cho gọn. **Đừng chạy định kỳ cho vui**: mỗi lần chạy là mọi nhãn đã in thành sai.
+
+Một tác dụng phụ có ích: sơ đồ khối bày ra ngay những nhóm trùng nhau do nhập từ hai file khác
+nhau (`ENGINE STORE` và `Engine Stores`, `Main Engine` và `MAIN ENGINE 6UEC35LSE-C1`) — chúng
+nằm cạnh nhau trong sơ đồ. Gộp nhóm rồi chạy lại `--theo-nhom` là danh mục gọn hẳn.
+
+Hàm tính nằm ở [`lib/maVatTu.ts`](lib/maVatTu.ts) (`sttTheoNhom` · `boCucKhoi` · `soKhoiCanCho`)
+và là hàm thuần, không đụng database — `kiem-tra-ma-vat-tu.cmd` kiểm chúng bằng 211 phép thử.
+
+### Khuôn dài: mã còn nói được ai giữ món hàng đó
+
+**Khuôn này KHÔNG phải mã đang dùng.** Mã thật của danh mục là khuôn ngắn ở mục trên
+(`D-IMPA-0075`). Khuôn dài dưới đây là **bộ từ vựng phân loại**: `gan-ma-vat-tu.cmd` dùng nó để
+điền ba cột `department` · `equipGroup` · `responsibleRank`, còn `phanTichMa` vẫn đọc được để
+những mã đã lỡ sinh ra theo khuôn này không thành mã rác. Xem
+[`lib/maVatTu.ts`](lib/maVatTu.ts).
+
+Nó nói thêm hai điều mà khuôn ngắn không nói: **ai giữ** và **thuộc thiết bị nào**.
+
+```
+Vật tư có mã IMPA      D-BSN-IMP-611333     Boong · thủy thủ trưởng · IMPA 61.13.33
+Vật tư không có IMPA   C-CCK-STO-0001       Phục vụ · bếp trưởng · số thứ tự 1
+Phụ tùng thay thế      L-ETO-SPA-SWB-0001   Điện · sĩ quan điện · bảng điện chính · STT 1
+                       └┬┘ └┬┘ └┬┘ └┬┘ └─┬──┘
+                        │   │   │   │    └── 6 số IMPA (dạng IMP), hoặc STT 4 số
+                        │   │   │   └─────── nhóm thiết bị — CHỈ phụ tùng có đoạn này
+                        │   │   └─────────── LOẠI HÀNG: IMP · STO · SPA
+                        │   └─────────────── chức danh giữ và chịu trách nhiệm
+                        └─────────────────── D Boong · E Máy · L Điện · C Phục vụ
+```
+
+**Đoạn thứ ba luôn nói loại hàng**, nên nhìn mã là biết ngay đang cầm vật tư tiêu hao hay phụ
+tùng máy — hai thứ mua theo hai đường khác nhau, kiểm kê theo hai chu kỳ khác nhau:
+
+| Đoạn | Nghĩa | Đoạn cuối là gì |
+|---|---|---|
+| `IMP` | Vật tư tiêu hao **có** mã IMPA | 6 số IMPA, đã bỏ dấu chấm |
+| `STO` | Vật tư tiêu hao **không** có mã IMPA | số thứ tự 4 chữ số |
+| `SPA` | Phụ tùng thay thế | nhóm thiết bị + số thứ tự |
+
+Loại hàng lấy từ cột `materialType`, **không** suy từ "có mã IMPA hay không": một cái bơm dự
+phòng vẫn là phụ tùng dù nhà cung cấp có gán cho nó mã IMPA, còn một cuộn băng dính không có
+mã IMPA vẫn là vật tư tiêu hao. Có cả `STO` vì không phải vật tư nào cũng có mã IMPA — hàng đặt
+riêng, hàng nội địa, và cả những dòng mà file kiểm kê gốc ghi mã cụt. Thiếu `STO` thì đám đó
+phải mượn khuôn của phụ tùng và trong danh sách trông y hệt phụ tùng máy.
+
+Chỉ phụ tùng mới mang nhóm thiết bị trong mã: với phụ tùng, câu hỏi đầu tiên luôn là *của máy
+nào* — hỏi một chi tiết mà không nói máy nào thì không đặt mua được. Vật tư tiêu hao không có
+câu hỏi đó, nên nhét nhóm vào chỉ tổ phải bịa ra một nhóm cho những thứ vốn không thuộc máy
+nào (nhóm vẫn được lưu ở cột `equipGroup` để lọc).
+
+Vì sao chức danh nằm **trong** mã chứ không chỉ là một cột: mã được viết tay lên thùng hàng,
+lên phiếu xuất kho, đọc qua bộ đàm khi nhận hàng ở cảng — ở những chỗ đó không có cột nào để
+tra. Cột `responsibleRank` trong database vẫn có, để lọc nhanh mà không phải `LIKE` trên chuỗi.
+
+### Bốn bộ phận
+
+| Mã | Bộ phận | Yêu cầu vật tư đi theo luồng | Ai duyệt cấp tàu |
+|---|---|---|---|
+| `D` | Boong (Deck) | `DECK` | Thuyền trưởng |
+| `E` | Máy (Engine) | `ENGINE` | Máy trưởng |
+| `L` | Điện (Electrical) | `ELECTRICAL` | Máy trưởng |
+| `C` | Phục vụ (Catering) | `GENERAL` | Thuyền trưởng |
+
+Điện và Phục vụ là **bộ phận riêng**, không nhét vào Máy và Boong. Trên tàu container hiện đại,
+kho điện có người giữ riêng và kho phục vụ có chu kỳ kiểm kê riêng; gộp vào là mất cả hai thứ
+đó. Cột `yeuCau` nối sang bộ phận của yêu cầu vật tư nên một dòng dự trù lập từ danh mục sẽ tự
+đi đúng bàn duyệt.
+
+### Chức danh quản lý
+
+| Mã | Chức danh | Bộ phận chính | Kiêm nhiệm | Vai trò đăng nhập |
+|---|---|---|---|---|
+| `MST` | Thuyền trưởng | Boong | Phục vụ | `MASTER` |
+| `CO` | Đại phó | Boong | Phục vụ | `CHIEF_OFFICER` |
+| `2O` | Phó hai | Boong | | `SECOND_OFFICER` |
+| `3O` | Phó ba | Boong | | `THIRD_OFFICER` |
+| `BSN` | Thủy thủ trưởng | Boong | | — |
+| `CE` | Máy trưởng | Máy | Điện | `CHIEF_ENGINEER` |
+| `2E` | Máy hai | Máy | Điện | `SECOND_ENGINEER` |
+| `3E` | Máy ba | Máy | Điện | `THIRD_ENGINEER` |
+| `4E` | Máy tư | Máy | | `FOURTH_ENGINEER` |
+| `OIL` | Thợ máy | Máy | | — |
+| `FIT` | Thợ nguội | Máy | | — |
+| `ETO` | Sĩ quan điện | Điện | Máy | — |
+| `ELC` | Thợ điện | Điện | | — |
+| `CCK` | Bếp trưởng | Phục vụ | | — |
+| `STW` | Phục vụ viên | Phục vụ | | — |
+
+**Kiêm nhiệm** có trong quy ước vì biên chế thật thay đổi theo tàu: tàu có sĩ quan điện thì kho
+điện thuộc `ETO`, tàu không có thì máy hai hoặc máy ba giữ. Ép mỗi chức danh vào đúng một bộ
+phận thì một nửa đội tàu không khai nổi mã. Nhưng kiêm nhiệm **có giới hạn**: bếp trưởng không
+giữ được hàng buồng máy, thủy thủ trưởng không giữ được hàng điện — bộ sinh mã từ chối thẳng.
+
+Chức danh chưa có vai trò đăng nhập riêng (thủy thủ trưởng, thợ máy, sĩ quan điện, bếp trưởng)
+để trống cột cuối. Họ vẫn giữ hàng và vẫn hiện trong bảng kiểm kê; chỉ là bộ lọc "vật tư của
+tôi" theo tài khoản chưa nhận ra họ. Cần thì thêm vai trò vào `lib/roles.ts` sau.
+
+### Nhóm thiết bị
+
+**Boong (D)**
+
+| Mã | Nhóm | Người giữ |
+|---|---|---|
+| `NAV` | Hành hải & buồng lái | `2O` `3O` |
+| `COM` | Thông tin liên lạc & GMDSS | `2O` `MST` |
+| `LSA` | Trang bị cứu sinh | `3O` `CO` |
+| `FFA` | Trang bị cứu hỏa | `3O` `CO` |
+| `MOR` | Chằng buộc bến & neo | `BSN` `CO` |
+| `LSH` | Chằng buộc container | `CO` `BSN` |
+| `HCV` | Nắp hầm hàng & thông gió hầm | `CO` `BSN` |
+| `CGO` | Thiết bị làm hàng boong | `CO` `BSN` |
+| `PNT` | Sơn & bảo dưỡng vỏ tàu | `BSN` `CO` |
+| `DST` | Vật tư & dụng cụ boong | `BSN` `CO` |
+| `MED` | Y tế & tủ thuốc | `2O` `MST` |
+| `DOC` | Hải đồ, ấn phẩm & văn phòng phẩm | `2O` `MST` |
+
+**Máy (E)**
+
+| Mã | Nhóm | Người giữ |
+|---|---|---|
+| `BME` | Máy chính MAN B&W (2 kỳ) | `2E` `CE` |
+| `UEC` | Máy chính Mitsubishi UEC (2 kỳ) | `2E` `CE` |
+| `TCH` | Tăng áp (turbocharger) | `2E` |
+| `SHF` | Hệ trục & chân vịt | `2E` `CE` |
+| `AEG` | Máy phát điện (diesel) | `3E` |
+| `BLR` | Nồi hơi & trao đổi nhiệt | `3E` `4E` |
+| `PUR` | Phân ly & lọc dầu | `4E` `OIL` |
+| `PMP` | Bơm, van & đường ống | `4E` `3E` |
+| `CMP` | Máy nén khí & chai gió | `3E` `4E` |
+| `REF` | Máy lạnh & điều hòa | `3E` `4E` |
+| `STG` | Máy lái & thiết bị lái | `2E` `3E` |
+| `DKM` | Máy boong: tời, cẩu, neo (phần cơ) | `3E` `2E` |
+| `BWM` | Xử lý nước dằn (BWMS) | `3E` `2E` |
+| `SEW` | Xử lý nước thải & phân ly dầu nước | `4E` |
+| `TOL` | Dụng cụ & vật tư tiêu hao buồng máy | `CE` `FIT` |
+| `AUX` | Thiết bị phụ khác buồng máy | `3E` `4E` |
+
+**Điện (L)**
+
+| Mã | Nhóm | Người giữ |
+|---|---|---|
+| `SWB` | Bảng điện chính & phân phối | `ETO` `2E` |
+| `MOT` | Động cơ điện & khởi động từ | `ETO` `ELC` |
+| `AUT` | Tự động hóa, báo động & cảm biến | `ETO` `2E` |
+| `LIT` | Chiếu sáng & đèn hàng hải | `ELC` `ETO` |
+| `BAT` | Ắc quy & nguồn dự phòng | `ETO` `ELC` |
+| `ELS` | Vật tư điện (cáp, cầu chì, đầu nối) | `ELC` `ETO` |
+
+**Phục vụ (C)**
+
+| Mã | Nhóm | Người giữ |
+|---|---|---|
+| `GAL` | Thiết bị bếp & kho lạnh thực phẩm | `CCK` |
+| `UTN` | Dụng cụ ăn uống & đồ bếp | `CCK` `STW` |
+| `LIN` | Đồ vải & buồng ở | `STW` `CO` |
+| `CLN` | Vệ sinh & giặt là | `STW` `CCK` |
+| `PRV` | Thực phẩm & đồ khô | `CCK` `MST` |
+
+Ba nguyên tắc đặt nhóm, để danh sách này không phình ra vô tội vạ:
+
+1. **Tách khi phụ tùng không dùng chung được.** Máy chính tách theo hãng (`BME` / `UEC`) vì hai
+   họ máy hai kỳ này gần như không có chi tiết nào lắp lẫn nhau, mà đội tàu chạy cả hai.
+2. **Tách khi người giữ khác nhau.** `LSH` chằng buộc container tách khỏi `MOR` chằng buộc bến
+   & neo, dù cùng là dây và ma ní.
+3. **Gộp khi chỉ khác tên gọi.** Không đặt nhóm riêng cho từng loại bơm; tất cả bơm và van đi
+   chung `PMP`.
+
+### Máy chính: mỗi tàu một họ, khai ở trang tàu
+
+Đội tàu Mercury Lines chạy **cả MAN B&W lẫn Mitsubishi UEC**. Hai họ máy hai kỳ này gần như
+không dùng chung chi tiết nào, nên mã phụ tùng máy chính tách theo hãng (`BME` / `UEC`) chứ
+không gộp một mã `ME` chung. Gộp lại thì mỗi lần dự trù vẫn phải mở từng dòng ra xem hàng
+thuộc máy nào — đúng việc mà mã sinh ra để khỏi phải làm.
+
+Vì thế mỗi tàu khai **họ máy chính** và **model** ngay ở trang tàu (`/vessels/[id]` → Sửa tàu):
+`Vessel.mainEngineGroup` = `BME` hoặc `UEC`, `Vessel.mainEngineModel` = chuỗi in lên đơn hàng
+(`6UEC50LSII`, `6S50MC-C`).
+
+Từ đó `gan-ma-vat-tu.cmd` xếp phụ tùng máy chính theo **họ máy của con tàu đang dùng món hàng
+đó**, không theo một mặc định chung:
+
+| Tình huống | Script làm gì |
+|---|---|
+| Mọi tàu dùng món hàng đó cùng một họ máy | Xếp vào đúng họ đó (`E-2E-SPA-UEC-0001`) |
+| Tàu chưa khai máy chính | **Không sinh mã**, liệt kê ra để đi khai |
+| Món hàng dùng cho cả hai họ | Báo phải **tách thành hai dòng** — một part no. không thể vừa lắp B&W vừa lắp UEC, gộp một dòng nghĩa là danh mục đang nhập nhèm hai mặt hàng khác nhau |
+
+Thà để trống còn hơn đoán: đoán sai thì thùng hàng về tới tàu mới biết không lắp được, mà lúc
+đó tàu đã chạy sang cảng khác.
+
+Vài quy tắc đã cài sẵn trong bộ sinh mã:
+
+- **Mã IMPA bỏ dấu chấm.** Người nhập gõ `61.13.33`, catalogue in `61 13 33`, file Excel xuất
+  `611333` — cùng một mặt hàng. Không chuẩn hóa thì một thứ nằm ba dòng.
+- **Chức danh phải đúng bộ phận.** `E-BSN-…` bị từ chối: thủy thủ trưởng không giữ vật tư máy.
+- **Số thứ tự lấy theo số LỚN NHẤT đang dùng**, không phải đếm số dòng rồi cộng một — xóa một
+  mặt hàng giữa chừng mà cấp lại số cũ thì trùng với mã đã in trên thùng hàng còn trong kho.
+- Bài kiểm tra: `kiem-tra-ma-vat-tu.cmd` (211 phép thử, không đụng database).
+
+**Gán mã cho danh mục đang có:** `gan-ma-vat-tu.cmd` suy ra bộ phận · nhóm thiết bị · chức danh
+từ nhóm vật tư của từng dòng rồi in bảng đề xuất; chạy không tham số thì **không sửa gì**.
+Thêm `--dong-y` để ghi ba cột phân loại (giữ nguyên mã cũ), thêm `--doi-ma` nếu muốn ghi đè cả
+mã. Hai cờ tách riêng vì ghi phân loại là thêm thông tin, còn đổi mã là đổi thứ đã in trên nhãn
+dán ngoài kho. Dòng nào không suy ra được thì script để nguyên và liệt kê riêng — gán nhầm chức
+danh là món hàng biến mất khỏi danh sách kiểm kê của người thật sự đang giữ nó.
+
+Trang `/materials` có ô lọc **theo chức danh** và cột *Giữ bởi*, đúng cho lúc bàn giao ca: máy
+hai chỉ cần thấy phần mình ký nhận.
+
+### File Excel mẫu để tàu điền (`/materials/import` → *Tải file Excel mẫu*)
+
+Tàu chưa có file danh mục nào thì phải có cái để phát cho họ điền. Nút **Tải file Excel mẫu**
+ở đầu trang nhập sinh ra file `Mercury-Lines_Mau-danh-muc-vat-tu.xlsx` gồm:
+
+| Sheet | Vào nhóm | Tồn ghi vào kho |
+|---|---|---|
+| `Hướng dẫn` | — (bộ đọc bỏ qua) | — |
+| `Phụ tùng (Spare Parts)` | Phụ tùng | Kho máy |
+| `Vật tư (Stores)` | Vật tư | Kho tiêu hao |
+| `Vật tư Boong (Deck Stores)` | Vật tư | Kho boong |
+| `Vật tư Phục vụ (Catering)` | Vật tư | Kho tiêu hao |
+| `Vật tư Bảo hộ (Safety)` | Vật tư | Kho tiêu hao |
+
+Tám cột: STT · Nhóm · Mô tả · Mã IMPA · Part No. · Đơn vị · Tồn trên tàu (R.O.B) · SL tối thiểu.
+
+**Mẫu để trống, không có dòng ví dụ.** Ví dụ nằm hết ở sheet Hướng dẫn — để dòng ví dụ trong
+sheet dữ liệu thì kiểu gì cũng có người quên xóa, và nó chui thẳng vào danh mục thật.
+
+Sheet Hướng dẫn cố ý **viết mỗi dòng vào một ô** và gọi cột theo chữ cái (Cột C, Cột D…) thay
+vì gọi tên. Bộ đọc dò bảng bằng cách tìm dòng có cột *Mô tả* cộng thêm một cột đặc trưng khác;
+một dòng hướng dẫn lỡ chứa cả hai từ khóa sẽ bị nhận nhầm là dòng tiêu đề, và mấy dòng hướng
+dẫn bên dưới biến thành vật tư trong danh mục.
+
+Mẫu và bộ đọc nằm ở hai file khác nhau ([`lib/materialTemplate.ts`](lib/materialTemplate.ts) và
+[`lib/materialImport.ts`](lib/materialImport.ts)) nên có bài kiểm tra nối hai đầu:
+`kiem-tra-mau-danh-muc.cmd` dựng mẫu, điền thử vài dòng, rồi đưa qua chính bộ đọc mà trang nhập
+dùng và soát từng cột. Đổi tên cột một bên mà quên bên kia là trượt ngay — chứ không phải đợi
+tới lúc tàu gõ xong vài trăm dòng mới biết.
 
 ### Sửa vật tư ngay tại bảng danh mục
 
@@ -488,6 +1178,34 @@ Hai điều được kiểm ở tầng server:
 Ở chế độ **xem theo tàu**, nút Sửa vẫn có nhưng ẩn *Ngừng sử dụng* / *Xoá*: hai thao tác đó
 tác động lên bản ghi dùng chung toàn đội nên làm từ **Danh mục gốc** mới đúng ngữ cảnh.
 Chỉ quản trị viên thấy nút Sửa.
+
+### Mỗi chức danh thấy phần vật tư của mình
+
+Đăng nhập xong, dải đầu trang Dashboard nói ngay *"Bạn là Thủy thủ trưởng · Boong — 143 mặt
+hàng bạn quản lý"*, bấm vào là ra đúng danh sách đó. Trang Vật tư cũng có dải tương tự kèm nút
+**Xem vật tư tôi quản lý**, và ô lọc chức danh gom theo bốn bộ phận.
+
+Đường dẫn `/materials?rank=toi` luôn trỏ về phần của **người đang đăng nhập** — đặt được vào
+menu, gửi cho nhau, không phải nhớ mã chức danh của từng người.
+
+Hệ thống biết ai giữ gì qua hai bước:
+
+| Bước | Ở đâu |
+|---|---|
+| Món hàng này ai giữ | `Material.responsibleRank` — gán bằng `gan-ma-vat-tu.cmd` |
+| Người đăng nhập là chức danh nào | `User.rankCode`, không khai thì suy từ vai trò đăng nhập |
+
+**Vì sao tài khoản cần cột chức danh riêng, không dùng luôn vai trò đăng nhập:** vai trò trả
+lời *"được làm gì trong app"*, chức danh trả lời *"trên tàu giữ kho nào"* — hai câu khác nhau.
+Thủy thủ trưởng, thợ máy, sĩ quan điện và bếp trưởng đều đăng nhập bằng vai trò **Thuyền viên**,
+mà bốn người giữ bốn kho khác hẳn. Chỉ dựa vào vai trò thì cả bốn mở app ra thấy y như nhau.
+
+Với chức danh có vai trò riêng (máy hai, đại phó, phó ba…) thì **để trống là đủ** — hệ thống tự
+suy. Ô chọn ghi sẵn *"— Theo vai trò: Máy hai —"* để người lập tài khoản biết mình không cần
+làm gì thêm.
+
+Người văn phòng (quản trị, quản lý kỹ thuật) không giữ kho nào nên không hiện dải này — họ nhìn
+toàn đội chứ không nhìn theo một chức danh.
 
 ### Tìm kiếm và giới hạn hiển thị
 
@@ -538,6 +1256,21 @@ Module mua sắm (`/purchasing`) dẫn vật tư từ khi yêu cầu được du
 4. **Nhận hàng (Goods Receipt)** — nhập SL nhận từng dòng + chọn kho: vật tư trong danh mục **tự nhập kho** (tăng tồn + ghi giao dịch IN), cập nhật **tiến độ giao** của yêu cầu (Giao một phần / Giao đủ), và cuộn trạng thái PO (Nhận một phần / Nhận đủ).
 5. **Bản in PO** đúng biểu mẫu công ty: đầu chứng từ theo **biểu mẫu của tàu** (xem bên dưới), khối To/Attn/Y-ref (NCC) + From/Our ref/Date/Subject, bảng dòng (Item/Description/PN/Unit/Q'ty/U.Price/Amount), khối tổng **Total → Chiết khấu (%) → Phí vận chuyển → Phí giao lên tàu → TOTAL**, Terms & Condition và chữ ký công ty.
 6. **Yêu cầu báo giá (RFQ / Inquiry for Quote)** — từ trang PO bấm "Yêu cầu báo giá (RFQ)" để in bản Inquiry for Quote (cùng các dòng hàng nhưng **không có giá**, cột IMPA/PN) gửi NCC, cùng chuẩn biểu mẫu với PO.
+
+### Số hiệu chứng từ
+
+Cả hai loại chứng từ đánh số theo **cùng một quy ước**, để tra sổ đối chiếu được với nhau:
+
+| Chứng từ | Khuôn | Ví dụ |
+|---|---|---|
+| Yêu cầu vật tư · phụ tùng | `MR`/`SR`-<mã tàu>-<năm>-<số> | `MR-MLS001-26-0001` |
+| Đơn mua | `PO`-<mã tàu>-<năm>-<số> | `PO-MLS001-26-0001` |
+
+Số thứ tự lấy theo **số lớn nhất đã dùng trong năm của tàu đó rồi cộng một**, không đếm số
+lượng chứng từ: xóa một đơn giữa chừng mà đếm lại thì số vừa xóa được cấp lần hai, trong khi
+số cũ có thể đã nằm trên chứng từ gửi cho nhà cung cấp.
+
+Chứng từ phát hành trước khi đổi quy ước vẫn giữ số cũ — số đã in ra giấy thì không sửa lại.
 
 ### Tạo IFQ / PO trực tiếp từ Phòng Kỹ thuật – Vật tư (`/purchasing/direct`)
 
@@ -805,7 +1538,10 @@ Tàu tải trực tiếp file báo cáo gốc (PDF hoặc Excel .xls/.xlsx, tố
 
 ## Cấu trúc chính
 
-- `prisma/schema.prisma` — model nghiệp vụ: User, Vessel, Warehouse, Category, Material, Inventory, InventoryTransaction, MaterialRequest(+Item), Supplier, PurchaseOrder(+Item), FormStandard, LashingGear/Report, ReportDocument, và nhóm sơn: PaintProduct, PaintArea, PaintSchemeLayer, PaintStock, PaintTransaction, PaintJob(+Line)
+- `prisma/schema.prisma` — model nghiệp vụ: User, Vessel, Warehouse, Category, Material, Inventory, InventoryTransaction, MaterialRequest(+Item), Supplier, PurchaseOrder(+Item), FormStandard, LashingGear/Report, ReportDocument, nhóm sơn (PaintProduct, PaintArea, PaintSchemeLayer, PaintStock, PaintTransaction, PaintJob+Line), nhóm dầu/hóa chất (ConsumableProduct, ConsumableStock, ConsumableReceipt, ConsumableTransaction), và nhóm phân quyền nâng cao: FleetAssignment, Delegation, AuditLog
+- `lib/roles.ts` — hàm quyết định quyền, THUẦN nên kiểm thử được ngoài Next: phạm vi tàu (`vesselScope`, `vesselScopeDayDu`, `trongPhamVi`), danh tính hiệu lực khi có ủy quyền (`danhTinhHieuLuc`), cấp duyệt (`capDuyetChoPhep`, `capDuyetChiTiet`)
+- `lib/audit.ts` — ghi nhật ký thao tác; `proxy.ts` ghi tự động mọi request thay đổi dữ liệu
+- `app/quyen-actions.ts` — server action phân công đội tàu và ủy quyền
 - `app/paint-actions.ts` — server action của module sơn (tách khỏi `app/actions.ts`)
 - `lib/paintTypes.ts` — hằng số loại sơn dùng chung (file `"use server"` chỉ được export hàm async)
 - `app/actions.ts` — server actions: tạo tàu, tạo vật tư, nhập/xuất kho (transaction, chặn xuất quá tồn), đổi trạng thái yêu cầu

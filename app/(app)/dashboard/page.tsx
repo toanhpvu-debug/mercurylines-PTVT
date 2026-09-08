@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
+  BO_PHAN,
+  CHUC_DANH,
+  chucDanhCuaNguoiDung,
+} from "@/lib/maVatTu";
+import {
   requireScopedUser,
   vesselIdWhere,
-  vesselScope,
+  vesselScopeDayDu,
   vesselWhere,
 } from "@/lib/auth";
 
@@ -83,8 +88,16 @@ function KpiCard({
 
 export default async function DashboardPage() {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
+  // Chức danh giữ vật tư của người đang đăng nhập: dùng cho dải "phần của bạn"
+  // ngay đầu trang. Người văn phòng (quản trị, quản lý kỹ thuật) không giữ kho
+  // nào nên không hiện dải này.
+  const chucDanhCuaToi = chucDanhCuaNguoiDung(user);
+  // Đếm trong ĐÚNG PHẠM VI TÀU của người đang xem, không đếm toàn đội: thủy thủ
+  // trưởng tàu MLS-001 mở app ra phải thấy số mặt hàng của tàu mình, chứ không
+  // phải tổng của cả bảy tàu. Người văn phòng (phạm vi toàn đội) thì đếm chung.
   const [
+    soVatTuCuaToi,
     vesselCount,
     materialCount,
     reqByStatus,
@@ -97,6 +110,21 @@ export default async function DashboardPage() {
     spareLinks,
     paintStocks,
   ] = await Promise.all([
+    // Đếm "vật tư tôi quản lý" gộp vào batch song song này thay vì chạy riêng
+    // trước nó: phép đếm không phụ thuộc truy vấn nào khác, tách ra chỉ thêm
+    // một vòng chờ database nối tiếp trên đúng trang mở đầu mỗi phiên. Chưa có
+    // chức danh thì khỏi hỏi, trả thẳng 0.
+    chucDanhCuaToi
+      ? prisma.material.count({
+          where: {
+            responsibleRank: chucDanhCuaToi,
+            isActive: true,
+            ...(scope.all
+              ? {}
+              : { vesselMaterials: { some: vesselWhere(scope) } }),
+          },
+        })
+      : Promise.resolve(0),
     prisma.vessel.count({ where: vesselIdWhere(scope) }),
     prisma.material.count(),
     prisma.materialRequest.groupBy({
@@ -125,7 +153,12 @@ export default async function DashboardPage() {
       where: vesselWhere(scope),
       _sum: { quantity: true },
     }),
-    prisma.material.findMany(),
+    // Chỉ lấy 4 cột thật sự dùng tới (tra tên + mã + mức tối thiểu cho phần tồn
+    // thấp và nhật ký kho gần đây), không kéo cả 15 cột của 600+ dòng mỗi lần
+    // mở dashboard.
+    prisma.material.findMany({
+      select: { id: true, code: true, nameVn: true, minStock: true },
+    }),
     prisma.vessel.findMany({ where: vesselIdWhere(scope) }),
     // Phụ tùng thiết yếu: SPARE có mức tối thiểu, theo danh mục từng tàu.
     prisma.vesselMaterial.findMany({
@@ -264,6 +297,28 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {chucDanhCuaToi && (
+        <Link
+          href="/materials?rank=toi"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50/70 px-5 py-4 transition hover:border-blue-300 hover:bg-blue-50"
+        >
+          <div>
+            <p className="text-sm text-slate-600">
+              Bạn là <b>{CHUC_DANH[chucDanhCuaToi].ten}</b> ·{" "}
+              {BO_PHAN[CHUC_DANH[chucDanhCuaToi].boPhan].ten}
+            </p>
+            <p className="text-lg font-semibold text-blue-950">
+              {soVatTuCuaToi > 0
+                ? `${soVatTuCuaToi} mặt hàng bạn quản lý`
+                : "Chưa có mặt hàng nào ghi tên bạn quản lý"}
+            </p>
+          </div>
+          <span className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white">
+            {soVatTuCuaToi > 0 ? "Xem vật tư của tôi →" : "Mở danh mục →"}
+          </span>
+        </Link>
+      )}
 
       {scope.unassigned && (
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">

@@ -2,8 +2,13 @@ import path from "path";
 import { readFile } from "fs/promises";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { coQuanLyNhienLieu, requireActiveRole, vesselScope } from "@/lib/auth";
-import { VAN_HANH_HOA_CHAT } from "@/lib/roles";
+import {
+  coQuanLyNhienLieu,
+  requireActiveRole,
+  trongPhamVi,
+  vesselScopeDayDu,
+} from "@/lib/auth";
+import { XIN_CAP_NHIEN_LIEU } from "@/lib/roles";
 import { getUploadDir } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
@@ -14,14 +19,35 @@ export const dynamic = "force-dynamic";
  * Xem được là đủ quyền theo phạm vi tàu — không đòi quyền GHI: sĩ quan trực ca
  * cần đối chiếu số liệu với bản gốc mà không nhất thiết được ghi phiếu. Nhưng
  * vẫn phải đúng tàu của mình.
+ *
+ * Vì vậy cổng vai trò lấy XIN_CAP_NHIEN_LIEU chứ không phải VAN_HANH_HOA_CHAT:
+ * nhóm sau là quyền GHI (chỉ thuyền trưởng, máy trưởng, đại phó), nên Máy 2/3/4
+ * vẫn THẤY link "Xem bản gốc" ở trang chi tiết tàu — trang đó mở cho mọi người
+ * trong phạm vi tàu — mà bấm vào thì nhận 401, đúng cái bẫy giao diện hứa một
+ * đằng máy chủ trả một nẻo.
+ *
+ * Thêm TECH_MANAGER vì quản lý kỹ thuật ở bờ là người đối chiếu số liệu bunker
+ * với BDN scan, mà chức danh đó không nằm trong XIN_CAP_NHIEN_LIEU.
+ *
+ * Danh sách này được soi lại ở app/(app)/consumables/[id]/page.tsx (biến
+ * coXemBanGoc) để quyết định có hiện link hay không. Sửa cổng ở đây thì phải
+ * sửa cả bên đó, nếu không lại lệch: hoặc hiện link rồi trả 401, hoặc giấu link
+ * của người máy chủ vẫn cho tải.
  */
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireActiveRole([...VAN_HANH_HOA_CHAT, "TECH_MANAGER"]);
+  const user = await requireActiveRole([...XIN_CAP_NHIEN_LIEU, "TECH_MANAGER"]);
   if (!user) {
-    return NextResponse.json({ error: "Chưa đăng nhập." }, { status: 401 });
+    // Nhánh này gộp cả "chưa đăng nhập" lẫn "đăng nhập rồi nhưng sai chức
+    // danh", nên KHÔNG nói "Chưa đăng nhập.": link mở ra tab mới, người đang
+    // đăng nhập hẳn hoi mà đọc câu đó sẽ tưởng phiên hết hạn và đi đăng nhập
+    // lại mãi không xong. Nói đúng cái thiếu là quyền.
+    return NextResponse.json(
+      { error: "Bạn không có quyền xem bản gốc phiếu này." },
+      { status: 401 }
+    );
   }
   const { id: idRaw } = await context.params;
   const id = Number(idRaw);
@@ -32,12 +58,14 @@ export async function GET(
   if (!receipt || !receipt.attachStored) {
     return NextResponse.json({ error: "Không tìm thấy." }, { status: 404 });
   }
-  const scope = vesselScope(user);
-  const trongPhamVi =
-    scope.all ||
-    scope.vesselId === receipt.vesselId ||
+  // Phải dùng trongPhamVi() chứ không so tay: người phụ trách từ 2 tàu trở lên
+  // được xếp vào scope.vesselIds (mảng) và scope.vesselId khi đó là null, nên
+  // phép so sánh trực tiếp luôn sai và họ nhận 404 ở mọi phiếu.
+  const scope = vesselScopeDayDu(user);
+  const duocXem =
+    trongPhamVi(scope, receipt.vesselId) ||
     coQuanLyNhienLieu(user, receipt.vesselId);
-  if (!trongPhamVi) {
+  if (!duocXem) {
     return NextResponse.json({ error: "Không tìm thấy." }, { status: 404 });
   }
 

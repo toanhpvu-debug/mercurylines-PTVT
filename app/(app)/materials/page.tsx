@@ -2,11 +2,21 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
+  BO_PHAN,
+  CHUC_DANH,
+  chucDanhCuaNguoiDung,
+  type BoPhan,
+} from "@/lib/maVatTu";
+import {
   sortWithinDepartment,
   DEPARTMENTS,
   departmentOfMaterial,
   equipmentOf,
 } from "@/lib/departments";
+import {
+  chucDanhChiuTrachNhiem,
+  laNguoiPhuTrach,
+} from "@/lib/chucDanhChiuTrachNhiem";
 import MaterialForm from "@/components/MaterialForm";
 import MaterialRowActions from "@/components/MaterialRowActions";
 import {
@@ -15,9 +25,10 @@ import {
 } from "@/components/VesselCatalogActions";
 import {
   canManageVesselCatalog,
+  chonDuocTau,
   requireScopedUser,
   vesselIdWhere,
-  vesselScope,
+  vesselScopeDayDu,
 } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -30,12 +41,33 @@ export default async function MaterialsPage({
     vessel?: string;
     q?: string;
     full?: string;
+    rank?: string;
   }>;
 }) {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const canManageMaster = user.role === "ADMIN";
-  const { type, vessel: vesselParam, q: qRaw, full } = await searchParams;
+  const {
+    type,
+    vessel: vesselParam,
+    q: qRaw,
+    full,
+    rank: rankRaw,
+  } = await searchParams;
+  // Lọc theo chức danh giữ vật tư — dùng khi kiểm kê bàn giao ca: máy hai chỉ
+  // cần thấy đúng phần mình ký nhận, không phải cuộn qua cả danh mục tàu.
+  //
+  // "toi" là lối tắt cho chính người đang đăng nhập: /materials?rank=toi luôn
+  // đúng dù ai bấm, nên đặt được vào menu, vào thẻ trên Dashboard, hay gửi
+  // đường dẫn cho nhau mà không phải sửa mã chức danh trong đó.
+  const chucDanhCuaToi = chucDanhCuaNguoiDung(user);
+  const rankRawStr = String(rankRaw ?? "");
+  const rankFilter =
+    rankRawStr === "toi"
+      ? (chucDanhCuaToi ?? "")
+      : CHUC_DANH[rankRawStr]
+        ? rankRawStr
+        : "";
   const q = String(qRaw ?? "").trim().toLowerCase();
   const showAll = full === "1";
   const filterType =
@@ -52,7 +84,7 @@ export default async function MaterialsPage({
   // - Người dùng bị giới hạn theo tàu (CREW/MASTER có tàu): khóa vào tàu của họ.
   // - Người toàn đội (ADMIN, MASTER không tàu): theo ?vessel=, hoặc "danh mục gốc".
   let selectedVesselId: number | null = null;
-  if (!scope.all) {
+  if (!chonDuocTau(scope)) {
     selectedVesselId = scope.vesselId ?? null;
   } else if (vesselParam === "master" || vesselParam === undefined) {
     selectedVesselId = null;
@@ -83,10 +115,23 @@ export default async function MaterialsPage({
     if (nextVessel) params.set("vessel", nextVessel);
     if (q) params.set("q", qRaw ?? "");
     if (showAll) params.set("full", "1");
+    if (rankFilter) params.set("rank", rankFilter);
     const qs = params.toString();
     return qs ? `/materials?${qs}` : "/materials";
   };
   const vesselKey = isVesselMode ? String(selectedVesselId) : "master";
+  // Đổi MỖI bộ lọc chức danh, giữ nguyên tàu / loại / từ khóa đang xem — đổi
+  // một thứ mà mất mấy thứ kia là người dùng phải chọn lại từ đầu.
+  const buildHrefRank = (nextRank: string) => {
+    const params = new URLSearchParams();
+    if (filterType !== "ALL") params.set("type", filterType);
+    if (isVesselMode) params.set("vessel", vesselKey);
+    if (q) params.set("q", qRaw ?? "");
+    if (showAll) params.set("full", "1");
+    if (nextRank) params.set("rank", nextRank);
+    const qs = params.toString();
+    return qs ? `/materials?${qs}` : "/materials";
+  };
 
   // Dữ liệu theo chế độ.
   let masterMaterials: Awaited<
@@ -144,10 +189,35 @@ export default async function MaterialsPage({
   const allRows = isVesselMode
     ? assignedMaterials.map((a) => a.material!).filter(Boolean)
     : masterMaterials;
-  // Tìm theo tên / mã / IMPA / Part No / hãng / thiết bị — 600+ dòng mà không
-  // có ô tìm thì phải cuộn tay.
-  const rows = q
+  const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
+  const categoryCodeById = new Map(categories.map((c) => [c.id, c.code]));
+
+  // Lọc theo chức danh phụ trách — khớp ĐÚNG cột "Giữ bởi".
+  //
+  // Dùng chung một cách xác định người giữ với cột "Giữ bởi"
+  // (lib/chucDanhChiuTrachNhiem): chọn "Máy ba" thì ra đúng phần Máy ba giữ,
+  // không phải cả buồng máy. Cấp chỉ huy (thuyền trưởng, đại phó, máy trưởng)
+  // thấy thêm phần cấp dưới giữ, để nút "Xem vật tư tôi quản lý" của họ không ra
+  // danh sách trống.
+  const theoChucDanh = rankFilter
     ? allRows.filter((m) =>
+        laNguoiPhuTrach(rankFilter, {
+          responsibleRank: m.responsibleRank,
+          categoryCode: m.categoryId
+            ? categoryCodeById.get(m.categoryId)
+            : null,
+          categoryName: m.categoryId
+            ? categoryNameById.get(m.categoryId)
+            : null,
+          department: m.department,
+          equipment: m.equipment,
+          code: m.code,
+          materialType: m.materialType,
+        })
+      )
+    : allRows;
+  const rows = q
+    ? theoChucDanh.filter((m) =>
         [
           m.nameVn,
           m.nameEn,
@@ -160,14 +230,14 @@ export default async function MaterialsPage({
           .filter(Boolean)
           .some((v) => String(v).toLowerCase().includes(q))
       )
-    : allRows;
+    : theoChucDanh;
 
   // Nhóm theo bộ phận tàu như form công ty: Boong → Máy → Điện → Phục vụ →
   // An toàn → Khác. Trong mỗi bộ phận: vật tư trước, phụ tùng sau theo thiết bị.
   type Row = (typeof rows)[number];
-  // Tên nhóm lấy từ danh sách categories đã nạp — kiểu của rows không mang
-  // quan hệ category nên không đọc thẳng m.category được.
-  const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
+  // categoryNameById đã dựng ở trên (dùng cho bộ lọc chức danh). Dùng lại ở đây
+  // để gom nhóm — kiểu của rows không mang quan hệ category nên không đọc thẳng
+  // m.category được.
   const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name }));
   const byDept = new Map<string, Row[]>();
   for (const m of rows) {
@@ -177,7 +247,8 @@ export default async function MaterialsPage({
         m.equipment,
         m.code,
       ],
-      m.materialType
+      m.materialType,
+      m.department
     );
     const list = byDept.get(key);
     if (list) list.push(m);
@@ -207,6 +278,9 @@ export default async function MaterialsPage({
     0
   );
   // Số cột của bảng — dùng cho ô tiêu đề nhóm trải hết chiều ngang.
+  // Số cột thật của bảng, để dòng gộp nhóm trải đủ chiều ngang: 9 cột cố định
+  // (Mã · Mô tả · IMPA · Part No. · Maker · Nhóm · Giữ bởi · ĐVT · Critical)
+  // cộng các cột chỉ hiện trong một số chế độ xem.
   const colCount =
     9 +
     (isSpareView ? 1 : 0) +
@@ -249,10 +323,16 @@ export default async function MaterialsPage({
         </div>
       </div>
 
+      {/* Thanh công cụ gộp: chọn tàu · lọc loại · chức danh · tìm kiếm. Trước
+          đây là ba dải rời xếp dọc trông rối; gộp vào một khung có đường phân
+          cách cho gọn và dễ đọc. */}
+      <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white shadow-sm">
       {/* Bộ chọn tàu */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-slate-600">Xem theo:</span>
-        {scope.all && (
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          Xem theo
+        </span>
+        {chonDuocTau(scope) && (
           <Link
             href={buildHref(filterType, null)}
             className={`rounded px-3 py-1 text-sm ${
@@ -294,21 +374,53 @@ export default async function MaterialsPage({
         )}
       </div>
 
-      {/* Tab lọc loại */}
-      <div className="flex gap-2">
-        {tabs.map((tab) => (
-          <Link
-            key={tab.key}
-            href={buildHref(tab.key, isVesselMode ? vesselKey : null)}
-            className={`rounded px-3 py-1 text-sm ${
-              filterType === tab.key
-                ? "bg-blue-700 text-white"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-          >
-            {tab.label}
-          </Link>
-        ))}
+      {/* Vật tư của chính người đang đăng nhập — thứ họ mở app ra để xem. */}
+      {chucDanhCuaToi && (
+        <div className="flex flex-wrap items-center gap-3 bg-blue-50/40 px-4 py-3">
+          <span className="text-sm text-slate-700">
+            Bạn là <b>{CHUC_DANH[chucDanhCuaToi].ten}</b> — phần vật tư &amp; phụ
+            tùng bạn quản lý:
+          </span>
+          {rankFilter === chucDanhCuaToi ? (
+            <>
+              <span className="rounded bg-blue-700 px-3 py-1 text-sm text-white">
+                Đang xem phần của bạn ({rows.length} mặt hàng)
+              </span>
+              <Link
+                href={buildHrefRank("")}
+                className="text-sm text-blue-700 hover:underline"
+              >
+                Xem tất cả
+              </Link>
+            </>
+          ) : (
+            <Link
+              href={buildHrefRank("toi")}
+              className="rounded bg-blue-700 px-3 py-1 text-sm text-white hover:bg-blue-800"
+            >
+              Xem vật tư tôi quản lý
+            </Link>
+          )}
+        </div>
+      )}
+
+      {/* Tab lọc loại + chức danh + tìm kiếm */}
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+          {tabs.map((tab) => (
+            <Link
+              key={tab.key}
+              href={buildHref(tab.key, isVesselMode ? vesselKey : null)}
+              className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+                filterType === tab.key
+                  ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              {tab.label}
+            </Link>
+          ))}
+        </div>
         <form method="get" className="ml-auto flex items-center gap-2">
           {filterType !== "ALL" && (
             <input type="hidden" name="type" value={filterType} />
@@ -317,6 +429,26 @@ export default async function MaterialsPage({
             <input type="hidden" name="vessel" value={vesselKey} />
           )}
           {showAll && <input type="hidden" name="full" value="1" />}
+          <select
+            name="rank"
+            defaultValue={rankFilter}
+            className="rounded border p-1.5 text-sm"
+          >
+            <option value="">Mọi chức danh</option>
+            {/* Gom theo bộ phận: 15 chức danh xếp phẳng thì phải đọc hết cả
+                danh sách mới thấy người mình cần. */}
+            {(Object.keys(BO_PHAN) as BoPhan[]).map((bp) => (
+              <optgroup key={bp} label={BO_PHAN[bp].ten}>
+                {Object.entries(CHUC_DANH)
+                  .filter(([, cd]) => cd.boPhan === bp)
+                  .map(([ma, cd]) => (
+                    <option key={ma} value={ma}>
+                      {cd.ten} ({ma})
+                    </option>
+                  ))}
+              </optgroup>
+            ))}
+          </select>
           <input
             name="q"
             defaultValue={qRaw ?? ""}
@@ -339,6 +471,7 @@ export default async function MaterialsPage({
           )}
         </form>
       </div>
+      </div>
 
       {!isVesselMode && !scope.all ? (
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
@@ -350,7 +483,7 @@ export default async function MaterialsPage({
           {/* Cột trái: thêm mới (tùy chế độ) */}
           {isVesselMode
             ? canEditVessel && (
-                <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 xl:col-span-3">
+                <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 xl:col-span-3">
                   <h3 className="mb-3 text-lg font-semibold">
                     Thêm vật tư vào danh mục {selectedVessel?.name}
                   </h3>
@@ -375,7 +508,7 @@ export default async function MaterialsPage({
                 </div>
               )
             : canManageMaster && (
-                <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
+                <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
                   <h3 className="mb-4 text-lg font-semibold">
                     Thêm vật tư / phụ tùng (danh mục gốc)
                   </h3>
@@ -390,7 +523,7 @@ export default async function MaterialsPage({
 
           {/* Bảng danh sách */}
           <div
-            className={`rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 ${
+            className={`rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 ${
               isVesselMode || !canManageMaster
                 ? "xl:col-span-3"
                 : "xl:col-span-2"
@@ -408,28 +541,31 @@ export default async function MaterialsPage({
                   : "Chưa có vật tư nào."}
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border text-sm">
+              <div className="overflow-x-auto rounded-lg ring-1 ring-slate-200">
+                <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                      <th className="p-2">Mã</th>
-                      <th className="p-2">
+                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      <th className="px-3 py-2.5">Mã</th>
+                      <th className="px-3 py-2.5">
                         {isSpareView ? "Tên phụ tùng" : "Mô tả"}
                       </th>
-                      {isSpareView && <th className="p-2">Thiết bị</th>}
-                      <th className="p-2">IMPA</th>
-                      <th className="p-2">Part No.</th>
-                      <th className="p-2">Maker</th>
-                      <th className="p-2">Nhóm</th>
-                      <th className="p-2">ĐVT</th>
-                      {filterType === "ALL" && <th className="p-2">Loại</th>}
-                      <th className="p-2">Critical</th>
+                      {isSpareView && <th className="px-3 py-2.5">Thiết bị</th>}
+                      <th className="px-3 py-2.5">IMPA</th>
+                      <th className="px-3 py-2.5">Part No.</th>
+                      <th className="px-3 py-2.5">Maker</th>
+                      <th className="px-3 py-2.5">Nhóm</th>
+                      <th className="px-3 py-2.5">Giữ bởi</th>
+                      <th className="px-3 py-2.5">ĐVT</th>
+                      {filterType === "ALL" && (
+                        <th className="px-3 py-2.5">Loại</th>
+                      )}
+                      <th className="px-3 py-2.5">Critical</th>
                       {!isVesselMode && (
-                        <th className="p-2">Trạng thái</th>
+                        <th className="px-3 py-2.5">Trạng thái</th>
                       )}
                       {((isVesselMode && canEditVessel) ||
                         (!isVesselMode && canManageMaster)) && (
-                        <th className="p-2">Thao tác</th>
+                        <th className="px-3 py-2.5">Thao tác</th>
                       )}
                     </tr>
                   </thead>
@@ -440,14 +576,15 @@ export default async function MaterialsPage({
                       let lastEquip: string | null = null;
                       return (
                         <Fragment key={dept.key}>
-                          <tr className="border-b-2 border-blue-300 bg-blue-100/70">
+                          <tr className="border-y border-slate-200 bg-slate-100/80">
                             <td
                               colSpan={colCount}
-                              className="p-2 font-bold text-blue-950"
+                              className="px-3 py-2 text-sm font-semibold text-slate-700"
                             >
-                              {dept.icon} {dept.label}
-                              <span className="ml-2 font-normal text-blue-800">
-                                ({dept.rows.length})
+                              <span className="mr-1.5">{dept.icon}</span>
+                              {dept.label}
+                              <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+                                {dept.rows.length}
                               </span>
                             </td>
                           </tr>
@@ -467,10 +604,10 @@ export default async function MaterialsPage({
                             return (
                               <Fragment key={material.id}>
                                 {showEquipHeader && (
-                                  <tr className="border-b bg-slate-100">
+                                  <tr className="bg-slate-50/70">
                                     <td
                                       colSpan={colCount}
-                                      className="py-1.5 pl-6 text-sm font-semibold text-slate-700"
+                                      className="py-1.5 pl-8 text-xs font-medium uppercase tracking-wide text-slate-500"
                                     >
                                       🔧 {equip}
                                     </td>
@@ -479,14 +616,16 @@ export default async function MaterialsPage({
                                 {(
                       <tr
                         key={material.id}
-                        className={`border-b ${
+                        className={`border-b border-slate-100 transition-colors hover:bg-blue-50/40 ${
                           !isVesselMode && !material.isActive
                             ? "bg-slate-50 text-slate-400"
                             : ""
                         }`}
                       >
-                        <td className="p-2 font-medium">{material.code}</td>
-                        <td className="p-2">
+                        <td className="px-3 py-2 font-mono text-[13px] font-medium text-slate-800">
+                          {material.code}
+                        </td>
+                        <td className="px-3 py-2">
                           <p>
                             {material.nameVn}
                             {isVesselMode && !material.isActive && (
@@ -500,20 +639,70 @@ export default async function MaterialsPage({
                           </p>
                         </td>
                         {isSpareView && (
-                          <td className="p-2">{material.equipment}</td>
+                          <td className="px-3 py-2">{material.equipment}</td>
                         )}
-                        <td className="p-2">{material.impa}</td>
-                        <td className="p-2">{material.partNumber}</td>
-                        <td className="p-2">{material.manufacturer}</td>
-                        <td className="p-2">
+                        <td className="px-3 py-2">{material.impa}</td>
+                        <td className="px-3 py-2">{material.partNumber}</td>
+                        <td className="px-3 py-2">{material.manufacturer}</td>
+                        <td className="px-3 py-2">
                           {"category" in material
                             ? // @ts-expect-error category included
                               material.category?.name
                             : ""}
                         </td>
-                        <td className="p-2">{material.uom}</td>
+                        <td className="px-3 py-2">
+                          {(() => {
+                            // Chức danh chịu trách nhiệm: ưu tiên cột đã gán, nếu
+                            // trống thì suy theo nhóm thiết bị / bộ phận nên MỌI
+                            // dòng đều có người giữ hiện ra, không còn "—".
+                            const tn = chucDanhChiuTrachNhiem({
+                              responsibleRank: material.responsibleRank,
+                              categoryCode: material.categoryId
+                                ? categoryCodeById.get(material.categoryId)
+                                : null,
+                              categoryName: material.categoryId
+                                ? categoryNameById.get(material.categoryId)
+                                : null,
+                              department: material.department,
+                              equipment: material.equipment,
+                              code: material.code,
+                              materialType: material.materialType,
+                            });
+                            if (!tn) {
+                              return (
+                                <span className="text-xs text-slate-400">—</span>
+                              );
+                            }
+                            const ten = CHUC_DANH[tn.chucDanh]?.ten ?? tn.chucDanh;
+                            const suyRa = tn.nguon !== "gan";
+                            return (
+                              <span
+                                className={`rounded px-1.5 py-0.5 text-xs ${
+                                  suyRa
+                                    ? "bg-slate-50 text-slate-500 ring-1 ring-slate-200"
+                                    : "bg-slate-100 text-slate-700"
+                                }`}
+                                title={
+                                  suyRa
+                                    ? `Suy theo ${
+                                        tn.nguon === "thiet-bi"
+                                          ? "nhóm thiết bị"
+                                          : "bộ phận"
+                                      } — chạy gan-ma-vat-tu.cmd để gán cố định`
+                                    : "Đã gán trực tiếp"
+                                }
+                              >
+                                {ten} ({tn.chucDanh})
+                                {suyRa && (
+                                  <span className="ml-1 text-slate-400">•</span>
+                                )}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-3 py-2">{material.uom}</td>
                         {filterType === "ALL" && (
-                          <td className="p-2">
+                          <td className="px-3 py-2">
                             <span
                               className={`rounded px-2 py-1 text-xs ${
                                 material.materialType === "SPARE"
@@ -527,7 +716,7 @@ export default async function MaterialsPage({
                             </span>
                           </td>
                         )}
-                        <td className="p-2">
+                        <td className="px-3 py-2">
                           {material.isCritical ? (
                             <span className="rounded bg-red-100 px-2 py-1 text-red-700">
                               Critical
@@ -539,7 +728,7 @@ export default async function MaterialsPage({
                           )}
                         </td>
                         {!isVesselMode && (
-                          <td className="p-2">
+                          <td className="px-3 py-2">
                             {material.isActive ? (
                               <span className="rounded bg-green-100 px-2 py-1 text-xs text-green-700">
                                 Đang dùng
@@ -552,7 +741,7 @@ export default async function MaterialsPage({
                           </td>
                         )}
                         {isVesselMode && canEditVessel && (
-                          <td className="p-2">
+                          <td className="px-3 py-2">
                             <div className="flex flex-col gap-1">
                               {/* Sửa ở đây là sửa bản ghi dùng chung toàn đội,
                                   nên chỉ quản trị viên mới thấy nút này. */}
@@ -588,7 +777,7 @@ export default async function MaterialsPage({
                           </td>
                         )}
                         {!isVesselMode && canManageMaster && (
-                          <td className="p-2">
+                          <td className="px-3 py-2">
                             <MaterialRowActions
                               material={{
                                 id: material.id,

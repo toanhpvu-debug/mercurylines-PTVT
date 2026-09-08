@@ -14,12 +14,23 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSession, deleteSession } from "@/lib/session";
 import {
-  REQUEST_DELETABLE_BY_NON_ADMIN,
   canManageVesselCatalog,
+  capDuyetChiTiet,
   capDuyetChoPhep,
+  REQUEST_DELETABLE_BY_NON_ADMIN,
   requireActiveRole,
-  vesselScope,
+  trongPhamVi,
+  vesselScopeDayDu,
+  vesselWhere,
 } from "@/lib/auth";
+import { ghiNhatKy, ghiNhatKyNguoiDung } from "@/lib/audit";
+import { headers } from "next/headers";
+import {
+  ghiNhanHong,
+  kiemTraChan,
+  xoaSauKhiThanhCong,
+} from "@/lib/chanDangNhap";
+import { CHUC_DANH, NHOM_MAY_CHINH, phanTichMa } from "@/lib/maVatTu";
 import {
   CHI_HUY_TAU,
   ROLES,
@@ -41,6 +52,47 @@ import {
 class ActionError extends Error {}
 
 const NO_PERMISSION = "Bạn không có quyền thực hiện thao tác này.";
+
+/**
+ * Hạn mức dành cho những giao dịch có xin khóa tư vấn bên trong.
+ *
+ * Giao dịch tương tác của Prisma mặc định chỉ được sống 5 giây (và chờ mượn kết
+ * nối trong pool tối đa 2 giây). Đặt khóa BÊN TRONG giao dịch nghĩa là thời
+ * gian nằm chờ người khác nhả khóa cũng bị tính vào đúng đồng hồ 5 giây đó:
+ * ba người cùng lập đơn vài chục dòng cho một tàu là người thứ ba hết giờ,
+ * Prisma ném P2028 và người dùng mất trắng đơn vừa nhập — đúng cái kết cục mà
+ * khóa sinh ra để tránh.
+ *
+ * 20 giây đủ cho vài lượt xếp hàng của giao dịch nặng nhất ở đây (đơn mua tối
+ * đa 200 dòng, mỗi dòng một INSERT) mà vẫn ngắn hơn hẳn thời gian người dùng
+ * chịu ngồi chờ. maxWait tách riêng vì chờ mượn kết nối là chuyện của pool,
+ * không liên quan tới việc mình giữ khóa bao lâu.
+ */
+const GIAO_DICH_GIU_KHOA = { timeout: 20_000, maxWait: 10_000 };
+
+/**
+ * Dịch lỗi hạ tầng của một giao dịch thành câu tiếng Việt; null nếu không phải
+ * loại đã biết (nơi gọi ném tiếp).
+ *
+ * Ba mã này đều KHÔNG phải ActionError nên khối catch sẵn có không giữ chúng
+ * lại: không dịch thì chúng bay thẳng ra màn hình 500 và người dùng mất toàn bộ
+ * dữ liệu vừa nhập, trong khi cả ba đều là chuyện thử lại được.
+ */
+function thongBaoLoiGiaoDich(error: unknown): string | null {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return null;
+  switch (error.code) {
+    // P2028: giao dịch quá hạn (thường vì nằm chờ khóa quá lâu).
+    // P2024: hết kết nối rảnh trong pool.
+    case "P2028":
+    case "P2024":
+      return "Hệ thống đang bận xử lý một thao tác khác trên cùng dữ liệu. Vui lòng thử lại sau ít giây.";
+    // P2002: hai người ghi cùng lúc lọt qua được khe hẹp và đụng khóa duy nhất.
+    case "P2002":
+      return "Có người vừa ghi một bản ghi trùng. Vui lòng tải lại trang và thử lại.";
+    default:
+      return null;
+  }
+}
 
 // Hash bcrypt hợp lệ dùng để cân bằng thời gian phản hồi khi email không tồn tại,
 // tránh dò tài khoản qua timing.
@@ -80,17 +132,116 @@ export async function login(
   if (!email || !password) {
     return { message: "Vui lòng nhập email và mật khẩu.", email };
   }
+  // Lấy IP đúng cách proxy.ts đang lấy: đứng sau reverse proxy thì địa chỉ TCP
+  // là của chính proxy, đếm theo nó là gộp cả thế giới vào một khóa.
+  const h = await headers();
+  const ip =
+    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    h.get("x-real-ip") ||
+    null;
+  // Hỏi bộ đếm TRƯỚC khi chạm database và trước bcrypt — xem lib/chanDangNhap.ts.
+  // Đặt sau chỗ này thì mỗi lần bị chặn vẫn tốn một truy vấn và một lần bcrypt,
+  // tức vẫn còn nguyên cái giá mà bộ đếm sinh ra để khỏi phải trả.
+  const chan = kiemTraChan(email, ip);
+  if (chan.chan) {
+    const phut = Math.ceil(chan.conLaiGiay / 60);
+    // Ghi đúng MỘT dòng cho cả đợt khóa, không ghi từng lần bị chặn: ghi từng
+    // lần thì bảng nhật ký vẫn phình đúng như trước khi có bộ đếm.
+    if (chan.lanDauBiKhoa) {
+      await ghiNhatKy({
+        email,
+        action: "dang-nhap",
+        method: "ACTION",
+        path: "/login",
+        ketQua: "TU_CHOI",
+        detail: `quá nhiều lần đăng nhập hỏng (đếm theo ${chan.vi}) — tạm khóa ${phut} phút`,
+        ip,
+        userAgent: h.get("user-agent"),
+      });
+    }
+    // Nói thẳng là đang bị tạm khóa chứ không giả vờ "sai mật khẩu": khóa áp
+    // cho cả email không tồn tại nên câu này không tiết lộ email nào có thật,
+    // mà người dùng thật thì biết đường chờ thay vì gõ lại thêm mười lần.
+    return {
+      message: `Đã thử sai quá nhiều lần. Vui lòng chờ ${phut} phút rồi thử lại.`,
+      email,
+    };
+  }
   const user = await prisma.user.findUnique({ where: { email } });
   // Luôn chạy đúng một lần bcrypt.compare dù email có tồn tại hay không,
   // để thời gian phản hồi không tiết lộ email nào có tài khoản.
   const valid = await bcrypt.compare(password, user?.password ?? DUMMY_HASH);
   if (!user || !user.isActive || !valid) {
+    // Ghi rõ LÝ DO hỏng vào nhật ký. Màn hình vẫn chỉ nói "email hoặc mật khẩu
+    // không đúng" — nói rõ hơn là chỉ cho người dò biết email nào có thật —
+    // nhưng quản trị đọc nhật ký thì phải phân biệt được ba chuyện khác hẳn
+    // nhau: gõ nhầm email, tài khoản bị khóa, và sai mật khẩu. Không tách ra
+    // thì mỗi lần có người kêu "không đăng nhập được" lại phải đoán.
+    //
+    // Nhưng KHÔNG ghi gì về chuỗi vừa gõ, kể cả độ dài. Độ dài là thông tin về
+    // chính mật khẩu thật (người ta thường gõ đúng số ký tự mà sai một phím),
+    // nó nằm vĩnh viễn trong bảng mà mọi quản trị đều đọc được, và ai lấy được
+    // bản sao lưu là thu hẹp được không gian dò. Lý do hỏng đã đủ để tra sổ.
+    await ghiNhatKy({
+      userId: user?.id ?? null,
+      email,
+      role: user?.role ?? null,
+      action: "dang-nhap",
+      method: "ACTION",
+      path: "/login",
+      ketQua: "TU_CHOI",
+      detail: !user
+        ? "không có tài khoản nào mang email này"
+        : !user.isActive
+          ? "tài khoản đang bị khóa"
+          : "sai mật khẩu",
+      ip,
+      userAgent: h.get("user-agent"),
+    });
+    ghiNhanHong(email, ip);
     return { message: "Email hoặc mật khẩu không đúng.", email };
   }
-  await createSession({
+  // Mật khẩu đã đúng — xóa bộ đếm ngay tại đây chứ không đợi tạo phiên xong.
+  // Nhánh createSession hỏng bên dưới là lỗi CẤU HÌNH MÁY CHỦ, không phải người
+  // dùng gõ sai; để nó cộng dồn thì một máy chủ thiếu SESSION_SECRET vừa không
+  // cho ai vào vừa khóa luôn tài khoản của họ.
+  xoaSauKhiThanhCong(email, ip);
+  // Đặt cookie TRƯỚC rồi mới ghi "đăng nhập thành công": ghi trước thì khi
+  // createSession hỏng (SESSION_SECRET rỗng chẳng hạn), nhật ký nói đăng nhập
+  // được còn thực tế không có phiên nào — quản trị đọc nhật ký sẽ đi sai hướng.
+  try {
+    await createSession({
+      userId: user.id,
+      role: user.role,
+      name: user.name,
+    });
+  } catch (error) {
+    await ghiNhatKy({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      vesselId: user.vesselId,
+      action: "dang-nhap",
+      method: "ACTION",
+      path: "/login",
+      ketQua: "TU_CHOI",
+      detail: `không tạo được phiên: ${error instanceof Error ? error.message : String(error)}`,
+    });
+    return {
+      message:
+        "Máy chủ chưa cấu hình SESSION_SECRET nên không tạo được phiên đăng nhập. Liên hệ quản trị hệ thống.",
+      email,
+    };
+  }
+  await ghiNhatKy({
     userId: user.id,
+    email: user.email,
     role: user.role,
-    name: user.name,
+    vesselId: user.vesselId,
+    action: "dang-nhap",
+    method: "ACTION",
+    path: "/login",
+    detail: "đăng nhập thành công",
   });
   redirect(safeNextPath(next));
 }
@@ -117,12 +268,18 @@ export async function createVessel(
     "imo",
     "flag",
     "vesselType",
+    "mainEngineGroup",
+    "mainEngineModel",
   ]);
   const code = String(formData.get("code") || "").trim();
   const name = String(formData.get("name") || "").trim();
   const imo = String(formData.get("imo") || "").trim();
   const flag = String(formData.get("flag") || "").trim();
   const vesselType = String(formData.get("vesselType") || "").trim();
+  const may = docMayChinh(formData);
+  if ("error" in may) {
+    return { message: may.error, values };
+  }
   if (!code || !name) {
     return { message: "Mã tàu và tên tàu là bắt buộc.", values };
   }
@@ -134,6 +291,7 @@ export async function createVessel(
         imo: imo || null,
         flag: flag || null,
         vesselType: vesselType || null,
+        ...may.data,
       },
     });
   } catch (error) {
@@ -149,7 +307,120 @@ export async function createVessel(
   return { message: `Đã thêm tàu "${name}".`, success: true };
 }
 
+/**
+ * Đọc chức danh giữ vật tư từ biểu mẫu người dùng.
+ *
+ * Bỏ trống được — khi đó hệ thống suy từ vai trò đăng nhập (máy hai → 2E). Chỉ
+ * những chức danh không có vai trò riêng (thủy thủ trưởng, thợ máy, sĩ quan
+ * điện, bếp trưởng) mới bắt buộc khai tay, vì họ đều đăng nhập bằng CREW.
+ */
+function docChucDanhGiuVatTu(
+  formData: FormData
+): { rankCode: string | null } | { error: string } {
+  const raw = String(formData.get("rankCode") || "").trim();
+  if (!raw) return { rankCode: null };
+  if (!CHUC_DANH[raw]) {
+    return { error: `Chức danh giữ vật tư "${raw}" không có trong quy ước.` };
+  }
+  return { rankCode: raw };
+}
+
+/**
+ * Số đơn mua theo quy ước chứng từ: PO-<mã tàu>-<năm 2 số>-<số thứ tự>.
+ * VD PO-MLS001-26-0007.
+ *
+ * Trước đây số đơn là dấu thời gian kèm số ngẫu nhiên (PO-1787711139511-115):
+ * máy đọc được, người thì không. Số yêu cầu vật tư đã đổi sang quy ước này rồi,
+ * để đơn mua lệch chuẩn thì hai chứng từ của cùng một việc mua lại đánh số theo
+ * hai kiểu, và không đối chiếu được với nhau khi tra sổ.
+ *
+ * Lấy số LỚN NHẤT đã dùng trong năm của tàu rồi +1, không dựa vào số lượng đơn:
+ * xóa một đơn giữa chừng mà đếm lại thì số vừa xóa được cấp lần hai, trong khi
+ * số cũ có thể đã nằm trên chứng từ gửi cho nhà cung cấp.
+ */
+// Vùng khóa tư vấn dành cho việc cấp số đơn mua. Xem chú thích KHOA_TON_KHO về
+// lý do mỗi nghiệp vụ phải có số vùng riêng.
+const KHOA_SINH_SO_PO = 811002;
+
+/**
+ * Băm tiền tố dãy số PO thành một số int32 để làm chìa khóa thứ hai.
+ *
+ * Phải khóa theo ĐÚNG thứ chia dãy số chứ không phải theo vesselId: tiền tố
+ * dựng từ vessel.code sau khi bỏ hết ký tự không phải chữ/số, nên hai tàu khai
+ * "MLS-001" và "MLS001" — hoặc hai tàu có mã toàn ký tự đặc biệt, cùng lùi về
+ * "NA" — dùng CHUNG một dãy số trong khi vesselId khác nhau. Khóa theo vesselId
+ * thì hai bên đó không xếp hàng với nhau, cùng đọc thấy số lớn nhất giống nhau,
+ * cùng sinh một poNo, và một bên vỡ vì poNo là khóa duy nhất.
+ *
+ * Đụng độ băm chỉ khiến hai dãy số chẳng liên quan phải chờ nhau — chậm một
+ * nhịp, KHÔNG bao giờ sai số liệu.
+ */
+function khoaDaySoPO(tienTo: string) {
+  let bam = 0;
+  for (let i = 0; i < tienTo.length; i++) {
+    bam = (Math.imul(bam, 31) + tienTo.charCodeAt(i)) | 0;
+  }
+  return bam;
+}
+
+/**
+ * Nhận Prisma.TransactionClient chứ KHÔNG nhận client trần, vì hàm này tự xin
+ * khóa tư vấn: pg_advisory_xact_lock chỉ giữ tới hết giao dịch, gọi ngoài giao
+ * dịch thì khóa nhả ngay và chẳng xếp hàng được ai. Ràng buộc kiểu ở đây là để
+ * không đường cấp số nào quên xin khóa — khóa tư vấn chỉ có tác dụng khi MỌI
+ * bên ghi đều xin, một cửa bỏ qua là cửa kia có xin cũng thành trang trí.
+ */
+async function sinhSoDonMua(
+  tx: Prisma.TransactionClient,
+  vesselId: number
+): Promise<string> {
+  const vessel = await tx.vessel.findUnique({
+    where: { id: vesselId },
+    select: { code: true },
+  });
+  const maTau = (vessel?.code ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  // Khóa theo mã tàu nhưng KHÔNG kèm năm: dãy số chia theo năm, còn khóa thì
+  // không nên chia, nếu không thì đúng khoảnh khắc giao thừa hai đơn của cùng
+  // một tàu lại rơi vào hai khóa khác nhau. Khóa rộng hơn dãy số chỉ tốn thêm
+  // một nhịp chờ; khóa hẹp hơn dãy số là mất tác dụng.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KHOA_SINH_SO_PO}::int, ${khoaDaySoPO(
+    `PO-${maTau || "NA"}-`
+  )}::int)`;
+  const nam = String(new Date().getFullYear()).slice(-2);
+  const dau = `PO-${maTau || "NA"}-${nam}-`;
+  const ganNhat = await tx.purchaseOrder.findFirst({
+    where: { poNo: { startsWith: dau } },
+    orderBy: { poNo: "desc" },
+    select: { poNo: true },
+  });
+  const so = ganNhat ? Number(ganNhat.poNo.slice(dau.length)) || 0 : 0;
+  return `${dau}${String(so + 1).padStart(4, "0")}`;
+}
+
 const VESSEL_STATUSES = ["ACTIVE", "MAINTENANCE", "INACTIVE"];
+
+
+/**
+ * Đọc họ máy chính và model của tàu từ biểu mẫu.
+ *
+ * Bỏ trống được — nhiều tàu khai dần — nhưng đã khai thì phải là một họ có
+ * trong quy ước, vì phụ tùng máy chính xếp nhóm theo đúng chuỗi này.
+ */
+function docMayChinh(
+  formData: FormData
+):
+  | { data: { mainEngineGroup: string | null; mainEngineModel: string | null } }
+  | { error: string } {
+  const nhom = String(formData.get("mainEngineGroup") || "").trim();
+  const model = String(formData.get("mainEngineModel") || "").trim();
+  if (nhom && !(NHOM_MAY_CHINH as readonly string[]).includes(nhom)) {
+    return { error: `Họ máy chính "${nhom}" không có trong quy ước.` };
+  }
+  return {
+    data: { mainEngineGroup: nhom || null, mainEngineModel: model || null },
+  };
+}
+
 
 export async function updateVessel(
   _prevState: { message: string; values?: Record<string, string> },
@@ -172,6 +443,8 @@ export async function updateVessel(
     "imo",
     "flag",
     "vesselType",
+    "mainEngineGroup",
+    "mainEngineModel",
     "status",
   ]);
   const code = String(formData.get("code") || "").trim();
@@ -180,6 +453,10 @@ export async function updateVessel(
   const flag = String(formData.get("flag") || "").trim();
   const vesselType = String(formData.get("vesselType") || "").trim();
   const status = String(formData.get("status") || "ACTIVE");
+  const may = docMayChinh(formData);
+  if ("error" in may) {
+    return { message: may.error, values };
+  }
   if (!code || !name) {
     return { message: "Mã tàu và tên tàu là bắt buộc.", values };
   }
@@ -205,6 +482,7 @@ export async function updateVessel(
           flag: flag || null,
           vesselType: vesselType || null,
           status,
+          ...may.data,
         },
       });
       // Tên kho nhúng sẵn tên tàu ("Kho máy - M. ODYSSEY") nên đổi tên tàu mà không
@@ -252,7 +530,8 @@ export async function deleteVessel(
   _prevState: { message: string },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
-  if (!(await requireActiveRole(["ADMIN"]))) {
+  const admin = await requireActiveRole(["ADMIN"]);
+  if (!admin) {
     return { message: NO_PERMISSION };
   }
   const id = Number(formData.get("id"));
@@ -273,8 +552,11 @@ export async function deleteVessel(
       message: `Tàu đang có ${assignedUserCount} người dùng được gán phụ trách. Hãy gỡ gán hoặc chuyển tàu cho họ trong trang Người dùng trước khi xóa.`,
     };
   }
+  let daXoa;
   try {
-    await prisma.vessel.delete({ where: { id } });
+    // delete() trả về chính bản ghi vừa xóa, nên lấy được mã và tên tàu cho
+    // nhật ký mà không tốn thêm một lượt truy vấn.
+    daXoa = await prisma.vessel.delete({ where: { id } });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2025") {
@@ -289,8 +571,54 @@ export async function deleteVessel(
     }
     throw error;
   }
+  // Xóa một con tàu là thao tác không hoàn lại và kéo theo cả kho, tồn kho,
+  // chứng từ của tàu đó. Vết tự động ở proxy.ts chỉ thấy "POST /vessels" nên
+  // không trả lời được đã xóa tàu nào và ai xóa — đúng khoảng trống mà đường
+  // ghi thủ công sinh ra để lấp.
+  await ghiNhatKy({
+    userId: admin.id,
+    email: admin.email,
+    role: admin.role,
+    // Tàu của chính bản ghi, không phải tàu của ông quản trị (xem createUser).
+    vesselId: id,
+    action: "xoa-tau",
+    path: "/vessels",
+    detail: `Xóa tàu #${id} (${daXoa.code} — ${daXoa.name})`,
+  });
   revalidatePath("/vessels");
   redirect("/vessels");
+}
+
+/**
+ * Ba cột department / equipGroup / responsibleRank chính là các phân đoạn của
+ * mã vật tư — mọi chỗ lọc đều đọc CỘT chứ không đọc chuỗi mã (trang /materials
+ * lọc theo responsibleRank, dashboard đếm "mặt hàng bạn quản lý", bảng phân
+ * nhóm đọc department). Mã đổi mà cột không đổi thì nhãn dán trên thùng hàng
+ * nói một đằng, phần mềm xếp món hàng vào tay người khác.
+ *
+ * CHỈ ghi những cột mà mã THẬT SỰ nói ra. Khuôn đang dùng (`D-IMPA-0075`) chỉ
+ * mang bộ phận; nó không nói ai giữ và không nói thuộc thiết bị nào. Ghi null
+ * cho hai cột kia thì mỗi lần sửa mã là xóa mất phân loại mà người vận hành đã
+ * gán bằng tay hoặc bằng `gan-ma-vat-tu.cmd` — mã không hề mâu thuẫn với chúng,
+ * nó chỉ im lặng về chúng.
+ *
+ * Mã sai quy ước thì mới trả null cho cả ba: thà chưa phân loại còn hơn giữ lại
+ * phân loại của một mã đã không còn nghĩa gì.
+ */
+function phanLoaiTuMa(ma: string): {
+  department?: string | null;
+  equipGroup?: string | null;
+  responsibleRank?: string | null;
+} {
+  const kq = phanTichMa(ma);
+  if ("loi" in kq) {
+    return { department: null, equipGroup: null, responsibleRank: null };
+  }
+  return {
+    department: kq.boPhan,
+    ...(kq.nhomThietBi ? { equipGroup: kq.nhomThietBi } : {}),
+    ...(kq.chucDanh ? { responsibleRank: kq.chucDanh } : {}),
+  };
 }
 
 export async function createMaterial(
@@ -354,6 +682,7 @@ export async function createMaterial(
         minStock,
         maxStock,
         isCritical,
+        ...phanLoaiTuMa(code),
       },
     });
   } catch (error) {
@@ -405,7 +734,8 @@ export async function deleteMaterial(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
-  if (!(await requireActiveRole(["ADMIN"]))) {
+  const admin = await requireActiveRole(["ADMIN"]);
+  if (!admin) {
     return { message: NO_PERMISSION };
   }
   const id = Number(formData.get("id"));
@@ -428,8 +758,9 @@ export async function deleteMaterial(
         "Vật tư đang có bản ghi tồn kho trên tàu nên không thể xóa (tránh mất số liệu tồn). Hãy chọn Ngừng sử dụng.",
     };
   }
+  let daXoa;
   try {
-    await prisma.material.delete({ where: { id } });
+    daXoa = await prisma.material.delete({ where: { id } });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2025") {
@@ -444,6 +775,19 @@ export async function deleteMaterial(
     }
     throw error;
   }
+  // Xóa khỏi danh mục dùng chung là thao tác không hoàn lại: mã vật tư biến
+  // mất khỏi mọi tàu cùng lúc. Ghi lại mã và tên để còn dựng lại được món hàng
+  // đã mất, chứ "POST /materials" trong vết tự động thì không nói lên gì.
+  await ghiNhatKy({
+    userId: admin.id,
+    email: admin.email,
+    role: admin.role,
+    // Danh mục dùng chung cả đội tàu — không thuộc tàu nào.
+    vesselId: null,
+    action: "xoa-vat-tu",
+    path: "/materials",
+    detail: `Xóa vật tư #${id} (${daXoa.code} — ${daXoa.nameVn})`,
+  });
   revalidatePath("/materials");
   return { message: "", success: true };
 }
@@ -514,6 +858,23 @@ export async function unassignMaterialFromVessel(
   return { message: "", success: true };
 }
 
+// Vùng khóa tư vấn (advisory lock) dành riêng cho tồn kho. Postgres chỉ có MỘT
+// không gian khóa (int, int) dùng chung cho cả tiến trình, nên phải đặt số vùng
+// riêng cho từng nghiệp vụ; trùng vùng với chỗ khác thì hai việc chẳng liên quan
+// gì lại chặn nhau.
+const KHOA_TON_KHO = 811001;
+
+/**
+ * Gộp (vật tư, kho) thành một số int32 làm chìa khóa thứ hai.
+ *
+ * Đụng độ băm chỉ khiến hai dòng tồn khác nhau phải xếp hàng chờ nhau — chậm
+ * một nhịp, KHÔNG bao giờ sai số liệu. Ngược lại, thiếu khóa thì hai phiếu cùng
+ * lúc trên một dòng tồn mới sẽ cùng INSERT và một bên vỡ vì trùng khóa.
+ */
+function khoaDongTon(materialId: number, warehouseId: number) {
+  return (Math.imul(materialId, 100003) + warehouseId) | 0;
+}
+
 export async function createInventoryTransaction(
   _prevState: { message: string; values?: Record<string, string> },
   formData: FormData
@@ -526,7 +887,7 @@ export async function createInventoryTransaction(
   if (!actor) {
     return { message: NO_PERMISSION };
   }
-  const scope = vesselScope(actor);
+  const scope = vesselScopeDayDu(actor);
   const values = formValues(formData, [
     "materialId",
     "warehouseId",
@@ -574,32 +935,47 @@ export async function createInventoryTransaction(
       if (!warehouse || !warehouse.vesselId) {
         throw new ActionError("Kho không hợp lệ hoặc không thuộc tàu.");
       }
-      if (!scope.all && warehouse.vesselId !== scope.vesselId) {
+      if (!trongPhamVi(scope, warehouse.vesselId)) {
         throw new ActionError(
           "Bạn chỉ được nhập/xuất kho của tàu mình phụ trách."
         );
       }
       const vesselId = warehouse.vesselId;
+      // Xếp hàng mọi phiếu động tới CÙNG một dòng tồn. Khóa tự nhả khi giao
+      // dịch kết thúc (commit hay rollback), không có gì phải dọn.
+      //
+      // Cần khóa này cho nhánh NHẬP: hai phiếu nhập cùng lúc cho một cặp
+      // (vật tư, kho) chưa từng có dòng tồn thì cả hai cùng thấy "chưa có" và
+      // cùng INSERT — một bên vỡ vì đụng ràng buộc duy nhất, người dùng nhận
+      // màn hình lỗi thay vì thông báo tiếng Việt.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KHOA_TON_KHO}::int, ${khoaDongTon(
+        materialId,
+        warehouseId
+      )}::int)`;
       if (type === "OUT") {
-        const inventory = await tx.inventory.findUnique({
+        // Trừ tồn bằng MỘT lệnh UPDATE có điều kiện, không đọc-rồi-ghi.
+        // Điều kiện quantity >= số xuất nằm ngay trong mệnh đề WHERE nên
+        // database tự là trọng tài: hai người cùng xuất một vật tư thì người
+        // sau chỉ trừ được nếu phần còn lại thật sự đủ. Kiểu cũ (đọc số, so
+        // sánh trong Node, rồi ghi đè) làm cả hai đọc thấy số cũ và tồn kho
+        // tụt xuống ÂM, hoặc mất hẳn một lần xuất.
+        const daTru = await tx.inventory.updateMany({
           where: {
-            materialId_warehouseId: {
-              materialId,
-              warehouseId,
-            },
+            materialId,
+            warehouseId,
+            quantity: { gte: quantity },
           },
-        });
-        if (!inventory || inventory.quantity < quantity) {
-          throw new ActionError("Không đủ tồn kho để xuất.");
-        }
-        await tx.inventory.update({
-          where: { id: inventory.id },
           data: {
             quantity: {
               decrement: quantity,
             },
           },
         });
+        // count === 0 gồm cả hai khả năng: chưa có dòng tồn, hoặc tồn không đủ.
+        // Với người dùng thì cùng một việc — không xuất được vì thiếu hàng.
+        if (daTru.count === 0) {
+          throw new ActionError("Không đủ tồn kho để xuất.");
+        }
       } else {
         await tx.inventory.upsert({
           where: {
@@ -634,10 +1010,14 @@ export async function createInventoryTransaction(
           performedBy: actor.name,
         },
       });
-    });
+    }, GIAO_DICH_GIU_KHOA);
   } catch (error) {
     if (error instanceof ActionError) {
       return { message: error.message, values };
+    }
+    const thongBao = thongBaoLoiGiaoDich(error);
+    if (thongBao) {
+      return { message: thongBao, values };
     }
     throw error;
   }
@@ -708,7 +1088,7 @@ export async function approveRequestQuantities(
     return { message: "Không tìm thấy yêu cầu." };
   }
 
-  const cap = capDuyetChoPhep(actor, request);
+  const { cap, uyQuyenTu } = capDuyetChiTiet(actor, request);
   if (!cap) {
     // Báo đúng lý do: sai cấp, sai bộ phận, hay yêu cầu chưa được trình.
     if (request.status === "DRAFT") {
@@ -739,15 +1119,23 @@ export async function approveRequestQuantities(
   const tuTrangThai = cap === "TAU" ? "PENDING_MASTER" : "PENDING_OFFICE";
   const denTrangThai = cap === "TAU" ? "PENDING_OFFICE" : "APPROVED";
   const now = new Date();
+  // Ký thay thì chứng từ phải ghi CẢ HAI: người đặt bút và thẩm quyền họ mượn.
+  // Ghi mỗi tên người ký là mất dấu vì sao họ có quyền; ghi mỗi tên người ủy
+  // quyền là ghi khống chữ ký của một người không có mặt.
+  const tenNguoiKy = uyQuyenTu
+    ? `${actor.name} (ký thay ${ROLE_LABEL[uyQuyenTu.delegatorRole] ?? uyQuyenTu.delegatorRole} ${uyQuyenTu.delegatorName})`
+    : actor.name;
+  const chucDanhKy = uyQuyenTu ? uyQuyenTu.delegatorRole : actor.role;
   const dau =
     cap === "TAU"
       ? {
-          shipApprovedBy: actor.name,
-          shipApprovedRole: actor.role,
+          shipApprovedBy: tenNguoiKy,
+          shipApprovedRole: chucDanhKy,
           shipApprovedAt: now,
         }
-      : { approvedBy: actor.name, approvedAt: now };
+      : { approvedBy: tenNguoiKy, approvedAt: now };
 
+  let soLuongDuyet = 0;
   try {
     await prisma.$transaction(async (tx) => {
       // Chốt trạng thái atomic trước — nếu người khác vừa duyệt/từ chối thì count=0 → rollback
@@ -781,18 +1169,19 @@ export async function approveRequestQuantities(
       const note = String(formData.get("note") || "").trim();
       const tenCap =
         cap === "TAU"
-          ? `${ROLE_LABEL[actor.role] ?? actor.role} duyệt cấp tàu`
+          ? `${ROLE_LABEL[chucDanhKy] ?? chucDanhKy} duyệt cấp tàu`
           : "Quản lý kỹ thuật duyệt cấp công ty";
       await logRequestEvent(tx, {
         requestId: id,
         fromStatus: request.status,
         toStatus: denTrangThai,
-        actorName: actor.name,
-        actorRole: actor.role,
+        actorName: tenNguoiKy,
+        actorRole: chucDanhKy,
         note:
           note ||
           `${tenCap}: ${request.items.length} dòng, tổng SL duyệt ${totalApproved}`,
       });
+      soLuongDuyet = totalApproved;
     });
   } catch (error) {
     if (error instanceof ActionError) {
@@ -800,6 +1189,13 @@ export async function approveRequestQuantities(
     }
     throw error;
   }
+  await ghiNhatKyNguoiDung(actor, {
+    action: "duyet-yeu-cau",
+    path: `/requests/${id}`,
+    vesselId: request.vesselId,
+    onBehalfOfId: uyQuyenTu?.delegatorId ?? null,
+    detail: `#${id} ${request.status} → ${denTrangThai}, cấp ${cap}, tổng SL duyệt ${soLuongDuyet}`,
+  });
   revalidatePath("/requests");
   revalidatePath(`/requests/${id}`);
   redirect(`/requests/${id}`);
@@ -810,11 +1206,35 @@ export async function updateRequestStatus(
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
   const status = String(formData.get("status") || "");
+  // Những trạng thái này CHỈ được đặt bởi hành động chuyên trách, không bao giờ
+  // qua đường chuyển trạng thái tay này:
+  //   PENDING_OFFICE, APPROVED       -> approveRequestQuantities: cắt số lượng
+  //       duyệt theo từng dòng VÀ chặn người tự duyệt yêu cầu của chính mình.
+  //   PARTIALLY_DELIVERED, FULLY_DELIVERED -> receivePurchaseOrder: cuộn theo
+  //       số hàng NHẬN THẬT trên phiếu nhận, không phải một cú bấm.
+  // Nhận chúng ở đây là mở đúng cửa sau mà các guard kia dựng lên để chặn: máy
+  // trưởng tự đẩy yêu cầu mình lập lên "đã duyệt", hay đánh dấu "giao đủ" khi
+  // kho chưa nhận được gì. Chỉ kiểm ở giao diện là chưa đủ — server action gọi
+  // thẳng bằng POST được, không đi qua nút bấm.
+  const CHI_HANH_DONG_CHUYEN_TRACH = new Set([
+    "PENDING_OFFICE",
+    "APPROVED",
+    "PARTIALLY_DELIVERED",
+    "FULLY_DELIVERED",
+  ]);
+  if (CHI_HANH_DONG_CHUYEN_TRACH.has(status)) {
+    return {
+      message:
+        status === "PENDING_OFFICE" || status === "APPROVED"
+          ? "Bước duyệt phải qua form phê duyệt (có số lượng duyệt), không chuyển trạng thái trực tiếp."
+          : "Trạng thái giao hàng do phiếu nhận của đơn mua tự cập nhật, không đặt tay.",
+    };
+  }
   // Quyền theo từng bước chuyển, đúng phân cấp:
   //   PENDING_MASTER (trình duyệt)  -> người lập, kể cả sĩ quan/thuyền viên
   //   REJECTED (từ chối)            -> tùy đang ở cấp nào, kiểm tra sau khi
   //                                    đọc trạng thái hiện tại của yêu cầu
-  //   còn lại (hủy, chuyển mua sắm, giao hàng...) -> chỉ huy tàu + văn phòng
+  //   còn lại (hủy, chuyển mua sắm) -> chỉ huy tàu + văn phòng
   const roles =
     status === "PENDING_MASTER"
       ? LAP_YEU_CAU
@@ -825,7 +1245,7 @@ export async function updateRequestStatus(
   if (!actor) {
     return { message: NO_PERMISSION };
   }
-  const scope = vesselScope(actor);
+  const scope = vesselScopeDayDu(actor);
   const id = Number(formData.get("id"));
   const returnTo = safeNextPath(
     String(formData.get("returnTo") || ""),
@@ -873,6 +1293,10 @@ export async function updateRequestStatus(
     stamp.rejectionReason = note;
   }
 
+  // Giữ lại để ghi nhật ký sau khi giao dịch xong — bên trong giao dịch chưa
+  // chắc đi tới nơi, ghi sớm là ghi cả những lần bị rollback.
+  let trangThaiCu = "";
+  let tauCuaYeuCau: number | null = null;
   try {
     await prisma.$transaction(async (tx) => {
       const before = await tx.materialRequest.findUnique({
@@ -887,9 +1311,11 @@ export async function updateRequestStatus(
       if (!before) {
         throw new ActionError("Không tìm thấy yêu cầu.");
       }
-      if (!scope.all && before.vesselId !== scope.vesselId) {
+      if (!trongPhamVi(scope, before.vesselId)) {
         throw new ActionError(NO_PERMISSION);
       }
+      trangThaiCu = before.status;
+      tauCuaYeuCau = before.vesselId;
       // Từ chối phải đúng cấp: người đang giữ bước duyệt mới được từ chối.
       // Không có kiểm tra này thì máy trưởng từ chối được yêu cầu đang nằm ở
       // bàn của công ty, và ngược lại.
@@ -912,7 +1338,7 @@ export async function updateRequestStatus(
         where: {
           id,
           status: { in: allowedFrom[status] },
-          ...(scope.all ? {} : { vesselId: scope.vesselId ?? -1 }),
+          ...vesselWhere(scope),
         },
         data: { status: statusThat, ...stamp },
       });
@@ -958,6 +1384,27 @@ export async function updateRequestStatus(
     }
     throw error;
   }
+  // Từ chối và hủy là những bước làm chết một yêu cầu — phải tra ngược được ai
+  // đã bấm và vì lý do gì. Nhật ký duyệt (RequestEvent) chỉ có trên trang chi
+  // tiết yêu cầu; khi soát toàn hệ thống người ta mở sổ nhật ký thao tác, mà ở
+  // đó trước đây chỉ thấy "POST /requests/12" không rõ chuyện gì đã xảy ra.
+  //
+  // Ghi TRƯỚC redirect: redirect() ném NEXT_REDIRECT, đặt sau là không bao giờ
+  // chạy tới.
+  await ghiNhatKyNguoiDung(actor, {
+    action:
+      status === "REJECTED"
+        ? "tu-choi-yeu-cau"
+        : status === "CANCELLED"
+          ? "huy-yeu-cau"
+          : "doi-trang-thai-yeu-cau",
+    path: `/requests/${id}`,
+    vesselId: tauCuaYeuCau,
+    detail:
+      `#${id} ${REQUEST_STATUS_LABEL[trangThaiCu] ?? trangThaiCu} → ` +
+      `${REQUEST_STATUS_LABEL[statusThat] ?? statusThat}` +
+      (note ? `, lý do: ${note}` : ""),
+  });
   revalidatePath("/requests");
   revalidatePath(returnTo);
   redirect(returnTo);
@@ -984,8 +1431,8 @@ export async function deleteMaterialRequest(
   if (!request) {
     return { message: "Yêu cầu đã bị xóa hoặc không tồn tại." };
   }
-  const scope = vesselScope(actor);
-  if (!scope.all && request.vesselId !== scope.vesselId) {
+  const scope = vesselScopeDayDu(actor);
+  if (!trongPhamVi(scope, request.vesselId)) {
     return { message: NO_PERMISSION };
   }
   if (
@@ -1008,6 +1455,18 @@ export async function deleteMaterialRequest(
     }
     throw error;
   }
+  // Xóa là thao tác duy nhất không để lại gì trong chính dữ liệu nghiệp vụ —
+  // chứng từ biến mất cùng toàn bộ nhật ký duyệt của nó. Không ghi vết ở đây
+  // thì không còn chỗ nào biết yêu cầu đó từng tồn tại.
+  await ghiNhatKyNguoiDung(actor, {
+    action: "xoa-yeu-cau",
+    path: "/requests",
+    vesselId: request.vesselId,
+    detail:
+      `Xóa yêu cầu #${id} (${request.requestNo}) — trạng thái ` +
+      `${REQUEST_STATUS_LABEL[request.status] ?? request.status}` +
+      `, người lập ${request.requestedBy}`,
+  });
   revalidatePath("/requests");
   revalidatePath(returnTo);
   redirect(returnTo);
@@ -1227,7 +1686,8 @@ export async function deleteFormStandard(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
-  if (!(await requireActiveRole(["ADMIN"]))) {
+  const admin = await requireActiveRole(["ADMIN"]);
+  if (!admin) {
     return { message: NO_PERMISSION };
   }
   const id = Number(formData.get("id"));
@@ -1247,6 +1707,19 @@ export async function deleteFormStandard(
     };
   }
   await prisma.formStandard.delete({ where: { id } });
+  // Chuẩn biểu mẫu quyết định đầu chứng từ PO/RFQ gửi ra ngoài cho nhà cung
+  // cấp. Xóa mất là mọi tàu đang dùng nó phải chuyển sang chuẩn khác, nên phải
+  // biết ai đã bỏ chuẩn nào đi.
+  await ghiNhatKy({
+    userId: admin.id,
+    email: admin.email,
+    role: admin.role,
+    // Chuẩn biểu mẫu dùng chung cả đội tàu — không thuộc tàu nào.
+    vesselId: null,
+    action: "xoa-bieu-mau",
+    path: "/purchasing/forms",
+    detail: `Xóa chuẩn biểu mẫu "${std.code}" (${std.label} — ${std.companyName})`,
+  });
   revalidatePath("/purchasing/forms");
   return { message: "", success: true };
 }
@@ -1378,7 +1851,8 @@ export async function deleteSupplier(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
-  if (!(await requireActiveRole(["ADMIN"]))) {
+  const admin = await requireActiveRole(["ADMIN"]);
+  if (!admin) {
     return { message: NO_PERMISSION };
   }
   const id = Number(formData.get("id"));
@@ -1398,6 +1872,19 @@ export async function deleteSupplier(
     };
   }
   await prisma.supplier.delete({ where: { id } });
+  // Nhà cung cấp chưa có đơn nào mới xóa được, nhưng hồ sơ liên hệ vẫn là dữ
+  // liệu người khác đã nhập tay; mất mà không biết ai xóa thì không truy lại
+  // được đó là dọn rác hay xóa nhầm.
+  await ghiNhatKy({
+    userId: admin.id,
+    email: admin.email,
+    role: admin.role,
+    // Nhà cung cấp dùng chung cả đội tàu — không thuộc tàu nào.
+    vesselId: null,
+    action: "xoa-nha-cung-cap",
+    path: "/purchasing/suppliers",
+    detail: `Xóa nhà cung cấp "${supplier.code}" (${supplier.name})`,
+  });
   revalidatePath("/purchasing/suppliers");
   return { message: "", success: true };
 }
@@ -1485,7 +1972,7 @@ export async function importMaterials(
   }
 
   const { applyMaterialImport } = await import("@/lib/materialImportApply");
-  const { createdCount, linkedCount, robCount, conflict } =
+  const { createdCount, linkedCount, robCount, conflict, khoiDay } =
     await applyMaterialImport({
       vesselId,
       warehouseId,
@@ -1512,6 +1999,15 @@ export async function importMaterials(
   if (robCount > 0) parts.push(`${robCount} dòng ghi tồn kho`);
   if (parsed.skippedRows > 0)
     parts.push(`${parsed.skippedRows} dòng bị bỏ qua`);
+  // Báo ngay khi bố cục khối bắt đầu chật: mã vẫn đúng và không trùng, chỉ là
+  // hàng mới không còn nằm cạnh hàng cùng nhóm nữa. Để im thì danh mục cứ lộn
+  // xộn dần cho tới lúc không ai lần ra vì sao.
+  if (khoiDay?.length) {
+    parts.push(
+      `Khuôn ${khoiDay.join(", ")} đã kín khối nên mã mới xếp vào cuối dãy — ` +
+        "chạy doi-ma-vat-tu.cmd --theo-nhom --dong-y để xếp lại theo nhóm."
+    );
+  }
   // Liệt kê từng sheet để người dùng đối chiếu — file kiểm kê thật tách nhiều sheet
   // theo bộ phận, im lặng bỏ sót một sheet là mất cả trăm dòng mà không ai biết.
   if (parsed.sheets?.length) {
@@ -1560,13 +2056,13 @@ export async function createDirectPurchaseOrder(
   if (!actor) {
     return { message: NO_PERMISSION };
   }
-  const scope = vesselScope(actor);
+  const scope = vesselScopeDayDu(actor);
   const vesselId = Number(formData.get("vesselId"));
   const supplierId = Number(formData.get("supplierId"));
   if (!Number.isInteger(vesselId) || vesselId <= 0) {
     return { message: "Vui lòng chọn tàu." };
   }
-  if (!scope.all && vesselId !== scope.vesselId) {
+  if (!trongPhamVi(scope, vesselId)) {
     return { message: "Bạn chỉ được mua sắm cho tàu mình phụ trách." };
   }
   const vessel = await prisma.vessel.findUnique({ where: { id: vesselId } });
@@ -1670,26 +2166,43 @@ export async function createDirectPurchaseOrder(
     return { message: "Tối đa 200 dòng vật tư mỗi đơn." };
   }
 
-  const poNo = `PO-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  const created = await prisma.purchaseOrder.create({
-    data: {
-      poNo,
-      supplierId,
-      vesselId,
-      status: "DRAFT",
-      currency,
-      orderDate: new Date(),
-      expectedDate,
-      notes,
-      subject,
-      supplierRef,
-      discountPercent,
-      transportFee,
-      deliveryFee,
-      createdBy: `${actor.name} (KT-VT)`,
-      items: { create: lines },
-    },
-  });
+  // Cấp số PO và ghi đơn trong CÙNG một giao dịch, để sinhSoDonMua xin được
+  // khóa tư vấn. Đây là cửa cấp số thứ hai, dùng chung dãy số với
+  // createPurchaseOrder: chỉ một trong hai cửa xin khóa thì cửa kia vẫn chạy
+  // song song, cả hai cùng đọc thấy số lớn nhất giống nhau, cùng sinh một poNo,
+  // và bên commit sau vỡ P2002 — người lập đơn trực tiếp mất trắng tới 200 dòng
+  // vừa nhập từ Excel.
+  let created;
+  try {
+    created = await prisma.$transaction(async (tx) => {
+      const poNo = await sinhSoDonMua(tx, vesselId);
+      return tx.purchaseOrder.create({
+        data: {
+          poNo,
+          supplierId,
+          vesselId,
+          status: "DRAFT",
+          currency,
+          orderDate: new Date(),
+          expectedDate,
+          notes,
+          subject,
+          supplierRef,
+          discountPercent,
+          transportFee,
+          deliveryFee,
+          createdBy: `${actor.name} (KT-VT)`,
+          items: { create: lines },
+        },
+      });
+    }, GIAO_DICH_GIU_KHOA);
+  } catch (error) {
+    const thongBao = thongBaoLoiGiaoDich(error);
+    if (thongBao) {
+      return { message: thongBao };
+    }
+    throw error;
+  }
   revalidatePath("/purchasing");
   redirect(
     `/purchasing/${created.id}${skippedRows > 0 ? `?skipped=${skippedRows}` : ""}`
@@ -1705,13 +2218,13 @@ export async function createPurchaseOrder(
   if (!actor) {
     return { message: NO_PERMISSION };
   }
-  const scope = vesselScope(actor);
+  const scope = vesselScopeDayDu(actor);
   const vesselId = Number(formData.get("vesselId"));
   const supplierId = Number(formData.get("supplierId"));
   if (!Number.isInteger(vesselId) || vesselId <= 0) {
     return { message: "Tàu không hợp lệ." };
   }
-  if (!scope.all && vesselId !== scope.vesselId) {
+  if (!trongPhamVi(scope, vesselId)) {
     return { message: "Bạn chỉ được mua sắm cho tàu mình phụ trách." };
   }
   if (!Number.isInteger(supplierId) || supplierId <= 0) {
@@ -1748,57 +2261,139 @@ export async function createPurchaseOrder(
   if (!selectedIds.length) {
     return { message: "Vui lòng chọn ít nhất một dòng vật tư để mua." };
   }
-  const requestItems = await prisma.materialRequestItem.findMany({
-    where: {
-      id: { in: selectedIds },
-      request: { vesselId, status: "IN_PROCUREMENT" },
-    },
-    include: { material: true },
-  });
-  if (!requestItems.length) {
-    return {
-      message: "Không có dòng hợp lệ (yêu cầu phải đang ở trạng thái mua sắm).",
-    };
+  // Chặn số dòng ngang với createDirectPurchaseOrder. Mỗi dòng là một INSERT
+  // nằm trong giao dịch đang giữ khóa, nên đơn càng dài thì người xếp hàng sau
+  // càng lâu được vào; không chặn thì độ dài đơn phụ thuộc hoàn toàn vào việc
+  // người dùng tick bao nhiêu ô.
+  if (selectedIds.length > 200) {
+    return { message: "Tối đa 200 dòng vật tư mỗi đơn." };
   }
-  const lines = requestItems.map((ri) => {
-    const priceRaw = Number(formData.get(`price_${ri.id}`));
-    const qtyRaw = Number(formData.get(`qty_${ri.id}`));
-    const approved = ri.approvedQuantity > 0 ? ri.approvedQuantity : ri.quantity;
-    const remaining = Math.max(0, approved - ri.suppliedQuantity);
-    const quantity =
-      Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : remaining || approved;
-    return {
-      requestItemId: ri.id,
-      materialId: ri.materialId,
-      description: ri.material ? ri.material.nameVn : (ri.itemName ?? "—"),
-      partNo: ri.material
-        ? (ri.material.partNumber ?? ri.material.impa ?? null)
-        : (ri.itemCode ?? null),
-      uom: ri.material ? ri.material.uom : (ri.itemUom ?? "PCS"),
-      quantity,
-      unitPrice: Number.isFinite(priceRaw) && priceRaw >= 0 ? priceRaw : 0,
-    };
-  });
-  const poNo = `PO-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  const created = await prisma.purchaseOrder.create({
-    data: {
-      poNo,
-      supplierId,
-      vesselId,
-      status: "DRAFT",
-      currency,
-      orderDate: new Date(),
-      expectedDate,
-      notes,
-      subject,
-      supplierRef,
-      discountPercent,
-      transportFee,
-      deliveryFee,
-      createdBy: actor.name,
-      items: { create: lines },
-    },
-  });
+  // Nới 1e-9 vì số lượng là Float: 10 chia ba lần rồi cộng lại có thể ra
+  // 10.000000000000002, chặn cứng sẽ báo vượt oan.
+  const NGUONG_LAM_TRON = 1e-9;
+  // Đọc dòng yêu cầu, tính trần, rồi ghi đơn — tất cả trong CÙNG một giao dịch,
+  // sau khi sinhSoDonMua đã xin khóa tư vấn theo dãy số PO của tàu.
+  //
+  // Đọc ngoài giao dịch thì mọi căn cứ để chặn đều là ảnh chụp TRƯỚC lúc xếp
+  // hàng: hai người cùng mở /purchasing/new, cùng thấy dòng duyệt 10 còn nguyên
+  // 10, cả hai cùng qua cửa kiểm tra; khóa chỉ xếp hàng phần cấp số nên cả hai
+  // đơn vẫn được ghi, chỉ khác số PO — đặt 20 cho một dòng duyệt 10. Đọc lại
+  // dưới khóa thì người vào sau nhìn thấy đơn của người vào trước.
+  //
+  // Phải nhận cả PARTIALLY_DELIVERED: receivePurchaseOrder tự cuộn yêu cầu sang
+  // trạng thái đó ngay lần nhận thiếu đầu tiên, mà không có đường quay lại
+  // IN_PROCUREMENT. Chỉ lọc IN_PROCUREMENT thì phần hàng còn thiếu vĩnh viễn
+  // không lập được đơn mua bổ sung.
+  let created;
+  try {
+    created = await prisma.$transaction(async (tx) => {
+      const poNo = await sinhSoDonMua(tx, vesselId);
+      const requestItems = await tx.materialRequestItem.findMany({
+        where: {
+          id: { in: selectedIds },
+          request: {
+            vesselId,
+            status: { in: ["IN_PROCUREMENT", "PARTIALLY_DELIVERED"] },
+          },
+        },
+        include: {
+          material: true,
+          // Bỏ SL của các đơn đã hủy ra ngoài, để dòng đó mua lại được — giống
+          // hệt bộ lọc của trang /purchasing/new.
+          poItems: { where: { po: { status: { not: "CANCELLED" } } } },
+        },
+      });
+      if (!requestItems.length) {
+        throw new ActionError(
+          "Không có dòng hợp lệ (yêu cầu phải đang ở trạng thái mua sắm hoặc giao một phần)."
+        );
+      }
+      // Trần đặt mua của mỗi dòng là phần CÒN LẠI của số đã duyệt, đo bằng SỐ
+      // ĐÃ ĐẶT — tổng dòng đơn của các PO chưa hủy — đúng công thức mà
+      // app/(app)/purchasing/new/page.tsx dùng để hiện "SL cần mua". Server và
+      // màn hình phải đo bằng cùng một cây thước, nếu không thì cái người dùng
+      // nhìn thấy và cái server chấp nhận là hai chuyện khác nhau.
+      //
+      // Tuyệt đối không đo bằng suppliedQuantity: cột đó chỉ tăng lúc NHẬN
+      // HÀNG, nên chừng nào hàng chưa về thì nó vẫn bằng 0 và cùng một dòng
+      // duyệt 10 được đặt lại 10 qua bao nhiêu đơn cũng lọt. Ô số lượng nằm
+      // trong biểu mẫu (lại còn prefill sẵn phần còn lại) nên chỉ cần bấm Tạo
+      // đơn hai lần từ hai tab đã mở là đủ; hàng và tiền vượt ra ngoài phê
+      // duyệt, và khi cả hai đơn về kho thì suppliedQuantity vượt
+      // approvedQuantity nên tiến độ cấp phát của yêu cầu vĩnh viễn không khớp.
+      const vuotDuyet: string[] = [];
+      const lines = requestItems.map((ri) => {
+        const ten = ri.material ? ri.material.nameVn : (ri.itemName ?? "—");
+        const donVi = ri.material ? ri.material.uom : (ri.itemUom ?? "PCS");
+        const priceRaw = Number(formData.get(`price_${ri.id}`));
+        const qtyRaw = Number(formData.get(`qty_${ri.id}`));
+        const approved =
+          ri.approvedQuantity > 0 ? ri.approvedQuantity : ri.quantity;
+        const daDat = ri.poItems.reduce((tong, p) => tong + p.quantity, 0);
+        const remaining = Math.max(0, approved - daDat);
+        // Bỏ trống ô số lượng = đặt nốt phần còn lại. Trước đây khi remaining = 0
+        // nó lại lùi về `approved`, tức tự động đặt lại từ đầu một dòng đã đặt đủ.
+        const quantity =
+          Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : remaining;
+        if (remaining <= NGUONG_LAM_TRON) {
+          vuotDuyet.push(
+            `"${ten}" đã đặt đủ ${approved} ${donVi} nên không còn gì để đặt`
+          );
+        } else if (quantity > remaining + NGUONG_LAM_TRON) {
+          vuotDuyet.push(
+            `"${ten}" đặt ${quantity} ${donVi} trong khi chỉ còn được đặt ${remaining} ${donVi}` +
+              ` (duyệt ${approved}, đã đặt ${daDat}) — vượt ${
+                quantity - remaining
+              } ${donVi}`
+          );
+        }
+        return {
+          requestItemId: ri.id,
+          materialId: ri.materialId,
+          description: ten,
+          partNo: ri.material
+            ? (ri.material.partNumber ?? ri.material.impa ?? null)
+            : (ri.itemCode ?? null),
+          uom: donVi,
+          quantity,
+          unitPrice: Number.isFinite(priceRaw) && priceRaw >= 0 ? priceRaw : 0,
+        };
+      });
+      if (vuotDuyet.length) {
+        throw new ActionError(
+          `Số lượng đặt mua vượt số đã duyệt — ${vuotDuyet.join("; ")}.`
+        );
+      }
+      return tx.purchaseOrder.create({
+        data: {
+          poNo,
+          supplierId,
+          vesselId,
+          status: "DRAFT",
+          currency,
+          orderDate: new Date(),
+          expectedDate,
+          notes,
+          subject,
+          supplierRef,
+          discountPercent,
+          transportFee,
+          deliveryFee,
+          createdBy: actor.name,
+          items: { create: lines },
+        },
+      });
+    }, GIAO_DICH_GIU_KHOA);
+  } catch (error) {
+    if (error instanceof ActionError) {
+      return { message: error.message };
+    }
+    const thongBao = thongBaoLoiGiaoDich(error);
+    if (thongBao) {
+      return { message: thongBao };
+    }
+    throw error;
+  }
   revalidatePath("/purchasing");
   redirect(`/purchasing/${created.id}`);
 }
@@ -1827,8 +2422,8 @@ export async function updatePurchaseOrderStatus(
   if (!po) {
     return { message: "Không tìm thấy đơn mua." };
   }
-  const scope = vesselScope(actor);
-  if (!scope.all && po.vesselId !== scope.vesselId) {
+  const scope = vesselScopeDayDu(actor);
+  if (!trongPhamVi(scope, po.vesselId)) {
     return { message: NO_PERMISSION };
   }
   const result = await prisma.purchaseOrder.updateMany({
@@ -1864,8 +2459,8 @@ export async function receivePurchaseOrder(
   if (!po) {
     return { message: "Không tìm thấy đơn mua." };
   }
-  const scope = vesselScope(actor);
-  if (!scope.all && po.vesselId !== scope.vesselId) {
+  const scope = vesselScopeDayDu(actor);
+  if (!trongPhamVi(scope, po.vesselId)) {
     return { message: NO_PERMISSION };
   }
   if (!["SENT", "CONFIRMED", "PARTIALLY_RECEIVED"].includes(po.status)) {
@@ -1911,6 +2506,31 @@ export async function receivePurchaseOrder(
         throw new ActionError(
           "Đơn đã đổi trạng thái, vui lòng tải lại trang."
         );
+      }
+      // Xin khóa tồn kho TRƯỚC vòng lặp, y hệt createInventoryTransaction.
+      // Đường nhận hàng bên dưới cũng upsert vào Inventory trên cùng cặp (vật
+      // tư, kho); nếu chỉ một trong hai đường xin khóa thì đường kia vẫn chạy
+      // song song, cả hai cùng thấy cặp đó "chưa có dòng tồn" và cùng INSERT —
+      // bên thua vỡ P2002 trên ràng buộc materialId_warehouseId, mà khối catch
+      // ở đây chỉ giữ ActionError nên lỗi bay ra màn hình 500.
+      //
+      // Gom hết khóa cần xin rồi xin theo thứ tự TĂNG DẦN: hai đơn nhiều dòng
+      // chạm cùng một nhóm dòng tồn mà xin theo thứ tự khác nhau là kẹp chết
+      // nhau (deadlock), thứ tự chung thì không bao giờ có vòng chờ.
+      if (warehouse) {
+        const khoNhan = warehouse;
+        const khoaCanXin = [
+          ...new Set(
+            fresh.items
+              .filter((it) => (requestedByItem.get(it.id) ?? 0) > 0)
+              .map((it) => it.materialId)
+              .filter((materialId): materialId is number => materialId !== null)
+              .map((materialId) => khoaDongTon(materialId, khoNhan.id))
+          ),
+        ].sort((a, b) => a - b);
+        for (const khoa of khoaCanXin) {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KHOA_TON_KHO}::int, ${khoa}::int)`;
+        }
       }
       const affectedRequestIds = new Set<number>();
       let totalReceived = 0;
@@ -2012,10 +2632,14 @@ export async function receivePurchaseOrder(
           },
         });
       }
-    });
+    }, GIAO_DICH_GIU_KHOA);
   } catch (error) {
     if (error instanceof ActionError) {
       return { message: error.message };
+    }
+    const thongBao = thongBaoLoiGiaoDich(error);
+    if (thongBao) {
+      return { message: thongBao };
     }
     throw error;
   }
@@ -2043,12 +2667,12 @@ export async function createLashingReport(
   if (!actor) {
     return { message: NO_PERMISSION, values: echoValues() };
   }
-  const scope = vesselScope(actor);
+  const scope = vesselScopeDayDu(actor);
   const vesselId = Number(formData.get("vesselId"));
   if (!Number.isInteger(vesselId) || vesselId <= 0) {
     return { message: "Tàu không hợp lệ.", values: echoValues() };
   }
-  if (!scope.all && vesselId !== scope.vesselId) {
+  if (!trongPhamVi(scope, vesselId)) {
     return {
       message: "Bạn chỉ được lập báo cáo cho tàu mình phụ trách.",
       values: echoValues(),
@@ -2231,7 +2855,8 @@ export async function deleteLashingGear(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
-  if (!(await requireActiveRole(["ADMIN"]))) {
+  const admin = await requireActiveRole(["ADMIN"]);
+  if (!admin) {
     return { message: NO_PERMISSION };
   }
   const id = Number(formData.get("id"));
@@ -2247,8 +2872,9 @@ export async function deleteLashingGear(
         "Dụng cụ đã xuất hiện trong báo cáo cũ nên không thể xóa (bảo toàn lịch sử).",
     };
   }
+  let daXoa;
   try {
-    await prisma.lashingGear.delete({ where: { id } });
+    daXoa = await prisma.lashingGear.delete({ where: { id } });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -2258,6 +2884,20 @@ export async function deleteLashingGear(
     }
     throw error;
   }
+  // Dụng cụ chằng buộc bị bỏ khỏi danh mục là lần kiểm đếm sau không còn dòng
+  // đó nữa — nhìn báo cáo sẽ tưởng tàu chưa bao giờ có món này. Ghi lại để
+  // phân biệt "bỏ khỏi danh mục" với "chưa từng khai".
+  await ghiNhatKy({
+    userId: admin.id,
+    email: admin.email,
+    role: admin.role,
+    vesselId: daXoa.vesselId,
+    action: "xoa-dung-cu-chang-buoc",
+    path: "/lashing",
+    detail:
+      `Xóa dụng cụ chằng buộc #${id} ("${daXoa.name}"` +
+      `, part no ${daXoa.partNo ?? "không có"}) của tàu ${daXoa.vesselId}`,
+  });
   revalidatePath("/lashing");
   return { message: "", success: true };
 }
@@ -2280,7 +2920,7 @@ export async function uploadReportDocument(
   if (!actor) {
     return { message: NO_PERMISSION };
   }
-  const scope = vesselScope(actor);
+  const scope = vesselScopeDayDu(actor);
   const values = formValues(formData, [
     "vesselId",
     "reportType",
@@ -2292,7 +2932,7 @@ export async function uploadReportDocument(
   if (!Number.isInteger(vesselId) || vesselId <= 0) {
     return { message: "Tàu không hợp lệ.", values };
   }
-  if (!scope.all && vesselId !== scope.vesselId) {
+  if (!trongPhamVi(scope, vesselId)) {
     return {
       message: scope.unassigned
         ? "Bạn chưa được gán tàu nên chưa thể tải báo cáo lên."
@@ -2364,7 +3004,8 @@ export async function deleteReportDocument(
   _prevState: { message: string; success?: boolean },
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
-  if (!(await requireActiveRole(["ADMIN"]))) {
+  const admin = await requireActiveRole(["ADMIN"]);
+  if (!admin) {
     return { message: NO_PERMISSION };
   }
   const id = Number(formData.get("id"));
@@ -2376,6 +3017,24 @@ export async function deleteReportDocument(
     return { message: "Không tìm thấy hồ sơ." };
   }
   await prisma.reportDocument.delete({ where: { id } });
+  // Ghi vết TRƯỚC khi đụng tới đĩa: bản ghi đã mất, file sắp mất, và dòng nhật
+  // ký này là thứ duy nhất còn lại. deleteUser từ chối xóa tài khoản đã nộp
+  // file với lý do "file là bản lưu bất biến, phải giữ được vết ai đã nộp" —
+  // giữ vết người nộp mà không giữ vết người xóa thì lập luận đó tự mâu thuẫn,
+  // và khi thanh tra hỏi hồ sơ PSC đâu thì không ai trả lời được.
+  await ghiNhatKy({
+    userId: admin.id,
+    email: admin.email,
+    role: admin.role,
+    // Tàu của hồ sơ, không phải tàu của ông quản trị (xem createUser).
+    vesselId: doc.vesselId,
+    action: "xoa-ho-so",
+    path: "/documents",
+    detail:
+      `Xóa hồ sơ #${id} "${doc.title}" (${doc.reportType}` +
+      `${doc.period ? `, kỳ ${doc.period}` : ""}) — file ${doc.fileName}` +
+      `, người nộp #${doc.uploadedById}`,
+  });
   try {
     await unlink(path.join(getUploadDir(), doc.storedName));
   } catch {
@@ -2416,10 +3075,17 @@ export async function createUser(
   success?: boolean;
   values?: Record<string, string>;
 }> {
-  if (!(await requireActiveRole(["ADMIN"]))) {
+  const admin = await requireActiveRole(["ADMIN"]);
+  if (!admin) {
     return { message: NO_PERMISSION };
   }
-  const values = formValues(formData, ["name", "email", "role", "vesselId"]);
+  const values = formValues(formData, [
+    "name",
+    "email",
+    "role",
+    "vesselId",
+    "rankCode",
+  ]);
   const name = String(formData.get("name") || "").trim();
   const email = String(formData.get("email") || "")
     .trim()
@@ -2442,6 +3108,10 @@ export async function createUser(
   if ("error" in vesselResult) {
     return { message: vesselResult.error, values };
   }
+  const chucDanh = docChucDanhGiuVatTu(formData);
+  if ("error" in chucDanh) {
+    return { message: chucDanh.error, values };
+  }
   const hashed = await bcrypt.hash(password, 10);
   try {
     await prisma.user.create({
@@ -2451,6 +3121,7 @@ export async function createUser(
         password: hashed,
         role,
         vesselId: vesselResult.vesselId,
+        rankCode: chucDanh.rankCode,
       },
     });
   } catch (error) {
@@ -2462,6 +3133,28 @@ export async function createUser(
     }
     throw error;
   }
+  // Mở một lối vào hệ thống là việc phải truy ngược được: ai mở, cho ai, quyền
+  // gì, tàu nào. Vết tự động ở proxy.ts chỉ thấy "POST /users" nên không trả
+  // lời được câu hỏi nào trong số đó.
+  //
+  // Ghi thẳng bằng ghiNhatKy chứ không qua ghiNhatKyNguoiDung: hàm kia có nhánh
+  // `vesselId ?? user.vesselId`, nên truyền null — tài khoản văn phòng, không
+  // gán tàu — lại rơi về tàu của chính ông quản trị đang thao tác. Cột vesselId
+  // phải là tàu của ĐỐI TƯỢNG, nếu không thì dòng nhật ký bị xếp sang một con
+  // tàu chẳng liên quan, và ngày nào trang /audit thêm bộ lọc theo tàu là bản
+  // ghi lập tức nhảy nhầm chỗ.
+  await ghiNhatKy({
+    userId: admin.id,
+    email: admin.email,
+    role: admin.role,
+    vesselId: vesselResult.vesselId,
+    action: "tao-tai-khoan",
+    path: "/users",
+    detail:
+      `Tạo "${email}" (${name}) — quyền ${ROLE_LABEL[role] ?? role}` +
+      `, tàu ${vesselResult.vesselId ?? "không gán"}` +
+      `, chức danh giữ vật tư ${chucDanh.rankCode ?? "không đặt"}`,
+  });
   revalidatePath("/users");
   return { message: `Đã tạo người dùng "${email}".`, success: true };
 }
@@ -2478,7 +3171,7 @@ export async function updateUserRole(
   if (!admin) {
     return { message: NO_PERMISSION };
   }
-  const values = formValues(formData, ["role", "vesselId"]);
+  const values = formValues(formData, ["role", "vesselId", "rankCode"]);
   const id = Number(formData.get("id"));
   const role = String(formData.get("role") || "");
   if (!Number.isInteger(id) || id <= 0 || !USER_ROLES.includes(role)) {
@@ -2491,9 +3184,41 @@ export async function updateUserRole(
   if ("error" in vesselResult) {
     return { message: vesselResult.error, values };
   }
+  const chucDanh = docChucDanhGiuVatTu(formData);
+  if ("error" in chucDanh) {
+    return { message: chucDanh.error, values };
+  }
+  // Đọc trạng thái CŨ trước khi ghi đè: nhật ký chỉ nói "đổi thành máy trưởng"
+  // thì sau này không ai dựng lại được người đó trước đó có quyền gì, mà đúng
+  // cái "trước đó" mới là thứ cần khi soát lại một thao tác đáng ngờ.
+  const before = await prisma.user.findUnique({ where: { id } });
+  if (!before) {
+    return { message: "Không tìm thấy người dùng.", values };
+  }
   await prisma.user.update({
     where: { id },
-    data: { role, vesselId: vesselResult.vesselId },
+    data: {
+      role,
+      vesselId: vesselResult.vesselId,
+      rankCode: chucDanh.rankCode,
+    },
+  });
+  // Ghi thẳng bằng ghiNhatKy — xem lý do ở createUser. Ở đây còn dễ sai hơn:
+  // gỡ gán tàu cho một thuyền viên thì vesselId đúng phải là null, mà rơi vào
+  // nhánh mặc định là thao tác "gỡ khỏi tàu" lại bị ghi thành của tàu ông
+  // quản trị.
+  await ghiNhatKy({
+    userId: admin.id,
+    email: admin.email,
+    role: admin.role,
+    vesselId: vesselResult.vesselId,
+    action: "doi-quyen",
+    path: "/users",
+    detail:
+      `Đổi quyền "${before.email}" (${before.name}): ` +
+      `${ROLE_LABEL[before.role] ?? before.role} → ${ROLE_LABEL[role] ?? role}` +
+      `; tàu ${before.vesselId ?? "không gán"} → ${vesselResult.vesselId ?? "không gán"}` +
+      `; chức danh giữ vật tư ${before.rankCode ?? "không đặt"} → ${chucDanh.rankCode ?? "không đặt"}`,
   });
   revalidatePath("/users");
   return { message: "", success: true };
@@ -2518,12 +3243,125 @@ export async function toggleUserActive(
   if (!user) {
     return { message: "Không tìm thấy người dùng." };
   }
+  const trangThaiMoi = !user.isActive;
   await prisma.user.update({
     where: { id },
-    data: { isActive: !user.isActive },
+    data: { isActive: trangThaiMoi },
+  });
+  // Khóa tài khoản là cách thay cho xóa trong hầu hết trường hợp, nên nó phải
+  // để lại vết ngang với xóa: người bị khóa mất đường vào hệ thống ngay lập
+  // tức, và nếu không ghi thì không ai trả lời được ai đã khóa, khi nào.
+  // Ghi thẳng bằng ghiNhatKy — xem lý do ở createUser. user.vesselId là null với
+  // tài khoản văn phòng, đúng thứ rơi vào nhánh mặc định.
+  await ghiNhatKy({
+    userId: admin.id,
+    email: admin.email,
+    role: admin.role,
+    vesselId: user.vesselId,
+    action: trangThaiMoi ? "mo-tai-khoan" : "khoa-tai-khoan",
+    path: "/users",
+    detail:
+      `${trangThaiMoi ? "Mở khóa" : "Khóa"} "${user.email}" (${user.name}, ` +
+      `${ROLE_LABEL[user.role] ?? user.role})`,
   });
   revalidatePath("/users");
   return { message: "", success: true };
+}
+
+/**
+ * Xóa hẳn một tài khoản.
+ *
+ * KHÓA vẫn là cách nên dùng trong hầu hết trường hợp — thuyền viên hết hạn hợp
+ * đồng rời tàu thì khóa lại là xong, hồ sơ vẫn tra ngược được. Xóa chỉ dành cho
+ * tài khoản lập nhầm, trùng, hoặc tài khoản thử nghiệm.
+ *
+ * Ba lớp chặn, theo thứ tự từ rẻ tới đắt:
+ *   1. Chỉ quản trị, và không tự xóa mình — xóa nhầm tài khoản quản trị cuối
+ *      cùng là mất đường vào hệ thống.
+ *   2. Không xóa tài khoản đã TẢI FILE BÁO CÁO lên: file là bản lưu bất biến,
+ *      phải giữ được vết ai đã nộp. Trường hợp này bắt khóa thay vì xóa.
+ *   3. Bắt được lỗi khóa ngoại của database và dịch ra tiếng người, phòng khi
+ *      sau này có bảng mới trỏ tới User mà quên xét ở đây.
+ *
+ * Yêu cầu vật tư người đó đã lập thì KHÔNG cản: bảng đó cố ý không khai khóa
+ * ngoại tới User (chép sẵn tên và chức danh lúc lập), nên chứng từ vẫn nguyên
+ * vẹn sau khi tài khoản biến mất.
+ */
+export async function deleteUser(
+  _prevState: { message: string; success?: boolean },
+  formData: FormData
+): Promise<{ message: string; success?: boolean }> {
+  const admin = await requireActiveRole(["ADMIN"]);
+  if (!admin) {
+    return { message: NO_PERMISSION };
+  }
+  const id = Number(formData.get("id"));
+  if (!Number.isInteger(id) || id <= 0) {
+    return { message: "Dữ liệu không hợp lệ." };
+  }
+  if (id === admin.id) {
+    return {
+      message:
+        "Không thể tự xóa tài khoản của chính mình. Nhờ một quản trị khác xóa hộ.",
+    };
+  }
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) {
+    return { message: "Không tìm thấy người dùng." };
+  }
+
+  const [soFile, soYeuCau, soUyQuyen, soPhanCong] = await Promise.all([
+    prisma.reportDocument.count({ where: { uploadedById: id } }),
+    prisma.materialRequest.count({ where: { requestedById: id } }),
+    prisma.delegation.count({
+      where: { OR: [{ delegatorId: id }, { delegateId: id }] },
+    }),
+    prisma.fleetAssignment.count({ where: { userId: id } }),
+  ]);
+
+  if (soFile > 0) {
+    return {
+      message:
+        `Tài khoản này đã tải lên ${soFile} file báo cáo. File là bản lưu bất biến và phải giữ được vết ai đã nộp, ` +
+        "nên không xóa tài khoản được — hãy KHÓA tài khoản thay vì xóa.",
+    };
+  }
+
+  try {
+    await prisma.user.delete({ where: { id } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2025") {
+        return { message: "Không tìm thấy người dùng." };
+      }
+      if (error.code === "P2003") {
+        return {
+          message:
+            "Tài khoản đang gắn với dữ liệu khác nên không xóa được. Hãy khóa tài khoản thay vì xóa.",
+        };
+      }
+    }
+    throw error;
+  }
+
+  // Ghi thẳng bằng ghiNhatKy — xem lý do ở createUser. Trước đây chỗ này không
+  // truyền vesselId nên dòng nhật ký luôn mang tàu của ông quản trị, kể cả khi
+  // tài khoản bị xóa thuộc tàu khác.
+  await ghiNhatKy({
+    userId: admin.id,
+    email: admin.email,
+    role: admin.role,
+    vesselId: user.vesselId,
+    action: "xoa-tai-khoan",
+    path: "/users",
+    detail:
+      `Xóa "${user.email}" (${ROLE_LABEL[user.role] ?? user.role}, ${user.name})` +
+      ` — còn ${soYeuCau} yêu cầu vật tư mang tên người này (giữ nguyên),` +
+      ` xóa theo ${soUyQuyen} ủy quyền và ${soPhanCong} dòng phân công đội tàu.`,
+  });
+
+  revalidatePath("/users");
+  return { message: `Đã xóa tài khoản "${user.email}".`, success: true };
 }
 
 // Xóa hẳn một đơn mua ĐÃ HỦY. Đơn hủy là rác trong danh sách nhưng vẫn phải
@@ -2548,8 +3386,8 @@ export async function deletePurchaseOrder(
   if (!po) {
     return { message: "Đơn mua đã bị xóa hoặc không tồn tại." };
   }
-  const scope = vesselScope(actor);
-  if (!scope.all && po.vesselId !== scope.vesselId) {
+  const scope = vesselScopeDayDu(actor);
+  if (!trongPhamVi(scope, po.vesselId)) {
     return { message: NO_PERMISSION };
   }
   if (po.status !== "CANCELLED") {
@@ -2580,6 +3418,18 @@ export async function deletePurchaseOrder(
     }
     // PurchaseOrderItem tự xóa theo (onDelete: Cascade).
     await tx.purchaseOrder.delete({ where: { id } });
+  });
+
+  // Số PO đã xóa không bao giờ được cấp lại (sinhSoDonMua lấy số lớn nhất +1),
+  // nên trong sổ sẽ có một khoảng trống. Ghi lại để sau này còn giải thích
+  // được khoảng trống đó là do ai xóa, chứ không phải chứng từ thất lạc.
+  await ghiNhatKyNguoiDung(actor, {
+    action: "xoa-don-mua",
+    path: "/purchasing",
+    vesselId: po.vesselId,
+    detail:
+      `Xóa đơn ${po.poNo} (đã hủy, ${po.items.length} dòng, chưa nhận hàng)` +
+      `, người lập ${po.createdBy}`,
   });
 
   revalidatePath("/purchasing");
@@ -2641,6 +3491,9 @@ export async function updateMaterial(
         minStock,
         maxStock,
         isCritical: formData.get("isCritical") === "on",
+        // Mã đổi thì phân loại phải đổi theo. Giữ nguyên khi mã không đổi để
+        // không xóa mất phân loại do gan-ma-vat-tu.cmd gán cho mã cũ.
+        ...(code !== before.code ? phanLoaiTuMa(code) : {}),
       },
     });
   } catch (error) {

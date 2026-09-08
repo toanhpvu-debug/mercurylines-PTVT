@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma";
 import {
   coQuanLySon,
   requireScopedUser,
-  vesselScope,
+  trongPhamVi,
+  vesselIdWhere,
+  vesselScopeDayDu,
 } from "@/lib/auth";
 import { LAP_YEU_CAU, ROLE_LABEL, nguoiDuyetCapTau, boPhanCuaChucDanh } from "@/lib/roles";
 import { PAINT_TYPE_LABEL } from "@/lib/paintTypes";
@@ -43,12 +45,12 @@ export default async function PaintVesselPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const { id } = await params;
   const vesselId = Number(id);
   if (!Number.isInteger(vesselId) || vesselId <= 0) notFound();
   // Người bị giới hạn tàu không xem được tàu khác kể cả gõ thẳng URL.
-  if (!scope.all && scope.vesselId !== vesselId) notFound();
+  if (!trongPhamVi(scope, vesselId)) notFound();
 
   const vessel = await prisma.vessel.findUnique({ where: { id: vesselId } });
   if (!vessel) notFound();
@@ -96,7 +98,9 @@ export default async function PaintVesselPage({
   // Tàu khác đã có sơ đồ — nguồn để sao chép. Chỉ lấy trong phạm vi người dùng.
   const copySources = canEdit
     ? await prisma.vessel.findMany({
-        where: scope.all ? { id: { not: vesselId } } : { id: -1 },
+        where: scope.all
+          ? { id: { not: vesselId } }
+          : { AND: [vesselIdWhere(scope), { id: { not: vesselId } }] },
         orderBy: { code: "asc" },
         select: {
           id: true,

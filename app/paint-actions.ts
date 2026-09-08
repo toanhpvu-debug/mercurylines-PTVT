@@ -8,10 +8,17 @@ import {
   canManageVesselCatalog,
   coQuanLySon,
   requireActiveRole,
-  vesselScope,
+  trongPhamVi,
+  vesselIdWhere,
+  vesselScopeDayDu,
 } from "@/lib/auth";
 import { PAINT_TYPE_VALUES } from "@/lib/paintTypes";
-import { VAN_HANH_SON, boPhanCuaChucDanh } from "@/lib/roles";
+import {
+  ROLE_LABEL,
+  VAN_HANH_SON,
+  boPhanCuaChucDanh,
+  trinhThangLenCongTy,
+} from "@/lib/roles";
 
 // Server action cho module Quản lý sơn. Tách khỏi app/actions.ts (đã 2200 dòng)
 // để phần sơn đứng riêng, dễ đọc và dễ sửa.
@@ -41,6 +48,22 @@ function numOrNull(formData: FormData, key: string) {
   const n = Number(raw.replace(",", "."));
   return Number.isFinite(n) ? n : null;
 }
+
+// P2025 = "bản ghi cần thao tác không còn nữa". Xảy ra thường xuyên ở đây:
+// trang sơn của tàu mở lâu, hai người cùng nhìn một danh sách rồi cùng bấm
+// xóa/sửa một dòng — người gửi lệnh sau thao tác vào bản ghi đã biến mất.
+//
+// Mọi chỗ xóa/sửa theo id trong file này đều đọc bản ghi trước rồi mới ghi, nên
+// luôn có khe hở giữa hai lệnh. Không bắt thì server action ném ra ngoài, Next
+// trả 500 và người dùng gặp trang lỗi trắng thay vì một câu tiếng Việt.
+function laBanGhiDaMat(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2025"
+  );
+}
+
+const DA_XOA_TRUOC = "Bản ghi đã bị xóa trước đó.";
 
 // Kiểm tra quyền thao tác phần SƠN của một tàu, trả về user hoặc null.
 //
@@ -138,6 +161,9 @@ export async function savePaintProduct(
     ) {
       return { message: `Mã sơn "${code}" đã tồn tại.` };
     }
+    if (laBanGhiDaMat(error)) {
+      return { message: "Loại sơn này đã bị xóa trước đó." };
+    }
     throw error;
   }
   revalidatePath("/paint/products");
@@ -155,10 +181,17 @@ export async function togglePaintProduct(
   const id = Number(formData.get("id"));
   const product = await prisma.paintProduct.findUnique({ where: { id } });
   if (!product) return { message: "Không tìm thấy loại sơn." };
-  await prisma.paintProduct.update({
-    where: { id },
-    data: { isActive: !product.isActive },
-  });
+  try {
+    await prisma.paintProduct.update({
+      where: { id },
+      data: { isActive: !product.isActive },
+    });
+  } catch (error) {
+    if (laBanGhiDaMat(error)) {
+      return { message: "Loại sơn đã bị xóa trước đó." };
+    }
+    throw error;
+  }
   revalidatePath("/paint/products");
   return {
     message: product.isActive
@@ -179,16 +212,28 @@ export async function deletePaintProduct(
   const product = await prisma.paintProduct.findUnique({
     where: { id },
     include: {
-      _count: { select: { schemeLayers: true, jobLines: true, stocks: true } },
+      _count: {
+        select: {
+          schemeLayers: true,
+          jobLines: true,
+          stocks: true,
+          transactions: true,
+        },
+      },
     },
   });
   if (!product) return { message: "Không tìm thấy loại sơn." };
-  // Giữ lịch sử: đã dùng trong sơ đồ sơn hoặc nhật ký thì không xóa được.
+  // Giữ lịch sử: đã dùng trong sơ đồ sơn, nhật ký thi công, hoặc đã từng
+  // nhập/xuất trên tàu thì không xóa được. Khóa ngoại PaintTransaction là
+  // ON DELETE RESTRICT nên bỏ sót "transactions" ở đây sẽ khiến lệnh xóa
+  // tồn kho phía dưới commit xong rồi mới vỡ — mất sạch định mức minQty.
   const used =
-    product._count.schemeLayers + product._count.jobLines;
+    product._count.schemeLayers +
+    product._count.jobLines +
+    product._count.transactions;
   if (used > 0) {
     return {
-      message: `Không xóa được: "${product.name}" đang dùng trong ${product._count.schemeLayers} lớp sơ đồ và ${product._count.jobLines} dòng nhật ký. Hãy dùng "Ngừng dùng".`,
+      message: `Không xóa được: "${product.name}" đã có ${product._count.transactions} giao dịch nhập/xuất, ${product._count.schemeLayers} lớp sơ đồ, ${product._count.jobLines} dòng nhật ký. Hãy dùng "Ngừng dùng".`,
     };
   }
   const stocked = await prisma.paintStock.count({
@@ -199,9 +244,28 @@ export async function deletePaintProduct(
       message: `Không xóa được: còn tồn trên ${stocked} tàu. Hãy xuất hết hoặc dùng "Ngừng dùng".`,
     };
   }
-  await prisma.paintStock.deleteMany({ where: { productId: id } });
-  await prisma.paintProduct.delete({ where: { id } });
+  // Hai lệnh phải đi chung một transaction: nếu lệnh sau vỡ vì còn tham
+  // chiếu, lệnh trước cũng phải quay lại, không được để mất dòng tồn kho.
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.paintStock.deleteMany({ where: { productId: id } });
+      await tx.paintProduct.delete({ where: { id } });
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2003") {
+        return {
+          message: `Không xóa được: "${product.name}" còn được tham chiếu ở nơi khác. Hãy dùng "Ngừng dùng".`,
+        };
+      }
+      if (error.code === "P2025") {
+        return { message: "Loại sơn đã bị xóa trước đó." };
+      }
+    }
+    throw error;
+  }
   revalidatePath("/paint/products");
+  revalidatePath("/paint");
   return { message: `Đã xóa "${product.name}".`, success: true };
 }
 
@@ -237,6 +301,9 @@ export async function savePaintArea(
     ) {
       return { message: `Tàu này đã có khu vực tên "${name}".` };
     }
+    if (laBanGhiDaMat(error)) {
+      return { message: "Khu vực này đã bị xóa trước đó." };
+    }
     throw error;
   }
   revalidateVessel(vesselId);
@@ -265,7 +332,12 @@ export async function deletePaintArea(
     };
   }
   // Xóa khu vực thì các lớp sơ đồ của nó bị xóa theo (onDelete: Cascade).
-  await prisma.paintArea.delete({ where: { id } });
+  try {
+    await prisma.paintArea.delete({ where: { id } });
+  } catch (error) {
+    if (laBanGhiDaMat(error)) return { message: DA_XOA_TRUOC };
+    throw error;
+  }
   revalidateVessel(vesselId);
   return { message: `Đã xóa khu vực "${area.name}".`, success: true };
 }
@@ -290,6 +362,20 @@ export async function savePaintSchemeLayer(
     return { message: "Khu vực không thuộc tàu này." };
   }
   const id = Number(formData.get("id") || 0);
+  // id đến thẳng từ form và KHÔNG ràng buộc gì với areaId vừa kiểm tra ở trên:
+  // sửa tay một con số trong form là ghi đè được lớp sơ đồ của tàu khác (quyền
+  // tàu A vẫn qua, khu vực A vẫn qua, rồi update theo id của một lớp thuộc tàu
+  // B). Đọc lớp kèm khu vực rồi đối chiếu vesselId — đúng khuôn mà
+  // deletePaintSchemeLayer ngay bên dưới đã làm.
+  if (id > 0) {
+    const hienCo = await prisma.paintSchemeLayer.findUnique({
+      where: { id },
+      include: { area: true },
+    });
+    if (!hienCo || hienCo.area.vesselId !== vesselId) {
+      return { message: "Không tìm thấy lớp sơn." };
+    }
+  }
   const data = {
     productId,
     layerNo: Math.max(1, Math.trunc(num(formData, "layerNo", 1))),
@@ -297,10 +383,17 @@ export async function savePaintSchemeLayer(
     dft: num(formData, "dft"),
     notes: text(formData, "notes") || null,
   };
-  if (id > 0) {
-    await prisma.paintSchemeLayer.update({ where: { id }, data });
-  } else {
-    await prisma.paintSchemeLayer.create({ data: { ...data, areaId } });
+  try {
+    if (id > 0) {
+      await prisma.paintSchemeLayer.update({ where: { id }, data });
+    } else {
+      await prisma.paintSchemeLayer.create({ data: { ...data, areaId } });
+    }
+  } catch (error) {
+    if (laBanGhiDaMat(error)) {
+      return { message: "Lớp sơn này đã bị xóa trước đó." };
+    }
+    throw error;
   }
   revalidateVessel(vesselId);
   return { message: "Đã lưu lớp sơn.", success: true };
@@ -322,7 +415,12 @@ export async function deletePaintSchemeLayer(
   if (!layer || layer.area.vesselId !== vesselId) {
     return { message: "Không tìm thấy lớp sơn." };
   }
-  await prisma.paintSchemeLayer.delete({ where: { id } });
+  try {
+    await prisma.paintSchemeLayer.delete({ where: { id } });
+  } catch (error) {
+    if (laBanGhiDaMat(error)) return { message: DA_XOA_TRUOC };
+    throw error;
+  }
   revalidateVessel(vesselId);
   return { message: "Đã xóa lớp sơn.", success: true };
 }
@@ -412,21 +510,40 @@ export async function paintStockMove(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const stock = await tx.paintStock.findUnique({
-        where: { vesselId_productId: { vesselId, productId } },
-      });
-      const current = stock?.quantity ?? 0;
-      if (type === "OUT" && quantity > current) {
-        throw new Error(
-          `Không đủ tồn: còn ${current}, muốn xuất ${quantity}.`
-        );
+      // Cộng/trừ NGUYÊN TỬ ngay trong câu lệnh UPDATE, không đọc số tồn ra
+      // JavaScript rồi ghi đè bằng một số tuyệt đối.
+      //
+      // Đây là phiếu NHẬP/XUẤT chứ không phải kiểm kê: mỗi phiếu là một khoản
+      // cộng hoặc trừ vào số đang có, ai ghi trước ghi sau đều phải cộng dồn.
+      // Kiểu đọc-rồi-ghi-đè cũ mất bản ghi của người khác — transaction của
+      // PostgreSQL mặc định READ COMMITTED nên hai thủy thủ cùng nhận sơn một
+      // lúc sẽ cùng đọc ra số cũ (ví dụ 100), một người ghi 100+20, người kia
+      // ghi 100+30, kết quả còn 130 thay vì 150 và không ai biết là đã mất 20.
+      if (type === "IN") {
+        await tx.paintStock.upsert({
+          where: { vesselId_productId: { vesselId, productId } },
+          update: { quantity: { increment: quantity } },
+          create: { vesselId, productId, quantity },
+        });
+      } else {
+        // Điều kiện "còn đủ tồn" nằm ngay trong WHERE nên việc kiểm tra và
+        // việc trừ là MỘT thao tác duy nhất: không còn khe hở giữa lúc kiểm
+        // tra và lúc ghi để một phiếu xuất khác chen vào làm tồn âm.
+        const daTru = await tx.paintStock.updateMany({
+          where: { vesselId, productId, quantity: { gte: quantity } },
+          data: { quantity: { decrement: quantity } },
+        });
+        if (daTru.count === 0) {
+          // Không trừ được thì hoặc chưa có dòng tồn, hoặc còn ít hơn số muốn
+          // xuất. Đọc lại chỉ để báo con số thật cho người dùng.
+          const con = await tx.paintStock.findUnique({
+            where: { vesselId_productId: { vesselId, productId } },
+          });
+          throw new Error(
+            `Không đủ tồn: còn ${con?.quantity ?? 0}, muốn xuất ${quantity}.`
+          );
+        }
       }
-      const next = type === "IN" ? current + quantity : current - quantity;
-      await tx.paintStock.upsert({
-        where: { vesselId_productId: { vesselId, productId } },
-        update: { quantity: next },
-        create: { vesselId, productId, quantity: next },
-      });
       await tx.paintTransaction.create({
         data: {
           vesselId,
@@ -519,27 +636,15 @@ export async function createPaintJob(
   if (!lines.length) {
     return { message: "Nhập ít nhất một dòng sơn đã dùng (loại sơn + số lượng)." };
   }
+  // Trừ tồn theo THỨ TỰ productId tăng dần. `updateMany ... decrement` giữ khóa
+  // dòng tới hết giao dịch, nên hai nhật ký thi công lưu cùng lúc mà chạm hai
+  // loại sơn A và B theo thứ tự ngược nhau sẽ kẹp chết nhau (deadlock). Người
+  // dùng cũng hay chọn trùng loại sơn hoặc bấm đúp nút Lưu. Cố định thứ tự khóa
+  // ở đây thì hai nhật ký thi công không bao giờ tạo vòng chờ với nhau.
+  lines.sort((a, b) => a.productId - b.productId);
 
   try {
     await prisma.$transaction(async (tx) => {
-      // Kiểm tra đủ tồn trước khi ghi, để không tạo nhật ký treo.
-      for (const line of lines) {
-        const stock = await tx.paintStock.findUnique({
-          where: {
-            vesselId_productId: { vesselId, productId: line.productId },
-          },
-          include: { product: true },
-        });
-        const current = stock?.quantity ?? 0;
-        if (line.quantity > current) {
-          const p =
-            stock?.product ??
-            (await tx.paintProduct.findUnique({ where: { id: line.productId } }));
-          throw new Error(
-            `Không đủ tồn "${p?.name ?? line.productId}": còn ${current}, cần ${line.quantity}.`
-          );
-        }
-      }
       const job = await tx.paintJob.create({
         data: {
           vesselId,
@@ -558,12 +663,38 @@ export async function createPaintJob(
       });
       // Thi công thì trừ tồn và ghi giao dịch OUT gắn với công việc.
       for (const line of lines) {
-        await tx.paintStock.update({
+        // Điều kiện "còn đủ tồn" nằm ngay trong WHERE nên việc kiểm tra và việc
+        // trừ là MỘT lệnh duy nhất. Kiểu đọc tồn ra rồi so rồi mới trừ để hở
+        // khoảng giữa hai lệnh: hai người cùng ghi nhật ký thi công (hay một
+        // người bấm đúp nút Lưu) đều đọc ra cùng số cũ, cả hai cùng qua vòng
+        // kiểm tra, rồi cả hai cùng trừ. Cột quantity không có ràng buộc >= 0
+        // nên tồn tụt xuống âm và nằm im, sổ sơn lệch vĩnh viễn mà không ai
+        // nhận được cảnh báo. Đây cũng là ngữ nghĩa của hai đường xuất sơn kia
+        // (phiếu lẻ và nhập/xuất hàng loạt) — cả ba phải giống nhau.
+        const daTru = await tx.paintStock.updateMany({
           where: {
-            vesselId_productId: { vesselId, productId: line.productId },
+            vesselId,
+            productId: line.productId,
+            quantity: { gte: line.quantity },
           },
           data: { quantity: { decrement: line.quantity } },
         });
+        if (daTru.count === 0) {
+          // Không trừ được thì hoặc chưa có dòng tồn, hoặc còn ít hơn số đã
+          // dùng. Đọc lại chỉ để báo tên sơn và con số thật cho người dùng.
+          const con = await tx.paintStock.findUnique({
+            where: {
+              vesselId_productId: { vesselId, productId: line.productId },
+            },
+            include: { product: true },
+          });
+          const p =
+            con?.product ??
+            (await tx.paintProduct.findUnique({ where: { id: line.productId } }));
+          throw new Error(
+            `Không đủ tồn "${p?.name ?? line.productId}": còn ${con?.quantity ?? 0}, cần ${line.quantity}.`
+          );
+        }
         await tx.paintTransaction.create({
           data: {
             vesselId,
@@ -581,6 +712,28 @@ export async function createPaintJob(
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("Không đủ tồn")) {
       return { message: error.message };
+    }
+    // Dòng tồn của một loại sơn vừa bị xóa xong giữa lúc ghi — lệnh theo id ném
+    // P2025, để lọt ra ngoài là trang lỗi trắng. Chỉ nói phạm vi thật của nhánh
+    // này là DÒNG TỒN / LOẠI SƠN: khu vực bị xóa không rơi vào đây.
+    if (laBanGhiDaMat(error)) {
+      return {
+        message:
+          "Một loại sơn trong bản ghi vừa bị người khác xóa. Chưa ghi gì cả, hãy mở lại trang rồi nhập lại.",
+      };
+    }
+    // Khu vực bị xóa giữa lúc kiểm tra ở trên và lúc tạo bản ghi thì KHÔNG ném
+    // P2025 mà ném P2003 (vi phạm khóa ngoại areaId, hoặc productId của một
+    // dòng sơn). Thiếu nhánh này thì đúng cái trường hợp mà câu thông báo trên
+    // nhắc tên lại là trường hợp vẫn trả 500.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2003"
+    ) {
+      return {
+        message:
+          "Khu vực hoặc loại sơn trong bản ghi vừa bị xóa. Chưa ghi gì cả, hãy mở lại trang rồi nhập lại.",
+      };
     }
     throw error;
   }
@@ -604,19 +757,32 @@ export async function deletePaintJob(
     return { message: "Không tìm thấy bản ghi thi công." };
   }
   // Xóa nhật ký thì hoàn lại tồn đã trừ, nếu không sổ sơn sẽ lệch vĩnh viễn.
-  await prisma.$transaction(async (tx) => {
-    for (const line of job.lines) {
-      await tx.paintStock.upsert({
-        where: {
-          vesselId_productId: { vesselId, productId: line.productId },
-        },
-        update: { quantity: { increment: line.quantity } },
-        create: { vesselId, productId: line.productId, quantity: line.quantity },
-      });
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const line of job.lines) {
+        await tx.paintStock.upsert({
+          where: {
+            vesselId_productId: { vesselId, productId: line.productId },
+          },
+          update: { quantity: { increment: line.quantity } },
+          create: {
+            vesselId,
+            productId: line.productId,
+            quantity: line.quantity,
+          },
+        });
+      }
+      await tx.paintTransaction.deleteMany({ where: { jobId: id } });
+      await tx.paintJob.delete({ where: { id } });
+    });
+  } catch (error) {
+    // Người thứ hai bấm xóa cùng một bản ghi thi công: transaction đã hoàn lại
+    // hết nên tồn không bị cộng hai lần, chỉ cần báo là bản ghi không còn nữa.
+    if (laBanGhiDaMat(error)) {
+      return { message: "Bản ghi thi công đã bị xóa trước đó." };
     }
-    await tx.paintTransaction.deleteMany({ where: { jobId: id } });
-    await tx.paintJob.delete({ where: { id } });
-  });
+    throw error;
+  }
   revalidateVessel(vesselId);
   return {
     message: "Đã xóa bản ghi thi công và hoàn lại tồn sơn.",
@@ -629,9 +795,9 @@ export async function listPaintVessels(user: {
   role: string;
   vesselId: number | null;
 }) {
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   return prisma.vessel.findMany({
-    where: scope.all ? {} : { id: scope.vesselId ?? -1 },
+    where: vesselIdWhere(scope),
     orderBy: { code: "asc" },
   });
 }
@@ -655,8 +821,8 @@ export async function copyPaintScheme(
   // Chỉ đọc sơ đồ của tàu người dùng được phép xem.
   const actor = await requireFleetPaintAccess();
   if (!actor) return { message: NO_PERMISSION };
-  const scope = vesselScope(actor);
-  if (!scope.all && scope.vesselId !== fromVesselId) {
+  const scope = vesselScopeDayDu(actor);
+  if (!trongPhamVi(scope, fromVesselId)) {
     return { message: "Bạn không được xem sơ đồ của tàu nguồn." };
   }
 
@@ -722,6 +888,54 @@ export async function copyPaintScheme(
       (skipped ? ` Bỏ qua ${skipped} khu vực đã có sẵn.` : ""),
     success: true,
   };
+}
+
+// ─── Dùng chung cho hai đường nhập sơn từ file ───────────────────────────────
+
+// Chỉ nêu tên sơn thì người dùng không biết mở sheet nào ra sửa — file kiểm kê
+// thật tách nhiều sheet theo bộ phận và hay có cùng một tên sơn ở vài sheet.
+function moTaDongSon(item: { name: string; sheet: string | null }) {
+  return item.sheet ? `“${item.name}” (sheet ${item.sheet})` : `“${item.name}”`;
+}
+
+// Phân loại lỗi hạ tầng khi ghi một lô sơn từ file.
+//
+// Hai nút nhập file sơn (danh mục và nhập/xuất hàng loạt) nằm cạnh nhau trên
+// cùng một trang; để mỗi bên tự viết câu báo thì cùng một sự cố lại nói hai
+// giọng, và bên nào quên bắt thì trả trang lỗi trắng 500. Gom về một chỗ để sửa
+// câu chữ một lần là cả hai đường cùng đổi.
+//
+// Trả null nghĩa là chưa nhận ra lỗi — bên gọi ghi log rồi trả câu chung của
+// riêng nó. Cả khối ghi nằm trong MỘT transaction nên mọi trường hợp dưới đây
+// đều là "chưa ghi dòng nào"; nói rõ ra để người dùng khỏi phải đi dò xem file
+// đã vào được đến đâu rồi mới dám bấm lại.
+function loiGhiFileSon(error: unknown, viTri: string): string | null {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return null;
+  switch (error.code) {
+    case "P2002":
+      return `Có phiên nhập sơn khác chạy cùng lúc nên mã sơn tự sinh bị trùng khi ghi ${viTri}. Chưa ghi dòng nào, hãy bấm nhập lại.`;
+    // P2034 = write conflict / deadlock. Không phải mã lý thuyết: hai đường
+    // nhập file đều khóa từng dòng PaintStock theo đúng thứ tự sơn trong file,
+    // nên hai người nhập hai file liệt kê sơn ngược thứ tự nhau là công thức
+    // kinh điển của deadlock. Rơi xuống câu chung "hãy kiểm tra lại dòng đó
+    // trong file" thì người dùng đi sửa hoặc xóa một dòng hoàn toàn lành, mất
+    // luôn số lượng của dòng đó — trong khi chỉ cần bấm lại y nguyên là xong.
+    case "P2034":
+      return `Có phiên nhập/xuất sơn khác chạy cùng lúc nên hai bên tranh nhau cùng một dòng tồn (dừng ở ${viTri}). Chưa ghi dòng nào, hãy bấm nhập lại — không cần sửa file.`;
+    case "P2025":
+      return `Loại sơn ở ${viTri} vừa bị người khác xóa khỏi danh mục. Chưa ghi dòng nào, hãy mở lại trang rồi nhập lại.`;
+    case "P2003":
+      return `Không ghi được ${viTri}: tàu hoặc loại sơn liên quan không còn tồn tại. Chưa ghi dòng nào.`;
+    // P2028 là mã chung của Transaction API: hết thời gian chạy vì file dài,
+    // NHƯNG cũng ném ra khi không xin được transaction trong maxWait lúc pool
+    // kết nối đang bận. Quy về một nguyên nhân "file quá dài" là bắt người dùng
+    // ngồi cắt nhỏ một file 20 dòng giữa giờ cao điểm — mà mỗi mảnh lại là một
+    // transaction riêng nên mất luôn tính "cả lô hoặc không gì cả".
+    case "P2028":
+      return `Quá thời gian ghi khi tới ${viTri} — hoặc file quá dài, hoặc hệ thống đang bận. Chưa ghi dòng nào; hãy thử lại, nếu vẫn vậy thì tách file thành nhiều phần nhỏ hơn.`;
+    default:
+      return null;
+  }
 }
 
 // ─── Nhập danh mục sơn từ file Excel hoặc text dán tay ───────────────────────
@@ -797,82 +1011,108 @@ export async function importPaintProducts(
   let updated = 0;
   let stockRows = 0;
 
-  await prisma.$transaction(
-    async (tx) => {
-      for (const item of parsed.items) {
-        const key = norm(item.name);
-        let product = byName.get(key);
-        if (product) {
-          // Chỉ điền thêm ô còn trống, KHÔNG ghi đè dữ liệu đã có trong app —
-          // người dùng có thể đã chỉnh tay chính xác hơn file.
-          const patch: Record<string, unknown> = {};
-          if (!product.maker && item.maker) patch.maker = item.maker;
-          if (product.paintType === "OTHER" && item.paintType)
-            patch.paintType = item.paintType;
-          if (!product.colorCode && item.colorCode) patch.colorCode = item.colorCode;
-          if (!product.colorName && item.colorName) patch.colorName = item.colorName;
-          if (!product.packSize && item.packSize) patch.packSize = item.packSize;
-          if (!product.coverage && item.coverage) patch.coverage = item.coverage;
-          if (!product.dftPerCoat && item.dftPerCoat)
-            patch.dftPerCoat = item.dftPerCoat;
-          if (!product.thinner && item.thinner) patch.thinner = item.thinner;
-          if (Object.keys(patch).length) {
-            product = await tx.paintProduct.update({
-              where: { id: product.id },
-              data: patch,
-            });
-            updated += 1;
-          }
-        } else {
-          product = await tx.paintProduct.create({
-            data: {
-              code: nextCode(),
-              name: item.name,
-              maker: item.maker,
-              paintType: item.paintType ?? "OTHER",
-              colorCode: item.colorCode,
-              colorName: item.colorName,
-              uom: item.uom || "L",
-              packSize: item.packSize ?? 0,
-              coverage: item.coverage ?? 0,
-              dftPerCoat: item.dftPerCoat ?? 0,
-              thinner: item.thinner,
-            },
-          });
-          byName.set(key, product);
-          created += 1;
-        }
+  // Giữ lại dòng đang ghi dở để nếu vỡ giữa chừng còn chỉ đúng chỗ hỏng trong
+  // file. Dùng object chứ không dùng biến rời vì biến được gán bên trong hàm
+  // callback thì TypeScript không theo dõi được giá trị lúc đọc ở khối catch.
+  const viTri = { dong: "" };
 
-        // Ghi tồn nếu chọn tàu và file có cột số lượng.
-        if (vesselId && item.quantity !== null && item.quantity >= 0) {
-          const stock = await tx.paintStock.findUnique({
-            where: { vesselId_productId: { vesselId, productId: product.id } },
-          });
-          const current = stock?.quantity ?? 0;
-          const delta = item.quantity - current;
-          await tx.paintStock.upsert({
-            where: { vesselId_productId: { vesselId, productId: product.id } },
-            update: { quantity: item.quantity },
-            create: { vesselId, productId: product.id, quantity: item.quantity },
-          });
-          if (delta !== 0) {
-            await tx.paintTransaction.create({
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        for (const item of parsed.items) {
+          viTri.dong = moTaDongSon(item);
+          const key = norm(item.name);
+          let product = byName.get(key);
+          if (product) {
+            // Chỉ điền thêm ô còn trống, KHÔNG ghi đè dữ liệu đã có trong app —
+            // người dùng có thể đã chỉnh tay chính xác hơn file.
+            const patch: Record<string, unknown> = {};
+            if (!product.maker && item.maker) patch.maker = item.maker;
+            if (product.paintType === "OTHER" && item.paintType)
+              patch.paintType = item.paintType;
+            if (!product.colorCode && item.colorCode) patch.colorCode = item.colorCode;
+            if (!product.colorName && item.colorName) patch.colorName = item.colorName;
+            if (!product.packSize && item.packSize) patch.packSize = item.packSize;
+            if (!product.coverage && item.coverage) patch.coverage = item.coverage;
+            if (!product.dftPerCoat && item.dftPerCoat)
+              patch.dftPerCoat = item.dftPerCoat;
+            if (!product.thinner && item.thinner) patch.thinner = item.thinner;
+            if (Object.keys(patch).length) {
+              product = await tx.paintProduct.update({
+                where: { id: product.id },
+                data: patch,
+              });
+              updated += 1;
+            }
+          } else {
+            product = await tx.paintProduct.create({
               data: {
-                vesselId,
-                productId: product.id,
-                type: delta > 0 ? "IN" : "OUT",
-                quantity: Math.abs(delta),
-                note: "Nhập danh mục sơn từ file",
-                performedBy: actor.name,
+                code: nextCode(),
+                name: item.name,
+                maker: item.maker,
+                paintType: item.paintType ?? "OTHER",
+                colorCode: item.colorCode,
+                colorName: item.colorName,
+                uom: item.uom || "L",
+                packSize: item.packSize ?? 0,
+                coverage: item.coverage ?? 0,
+                dftPerCoat: item.dftPerCoat ?? 0,
+                thinner: item.thinner,
               },
             });
+            byName.set(key, product);
+            created += 1;
           }
-          stockRows += 1;
+
+          // Ghi tồn nếu chọn tàu và file có cột số lượng.
+          if (vesselId && item.quantity !== null && item.quantity >= 0) {
+            const stock = await tx.paintStock.findUnique({
+              where: { vesselId_productId: { vesselId, productId: product.id } },
+            });
+            const current = stock?.quantity ?? 0;
+            const delta = item.quantity - current;
+            await tx.paintStock.upsert({
+              where: { vesselId_productId: { vesselId, productId: product.id } },
+              update: { quantity: item.quantity },
+              create: { vesselId, productId: product.id, quantity: item.quantity },
+            });
+            if (delta !== 0) {
+              await tx.paintTransaction.create({
+                data: {
+                  vesselId,
+                  productId: product.id,
+                  type: delta > 0 ? "IN" : "OUT",
+                  quantity: Math.abs(delta),
+                  note: "Nhập danh mục sơn từ file",
+                  performedBy: actor.name,
+                },
+              });
+            }
+            stockRows += 1;
+          }
         }
-      }
-    },
-    { timeout: 60000, maxWait: 10000 }
-  );
+      },
+      { timeout: 60000, maxWait: 10000 }
+    );
+  } catch (error) {
+    // Không bắt thì server action ném thẳng ra ngoài, Next.js trả 500 và người
+    // dùng chỉ thấy trang lỗi trắng — trong khi cùng người đó, cùng trang này,
+    // bấm nút nhập/xuất hàng loạt bên cạnh lại nhận được một câu tiếng Việt rõ
+    // ràng. Đường này còn dễ vỡ hơn: duyệt toàn bộ parsed.items (tới 2000 dòng,
+    // không gộp trùng) trong một transaction chỉ 60 giây, và mã SON-#### sinh
+    // theo bộ đếm trong bộ nhớ nên hai phiên nhập song song rất dễ đâm P2002.
+    const loi = loiGhiFileSon(error, viTri.dong || "dòng đầu tiên");
+    if (loi) return { message: loi };
+    // Lỗi chưa lường trước: người dùng vẫn phải nhận câu tiếng Việt, nhưng nuốt
+    // luôn cả nguyên nhân thì không ai lần ra được nữa — ghi ra log server.
+    console.error(
+      `[nhap-danh-muc-son] tàu ${vesselId ?? "không chọn"}, ${viTri.dong || "dòng đầu"}:`,
+      error
+    );
+    return {
+      message: `Không nhập được danh mục sơn, hỏng ở ${viTri.dong || "dòng đầu tiên"}. Chưa ghi dòng nào — hãy kiểm tra lại dòng đó trong file rồi thử lại.`,
+    };
+  }
 
   revalidatePath("/paint");
   revalidatePath("/paint/products");
@@ -891,6 +1131,14 @@ export async function importPaintProducts(
       parts.push(
         "Sheet đã đọc: " + read.map((s) => `${s.name} (${s.count})`).join("; ")
       );
+  }
+  // Bộ đọc file cắt bớt khi vượt ngưỡng dòng/cột và chỉ bật cờ truncated. Im
+  // lặng thì người dùng đọc "Đã đọc N dòng" rồi tin là cả danh mục đã vào, mà
+  // chính những loại sơn bị cắt mới là những loại họ đi tìm sau này.
+  if (parsed.truncated) {
+    parts.push(
+      "⚠ File vượt quá giới hạn đọc nên phần cuối chưa được nhập — hãy tách file nhỏ hơn rồi nhập nốt phần còn lại"
+    );
   }
   return { message: parts.join(" · "), success: true };
 }
@@ -979,6 +1227,14 @@ export async function taoYeuCauSon(
     requestNo = `${base}${String(seq).padStart(4, "0")}`;
   }
 
+  // Thuyền trưởng / quản trị lập thì cấp tàu coi như đã ký — đi thẳng lên công
+  // ty, cùng quy tắc với yêu cầu vật tư thường và yêu cầu nhiên liệu.
+  //
+  // Thiếu bước này thì yêu cầu do chính thuyền trưởng lập nằm kẹt vĩnh viễn ở
+  // PENDING_MASTER: thuyền trưởng không tự duyệt được (không tự duyệt yêu cầu
+  // mình lập), máy trưởng chỉ duyệt bộ phận Máy/Điện, quản lý kỹ thuật chỉ
+  // duyệt ở PENDING_OFFICE, và cũng không trình lại được.
+  const thangLenCongTy = trinhThangLenCongTy(actor.role);
   const now = new Date();
   const created = await prisma.$transaction(async (tx) => {
     const req = await tx.materialRequest.create({
@@ -993,9 +1249,16 @@ export async function taoYeuCauSon(
         priority,
         // Lập và trình trong một lần bấm, nhưng vẫn ghi đủ hai mốc ở nhật ký
         // để dấu vết giống hệt đường lập tay.
-        status: "PENDING_MASTER",
+        status: thangLenCongTy ? "PENDING_OFFICE" : "PENDING_MASTER",
         submittedBy: actor.name,
         submittedAt: now,
+        ...(thangLenCongTy
+          ? {
+              shipApprovedBy: actor.name,
+              shipApprovedRole: actor.role,
+              shipApprovedAt: now,
+            }
+          : {}),
         purpose: ghiChu || `Yêu cầu cấp sơn cho ${vessel.name}`,
         items: {
           create: dong.map((d) => {
@@ -1010,7 +1273,7 @@ export async function taoYeuCauSon(
               itemUom: p.uom,
               quantity: d.quantity,
               robSnapshot: tonTheoId.get(d.productId) ?? 0,
-              approvedQuantity: 0,
+              approvedQuantity: thangLenCongTy ? d.quantity : 0,
               note: null,
             };
           }),
@@ -1030,10 +1293,12 @@ export async function taoYeuCauSon(
         {
           requestId: req.id,
           fromStatus: "DRAFT",
-          toStatus: "PENDING_MASTER",
+          toStatus: thangLenCongTy ? "PENDING_OFFICE" : "PENDING_MASTER",
           actorName: actor.name,
           actorRole: actor.role,
-          note: "Trình duyệt",
+          note: thangLenCongTy
+            ? `${ROLE_LABEL[actor.role] ?? actor.role} lập và trình — cấp tàu đã ký, chuyển thẳng lên công ty`
+            : "Trình duyệt",
         },
       ],
     });
@@ -1043,12 +1308,35 @@ export async function taoYeuCauSon(
   revalidateVessel(vesselId);
   revalidatePath("/requests");
   return {
-    message: `Đã gửi yêu cầu ${created.requestNo} (${dong.length} loại sơn) lên phê duyệt.`,
+    message: `Đã gửi yêu cầu ${created.requestNo} (${dong.length} loại sơn) lên ${
+      thangLenCongTy ? "quản lý kỹ thuật công ty" : "duyệt cấp tàu"
+    }.`,
     success: true,
   };
 }
 
 // ─── Nhập / xuất sơn hàng loạt từ file ───────────────────────────────────────
+
+// Tiền tố đánh dấu lỗi do CHÍNH hàm nhập hàng loạt nêu ra (lỗi nghiệp vụ), để
+// phân biệt với lỗi hạ tầng khi bắt lại ở ngoài transaction. Không có tiền tố
+// thì phải so chuỗi tiếng Việt, sửa một chữ trong câu thông báo là mất chỗ bắt.
+const LOI_NHAP_SON = "LOI_NHAP_SON:";
+
+// Một khoản đã gộp có thể là TỔNG của vài dòng nằm ở vài sheet khác nhau. Chỉ
+// nêu sheet của lần gặp đầu tiên thì người dùng mở đúng sheet đó ra, thấy số
+// nhỏ hơn hẳn số trong câu báo, rồi kết luận phần mềm tính sai — trong khi
+// phải sửa cả mấy sheet. Kể đủ tên sheet đã cộng vào thì họ mới biết còn chỗ
+// nữa phải sửa.
+function moTaKhoanSon(
+  item: { name: string; sheet: string | null },
+  sheets: Set<string>
+) {
+  const ds = [...sheets];
+  if (ds.length > 1) {
+    return `“${item.name}” (cộng dồn từ các sheet: ${ds.join(", ")})`;
+  }
+  return moTaDongSon(item);
+}
 
 /**
  * Nhập hoặc xuất nhiều loại sơn một lần từ file Excel (hoặc dán từ PDF).
@@ -1133,12 +1421,26 @@ export async function nhapXuatSonHangLoat(
 
   // Gộp các dòng trùng loại sơn trong cùng một file trước khi ghi — file thật
   // hay có cùng một loại ở nhiều dòng (nhiều lô, nhiều thùng).
-  const gop = new Map<string, { item: (typeof dong)[number]; quantity: number }>();
+  //
+  // Giữ luôn danh sách sheet đã cộng vào từng khoản: số lượng là tổng của mọi
+  // sheet, nếu câu báo chỉ nhắc sheet đầu tiên thì nó chỉ sai chỗ.
+  const gop = new Map<
+    string,
+    { item: (typeof dong)[number]; quantity: number; sheets: Set<string> }
+  >();
   for (const i of dong) {
     const key = norm(i.name);
     const cu = gop.get(key);
-    if (cu) cu.quantity += i.quantity!;
-    else gop.set(key, { item: i, quantity: i.quantity! });
+    if (cu) {
+      cu.quantity += i.quantity!;
+      if (i.sheet) cu.sheets.add(i.sheet);
+    } else {
+      gop.set(key, {
+        item: i,
+        quantity: i.quantity!,
+        sheets: new Set(i.sheet ? [i.sheet] : []),
+      });
+    }
   }
 
   // Với XUẤT: kiểm tra đủ tồn cho TOÀN BỘ lô trước khi ghi dòng đầu tiên.
@@ -1146,11 +1448,11 @@ export async function nhapXuatSonHangLoat(
   if (type === "OUT") {
     const stocks = await prisma.paintStock.findMany({ where: { vesselId } });
     const tonTheoId = new Map(stocks.map((s) => [s.productId, s.quantity]));
-    for (const [key, { item, quantity }] of gop) {
+    for (const [key, { item, quantity, sheets }] of gop) {
       const p = byName.get(key) ?? byCode.get(key);
       const ton = p ? (tonTheoId.get(p.id) ?? 0) : 0;
       if (quantity > ton) {
-        thieu.push(`${item.name}: cần ${quantity}, còn ${ton}`);
+        thieu.push(`${moTaKhoanSon(item, sheets)}: cần ${quantity}, còn ${ton}`);
       }
     }
     if (thieu.length) {
@@ -1168,74 +1470,125 @@ export async function nhapXuatSonHangLoat(
   let soDong = 0;
   let tongSL = 0;
 
-  await prisma.$transaction(
-    async (tx) => {
-      let seq = existing.length + 1;
-      const usedCodes = new Set(existing.map((p) => p.code));
-      const nextCode = () => {
-        let code = `SON-${String(seq).padStart(4, "0")}`;
-        while (usedCodes.has(code)) {
-          seq += 1;
-          code = `SON-${String(seq).padStart(4, "0")}`;
-        }
-        seq += 1;
-        usedCodes.add(code);
-        return code;
-      };
+  // Giữ lại dòng đang ghi dở để nếu vỡ giữa chừng còn chỉ đúng chỗ hỏng trong
+  // file. Dùng object chứ không dùng biến rời vì biến được gán bên trong hàm
+  // callback thì TypeScript không theo dõi được giá trị lúc đọc ở khối catch.
+  const viTri = { dong: "" };
 
-      for (const [key, { item, quantity }] of gop) {
-        let product = byName.get(key) ?? byCode.get(key);
-        if (!product) {
-          product = await tx.paintProduct.create({
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        let seq = existing.length + 1;
+        const usedCodes = new Set(existing.map((p) => p.code));
+        const nextCode = () => {
+          let code = `SON-${String(seq).padStart(4, "0")}`;
+          while (usedCodes.has(code)) {
+            seq += 1;
+            code = `SON-${String(seq).padStart(4, "0")}`;
+          }
+          seq += 1;
+          usedCodes.add(code);
+          return code;
+        };
+
+        for (const [key, { item, quantity, sheets }] of gop) {
+          viTri.dong = moTaKhoanSon(item, sheets);
+          let product = byName.get(key) ?? byCode.get(key);
+          if (!product) {
+            product = await tx.paintProduct.create({
+              data: {
+                code: nextCode(),
+                name: item.name,
+                maker: item.maker,
+                paintType: item.paintType ?? "OTHER",
+                colorCode: item.colorCode,
+                colorName: item.colorName,
+                uom: item.uom || "L",
+                packSize: item.packSize ?? 0,
+                coverage: item.coverage ?? 0,
+                dftPerCoat: item.dftPerCoat ?? 0,
+                thinner: item.thinner,
+              },
+            });
+            byName.set(key, product);
+            taoMoi += 1;
+          }
+
+          // Cộng/trừ nguyên tử, cùng lý do như phiếu nhập/xuất lẻ: file này có
+          // thể đang chạy cùng lúc với người khác đang nhập tay trên tàu, đọc
+          // tồn ra rồi ghi đè bằng số tuyệt đối sẽ nuốt mất phiếu của họ.
+          if (type === "IN") {
+            await tx.paintStock.upsert({
+              where: { vesselId_productId: { vesselId, productId: product.id } },
+              update: { quantity: { increment: quantity } },
+              create: { vesselId, productId: product.id, quantity },
+            });
+          } else {
+            // Chốt chặn cuối: tồn có thể đổi giữa lúc kiểm tra cả lô ở trên và
+            // lúc ghi. Điều kiện đủ tồn nằm trong WHERE nên không thể ghi âm.
+            const daTru = await tx.paintStock.updateMany({
+              where: {
+                vesselId,
+                productId: product.id,
+                quantity: { gte: quantity },
+              },
+              data: { quantity: { decrement: quantity } },
+            });
+            if (daTru.count === 0) {
+              const con = await tx.paintStock.findUnique({
+                where: {
+                  vesselId_productId: { vesselId, productId: product.id },
+                },
+              });
+              throw new Error(
+                `${LOI_NHAP_SON}Không đủ tồn cho ${moTaKhoanSon(item, sheets)}: cần ${quantity}, còn ${con?.quantity ?? 0}.`
+              );
+            }
+          }
+          await tx.paintTransaction.create({
             data: {
-              code: nextCode(),
-              name: item.name,
-              maker: item.maker,
-              paintType: item.paintType ?? "OTHER",
-              colorCode: item.colorCode,
-              colorName: item.colorName,
-              uom: item.uom || "L",
-              packSize: item.packSize ?? 0,
-              coverage: item.coverage ?? 0,
-              dftPerCoat: item.dftPerCoat ?? 0,
-              thinner: item.thinner,
+              vesselId,
+              productId: product.id,
+              type,
+              quantity,
+              note,
+              occurredAt,
+              performedBy: actor.name,
             },
           });
-          byName.set(key, product);
-          taoMoi += 1;
+          soDong += 1;
+          tongSL += quantity;
         }
-
-        const stock = await tx.paintStock.findUnique({
-          where: { vesselId_productId: { vesselId, productId: product.id } },
-        });
-        const current = stock?.quantity ?? 0;
-        const next = type === "IN" ? current + quantity : current - quantity;
-        if (next < 0) {
-          // Chốt chặn cuối: tồn đổi giữa lúc kiểm tra và lúc ghi.
-          throw new Error(`Không đủ tồn cho "${item.name}".`);
-        }
-        await tx.paintStock.upsert({
-          where: { vesselId_productId: { vesselId, productId: product.id } },
-          update: { quantity: next },
-          create: { vesselId, productId: product.id, quantity: next },
-        });
-        await tx.paintTransaction.create({
-          data: {
-            vesselId,
-            productId: product.id,
-            type,
-            quantity,
-            note,
-            occurredAt,
-            performedBy: actor.name,
-          },
-        });
-        soDong += 1;
-        tongSL += quantity;
-      }
-    },
-    { timeout: 120_000 }
-  );
+      },
+      // maxWait mặc định chỉ 2 giây: giờ cao điểm không xin nổi kết nối là ném
+      // P2028 dù file chỉ vài dòng. Đặt 10 giây cho khớp với importPaintProducts
+      // và lib/materialImportApply.ts.
+      { timeout: 120_000, maxWait: 10_000 }
+    );
+  } catch (error) {
+    // Không bắt thì server action ném thẳng ra ngoài, Next.js trả 500 và người
+    // dùng chỉ thấy trang lỗi trắng: không biết dòng nào trong file làm hỏng,
+    // cũng không biết đã ghi được gì chưa. Cả khối nằm trong một transaction
+    // nên mọi trường hợp dưới đây đều là "chưa ghi gì cả".
+    if (error instanceof Error && error.message.startsWith(LOI_NHAP_SON)) {
+      return {
+        message:
+          error.message.slice(LOI_NHAP_SON.length) +
+          " Chưa ghi dòng nào, hãy sửa file rồi nhập lại.",
+      };
+    }
+    const loi = loiGhiFileSon(error, viTri.dong || "dòng đầu tiên");
+    if (loi) return { message: loi };
+    // Lỗi chưa lường trước: người dùng vẫn phải nhận câu tiếng Việt, nhưng
+    // nuốt luôn cả nguyên nhân thì không ai lần ra được nữa — ghi ra log server.
+    console.error(
+      `[nhap-son-hang-loat] tàu ${vesselId}, ${viTri.dong || "dòng đầu"}:`,
+      error
+    );
+    return {
+      message: `Không ghi được lô nhập/xuất sơn, hỏng ở ${viTri.dong || "dòng đầu tiên"}. Chưa ghi dòng nào — hãy kiểm tra lại dòng đó trong file rồi thử lại.`,
+    };
+  }
 
   revalidateVessel(vesselId);
   const phan = [
@@ -1243,5 +1596,15 @@ export async function nhapXuatSonHangLoat(
   ];
   if (taoMoi) phan.push(`${taoMoi} loại sơn mới được thêm vào danh mục`);
   if (parsed.skippedRows) phan.push(`bỏ qua ${parsed.skippedRows} dòng không đọc được`);
+  // Bộ đọc file cắt bớt khi file vượt ngưỡng dòng/cột và chỉ bật cờ truncated —
+  // không báo ra thì người dùng thấy "Đã xuất … thành công" và tin là cả file
+  // đã vào. Ở đường này mỗi dòng là một phép cộng/trừ vào tồn, nên phần bị cắt
+  // là phần tồn KHÔNG BAO GIỜ được ghi, và nhập lại nguyên file thì phần đã ghi
+  // bị cộng/trừ hai lần.
+  if (parsed.truncated) {
+    phan.push(
+      "⚠ File vượt quá giới hạn đọc nên phần cuối chưa được nhập — hãy tách phần còn lại ra file riêng rồi nhập nốt, đừng nhập lại cả file"
+    );
+  }
   return { message: phan.join(" · ") + ".", success: true };
 }

@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireScopedUser, vesselScope } from "@/lib/auth";
+import {
+  requireScopedUser,
+  trongPhamVi,
+  vesselScopeDayDu,
+} from "@/lib/auth";
 import { getStandardForVessel } from "@/lib/formStandardsDb";
 import FormDocHeader from "@/components/FormDocHeader";
 import PrintButton from "@/components/PrintButton";
@@ -14,7 +18,7 @@ export default async function RfqPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const { id: idRaw } = await params;
   const id = Number(idRaw);
   if (!Number.isInteger(id) || id <= 0) {
@@ -31,7 +35,7 @@ export default async function RfqPage({
   if (!po) {
     notFound();
   }
-  if (!scope.all && po.vesselId !== scope.vesselId) {
+  if (!trongPhamVi(scope, po.vesselId)) {
     notFound();
   }
   const standard = await getStandardForVessel(po.vessel.formStandard);

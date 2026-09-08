@@ -7,7 +7,16 @@ import {
   departmentOfMaterial,
 } from "@/lib/departments";
 import InventoryForm from "@/components/InventoryForm";
-import { requireScopedUser, vesselScope, vesselWhere } from "@/lib/auth";
+import {
+  chonDuocTau,
+  danhTinhHieuLuc,
+  requireScopedUser,
+  trongPhamVi,
+  vesselIdWhere,
+  vesselScopeDayDu,
+  vesselWhere,
+} from "@/lib/auth";
+import { VAN_HANH_TAU } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -22,17 +31,25 @@ export default async function InventoryPage({
     type?: string;
     q?: string;
     low?: string;
+    full?: string;
   }>;
 }) {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
-  const canTransact = ["ADMIN", "MASTER"].includes(user.role);
+  const scope = vesselScopeDayDu(user);
+  // Phải khớp đúng danh sách của createInventoryTransaction (VAN_HANH_TAU,
+  // app/actions.ts) — liệt kê tay ở đây làm máy trưởng không thấy form dù server
+  // vẫn cho ghi. Tính cả danh tính mượn qua ủy quyền.
+  const canTransact = danhTinhHieuLuc(user).some((d) =>
+    VAN_HANH_TAU.includes(d.role)
+  );
   const params = await searchParams;
 
   // Bộ lọc — người dùng bị giới hạn tàu thì ?vessel bị bỏ qua (chống truy cập chéo).
   const vesselFilterRaw = Number(params.vessel);
-  const vesselFilter = scope.all
-    ? Number.isInteger(vesselFilterRaw) && vesselFilterRaw > 0
+  const vesselFilter = chonDuocTau(scope)
+    ? Number.isInteger(vesselFilterRaw) &&
+      vesselFilterRaw > 0 &&
+      trongPhamVi(scope, vesselFilterRaw)
       ? vesselFilterRaw
       : null
     : (scope.vesselId ?? null);
@@ -44,6 +61,7 @@ export default async function InventoryPage({
     : "ALL";
   const q = String(params.q ?? "").trim().toLowerCase();
   const lowOnly = params.low === "1";
+  const showAll = params.full === "1";
 
   const [inventories, materials, warehouses, vessels, recentTx] =
     await Promise.all([
@@ -73,7 +91,7 @@ export default async function InventoryPage({
         include: { vessel: true },
       }),
       prisma.vessel.findMany({
-        where: scope.all ? {} : { id: scope.vesselId ?? -1 },
+        where: vesselIdWhere(scope),
         orderBy: { code: "asc" },
         select: { id: true, code: true, name: true },
       }),
@@ -83,7 +101,34 @@ export default async function InventoryPage({
         take: 25,
       }),
     ]);
-  const materialById = new Map(materials.map((m) => [m.id, m]));
+  // Chỉ dựng sẵn một số dòng đầu mỗi bộ phận, giống trang Danh mục vật tư.
+  //
+  // Bảng tồn kho của cả đội tàu là bảng dài nhất trong app: mỗi tàu vài trăm
+  // mặt hàng × 7 tàu. Dựng hết ra HTML thì trang nặng và trình duyệt phải dựng
+  // hàng nghìn ô — trong khi người mở trang gần như luôn đi tìm MỘT mặt hàng,
+  // và đã có ô tìm kiếm cùng bộ lọc "chỉ hàng dưới định mức" để tới thẳng nó.
+  const GIOI_HAN_MOI_BO_PHAN = 40;
+
+  // Vật tư ĐÃ NGỪNG DÙNG vẫn nằm nguyên trong lịch sử nhập xuất, nhưng truy vấn
+  // `materials` ở trên cố ý chỉ lấy isActive:true — ô chọn vật tư của form
+  // nhập/xuất không được phép chào lại hàng đã ngừng. Hệ quả nếu chỉ tra bảng
+  // đó: mọi dòng lịch sử của mặt hàng vừa bị ngừng dùng hiện ra là "#123",
+  // đúng những dòng người ta cần tra lại nhất thì lại không đọc được là gì.
+  // Nên tra BÙ đúng phần thiếu thay vì nới bộ lọc của form.
+  const idThieu = [...new Set(recentTx.map((t) => t.materialId))].filter(
+    (id) => !materials.some((m) => m.id === id)
+  );
+  const materialNgungDung = idThieu.length
+    ? await prisma.material.findMany({
+        where: { id: { in: idThieu } },
+        select: { id: true, code: true, nameVn: true },
+      })
+    : [];
+  const idNgungDung = new Set(materialNgungDung.map((m) => m.id));
+  const materialById = new Map(
+    [...materials, ...materialNgungDung].map((m) => [m.id, m])
+  );
+
   const warehouseById = new Map(warehouses.map((w) => [w.id, w]));
   const fmtTime = (d: Date) =>
     `${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
@@ -139,7 +184,8 @@ export default async function InventoryPage({
         inv.material.equipment,
         inv.warehouse.code,
       ],
-      inv.material.materialType
+      inv.material.materialType,
+      inv.material.department
     );
   const deptSections = DEPARTMENTS;
   const sortDeptRows = (rows: InvRow[]) =>
@@ -191,7 +237,7 @@ export default async function InventoryPage({
       {/* 2. Bộ lọc — thanh mỏng một hàng */}
       <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-blue-100">
         <form method="get" className="flex flex-wrap items-center gap-2 text-sm">
-          {scope.all && (
+          {chonDuocTau(scope) && (
             <select
               name="vessel"
               defaultValue={vesselFilter ?? ""}
@@ -324,11 +370,17 @@ export default async function InventoryPage({
                     </thead>
                     <tbody>
                       {deptSections.map((dept) => {
-                        const deptRows = sortDeptRows(
+                        const deptRowsFull = sortDeptRows(
                           rows.filter((inv) => deptKeyOf(inv) === dept.key)
                         );
-                        if (!deptRows.length) return null;
-                        const deptLow = deptRows.filter(
+                        if (!deptRowsFull.length) return null;
+                        // Cắt bớt để trang không phình theo số dòng tồn kho;
+                        // số ở tiêu đề vẫn là TỔNG THẬT, không phải số đang hiện.
+                        const deptRows = showAll
+                          ? deptRowsFull
+                          : deptRowsFull.slice(0, GIOI_HAN_MOI_BO_PHAN);
+                        const conLai = deptRowsFull.length - deptRows.length;
+                        const deptLow = deptRowsFull.filter(
                           (inv) =>
                             inv.quantity - inv.reservedQuantity <=
                             inv.material.minStock
@@ -344,11 +396,32 @@ export default async function InventoryPage({
                               >
                                 {dept.icon} {dept.label}
                                 <span className="ml-2 font-normal normal-case text-slate-500">
-                                  {deptRows.length} dòng
+                                  {deptRowsFull.length} dòng
                                   {deptLow > 0 ? ` · ${deptLow} thiếu` : ""}
                                 </span>
                               </td>
                             </tr>
+                            {conLai > 0 && (
+                              <tr className="border-b bg-slate-50/60">
+                                <td colSpan={7} className="px-3 py-1.5 text-xs text-slate-500">
+                                  Đang hiện {deptRows.length} dòng đầu — còn{" "}
+                                  <b>{conLai}</b> dòng nữa.{" "}
+                                  <Link
+                                    href={`?${new URLSearchParams({
+                                      ...(params.vessel ? { vessel: params.vessel } : {}),
+                                      ...(params.wh ? { wh: params.wh } : {}),
+                                      ...(typeFilter !== "ALL" ? { type: typeFilter } : {}),
+                                      ...(q ? { q: params.q ?? "" } : {}),
+                                      ...(lowOnly ? { low: "1" } : {}),
+                                      full: "1",
+                                    }).toString()}`}
+                                    className="text-blue-700 hover:underline"
+                                  >
+                                    Xem tất cả
+                                  </Link>
+                                </td>
+                              </tr>
+                            )}
                             {deptRows.map((inventory) => {
                               const available =
                                 inventory.quantity -
@@ -517,9 +590,23 @@ export default async function InventoryPage({
                           </span>
                         </td>
                         <td className="p-1.5">
-                          {material
-                            ? `${material.code} — ${material.nameVn}`
-                            : `#${tx.materialId}`}
+                          {material ? (
+                            <>
+                              {material.code} — {material.nameVn}
+                              {/* Có tên rồi vẫn phải nói rõ hàng đã ngừng dùng:
+                                  người xem lịch sử dễ đi tìm mặt hàng này trong
+                                  danh mục hiện hành rồi tưởng dữ liệu sai. */}
+                              {idNgungDung.has(tx.materialId) && (
+                                <span className="ml-1 rounded bg-slate-200 px-1 py-0.5 text-[10px] font-medium text-slate-600">
+                                  đã ngừng dùng
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            // Chỉ còn rơi vào đây khi bản ghi vật tư bị xóa hẳn
+                            // khỏi database, không phải khi ngừng dùng.
+                            `#${tx.materialId}`
+                          )}
                         </td>
                         <td className="p-1.5 text-xs text-slate-500">
                           {warehouse ? warehouse.code : `#${tx.warehouseId}`}

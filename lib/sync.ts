@@ -8,11 +8,17 @@ import "server-only";
  *   - Tàu XUẤT phần dữ liệu của mình đã thay đổi → gói .json → gửi về văn phòng
  *   - Văn phòng NHẬP gói đó, và XUẤT lại danh mục dùng chung mới → tàu nhập về
  *
- * Vì sao chia được như vậy: 14 bảng nghiệp vụ đều gắn với MỘT tàu cụ thể
- * (tồn kho, giao dịch, yêu cầu, đơn mua, sơn, chằng buộc...). Tàu A không bao
- * giờ ghi vào dữ liệu tàu B, nên gộp lại gần như không có xung đột. Chỉ danh
- * mục dùng chung (vật tư, nhóm, sơn, nhà cung cấp, biểu mẫu) là do văn phòng
- * quản lý và tàu chỉ nhận về, không sửa.
+ * Vì sao chia được như vậy: 16 bảng nghiệp vụ đều gắn với MỘT tàu cụ thể (tồn
+ * kho, giao dịch, yêu cầu, đơn mua, sơn, chằng buộc, dầu · dầu nhờn · hóa
+ * chất...). Tàu A không bao giờ ghi vào dữ liệu tàu B, nên gộp lại gần như
+ * không có xung đột.
+ *
+ * Danh mục dùng chung (vật tư, nhóm, sơn, mặt hàng dầu/hóa chất, nhà cung cấp,
+ * biểu mẫu) chủ yếu do văn phòng quản lý, nhưng KHÔNG phải một chiều: đại phó
+ * khai được loại sơn mới, máy trưởng khai được mặt hàng dầu mới ngay trên tàu.
+ * Những dòng đó mang id thuộc dải của tàu nên phân biệt được với dòng của văn
+ * phòng, và cũng đi lên trong gói của tàu. Không gửi lên thì tồn sơn/tồn dầu
+ * trỏ tới một mặt hàng văn phòng không có — nhập vào là gãy khóa ngoại.
  */
 
 export const PHIEN_BAN_GOI = 1;
@@ -34,6 +40,9 @@ export const BANG_CUA_TAU = [
   { ten: "paintStock", moc: "updatedAt" },
   { ten: "paintJob", moc: "updatedAt" },
   { ten: "paintTransaction", moc: "createdAt" },
+  { ten: "consumableStock", moc: "updatedAt" },
+  { ten: "consumableReceipt", moc: "updatedAt" },
+  { ten: "consumableTransaction", moc: "createdAt" },
   { ten: "reportDocument", moc: "createdAt" },
 ] as const;
 
@@ -60,6 +69,7 @@ export const BANG_DUNG_CHUNG = [
   { ten: "supplier", moc: "updatedAt" },
   { ten: "formStandard", moc: "updatedAt" },
   { ten: "paintProduct", moc: "updatedAt" },
+  { ten: "consumableProduct", moc: "updatedAt" },
 ] as const;
 
 export type GoiDongBo = {
@@ -80,7 +90,7 @@ export type GoiDongBo = {
  * đụng id nhau khi gộp về văn phòng.
  *
  * Văn phòng giữ dải 1 → 999.999 (dữ liệu sẵn có). Mỗi tàu một triệu:
- *   ML-001 → 1.000.000   ML-002 → 2.000.000   ...
+ *   MLS-001 → 1.000.000   MLS-002 → 2.000.000   ...
  *
  * Cách này đơn giản và chắc chắn hơn việc đánh lại id khi nhập rồi phải sửa
  * toàn bộ khóa ngoại theo.
@@ -96,6 +106,49 @@ export function daiIdChoTau(vesselCode: string): number {
 }
 
 export const DO_RONG_DAI = 1_000_000;
+
+/**
+ * Dải id của bản cài này: [dau, cuoi). Văn phòng (dauDai = 0) giữ 1 → 999.999.
+ *
+ * Dùng để tách "dòng do chính bản cài này tạo" khỏi "dòng nhận từ nơi khác" —
+ * tàu chỉ gửi lên danh mục do chính mình tạo, không bao giờ gửi ngược bản ghi
+ * của văn phòng.
+ */
+export function khoangIdRieng(dauDai: number): { dau: number; cuoi: number } {
+  return dauDai > 0
+    ? { dau: dauDai, cuoi: dauDai + DO_RONG_DAI }
+    : { dau: 1, cuoi: DO_RONG_DAI };
+}
+
+/**
+ * Bảng CỐ Ý không nằm trong gói đồng bộ — bài kiểm tra kiem-tra-dong-bo.cmd
+ * đối chiếu danh sách này để một module mới thêm vào schema không thể bị bỏ
+ * quên trong lúc đồng bộ.
+ *
+ * - User, Vessel: khai báo một lần lúc cài, mỗi bản cài tự quản. Đồng bộ tài
+ *   khoản là đồng bộ cả mật khẩu băm và quyền — rủi ro không tương xứng với
+ *   lợi ích, trong khi thuyền viên lên xuống tàu thì văn phòng cấp tài khoản
+ *   trực tiếp trên bản cài của tàu.
+ * - SyncState, SiteConfig: trạng thái đồng bộ của riêng từng bản cài. Gửi đi
+ *   là bên kia nhận nhầm mốc của mình.
+ * - FleetAssignment, Delegation: gắn với tài khoản, mà tài khoản thì không
+ *   đồng bộ — gửi đi là trỏ tới userId không tồn tại ở bên kia. Phân công tàu
+ *   cho quản lý kỹ thuật là việc của bản cài văn phòng; ủy quyền khai ở đúng
+ *   bản cài nơi người ta làm việc.
+ * - AuditLog: mỗi bản cài giữ nhật ký của chính nó. Đây là bảng ghi theo từng
+ *   thao tác nên lớn nhanh nhất hệ thống; nhét vào gói .json gửi qua email thì
+ *   gói phình lên vì thứ không ai đọc hằng ngày. Cần nhật ký của tàu thì lấy
+ *   trong bản sao lưu của tàu đó.
+ */
+export const BANG_KHONG_DONG_BO = [
+  "User",
+  "Vessel",
+  "SyncState",
+  "SiteConfig",
+  "FleetAssignment",
+  "Delegation",
+  "AuditLog",
+] as const;
 
 /** Tên bảng trong Prisma → tên bảng trong PostgreSQL. */
 export const TEN_BANG_DB: Record<string, string> = {
@@ -123,6 +176,10 @@ export const TEN_BANG_DB: Record<string, string> = {
   supplier: "Supplier",
   formStandard: "FormStandard",
   paintProduct: "PaintProduct",
+  consumableProduct: "ConsumableProduct",
+  consumableStock: "ConsumableStock",
+  consumableReceipt: "ConsumableReceipt",
+  consumableTransaction: "ConsumableTransaction",
 };
 
 /**

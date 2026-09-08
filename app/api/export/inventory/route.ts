@@ -3,18 +3,27 @@ import { readFile } from "fs/promises";
 import { NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
-import { requireActiveRole, vesselScope } from "@/lib/auth";
+import {
+  requireActiveRole,
+  trongPhamVi,
+  vesselScopeDayDu,
+} from "@/lib/auth";
+import { LAP_YEU_CAU } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
 // Xuất kiểm kê vật tư & phụ tùng của một tàu theo đúng form công ty MLS-11-06:
 // điền dữ liệu thật (danh mục tàu + tồn kho + nhận/tiêu thụ trong tháng) vào template gốc.
 export async function GET(request: Request) {
-  const user = await requireActiveRole(["ADMIN", "MASTER", "CREW"]);
+  // Danh sách vai trò cứng ["ADMIN","MASTER","CREW"] là di sản từ thời hệ
+  // thống chỉ có 3 vai trò. Nay có 11 chức danh: máy trưởng, đại phó, phó 2/3,
+  // máy 2/3/4 đều TẢI LÊN / xem được ở giao diện, và quản lý kỹ thuật là người
+  // soát chứng từ toàn đội. Chống xem chéo tàu vẫn do trongPhamVi() lo.
+  const user = await requireActiveRole([...LAP_YEU_CAU, "TECH_MANAGER"]);
   if (!user) {
     return NextResponse.json({ error: "Chưa đăng nhập." }, { status: 401 });
   }
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const url = new URL(request.url);
   const vesselId = Number(url.searchParams.get("vessel"));
   const typeRaw = String(url.searchParams.get("type") || "ALL");
@@ -22,7 +31,7 @@ export async function GET(request: Request) {
   if (!Number.isInteger(vesselId) || vesselId <= 0) {
     return NextResponse.json({ error: "Thiếu tàu." }, { status: 400 });
   }
-  if (!scope.all && vesselId !== scope.vesselId) {
+  if (!trongPhamVi(scope, vesselId)) {
     return NextResponse.json({ error: "Không tìm thấy." }, { status: 404 });
   }
   const vessel = await prisma.vessel.findUnique({ where: { id: vesselId } });

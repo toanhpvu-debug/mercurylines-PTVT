@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
+  chonDuocTau,
   requireScopedUser,
   vesselIdWhere,
-  vesselScope,
+  vesselScopeDayDu,
 } from "@/lib/auth";
 import LashingReportForm from "@/components/LashingReportForm";
 import {
@@ -19,7 +20,7 @@ export default async function LashingPage({
   searchParams: Promise<{ vessel?: string }>;
 }) {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const canReport = ["ADMIN", "MASTER"].includes(user.role);
   const canManageGear = user.role === "ADMIN";
 
@@ -75,7 +76,7 @@ export default async function LashingPage({
         </p>
       </div>
 
-      {scope.all && (
+      {chonDuocTau(scope) && (
         <form className="flex items-center gap-2">
           <select
             name="vessel"

@@ -18,13 +18,18 @@ import {
   ROLE_LABEL,
   SI_QUAN,
   boPhanCuaChucDanh,
+  capDuyetChiTiet,
   capDuyetChoPhep,
+  chonDuocTau,
+  trangThaiUyQuyen,
+  trongPhamVi,
   coDuyetCapTau,
   coQuanLyNhienLieu,
   coQuanLySon,
   coXinCapNhienLieu,
   nguoiDuyetCapTau,
   trinhThangLenCongTy,
+  vesselScope,
 } from "@/lib/roles";
 
 type KetQua = "TAU" | "CONG_TY" | null;
@@ -406,6 +411,202 @@ for (const [ten, thuc, mong] of caMay3) {
   if (ok) dat++;
   else truot++;
   console.log(`  ${ok ? "OK  " : "TRUOT"} ${ten} -> ${JSON.stringify(thuc)}`);
+}
+
+
+// ─── Phan cong doi tau cho quan ly ky thuat (FleetAssignment) ────────────────
+//
+// Quy dinh: khong phan cong tau nao thi van toan doi (giu nguyen cach dung cu);
+// co phan cong thi CHI thay va CHI duyet duoc dung nhung tau do.
+console.log("\n=== PHAN CONG DOI TAU (quan ly ky thuat) ===");
+{
+  const toanDoi = { id: 90, role: "TECH_MANAGER", vesselId: null };
+  const phanCong = {
+    id: 91,
+    role: "TECH_MANAGER",
+    vesselId: null,
+    fleetVesselIds: [1, 2],
+  };
+  const ycTau = (vesselId: number) => ({
+    vesselId,
+    status: "PENDING_OFFICE",
+    department: "ENGINE",
+    requestedById: 5,
+  });
+
+  kiemTra("khong phan cong -> toan doi", vesselScope(toanDoi).all, true);
+  kiemTra("co phan cong -> khong con toan doi", vesselScope(phanCong).all, false);
+  kiemTra(
+    "co phan cong -> dung danh sach tau",
+    vesselScope(phanCong).vesselIds,
+    [1, 2]
+  );
+  kiemTra("trong pham vi tau 1", trongPhamVi(vesselScope(phanCong), 1), true);
+  kiemTra("ngoai pham vi tau 3", trongPhamVi(vesselScope(phanCong), 3), false);
+  kiemTra(
+    "khong phan cong: duyet duoc tau bat ky",
+    capDuyetChoPhep(toanDoi, ycTau(7)),
+    "CONG_TY"
+  );
+  kiemTra(
+    "co phan cong: duyet duoc tau cua minh",
+    capDuyetChoPhep(phanCong, ycTau(2)),
+    "CONG_TY"
+  );
+  kiemTra(
+    "co phan cong: KHONG duyet duoc tau nguoi khac",
+    capDuyetChoPhep(phanCong, ycTau(3)),
+    null
+  );
+  kiemTra(
+    "quan tri khong bi thu hep boi phan cong",
+    vesselScope({ id: 1, role: "ADMIN", vesselId: null, fleetVesselIds: [1] }).all,
+    true
+  );
+  kiemTra("chon duoc tau khi co phan cong", chonDuocTau(vesselScope(phanCong)), true);
+  kiemTra(
+    "mot tau thi khong co o chon tau",
+    chonDuocTau(vesselScope({ id: 3, role: "MASTER", vesselId: 1 })),
+    false
+  );
+}
+
+// ─── Uy quyen co thoi han (Delegation) ──────────────────────────────────────
+//
+// Nguoi nhan GIU NGUYEN chuc danh cua minh, chi muon them tham quyen cua nguoi
+// uy quyen. Hai dieu tuyet doi khong duoc pha: khong tu duyet yeu cau cua minh,
+// va khong duyet yeu cau cua CHINH NGUOI DA UY QUYEN.
+console.log("\n=== UY QUYEN CO THOI HAN ===");
+{
+  const uyQuyenTuMayTruong = {
+    delegatorId: 10,
+    delegatorName: "May truong A",
+    delegatorRole: "CHIEF_ENGINEER",
+    delegatorVesselId: 1,
+  };
+  const may2 = { id: 11, role: "SECOND_ENGINEER", vesselId: 1 };
+  const may2CoUyQuyen = { ...may2, uyQuyen: [uyQuyenTuMayTruong] };
+  const yc = (over: Record<string, unknown> = {}) => ({
+    vesselId: 1,
+    status: "PENDING_MASTER",
+    department: "ENGINE",
+    requestedById: 12, // May 3 lap
+    ...over,
+  });
+
+  kiemTra("May 2 chua co uy quyen: khong duyet", capDuyetChoPhep(may2, yc()), null);
+  kiemTra(
+    "May 2 co uy quyen: duyet duoc cap tau",
+    capDuyetChoPhep(may2CoUyQuyen, yc()),
+    "TAU"
+  );
+  kiemTra(
+    "uy quyen duoc ghi nhan dung nguoi",
+    capDuyetChiTiet(may2CoUyQuyen, yc()).uyQuyenTu?.delegatorId,
+    10
+  );
+  kiemTra(
+    "KHONG duyet yeu cau do chinh minh lap",
+    capDuyetChoPhep(may2CoUyQuyen, yc({ requestedById: 11 })),
+    null
+  );
+  kiemTra(
+    "KHONG duyet yeu cau cua nguoi da uy quyen",
+    capDuyetChoPhep(may2CoUyQuyen, yc({ requestedById: 10 })),
+    null
+  );
+  kiemTra(
+    "khong duyet duoc bo phan boong (may truong cung khong)",
+    capDuyetChoPhep(may2CoUyQuyen, yc({ department: "DECK" })),
+    null
+  );
+  kiemTra(
+    "khong duyet duoc tau khac",
+    capDuyetChoPhep(may2CoUyQuyen, yc({ vesselId: 2 })),
+    null
+  );
+  kiemTra(
+    "uy quyen mo ca quyen ghi nghiep vu dau",
+    coQuanLyNhienLieu(may2CoUyQuyen, 1, "FUEL"),
+    true
+  );
+  kiemTra(
+    "khong uy quyen thi van khong ghi duoc dau",
+    coQuanLyNhienLieu(may2, 1, "FUEL"),
+    false
+  );
+  kiemTra(
+    "uy quyen khong lan sang tau khac",
+    coQuanLyNhienLieu(may2CoUyQuyen, 2, "FUEL"),
+    false
+  );
+
+  // Uy quyen tu quan ly ky thuat co phan cong tau: nguoi nhan chi duyet duoc
+  // dung nhung tau cua nguoi kia.
+  const nhanTuQuanLy = {
+    id: 20,
+    role: "CREW",
+    vesselId: null,
+    uyQuyen: [
+      {
+        delegatorId: 21,
+        delegatorName: "Quan ly B",
+        delegatorRole: "TECH_MANAGER",
+        delegatorVesselId: null,
+        delegatorFleetVesselIds: [4, 5],
+      },
+    ],
+  };
+  const ycCongTy = (vesselId: number) => ({
+    vesselId,
+    status: "PENDING_OFFICE",
+    department: "ENGINE",
+    requestedById: 30,
+  });
+  kiemTra(
+    "nhan uy quyen quan ly: duyet duoc tau 4",
+    capDuyetChoPhep(nhanTuQuanLy, ycCongTy(4)),
+    "CONG_TY"
+  );
+  kiemTra(
+    "nhan uy quyen quan ly: khong duyet tau 6",
+    capDuyetChoPhep(nhanTuQuanLy, ycCongTy(6)),
+    null
+  );
+}
+
+// ─── Trang thai uy quyen theo thoi gian ─────────────────────────────────────
+console.log("\n=== TRANG THAI UY QUYEN ===");
+{
+  const d = (s: string) => new Date(s);
+  const bayGio = d("2026-08-22T12:00:00");
+  const goc = { startAt: d("2026-08-20T00:00:00"), endAt: d("2026-08-25T23:59:59") };
+  kiemTra(
+    "dang hieu luc",
+    trangThaiUyQuyen({ ...goc, revokedAt: null }, bayGio),
+    "HIEU_LUC"
+  );
+  kiemTra(
+    "da thu hoi thi het hieu luc du con han",
+    trangThaiUyQuyen({ ...goc, revokedAt: d("2026-08-21T09:00:00") }, bayGio),
+    "DA_THU_HOI"
+  );
+  kiemTra(
+    "het han",
+    trangThaiUyQuyen(
+      { startAt: d("2026-08-01"), endAt: d("2026-08-10"), revokedAt: null },
+      bayGio
+    ),
+    "HET_HAN"
+  );
+  kiemTra(
+    "chua toi han",
+    trangThaiUyQuyen(
+      { startAt: d("2026-09-01"), endAt: d("2026-09-10"), revokedAt: null },
+      bayGio
+    ),
+    "CHUA_TOI"
+  );
 }
 
 console.log(`\n=== TONG: ${dat} dat / ${truot} truot ===`);

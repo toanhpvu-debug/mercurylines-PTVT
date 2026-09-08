@@ -17,6 +17,7 @@ import {
   BANG_DUNG_CHUNG,
   PHIEN_BAN_GOI,
   chuanHoaDeGhi,
+  khoangIdRieng,
   type GoiDongBo,
 } from "@/lib/sync";
 
@@ -69,6 +70,32 @@ async function main() {
       console.error(`Không thấy tàu ${site.vesselCode} trong database.`);
       process.exit(1);
     }
+    // Danh mục do CHÍNH TÀU NÀY tạo (loại sơn mới của đại phó, mặt hàng dầu
+    // mới của máy trưởng) phải đi trước — tồn kho và giao dịch bên dưới trỏ
+    // tới nó, văn phòng chưa có thì nhập vào là gãy khóa ngoại.
+    //
+    // Lọc theo dải id nên không bao giờ gửi ngược dòng của văn phòng: dòng văn
+    // phòng mang id dưới 1.000.000, nằm ngoài dải của mọi tàu.
+    const dai = Number(site.idRangeStart);
+    if (dai <= 0) {
+      console.error(
+        `Bản cài của tàu ${site.vesselCode} chưa có dải id riêng.\n` +
+          "Chạy lại khai-bao-ban-cai.cmd rồi xuất lại — thiếu dải id thì bản ghi\n" +
+          "tạo trên tàu sẽ đụng id của văn phòng khi gộp."
+      );
+      process.exit(1);
+    }
+    const daiTau = khoangIdRieng(dai);
+    for (const { ten, moc: cotMoc } of BANG_DUNG_CHUNG) {
+      const where: Record<string, unknown> = {
+        id: { gte: daiTau.dau, lt: daiTau.cuoi },
+      };
+      if (tuMoc) where[cotMoc] = { gt: tuMoc };
+      const rows = await b(ten).findMany({ where });
+      duLieu[ten] = rows.map(chuanHoaDeGhi);
+      tong += rows.length;
+      if (rows.length) console.log(`  ${ten.padEnd(24)} ${rows.length} (danh mục tàu tự khai)`);
+    }
     // Bảng gắn với tàu
     for (const { ten, moc: cotMoc } of BANG_CUA_TAU) {
       const where: Record<string, unknown> = { vesselId: vessel.id };
@@ -91,9 +118,19 @@ async function main() {
       if (rows.length) console.log(`  ${ten.padEnd(24)} ${rows.length}`);
     }
   } else {
-    // Văn phòng: xuất danh mục dùng chung
+    // Văn phòng: xuất danh mục dùng chung.
+    //
+    // Kèm theo LUÔN LUÔN những dòng do tàu khai (id ngoài dải văn phòng), kể
+    // cả khi chúng không đổi từ lần trước: văn phòng nhập gói của tàu thì giữ
+    // nguyên updatedAt của tàu, mà mốc đó thường CŨ hơn lần xuất gần nhất của
+    // văn phòng — lọc theo mốc thì loại sơn MLS-001 vừa khai không bao giờ tới
+    // được MLS-002. Số mặt hàng tàu tự khai chỉ vài chục dòng nên gửi lại mỗi
+    // lần vẫn rẻ, và nhập theo id nên gửi lại không sinh bản ghi trùng.
+    const ngoaiDaiVanPhong = { id: { gte: khoangIdRieng(0).cuoi } };
     for (const { ten, moc: cotMoc } of BANG_DUNG_CHUNG) {
-      const where = tuMoc ? { [cotMoc]: { gt: tuMoc } } : {};
+      const where = tuMoc
+        ? { OR: [{ [cotMoc]: { gt: tuMoc } }, ngoaiDaiVanPhong] }
+        : {};
       const rows = await b(ten).findMany({ where });
       duLieu[ten] = rows.map(chuanHoaDeGhi);
       tong += rows.length;

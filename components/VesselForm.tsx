@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { createVessel } from "@/app/actions";
+import ChonMayChinh from "@/components/ChonMayChinh";
 
 export default function VesselForm() {
   const [state, formAction, pending] = useActionState(createVessel, {
@@ -12,7 +13,7 @@ export default function VesselForm() {
     <form action={formAction} className="space-y-3">
       <input
         name="code"
-        placeholder="Mã tàu, ví dụ: ML-016"
+        placeholder="Mã tàu, ví dụ: MLS-008"
         className="w-full rounded border p-2"
         defaultValue={v.code ?? ""}
         required
@@ -41,6 +42,10 @@ export default function VesselForm() {
         placeholder="Loại tàu"
         className="w-full rounded border p-2"
         defaultValue={v.vesselType ?? ""}
+      />
+      <ChonMayChinh
+        nhom={v.mainEngineGroup ?? ""}
+        model={v.mainEngineModel ?? ""}
       />
       <button
         disabled={pending}

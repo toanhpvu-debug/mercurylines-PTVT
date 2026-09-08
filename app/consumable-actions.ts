@@ -36,6 +36,32 @@ import type { PhieuDeXuat } from "@/lib/bunkerParse";
 
 const NO_PERMISSION = "Bạn không có quyền thực hiện thao tác này.";
 
+// Vùng khóa tư vấn cho tồn dầu · dầu nhờn · hóa chất — khác vùng của tồn kho vật
+// tư (811001), số PO (811002) và số yêu cầu (811003) vì Postgres chỉ có MỘT
+// không gian khóa (int, int) dùng chung.
+//
+// MỌI đường chạm tới tồn của một cặp (tàu, mặt hàng) — nhận, xuất/tiêu thụ, xóa
+// phiếu — phải xin CÙNG khóa này ở đầu giao dịch. Không có nó thì tồn được đọc
+// rồi ghi đè bằng giá trị tuyệt đối: hai phiếu cùng lúc cùng đọc tồn cũ, cùng
+// ghi đè, một lần ghi biến mất (lost update) và tồn cao hơn thực tế. Khóa giữ
+// tới hết giao dịch, tự nhả khi commit/rollback. Xem app/actions.ts:khoaDongTon.
+const KHOA_TON_NHIEN_LIEU = 811004;
+
+function khoaTonNhienLieu(vesselId: number, productId: number) {
+  return (Math.imul(vesselId, 100003) + productId) | 0;
+}
+
+async function xinKhoaTon(
+  tx: Prisma.TransactionClient,
+  vesselId: number,
+  productId: number
+) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KHOA_TON_NHIEN_LIEU}::int, ${khoaTonNhienLieu(
+    vesselId,
+    productId
+  )}::int)`;
+}
+
 type ActionState = {
   message: string;
   success?: boolean;
@@ -352,6 +378,9 @@ export async function createConsumableReceipt(
   }
 
   await prisma.$transaction(async (tx) => {
+    // Xin khóa trước khi đụng tồn: nhánh dưới đọc tồn rồi ghi đè bằng tổng mới,
+    // hai phiếu nhận cùng lúc mà không xếp hàng sẽ làm mất một lần cộng.
+    await xinKhoaTon(tx, vesselId, productId);
     const receipt = await tx.consumableReceipt.create({
       data: {
         vesselId,
@@ -429,6 +458,9 @@ export async function deleteConsumableReceipt(
   if (!actor) return { message: NO_PERMISSION };
 
   await prisma.$transaction(async (tx) => {
+    // Cùng khóa với đường nhận/xuất: trừ lại tồn là một phép đọc-rồi-ghi, phải
+    // xếp hàng để không đè lên một giao dịch khác đang chỉnh cùng dòng tồn.
+    await xinKhoaTon(tx, receipt.vesselId, receipt.productId);
     // Trừ lại đúng lượng đã cộng khi nhận, rồi mới xóa phiếu — xóa suông thì
     // tồn giữ nguyên phần của một lô không còn tồn tại.
     const stock = await tx.consumableStock.findUnique({
@@ -499,6 +531,10 @@ export async function createConsumableMove(
 
   try {
     await prisma.$transaction(async (tx) => {
+      // Xếp hàng mọi giao dịch chạm cùng dòng tồn. Nhánh xuất/tiêu thụ đọc tồn,
+      // so sánh trong Node rồi ghi tổng mới; không có khóa thì hai lần xuất cùng
+      // lúc đều thấy tồn đủ, cùng ghi đè, tồn tụt sai (mất một lần trừ).
+      await xinKhoaTon(tx, vesselId, productId);
       const stock = await tx.consumableStock.findUnique({
         where: { vesselId_productId: { vesselId, productId } },
       });

@@ -2,7 +2,12 @@ import path from "path";
 import { readFile } from "fs/promises";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireActiveRole, vesselScope } from "@/lib/auth";
+import {
+  requireActiveRole,
+  trongPhamVi,
+  vesselScopeDayDu,
+} from "@/lib/auth";
+import { LAP_YEU_CAU } from "@/lib/roles";
 import { ALLOWED_EXTENSIONS, fileExtension, getUploadDir } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
@@ -11,18 +16,22 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireActiveRole(["ADMIN", "MASTER", "CREW"]);
+  // Danh sách vai trò cứng ["ADMIN","MASTER","CREW"] là di sản từ thời hệ
+  // thống chỉ có 3 vai trò. Nay có 11 chức danh: máy trưởng, đại phó, phó 2/3,
+  // máy 2/3/4 đều TẢI LÊN / xem được ở giao diện, và quản lý kỹ thuật là người
+  // soát chứng từ toàn đội. Chống xem chéo tàu vẫn do trongPhamVi() lo.
+  const user = await requireActiveRole([...LAP_YEU_CAU, "TECH_MANAGER"]);
   if (!user) {
     return NextResponse.json({ error: "Chưa đăng nhập." }, { status: 401 });
   }
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const { id: idRaw } = await context.params;
   const id = Number(idRaw);
   if (!Number.isInteger(id) || id <= 0) {
     return NextResponse.json({ error: "Không tìm thấy." }, { status: 404 });
   }
   const doc = await prisma.reportDocument.findUnique({ where: { id } });
-  if (!doc || (!scope.all && doc.vesselId !== scope.vesselId)) {
+  if (!doc || !trongPhamVi(scope, doc.vesselId)) {
     return NextResponse.json({ error: "Không tìm thấy." }, { status: 404 });
   }
   let data: Buffer;

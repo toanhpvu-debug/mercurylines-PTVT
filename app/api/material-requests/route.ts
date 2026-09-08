@@ -1,9 +1,32 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireActiveRole, vesselScope } from "@/lib/auth";
+import {
+  requireActiveRole,
+  trongPhamVi,
+  vesselScopeDayDu,
+} from "@/lib/auth";
 import { LAP_YEU_CAU } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
+
+// Vùng khóa tư vấn cấp số yêu cầu vật tư (khác vùng của tồn kho 811001 và số PO
+// 811002). Xem app/actions.ts:sinhSoDonMua về lý do phải xin khóa trong CÙNG
+// giao dịch với lúc đọc số lớn nhất — nếu không, hai yêu cầu cùng tàu nộp sát
+// nhau cùng đọc thấy số cũ, cùng sinh một requestNo, một bên vỡ vì requestNo là
+// khóa duy nhất, người dùng nhận màn hình 500 và mất luôn yêu cầu vừa gõ.
+const KHOA_SINH_SO_YEU_CAU = 811003;
+
+// Khóa theo ĐÚNG thứ chia dãy số (tiền tố đã bỏ ký tự đặc biệt), không theo
+// vesselId: hai tàu mã "MLS-001"/"MLS001" cùng lùi về một tiền tố nên dùng chung
+// dãy số dù vesselId khác nhau. Đụng độ băm chỉ khiến hai dãy chẳng liên quan
+// chờ nhau một nhịp, không bao giờ sai số.
+function khoaDaySoYeuCau(tienTo: string) {
+  let bam = 0;
+  for (let i = 0; i < tienTo.length; i++) {
+    bam = (Math.imul(bam, 31) + tienTo.charCodeAt(i)) | 0;
+  }
+  return bam;
+}
 
 export async function POST(request: Request) {
   try {
@@ -29,7 +52,7 @@ export async function POST(request: Request) {
     const equipment = body.equipment ? String(body.equipment).trim() : null;
     const maker = body.maker ? String(body.maker).trim() : null;
     const serialNo = body.serialNo ? String(body.serialNo).trim() : null;
-    let requiredDate;
+    let requiredDate: Date | undefined;
     if (body.requiredDate) {
       const d = new Date(body.requiredDate);
       if (!isNaN(d.getTime())) {
@@ -39,8 +62,8 @@ export async function POST(request: Request) {
     if (!vesselId) {
       return NextResponse.json({ error: "Tàu là bắt buộc." }, { status: 400 });
     }
-    const scope = vesselScope(user);
-    if (!scope.all && vesselId !== scope.vesselId) {
+    const scope = vesselScopeDayDu(user);
+    if (!trongPhamVi(scope, vesselId)) {
       return NextResponse.json(
         {
           error: scope.unassigned
@@ -132,7 +155,7 @@ export async function POST(request: Request) {
       robGroups.map((g) => [g.materialId, Number(g._sum.quantity ?? 0)])
     );
     // Số yêu cầu theo quy ước chứng từ: <MR|SR>-<mã tàu>-<năm 2 số>-<số thứ tự>.
-    // VD MR-ML001-26-0007. Số cũ dạng timestamp không tra cứu hay đối chiếu được.
+    // VD MR-MLS001-26-0007. Số cũ dạng timestamp không tra cứu hay đối chiếu được.
     const prefix = kind === "SPARE" ? "SR" : "MR";
     const vessel = await prisma.vessel.findUnique({
       where: { id: vesselId },
@@ -146,21 +169,24 @@ export async function POST(request: Request) {
     const base = `${prefix}-${vesselTag}-${yearTag}-`;
     // Lấy số lớn nhất đã dùng trong năm của tàu này rồi +1 (không dựa vào count
     // để xóa yêu cầu không làm trùng số).
-    const latest = await prisma.materialRequest.findFirst({
-      where: { requestNo: { startsWith: base } },
-      orderBy: { requestNo: "desc" },
-      select: { requestNo: true },
-    });
-    let seq = latest ? Number(latest.requestNo.slice(base.length)) + 1 : 1;
-    if (!Number.isFinite(seq) || seq < 1) seq = 1;
-    let requestNo = `${base}${String(seq).padStart(4, "0")}`;
-    while (
-      await prisma.materialRequest.findUnique({ where: { requestNo } })
-    ) {
-      seq += 1;
-      requestNo = `${base}${String(seq).padStart(4, "0")}`;
-    }
-    const created = await prisma.materialRequest.create({
+    // Cấp số VÀ ghi yêu cầu trong CÙNG một giao dịch, sau khi xin khóa tư vấn
+    // theo dãy số của tàu — y hệt sinhSoDonMua bên app/actions.ts. Khóa nhả khi
+    // giao dịch kết thúc, không có gì phải dọn. Khóa theo tiền tố KHÔNG kèm năm
+    // để hai đơn rơi đúng khoảnh khắc giao thừa vẫn xếp hàng với nhau.
+    const khoaTienTo = `${prefix}-${vesselTag}-`;
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KHOA_SINH_SO_YEU_CAU}::int, ${khoaDaySoYeuCau(
+        khoaTienTo
+      )}::int)`;
+      const latest = await tx.materialRequest.findFirst({
+        where: { requestNo: { startsWith: base } },
+        orderBy: { requestNo: "desc" },
+        select: { requestNo: true },
+      });
+      let seq = latest ? Number(latest.requestNo.slice(base.length)) + 1 : 1;
+      if (!Number.isFinite(seq) || seq < 1) seq = 1;
+      const requestNo = `${base}${String(seq).padStart(4, "0")}`;
+      const row = await tx.materialRequest.create({
       data: {
         requestNo,
         kind,
@@ -196,17 +222,20 @@ export async function POST(request: Request) {
         vessel: true,
         items: { include: { material: true } },
       },
-    });
-    // Mốc đầu tiên trong nhật ký phê duyệt.
-    await prisma.materialRequestEvent.create({
-      data: {
-        requestId: created.id,
-        fromStatus: null,
-        toStatus: "DRAFT",
-        actorName: user.name,
-        actorRole: user.role,
-        note: `Lập yêu cầu ${items.length} dòng`,
-      },
+      });
+      // Mốc đầu tiên trong nhật ký phê duyệt — cùng giao dịch để không bao giờ
+      // có yêu cầu thiếu mốc DRAFT mở đầu.
+      await tx.materialRequestEvent.create({
+        data: {
+          requestId: row.id,
+          fromStatus: null,
+          toStatus: "DRAFT",
+          actorName: user.name,
+          actorRole: user.role,
+          note: `Lập yêu cầu ${items.length} dòng`,
+        },
+      });
+      return row;
     });
     return NextResponse.json(created, { status: 201 });
   } catch (error) {

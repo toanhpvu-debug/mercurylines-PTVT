@@ -2,9 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
+  chonDuocTau,
   requireScopedUser,
   vesselIdWhere,
-  vesselScope,
+  vesselScopeDayDu,
 } from "@/lib/auth";
 import CreatePurchaseOrderForm from "@/components/CreatePurchaseOrderForm";
 
@@ -16,7 +17,7 @@ export default async function NewPurchaseOrderPage({
   searchParams: Promise<{ vessel?: string }>;
 }) {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   if (!["ADMIN", "MASTER"].includes(user.role)) {
     redirect("/purchasing");
   }
@@ -28,7 +29,7 @@ export default async function NewPurchaseOrderPage({
   });
   const { vessel: vesselParam } = await searchParams;
   let selectedVesselId: number | null = null;
-  if (!scope.all) {
+  if (!chonDuocTau(scope)) {
     selectedVesselId = scope.vesselId ?? null;
   } else if (vesselParam) {
     const req = Number(vesselParam);
@@ -89,7 +90,12 @@ export default async function NewPurchaseOrderPage({
       select: { id: true, code: true, name: true },
     }),
     prisma.materialRequest.findMany({
-      where: { vesselId: selectedVesselId, status: "IN_PROCUREMENT" },
+      // Gồm cả "giao một phần" để phần hàng còn thiếu lập được đơn bổ sung;
+      // dòng đã đặt đủ tự ẩn nhờ bộ lọc remaining > 0 bên dưới.
+      where: {
+        vesselId: selectedVesselId,
+        status: { in: ["IN_PROCUREMENT", "PARTIALLY_DELIVERED"] },
+      },
       orderBy: { createdAt: "asc" },
       include: {
         items: {

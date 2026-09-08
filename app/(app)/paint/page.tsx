@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireScopedUser, vesselIdWhere, vesselScope } from "@/lib/auth";
+import {
+  requireScopedUser,
+  vesselIdWhere,
+  vesselScopeDayDu,
+} from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function PaintOverviewPage() {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const canManageCatalog = ["ADMIN", "MASTER"].includes(user.role);
 
   if (scope.unassigned) {

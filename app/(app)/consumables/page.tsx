@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireScopedUser, vesselIdWhere, vesselScope } from "@/lib/auth";
-import { nhomNhienLieuChoPhep } from "@/lib/roles";
+import {
+  danhTinhHieuLuc,
+  requireScopedUser,
+  vesselIdWhere,
+  vesselScopeDayDu,
+} from "@/lib/auth";
+import { VAN_HANH_HOA_CHAT, nhomNhienLieuChoPhep } from "@/lib/roles";
 import {
   CATEGORY_ICON,
   CONSUMABLE_CATEGORIES,
@@ -13,8 +18,17 @@ export const dynamic = "force-dynamic";
 
 export default async function ConsumablesPage() {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
-  const canManageCatalog = ["ADMIN", "MASTER"].includes(user.role);
+  const scope = vesselScopeDayDu(user);
+  // Nút này dẫn sang TRANG /consumables/products nên phải khớp ĐÚNG cổng của
+  // trang đó — cả nhóm vai trò (VAN_HANH_HOA_CHAT) lẫn cách tính danh tính
+  // (danhTinhHieuLuc). Liệt kê tay ở đây bỏ sót MÁY TRƯỞNG và đại phó nên họ
+  // không thấy lối vào danh mục dù gõ URL thì server vẫn cho vào; ngược lại
+  // nếu chỗ này tính vai trò mượn mà trang đích đọc user.role thô thì người
+  // nhận ủy quyền thấy nút, bấm vào bị đá ngược về đây, không một dòng báo.
+  // Đổi một phía là tạo lại đúng lỗi đó ở chiều kia, nên hai phía sửa cùng lúc.
+  const canManageCatalog = danhTinhHieuLuc(user).some((d) =>
+    VAN_HANH_HOA_CHAT.includes(d.role)
+  );
 
   const [vessels, products, stocks, receipts] = await Promise.all([
     prisma.vessel.findMany({

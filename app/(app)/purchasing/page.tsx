@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import PurchaseOrderDeleteButton from "@/components/PurchaseOrderDeleteButton";
 import {
   requireScopedUser,
-  vesselScope,
+  vesselScopeDayDu,
   vesselWhere,
 } from "@/lib/auth";
 
@@ -24,7 +24,7 @@ const poStatusLabels: Record<string, { label: string; className: string }> = {
 
 export default async function PurchasingPage() {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const canManage = ["ADMIN", "MASTER"].includes(user.role);
   // Xóa chứng từ mua sắm chỉ dành cho quản trị viên.
   const canDeletePo = user.role === "ADMIN";

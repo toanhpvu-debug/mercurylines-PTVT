@@ -9,7 +9,8 @@ import {
   canDeleteRequest,
   capDuyetChoPhep,
   requireScopedUser,
-  vesselScope,
+  trongPhamVi,
+  vesselScopeDayDu,
 } from "@/lib/auth";
 import {
   LAP_YEU_CAU,
@@ -40,7 +41,7 @@ export default async function RequestDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const canModerate = ["ADMIN", "MASTER", "TECH_MANAGER"].includes(user.role);
   const { id: idRaw } = await params;
   const id = Number(idRaw);
@@ -58,7 +59,7 @@ export default async function RequestDetailPage({
   if (!request) {
     notFound();
   }
-  if (!scope.all && request.vesselId !== scope.vesselId) {
+  if (!trongPhamVi(scope, request.vesselId)) {
     notFound();
   }
   const isSpare = request.kind === "SPARE";

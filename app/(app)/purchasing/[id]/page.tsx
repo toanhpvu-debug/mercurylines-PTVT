@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireScopedUser, vesselScope } from "@/lib/auth";
+import {
+  requireScopedUser,
+  trongPhamVi,
+  vesselScopeDayDu,
+} from "@/lib/auth";
 import { getStandardForVessel } from "@/lib/formStandardsDb";
 import FormDocHeader from "@/components/FormDocHeader";
 import PrintButton from "@/components/PrintButton";
@@ -33,7 +37,7 @@ export default async function PurchaseOrderDetailPage({
   const { skipped: skippedRaw } = await searchParams;
   const skippedRows = Number(skippedRaw);
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const canManage = ["ADMIN", "MASTER"].includes(user.role);
   const { id: idRaw } = await params;
   const id = Number(idRaw);
@@ -54,7 +58,7 @@ export default async function PurchaseOrderDetailPage({
   if (!po) {
     notFound();
   }
-  if (!scope.all && po.vesselId !== scope.vesselId) {
+  if (!trongPhamVi(scope, po.vesselId)) {
     notFound();
   }
   const warehouses = await prisma.warehouse.findMany({

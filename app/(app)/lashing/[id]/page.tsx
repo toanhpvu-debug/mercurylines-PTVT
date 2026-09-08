@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireScopedUser, vesselScope } from "@/lib/auth";
+import {
+  requireScopedUser,
+  trongPhamVi,
+  vesselScopeDayDu,
+} from "@/lib/auth";
 import PrintButton from "@/components/PrintButton";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +16,7 @@ export default async function LashingReportPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const { id: idRaw } = await params;
   const id = Number(idRaw);
   if (!Number.isInteger(id) || id <= 0) {
@@ -30,7 +34,7 @@ export default async function LashingReportPage({
   if (!report) {
     notFound();
   }
-  if (!scope.all && report.vesselId !== scope.vesselId) {
+  if (!trongPhamVi(scope, report.vesselId)) {
     notFound();
   }
   const lines = [...report.lines].sort(

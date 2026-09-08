@@ -13,10 +13,23 @@ model User {
   password  String
   name      String
   role      String   @default("CREW")
+  // CHỨC DANH GIỮ VẬT TƯ (mã trong lib/maVatTu.ts: BSN, 2E, ETO, CCK...).
+  //
+  // Khác với `role` ở trên: `role` là quyền đăng nhập, còn cột này là "trên tàu
+  // anh giữ kho nào". Hai thứ không trùng nhau — thủy thủ trưởng, thợ máy, sĩ
+  // quan điện, bếp trưởng đều đăng nhập bằng vai trò CREW, mà mỗi người giữ một
+  // kho khác hẳn. Không có cột này thì bốn người đó vào app đều thấy y như nhau.
+  //
+  // Để trống thì hệ thống tự suy từ `role` (máy hai → 2E, đại phó → CO...).
+  rankCode  String?
   isActive  Boolean  @default(true)
   vesselId  Int?
   vessel    Vessel?  @relation(fields: [vesselId], references: [id], onDelete: SetNull)
   documents ReportDocument[]
+  // Tàu được phân công (chỉ dùng cho tài khoản bờ) và ủy quyền có thời hạn.
+  fleetAssignments    FleetAssignment[]
+  delegationsGiven    Delegation[]      @relation("DelegationFrom")
+  delegationsReceived Delegation[]      @relation("DelegationTo")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([vesselId])
@@ -55,6 +68,13 @@ model Vessel {
   // Chuẩn biểu mẫu công ty quản lý tàu (MLS / NAVIS) — quyết định đầu chứng từ PO, RFQ, Service Order.
   formStandard     String            @default("MLS")
   hullNo           String?
+  // HỌ MÁY CHÍNH của tàu: "BME" (MAN B&W) hoặc "UEC" (Mitsubishi UEC) — xem
+  // NHOM_THIET_BI trong lib/maVatTu.ts. Đội tàu chạy cả hai họ, mà hai họ gần
+  // như không dùng chung chi tiết nào; biết tàu nào máy gì thì mới xếp được
+  // phụ tùng máy chính vào đúng nhóm và mới lọc đúng khi dự trù.
+  mainEngineGroup  String?
+  // Model cụ thể để in lên chứng từ đặt hàng: "6UEC50LSII", "6S50MC-C"...
+  mainEngineModel  String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   warehouses       Warehouse[]
@@ -73,6 +93,7 @@ model Vessel {
   consumableStocks       ConsumableStock[]
   consumableReceipts     ConsumableReceipt[]
   consumableTransactions ConsumableTransaction[]
+  fleetAssignments       FleetAssignment[]
 }
 
 model Warehouse {
@@ -109,6 +130,16 @@ model Material {
   uom          String                @default("PCS")
   materialType String                @default("STORE") // STORE = vật tư (MLS-11-05B), SPARE = phụ tùng (MLS-11-05A)
   equipment    String?               // thiết bị/máy gắn với phụ tùng
+  // Ba cột dưới đây là ba phân đoạn của mã vật tư (xem lib/maVatTu.ts):
+  //   department      D = Boong, E = Máy
+  //   equipGroup      BME, UEC, AEG, PUR, LSH... — null với hàng đi theo IMPA
+  //   responsibleRank CO, BSN, 2E, 4E... — chức danh giữ và kiểm kê món hàng này
+  // Tách thành cột riêng chứ không chỉ nằm trong chuỗi `code`: lọc "vật tư máy
+  // hai phải kiểm kê" bằng LIKE trên chuỗi vừa chậm vừa sai khi mã đổi khuôn,
+  // còn ở đây chỉ là một điều kiện WHERE có index.
+  department      String?
+  equipGroup      String?
+  responsibleRank String?
   categoryId   Int?
   category     Category?             @relation(fields: [categoryId], references: [id])
   minStock     Float                 @default(0)
@@ -124,6 +155,8 @@ model Material {
   @@index([categoryId])
   @@index([materialType])
   @@index([isActive])
+  @@index([responsibleRank])
+  @@index([department, equipGroup])
 }
 
 // Danh mục vật tư riêng của từng tàu: tàu nào dùng vật tư nào.
@@ -713,4 +746,90 @@ model ConsumableTransaction {
   @@index([productId])
   @@index([occurredAt])
   @@index([receiptId])
+}
+
+// ─── Phân quyền nâng cao: phân công đội tàu · ủy quyền · nhật ký thao tác ────
+
+// Tàu mà một người BỜ được phân công phụ trách.
+//
+// Trước đây mọi tài khoản văn phòng (ADMIN, TECH_MANAGER) thấy toàn đội. Với
+// một công ty có vài chục tàu thì quản lý kỹ thuật A không việc gì phải thấy —
+// và duyệt được — yêu cầu của tàu do quản lý B phụ trách. Có bảng này thì
+// TECH_MANAGER được thu hẹp đúng số tàu của mình; KHÔNG phân công dòng nào thì
+// giữ nguyên toàn đội (không phá cách dùng đang chạy, và tránh việc nâng cấp
+// xong là mọi quản lý kỹ thuật mất sạch quyền).
+//
+// Không áp cho ADMIN: quản trị hệ thống phải vào được mọi tàu để sửa lỗi.
+model FleetAssignment {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vesselId  Int
+  vessel    Vessel   @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, vesselId])
+  @@index([vesselId])
+}
+
+// Ủy quyền có thời hạn: máy trưởng đi bờ, quản lý kỹ thuật nghỉ phép.
+//
+// Người nhận ủy quyền KHÔNG bị đổi chức danh — chức danh in trên chứng từ vẫn
+// là chức danh thật của họ. Họ chỉ MƯỢN THÊM quyền của người ủy quyền trong
+// khoảng thời gian đã khai, và nhật ký ghi rõ "ký thay ai".
+//
+// Vì sao có cả revokedAt bên cạnh endAt: gọi người ủy quyền về sớm là chuyện
+// thường, mà sửa endAt về quá khứ thì mất dấu khoảng thời gian đã từng hiệu
+// lực — hồ sơ kiểm tra cần biết ai có quyền gì vào lúc nào.
+model Delegation {
+  id          Int       @id @default(autoincrement())
+  delegatorId Int // người GIAO quyền
+  delegator   User      @relation("DelegationFrom", fields: [delegatorId], references: [id], onDelete: Cascade)
+  delegateId  Int // người NHẬN quyền
+  delegate    User      @relation("DelegationTo", fields: [delegateId], references: [id], onDelete: Cascade)
+  startAt     DateTime
+  endAt       DateTime
+  reason      String?
+  revokedAt   DateTime?
+  createdById Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([delegateId])
+  @@index([delegatorId])
+  @@index([endAt])
+}
+
+// Nhật ký thao tác — ghi mọi request làm THAY ĐỔI dữ liệu.
+//
+// CỐ Ý không khai khóa ngoại tới User: nhật ký phải sống lâu hơn tài khoản.
+// Xóa một tài khoản mà kéo theo dấu vết thao tác của người đó là mất bằng
+// chứng, nên ở đây chỉ chụp lại userId, email, chức danh tại THỜI ĐIỂM thao
+// tác — sau này người đó đổi chức danh cũng không làm sai lịch sử.
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  at        DateTime @default(now())
+  userId    Int?
+  email     String?
+  role      String?
+  // Tàu liên quan, nếu biết. Không FK vì cùng lý do với userId.
+  vesselId  Int?
+  method    String
+  path      String
+  // Tên nghiệp vụ khi server action tự ghi ("duyet-yeu-cau"), hoặc mã server
+  // action do Next gửi kèm khi ghi tự động từ proxy.
+  action    String?
+  // OK · TU_CHOI (chặn vì thiếu quyền) · LOI
+  ketQua    String   @default("OK")
+  // Ký thay ai, nếu thao tác dùng quyền ủy quyền.
+  onBehalfOfId Int?
+  detail    String?
+  ip        String?
+  userAgent String?
+
+  @@index([at])
+  @@index([userId])
+  @@index([vesselId])
+  @@index([action])
 }

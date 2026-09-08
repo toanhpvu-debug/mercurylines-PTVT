@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireScopedUser, vesselIdWhere, vesselScope } from "@/lib/auth";
+import {
+  requireScopedUser,
+  vesselIdWhere,
+  vesselScopeDayDu,
+} from "@/lib/auth";
 import VesselFormStandardRow from "@/components/VesselFormStandardRow";
 import {
   FormStandardAddForm,
@@ -13,7 +17,7 @@ export const dynamic = "force-dynamic";
 
 export default async function VesselFormsPage() {
   const user = await requireScopedUser();
-  const scope = vesselScope(user);
+  const scope = vesselScopeDayDu(user);
   const canManage = user.role === "ADMIN";
   if (!["ADMIN", "MASTER"].includes(user.role)) {
     redirect("/purchasing");

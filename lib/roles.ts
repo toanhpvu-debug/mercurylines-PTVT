@@ -285,8 +285,117 @@ export function viSaoKhongDuyetDuoc(role: string): string {
 export type VesselScope = {
   all: boolean;
   vesselId: number | null;
+  /**
+   * Danh sách tàu của tài khoản BỜ được phân công (FleetAssignment).
+   * null nghĩa là không giới hạn theo danh sách — dùng `all` và `vesselId`.
+   */
+  vesselIds: number[] | null;
   unassigned: boolean;
 };
+
+/**
+ * Hình dạng tối thiểu của "người đang thao tác" mà các hàm quyền cần biết.
+ *
+ * `fleetVesselIds` và `uyQuyen` do lib/auth.ts đọc từ database rồi gắn vào;
+ * để tùy chọn nên mọi nơi gọi cũ (chỉ có role + vesselId) vẫn chạy nguyên.
+ */
+export type NguoiThaoTac = {
+  id?: number;
+  role: string;
+  vesselId: number | null;
+  fleetVesselIds?: number[] | null;
+  uyQuyen?: UyQuyen[];
+};
+
+export type TrangThaiUyQuyen =
+  | "DA_THU_HOI"
+  | "HET_HAN"
+  | "CHUA_TOI"
+  | "HIEU_LUC";
+
+/**
+ * Trạng thái của một ủy quyền tại thời điểm `bayGio`.
+ *
+ * Nhận mốc thời gian làm tham số chứ không tự gọi Date.now(): hàm thuần thì
+ * kiểm thử được, và React cũng không cho gọi hàm không thuần lúc dựng giao diện.
+ */
+export function trangThaiUyQuyen(
+  uq: { startAt: Date; endAt: Date; revokedAt: Date | null },
+  bayGio: Date
+): TrangThaiUyQuyen {
+  if (uq.revokedAt) return "DA_THU_HOI";
+  if (uq.endAt.getTime() < bayGio.getTime()) return "HET_HAN";
+  if (uq.startAt.getTime() > bayGio.getTime()) return "CHUA_TOI";
+  return "HIEU_LUC";
+}
+
+/** Một ủy quyền CÒN HIỆU LỰC mà người này đang nhận. */
+export type UyQuyen = {
+  delegatorId: number;
+  delegatorName: string;
+  delegatorRole: string;
+  delegatorVesselId: number | null;
+  delegatorFleetVesselIds?: number[] | null;
+};
+
+/**
+ * Các "danh tính" mà người này được dùng khi xét quyền: chính mình trước, rồi
+ * tới quyền mượn từ người ủy quyền.
+ *
+ * Tách ra thành danh sách thay vì cộng dồn quyền: cộng dồn thì mất dấu ai là
+ * người thật sự có thẩm quyền, mà chứng từ và nhật ký phải ghi được "ký thay
+ * máy trưởng Nguyễn Văn A" chứ không phải "có quyền từ đâu đó".
+ */
+export function danhTinhHieuLuc(user: NguoiThaoTac): {
+  id: number | undefined;
+  role: string;
+  vesselId: number | null;
+  fleetVesselIds?: number[] | null;
+  uyQuyenTu: UyQuyen | null;
+}[] {
+  const ra = [
+    {
+      id: user.id,
+      role: user.role,
+      vesselId: user.vesselId,
+      fleetVesselIds: user.fleetVesselIds,
+      uyQuyenTu: null as UyQuyen | null,
+    },
+  ];
+  for (const u of user.uyQuyen ?? []) {
+    // Vai trò mượn là ADMIN thì bỏ qua: vesselScope() trả {all:true} cho
+    // ADMIN, nên một danh tính mượn như vậy sẽ xóa sạch bộ lọc tàu của
+    // chính người dùng. Quyền quản trị không đem cho mượn được.
+    if (u.delegatorRole === "ADMIN") continue;
+    ra.push({
+      id: user.id, // vẫn là con người đó, chỉ mượn thẩm quyền
+      role: u.delegatorRole,
+      vesselId: u.delegatorVesselId,
+      fleetVesselIds: u.delegatorFleetVesselIds,
+      uyQuyenTu: u,
+    });
+  }
+  return ra;
+}
+
+/**
+ * Người này có ĐƯỢC CHỌN giữa nhiều tàu không.
+ *
+ * Khác với `scope.all`: quản lý kỹ thuật được phân công 5 tàu thì không phải
+ * toàn đội, nhưng vẫn cần ô chọn tàu. Trước đây giao diện hỏi thẳng
+ * `scope.all` nên nhóm này rơi vào nhánh "chỉ có đúng một tàu" và không chọn
+ * được tàu nào.
+ */
+export function chonDuocTau(scope: VesselScope): boolean {
+  return scope.all || (scope.vesselIds?.length ?? 0) > 0;
+}
+
+/** Tàu này có nằm trong phạm vi được xem/được thao tác không. */
+export function trongPhamVi(scope: VesselScope, vesselId: number): boolean {
+  if (scope.all) return true;
+  if (scope.vesselIds) return scope.vesselIds.includes(vesselId);
+  return scope.vesselId === vesselId;
+}
 
 // Quy tắc phạm vi:
 //   ADMIN, TECH_MANAGER  -> toàn đội (vai trò văn phòng)
@@ -297,34 +406,68 @@ export type VesselScope = {
 //
 // CHIEF_ENGINEER không có ngoại lệ "không gán tàu thì toàn đội": máy trưởng là
 // chức danh trên MỘT con tàu, cho thấy toàn đội là mở rộng quyền ngoài ý muốn.
-export function vesselScope(user: {
-  role: string;
-  vesselId: number | null;
-}): VesselScope {
-  if (user.role === "ADMIN" || user.role === "TECH_MANAGER") {
-    return { all: true, vesselId: null, unassigned: false };
+export function vesselScope(user: NguoiThaoTac): VesselScope {
+  // Quản trị hệ thống luôn thấy toàn đội — có phân công tàu cũng không thu hẹp,
+  // vì người sửa lỗi phải vào được mọi tàu.
+  if (user.role === "ADMIN") {
+    return { all: true, vesselId: null, vesselIds: null, unassigned: false };
+  }
+  // Tài khoản BỜ: có phân công tàu thì chỉ thấy đúng số tàu đó. KHÔNG phân
+  // công dòng nào thì giữ nguyên toàn đội — nếu không, nâng cấp xong là mọi
+  // quản lý kỹ thuật mất sạch quyền cho tới khi ai đó nhớ ra phải đi gán tàu.
+  if (user.role === "TECH_MANAGER") {
+    const ds = user.fleetVesselIds ?? [];
+    return ds.length
+      ? { all: false, vesselId: null, vesselIds: ds, unassigned: false }
+      : { all: true, vesselId: null, vesselIds: null, unassigned: false };
   }
   if (user.vesselId) {
-    return { all: false, vesselId: user.vesselId, unassigned: false };
+    return {
+      all: false,
+      vesselId: user.vesselId,
+      vesselIds: null,
+      unassigned: false,
+    };
   }
   if (user.role === "MASTER") {
-    return { all: true, vesselId: null, unassigned: false };
+    return { all: true, vesselId: null, vesselIds: null, unassigned: false };
   }
-  return { all: false, vesselId: null, unassigned: true };
+  return { all: false, vesselId: null, vesselIds: null, unassigned: true };
+}
+
+/**
+ * Phạm vi tàu RỘNG NHẤT mà người này có, kể cả quyền đang mượn từ ủy quyền.
+ *
+ * Dùng cho việc XEM (danh sách, bảng tổng hợp): người nhận ủy quyền của quản lý
+ * kỹ thuật phải thấy được tàu của người kia thì mới xử lý thay được.
+ */
+export function vesselScopeDayDu(user: NguoiThaoTac): VesselScope {
+  const ds = danhTinhHieuLuc(user).map((d) => vesselScope(d));
+  if (ds.some((s) => s.all)) {
+    return { all: true, vesselId: null, vesselIds: null, unassigned: false };
+  }
+  const ids = new Set<number>();
+  for (const s of ds) {
+    if (s.vesselIds) for (const i of s.vesselIds) ids.add(i);
+    else if (s.vesselId) ids.add(s.vesselId);
+  }
+  if (!ids.size) {
+    return { all: false, vesselId: null, vesselIds: null, unassigned: true };
+  }
+  const mang = [...ids];
+  return mang.length === 1
+    ? { all: false, vesselId: mang[0], vesselIds: null, unassigned: false }
+    : { all: false, vesselId: null, vesselIds: mang, unassigned: false };
 }
 
 // Ai được chỉnh danh mục vật tư của một tàu (gán/gỡ vật tư):
 // ADMIN mọi tàu; thuyền trưởng / máy trưởng tàu mình; CREW không.
-export function canManageVesselCatalog(
-  user: { role: string; vesselId: number | null },
-  vesselId: number
-) {
-  if (user.role === "ADMIN") return true;
-  if (CHI_HUY_TAU.includes(user.role)) {
-    const scope = vesselScope(user);
-    return scope.all || scope.vesselId === vesselId;
-  }
-  return false;
+export function canManageVesselCatalog(user: NguoiThaoTac, vesselId: number) {
+  return danhTinhHieuLuc(user).some((d) => {
+    if (d.role === "ADMIN") return true;
+    if (!CHI_HUY_TAU.includes(d.role)) return false;
+    return trongPhamVi(vesselScope(d), vesselId);
+  });
 }
 
 /**
@@ -333,13 +476,10 @@ export function canManageVesselCatalog(
  * Cùng khuôn với canManageVesselCatalog: đúng vai trò VÀ đúng tàu. Người bị
  * giới hạn tàu không đụng được sang tàu khác kể cả gõ thẳng URL.
  */
-export function coQuanLySon(
-  user: { role: string; vesselId: number | null },
-  vesselId: number
-) {
-  if (!VAN_HANH_SON.includes(user.role)) return false;
-  const scope = vesselScope(user);
-  return scope.all || scope.vesselId === vesselId;
+export function coQuanLySon(user: NguoiThaoTac, vesselId: number) {
+  return danhTinhHieuLuc(user).some(
+    (d) => VAN_HANH_SON.includes(d.role) && trongPhamVi(vesselScope(d), vesselId)
+  );
 }
 
 /**
@@ -349,7 +489,7 @@ export function coQuanLySon(
  * xem tồn); truyền cụ thể khi sắp ghi một giao dịch của nhóm đó.
  */
 export function coQuanLyNhienLieu(
-  user: { role: string; vesselId: number | null },
+  user: NguoiThaoTac,
   vesselId: number,
   category?: string | null
 ) {
@@ -359,9 +499,9 @@ export function coQuanLyNhienLieu(
       : category
         ? VAN_HANH_NHIEN_LIEU
         : VAN_HANH_HOA_CHAT; // không nêu nhóm: hỏi quyền rộng nhất
-  if (!nhom.includes(user.role)) return false;
-  const scope = vesselScope(user);
-  return scope.all || scope.vesselId === vesselId;
+  return danhTinhHieuLuc(user).some(
+    (d) => nhom.includes(d.role) && trongPhamVi(vesselScope(d), vesselId)
+  );
 }
 
 /**
@@ -372,17 +512,18 @@ export function coQuanLyNhienLieu(
  * của ông ấy.
  */
 export function coXinCapNhienLieu(
-  user: { role: string; vesselId: number | null },
+  user: NguoiThaoTac,
   vesselId: number,
   category?: string | null
 ) {
-  if (!XIN_CAP_NHIEN_LIEU.includes(user.role)) return false;
-  // Đại phó là người boong: chỉ xin được hóa chất.
-  if (user.role === "CHIEF_OFFICER" && category && category !== "CHEMICAL") {
-    return false;
-  }
-  const scope = vesselScope(user);
-  return scope.all || scope.vesselId === vesselId;
+  return danhTinhHieuLuc(user).some((d) => {
+    if (!XIN_CAP_NHIEN_LIEU.includes(d.role)) return false;
+    // Đại phó là người boong: chỉ xin được hóa chất.
+    if (d.role === "CHIEF_OFFICER" && category && category !== "CHEMICAL") {
+      return false;
+    }
+    return trongPhamVi(vesselScope(d), vesselId);
+  });
 }
 
 /** Các nhóm mà người này được XIN CẤP trên tàu đã cho. */
@@ -417,7 +558,7 @@ export function nhomNhienLieuChoPhep(
  * chi tiết, trang danh sách); tách ra là sớm muộn cũng lệch nhau.
  */
 export function capDuyetChoPhep(
-  user: { id?: number; role: string; vesselId: number | null },
+  user: NguoiThaoTac,
   request: {
     vesselId: number;
     status: string;
@@ -425,9 +566,50 @@ export function capDuyetChoPhep(
     requestedById?: number | null;
   }
 ): "TAU" | "CONG_TY" | null {
-  const scope = vesselScope(user);
+  return capDuyetChiTiet(user, request).cap;
+}
+
+/**
+ * Như capDuyetChoPhep nhưng nói thêm quyền đó đến từ đâu: của chính mình, hay
+ * mượn của người đã ủy quyền. Nơi gọi cần biết để ghi đúng "ký thay ai" lên
+ * chứng từ và vào nhật ký.
+ */
+export function capDuyetChiTiet(
+  user: NguoiThaoTac,
+  request: {
+    vesselId: number;
+    status: string;
+    department: string;
+    requestedById?: number | null;
+  }
+): { cap: "TAU" | "CONG_TY" | null; uyQuyenTu: UyQuyen | null } {
+  for (const d of danhTinhHieuLuc(user)) {
+    const cap = capDuyetMotDanhTinh(d, user, request);
+    if (cap) return { cap, uyQuyenTu: d.uyQuyenTu };
+  }
+  return { cap: null, uyQuyenTu: null };
+}
+
+function capDuyetMotDanhTinh(
+  danhTinh: {
+    id: number | undefined;
+    role: string;
+    vesselId: number | null;
+    fleetVesselIds?: number[] | null;
+    uyQuyenTu: UyQuyen | null;
+  },
+  nguoiThat: NguoiThaoTac,
+  request: {
+    vesselId: number;
+    status: string;
+    department: string;
+    requestedById?: number | null;
+  }
+): "TAU" | "CONG_TY" | null {
+  const user = danhTinh;
+  const scope = vesselScope(danhTinh);
   if (request.status === "PENDING_MASTER") {
-    if (!scope.all && request.vesselId !== scope.vesselId) return null;
+    if (!trongPhamVi(scope, request.vesselId)) return null;
     // KHÔNG AI DUYỆT YÊU CẦU DO CHÍNH MÌNH LẬP.
     //
     // Máy trưởng quản toàn bộ dầu, dầu nhờn, hóa chất của tàu, nhưng khi chính
@@ -438,17 +620,32 @@ export function capDuyetChoPhep(
     // Yêu cầu do THUYỀN TRƯỞNG lập không rơi vào đây: nó được chuyển thẳng lên
     // công ty ngay lúc trình (xem app/actions.ts), vì trên tàu không còn ai
     // trên thuyền trưởng để ký.
+    //
+    // ỦY QUYỀN KHÔNG PHÁ ĐƯỢC QUY TẮC NÀY, theo cả hai chiều:
+    //   - người nhận ủy quyền không duyệt yêu cầu do CHÍNH HỌ lập, dù đang
+    //     mượn quyền của cấp trên;
+    //   - và cũng không duyệt yêu cầu do NGƯỜI ỦY QUYỀN lập — mượn thẩm quyền
+    //     của chính người đang xin cấp thì vẫn là tờ giấy tự ký, chỉ khác nét
+    //     chữ. Trường hợp đó để thuyền trưởng hoặc công ty duyệt.
     if (
-      user.id != null &&
       request.requestedById != null &&
-      user.id === request.requestedById
+      (nguoiThat.id === request.requestedById ||
+        danhTinh.uyQuyenTu?.delegatorId === request.requestedById)
     ) {
       return null;
     }
     return coDuyetCapTau(user.role, request.department) ? "TAU" : null;
   }
   if (request.status === "PENDING_OFFICE") {
-    return coDuyetCongTy(user.role) ? "CONG_TY" : null;
+    if (!coDuyetCongTy(user.role)) return null;
+    // Quản lý kỹ thuật được phân công tàu thì chỉ duyệt tàu của mình.
+    //
+    // CỐ Ý không chặn "tự duyệt" ở bước công ty: yêu cầu do thuyền trưởng hay
+    // quản trị lập đi THẲNG lên đây (xem trinhThangLenCongTy). Chặn nốt bước
+    // này thì công ty chỉ có một người là yêu cầu nằm kẹt vĩnh viễn — đúng cái
+    // bẫy mà bước cấp tàu đã phải mở lối đi vòng để tránh. Bước cấp tàu đã bảo
+    // đảm có hai chữ ký khác nhau cho yêu cầu từ tàu.
+    return trongPhamVi(scope, request.vesselId) ? "CONG_TY" : null;
   }
   return null;
 }

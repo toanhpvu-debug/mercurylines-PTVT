@@ -79,14 +79,33 @@ export function departmentOf(sources: (string | null | undefined)[]): string {
  */
 export function departmentOfMaterial(
   sources: (string | null | undefined)[],
-  materialType: string
+  materialType: string,
+  /**
+   * Bộ phận đã ghi sẵn ở cột `Material.department` (D · E · L · C).
+   *
+   * Có thì DÙNG LUÔN, không đoán lại. Cột đó do người vận hành gán và chính nó
+   * quyết định mã của món hàng (`L-IMPA-0003`); đoán lại bằng từ khóa thì một
+   * dòng có mã bộ phận Điện vẫn có thể bị xếp xuống nhóm Máy trên màn hình —
+   * mã nói một đằng, chỗ hiển thị nói một nẻo.
+   */
+  boPhanDaGan?: string | null
 ): string {
+  const daGan = (boPhanDaGan ?? "").trim().toUpperCase();
+  if (daGan && THEO_MA_BO_PHAN[daGan]) return THEO_MA_BO_PHAN[daGan];
   const key = departmentOf(sources);
   if (key === OTHER_DEPARTMENT.key && materialType === "SPARE") {
     return "ENGINE";
   }
   return key;
 }
+
+/** Chữ cái bộ phận trong mã vật tư → nhóm hiển thị của giao diện. */
+const THEO_MA_BO_PHAN: Record<string, string> = {
+  D: "DECK",
+  E: "ENGINE",
+  L: "ELEC",
+  C: "SERVICE",
+};
 
 export type MaterialLike = {
   materialType: string;
@@ -119,9 +138,34 @@ export function equipmentOf(m: MaterialLike): string | null {
 const viCollator = new Intl.Collator("vi");
 
 /**
+ * Thiết bị được đưa lên đầu danh sách phụ tùng, không xếp theo vần.
+ *
+ * Máy chính đứng đầu vì đó là thiết bị hay phải tra nhất: dừng máy chính là
+ * dừng con tàu, nên khi mở danh mục ra người ta tìm phụ tùng máy chính trước.
+ * Xếp theo vần thì nó nằm lẫn giữa "Air Compressor" và "Oil Separator", phải
+ * cuộn qua mấy chục dòng mới tới.
+ *
+ * Thêm thiết bị khác vào đây là thêm một dòng — thứ tự trong mảng chính là thứ
+ * tự hiển thị.
+ */
+const THIET_BI_UU_TIEN: readonly RegExp[] = [
+  /máy chính|may chinh|main engine/i,
+  // Máy đèn đứng ngay sau máy chính: mất máy đèn là mất điện toàn tàu, nên đây
+  // là thiết bị thứ hai người ta tra tới.
+  /máy đèn|may den|máy phụ|may phu|aux\.? ?engine|auxiliary engine/i,
+];
+
+/** Bậc ưu tiên của một thiết bị: càng nhỏ càng lên trên. */
+function uuTienThietBi(equip: string): number {
+  const i = THIET_BI_UU_TIEN.findIndex((re) => re.test(equip));
+  return i < 0 ? THIET_BI_UU_TIEN.length : i;
+}
+
+/**
  * Sắp xếp vật tư trong một bộ phận:
- * Vật tư (Store) đứng trước → Phụ tùng (Spare) xếp sau theo từng thiết bị →
- * trong mỗi thiết bị sắp theo tên.
+ * Vật tư (Store) đứng trước → Phụ tùng (Spare) xếp sau theo từng thiết bị, máy
+ * chính lên đầu rồi mới tới các thiết bị khác theo vần → trong mỗi thiết bị sắp
+ * theo tên.
  *
  * Tính sẵn khóa sắp xếp một lần cho mỗi dòng thay vì tính lại trong hàm so
  * sánh — hàm so sánh chạy O(n log n) lần nên mọi việc nặng đặt trong đó đều bị
@@ -134,16 +178,19 @@ export function sortWithinDepartment<T>(
   return rows
     .map((row) => {
       const m = pick(row);
+      const equip = equipmentOf(m) ?? "";
       return {
         row,
         spare: m.materialType === "SPARE" ? 1 : 0,
-        equip: equipmentOf(m) ?? "",
+        uuTien: uuTienThietBi(equip),
+        equip,
         name: m.nameVn,
       };
     })
     .sort(
       (a, b) =>
         a.spare - b.spare ||
+        a.uuTien - b.uuTien ||
         viCollator.compare(a.equip, b.equip) ||
         viCollator.compare(a.name, b.name)
     )

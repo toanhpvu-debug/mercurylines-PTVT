@@ -8,20 +8,29 @@ import { getSession } from "@/lib/session";
 // "server-only" và kéo theo next/navigation, không chạy được ngoài Next (kể cả
 // trong script kiểm thử). Tái xuất ở đây để mọi nơi đang import từ @/lib/auth
 // giữ nguyên.
-export type { VesselScope } from "@/lib/roles";
+export type { NguoiThaoTac, UyQuyen, VesselScope } from "@/lib/roles";
 export {
   canManageVesselCatalog,
+  capDuyetChiTiet,
   capDuyetChoPhep,
+  chonDuocTau,
   coQuanLyNhienLieu,
   coQuanLySon,
   coXinCapNhienLieu,
+  danhTinhHieuLuc,
   nhomNhienLieuChoPhep,
   nhomXinCapChoPhep,
   trinhThangLenCongTy,
+  trongPhamVi,
   vesselScope,
+  vesselScopeDayDu,
 } from "@/lib/roles";
 
-import { vesselScope, type VesselScope } from "@/lib/roles";
+import {
+  trongPhamVi,
+  vesselScopeDayDu,
+  type VesselScope,
+} from "@/lib/roles";
 
 export async function requireActiveRole(roles: string[]) {
   const session = await getSession();
@@ -29,19 +38,90 @@ export async function requireActiveRole(roles: string[]) {
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
   });
-  if (!user || !user.isActive || !roles.includes(user.role)) {
-    return null;
+  if (!user || !user.isActive) return null;
+  // Luôn kèm phần quyền động: nơi gọi lấy `actor` này rồi đưa thẳng vào
+  // capDuyetChoPhep / coQuanLy* — thiếu nó thì ủy quyền và phân công đội tàu
+  // có trong database mà không có tác dụng gì.
+  const them = await quyenDong(user.id);
+  if (roles.includes(user.role)) return { ...user, ...them };
+  // Quyền mượn từ ủy quyền cũng mở được cửa này — nếu không thì người được máy
+  // trưởng ủy quyền vẫn bị chặn ngay từ cổng, trước cả khi xét tới việc gì.
+  // ADMIN bị loại khỏi vai trò mượn: dù có dòng ủy quyền cũ trong database,
+  // nó cũng không mở được 28 server action chỉ-ADMIN.
+  if (
+    them.uyQuyen.some(
+      (u) => u.delegatorRole !== "ADMIN" && roles.includes(u.delegatorRole)
+    )
+  ) {
+    return { ...user, ...them };
   }
-  return user;
+  return null;
+}
+
+/**
+ * Đọc phần quyền ĐỘNG của một tài khoản: tàu được phân công (tài khoản bờ) và
+ * các ủy quyền còn hiệu lực tại thời điểm này.
+ *
+ * Đọc mỗi lần chứ không nhét vào JWT: thu hồi ủy quyền hay đổi phân công tàu
+ * phải có hiệu lực NGAY, không chờ phiên đăng nhập hết hạn.
+ */
+async function quyenDong(userId: number) {
+  const bayGio = new Date();
+  const [phanCong, uyQuyen] = await Promise.all([
+    prisma.fleetAssignment.findMany({
+      where: { userId },
+      select: { vesselId: true },
+    }),
+    prisma.delegation.findMany({
+      where: {
+        delegateId: userId,
+        revokedAt: null,
+        startAt: { lte: bayGio },
+        endAt: { gte: bayGio },
+      },
+      include: {
+        delegator: {
+          select: {
+            id: true,
+            name: true,
+            role: true,
+            vesselId: true,
+            isActive: true,
+            fleetAssignments: { select: { vesselId: true } },
+          },
+        },
+      },
+    }),
+  ]);
+  return {
+    fleetVesselIds: phanCong.map((x) => x.vesselId),
+    // Người ủy quyền bị khóa tài khoản thì quyền mượn từ họ cũng hết hiệu lực:
+    // khóa một người mà quyền của họ vẫn chạy qua tay người khác là khóa hụt.
+    uyQuyen: uyQuyen
+      .filter((u) => u.delegator.isActive)
+      .map((u) => ({
+        delegatorId: u.delegator.id,
+        delegatorName: u.delegator.name,
+        delegatorRole: u.delegator.role,
+        delegatorVesselId: u.delegator.vesselId,
+        delegatorFleetVesselIds: u.delegator.fleetAssignments.map(
+          (x) => x.vesselId
+        ),
+        endAt: u.endAt,
+      })),
+  };
 }
 
 export const getCurrentUser = cache(async () => {
   const session = await getSession();
   if (!session) return null;
-  return prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: session.userId },
     include: { vessel: true },
   });
+  if (!user) return null;
+  const them = await quyenDong(user.id);
+  return { ...user, ...them };
 });
 
 // Dùng trong mọi trang sau đăng nhập: trả về user MỚI NHẤT từ database
@@ -60,12 +140,16 @@ export async function requireScopedUser() {
 
 // Điều kiện where theo phạm vi cho các bảng có cột vesselId (-1 không khớp gì).
 export function vesselWhere(scope: VesselScope) {
-  return scope.all ? {} : { vesselId: scope.vesselId ?? -1 };
+  if (scope.all) return {};
+  if (scope.vesselIds) return { vesselId: { in: scope.vesselIds } };
+  return { vesselId: scope.vesselId ?? -1 };
 }
 
 // Điều kiện where theo phạm vi cho chính bảng Vessel.
 export function vesselIdWhere(scope: VesselScope) {
-  return scope.all ? {} : { id: scope.vesselId ?? -1 };
+  if (scope.all) return {};
+  if (scope.vesselIds) return { id: { in: scope.vesselIds } };
+  return { id: scope.vesselId ?? -1 };
 }
 
 // Yêu cầu đã cam kết (duyệt trở đi) chỉ ADMIN mới được xóa — bảo toàn hồ sơ mua sắm.
@@ -79,11 +163,11 @@ export const REQUEST_DELETABLE_BY_NON_ADMIN = [
 // Ai được xóa một yêu cầu: ADMIN xóa mọi trạng thái; MASTER/CREW chỉ xóa
 // yêu cầu của tàu mình khi chưa duyệt/mua sắm.
 export function canDeleteRequest(
-  user: { role: string; vesselId: number | null },
+  user: { role: string; vesselId: number | null; fleetVesselIds?: number[] | null },
   request: { vesselId: number; status: string }
 ) {
-  const scope = vesselScope(user);
-  if (!scope.all && request.vesselId !== scope.vesselId) {
+  const scope = vesselScopeDayDu(user);
+  if (!trongPhamVi(scope, request.vesselId)) {
     return false;
   }
   if (user.role === "ADMIN") {

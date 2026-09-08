@@ -2,33 +2,37 @@
  * Khai báo bản cài này là của TÀU nào, hay là bản VĂN PHÒNG.
  *
  * Chạy:
- *   khai-bao-ban-cai.cmd ML-001     → bản cài trên tàu M. ODYSSEY
+ *   khai-bao-ban-cai.cmd MLS-001     → bản cài trên tàu M. ODYSSEY
  *   khai-bao-ban-cai.cmd VANPHONG   → bản cài ở văn phòng
  *
  * Với bản cài trên tàu, script còn ĐẶT DẢI ID RIÊNG cho tàu đó. Đây là điểm
  * mấu chốt để gộp dữ liệu: hai tàu cùng tạo bản ghi mới mà dùng chung dải id
  * thì khi gửi về văn phòng sẽ đụng nhau. Mỗi tàu một triệu id riêng:
- *   ML-001 → từ 1.000.000    ML-002 → từ 2.000.000    ...
+ *   MLS-001 → từ 1.000.000    MLS-002 → từ 2.000.000    ...
  * Văn phòng giữ dải 1 → 999.999.
  */
 import { prisma } from "@/lib/prisma";
-import { daiIdChoTau, sqlDatLaiBoDem } from "@/lib/sync";
+import { TEN_BANG_DB, daiIdChoTau, sqlDatLaiBoDem } from "@/lib/sync";
 
-// Bảng nào tàu có thể tạo bản ghi mới → cần đặt dải id riêng.
-const BANG_TAU_GHI = [
-  "Warehouse", "VesselMaterial", "Inventory", "InventoryTransaction",
-  "MaterialRequest", "MaterialRequestItem", "MaterialRequestEvent",
-  "PurchaseOrder", "PurchaseOrderItem", "LashingGear", "LashingReport",
-  "LashingReportLine", "PaintArea", "PaintSchemeLayer", "PaintStock",
-  "PaintJob", "PaintJobLine", "PaintTransaction", "ReportDocument",
-];
+/**
+ * Bảng nào tàu có thể tạo bản ghi mới → cần đặt dải id riêng.
+ *
+ * Lấy thẳng danh sách bảng đồng bộ chứ không chép lại thành danh sách thứ hai:
+ * chép lại thì thêm module mới phải nhớ sửa hai chỗ, quên một chỗ là bản ghi
+ * tạo trên tàu mang id của dải văn phòng và ĐÈ LÊN dữ liệu văn phòng khi gộp —
+ * hỏng âm thầm, không có thông báo lỗi nào.
+ *
+ * Kể cả danh mục dùng chung: tàu khai được loại sơn và mặt hàng dầu mới, những
+ * dòng đó cũng phải nằm trong dải của tàu.
+ */
+const BANG_TAU_GHI = Object.values(TEN_BANG_DB);
 
 async function main() {
   const arg = (process.argv[2] ?? "").trim().toUpperCase();
   if (!arg) {
     console.error(
       "Thiếu tham số.\n" +
-        "  khai-bao-ban-cai.cmd ML-001     (bản cài trên tàu)\n" +
+        "  khai-bao-ban-cai.cmd MLS-001     (bản cài trên tàu)\n" +
         "  khai-bao-ban-cai.cmd VANPHONG   (bản cài văn phòng)"
     );
     process.exit(1);

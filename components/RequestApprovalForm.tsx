@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { approveRequestQuantities } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type ItemInput = {
   id: number;
@@ -22,6 +23,7 @@ export default function RequestApprovalForm({
   items: ItemInput[];
   capDuyet: "TAU" | "CONG_TY";
 }) {
+  const { t } = useNgonNgu();
   const laCongTy = capDuyet === "CONG_TY";
   // Cấp công ty không được duyệt vượt số tàu đã duyệt — trần là số của bước trước.
   const tran = (item: ItemInput) =>
@@ -35,19 +37,21 @@ export default function RequestApprovalForm({
       <input type="hidden" name="id" value={requestId} />
       <p className="text-sm text-slate-600">
         {laCongTy
-          ? "Nhập số lượng công ty duyệt cho từng dòng. Mặc định bằng số tàu đã duyệt, có thể giảm bớt chứ không tăng."
-          : "Nhập số lượng duyệt (S.L Duyệt) cho từng dòng rồi bấm Duyệt. Mặc định bằng số lượng yêu cầu, có thể giảm bớt."}
+          ? t("requests.huongDanDuyetCongTy")
+          : t("requests.huongDanDuyetTau")}
       </p>
       <div className="overflow-x-auto">
         <table className="w-full border text-sm">
           <thead>
             <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-              <th className="p-2">Mã</th>
-              <th className="p-2">Tên</th>
-              <th className="p-2">Tồn (ROB)</th>
-              <th className="p-2">SL yêu cầu</th>
-              {laCongTy && <th className="p-2">Tàu duyệt</th>}
-              <th className="p-2">{laCongTy ? "Công ty duyệt" : "SL duyệt"}</th>
+              <th className="p-2">{t("chung.ma")}</th>
+              <th className="p-2">{t("chung.ten")}</th>
+              <th className="p-2">{t("requests.cotRob")}</th>
+              <th className="p-2">{t("requests.slYeuCau")}</th>
+              {laCongTy && <th className="p-2">{t("requests.slTauDuyet")}</th>}
+              <th className="p-2">
+                {laCongTy ? t("requests.slCongTyDuyet") : t("requests.slDuyet")}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -79,10 +83,10 @@ export default function RequestApprovalForm({
         className="rounded bg-green-100 px-4 py-2 text-green-700 hover:bg-green-200 disabled:opacity-50"
       >
         {pending
-          ? "Đang duyệt..."
+          ? t("requests.dangDuyet")
           : laCongTy
-            ? "Công ty duyệt"
-            : "Tàu duyệt & chuyển lên công ty"}
+            ? t("requests.nutCongTyDuyet")
+            : t("requests.nutTauDuyetVaChuyen")}
       </button>
       {state.message && (
         <p className="text-sm text-red-600">{state.message}</p>

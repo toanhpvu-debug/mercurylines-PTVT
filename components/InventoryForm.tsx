@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { createInventoryTransaction } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type MaterialOption = {
   id: number;
@@ -24,6 +25,7 @@ export default function InventoryForm({
   warehouses: WarehouseOption[];
   returnTo?: string;
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(
     createInventoryTransaction,
     { message: "" }
@@ -38,7 +40,7 @@ export default function InventoryForm({
         required
         defaultValue={v.materialId ?? ""}
       >
-        <option value="">Chọn vật tư</option>
+        <option value="">{t("inventory.chonVatTu")}</option>
         {materials.map((material) => (
           <option key={material.id} value={material.id}>
             {material.code} - {material.nameVn}
@@ -51,7 +53,7 @@ export default function InventoryForm({
         required
         defaultValue={v.warehouseId ?? ""}
       >
-        <option value="">Chọn kho</option>
+        <option value="">{t("inventory.chonKho")}</option>
         {warehouses.map((warehouse) => (
           <option key={warehouse.id} value={warehouse.id}>
             {warehouse.code} - {warehouse.name}
@@ -64,28 +66,28 @@ export default function InventoryForm({
         required
         defaultValue={v.type ?? "IN"}
       >
-        <option value="IN">Nhập kho</option>
-        <option value="OUT">Xuất kho</option>
+        <option value="IN">{t("inventory.optNhapKho")}</option>
+        <option value="OUT">{t("inventory.optXuatKho")}</option>
       </select>
       <input
         name="quantity"
         type="number"
         step="0.01"
         min="0.01"
-        placeholder="Số lượng"
+        placeholder={t("chung.soLuong")}
         className="rounded border p-2"
         defaultValue={v.quantity ?? ""}
         required
       />
       <input
         name="note"
-        placeholder="Ghi chú"
+        placeholder={t("chung.ghiChu")}
         className="rounded border p-2"
         defaultValue={v.note ?? ""}
       />
       <label className="block md:col-span-3">
         <span className="mb-1 block text-xs text-slate-600">
-          Thời điểm thực hiện (để trống = bây giờ; cho phép ghi lùi khi nhập bù)
+          {t("inventory.goiYThoiDiem")}
         </span>
         <input
           name="occurredAt"
@@ -98,7 +100,7 @@ export default function InventoryForm({
         disabled={pending}
         className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50 md:col-span-2 md:self-end"
       >
-        {pending ? "Đang xử lý..." : "Thực hiện nhập / xuất"}
+        {pending ? t("chung.dangXuLy") : t("inventory.nutThucHien")}
       </button>
       {state.message && (
         <p

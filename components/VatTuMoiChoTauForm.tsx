@@ -5,6 +5,7 @@ import { khaiVatTuMoiChoTau } from "@/app/actions";
 import { BO_PHAN, CHUC_DANH, type BoPhan } from "@/lib/maVatTu";
 import { chucDanhTheoNhomThietBi } from "@/lib/chucDanhChiuTrachNhiem";
 import { boPhanCuaChucDanh } from "@/lib/vatTuMoiChoTau";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type NhomOption = { id: number; name: string; code: string };
 
@@ -30,6 +31,7 @@ export default function VatTuMoiChoTauForm({
   /** Chức danh của chính người đang đăng nhập — điền sẵn, đổi được. */
   chucDanhMacDinh: string | null;
 }) {
+  const { t, tenChucDanh, tenBoPhan } = useNgonNgu();
   const [state, formAction, pending] = useActionState(khaiVatTuMoiChoTau, {
     message: "",
   });
@@ -68,14 +70,16 @@ export default function VatTuMoiChoTauForm({
   return (
     <details className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50/60">
       <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-medium text-blue-800 hover:text-blue-950">
-        ＋ Chưa có trong danh mục gốc? Khai mặt hàng mới cho {vesselName}
+        ＋ {t("materials.khaiMoiTieuDe", { tau: vesselName })}
       </summary>
       <form action={formAction} className="space-y-3 border-t border-slate-200 p-4">
         <input type="hidden" name="vesselId" value={vesselId} />
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div>
-            <label className={nhan}>Chức danh giữ &amp; kiểm kê *</label>
+            <label className={nhan}>
+              {t("materials.chucDanhGiuKiemKe")} *
+            </label>
             <select
               name="rankCode"
               value={rank}
@@ -83,14 +87,14 @@ export default function VatTuMoiChoTauForm({
               required
               className={o}
             >
-              <option value="">— Chọn chức danh —</option>
+              <option value="">{t("materials.optChonChucDanh")}</option>
               {(Object.keys(BO_PHAN) as BoPhan[]).map((bp) => (
-                <optgroup key={bp} label={BO_PHAN[bp].ten}>
+                <optgroup key={bp} label={tenBoPhan(bp)}>
                   {Object.entries(CHUC_DANH)
                     .filter(([, cd]) => cd.boPhan === bp)
-                    .map(([ma, cd]) => (
+                    .map(([ma]) => (
                       <option key={ma} value={ma}>
-                        {cd.ten} ({ma})
+                        {tenChucDanh(ma)} ({ma})
                       </option>
                     ))}
                 </optgroup>
@@ -98,7 +102,7 @@ export default function VatTuMoiChoTauForm({
             </select>
           </div>
           <div>
-            <label className={nhan}>Bộ phận (theo chức danh)</label>
+            <label className={nhan}>{t("materials.boPhanTheoChucDanh")}</label>
             <select
               name="boPhan"
               value={boPhan}
@@ -109,44 +113,49 @@ export default function VatTuMoiChoTauForm({
               {boPhanChoPhep.length === 0 && <option value="">—</option>}
               {boPhanChoPhep.map((bp, i) => (
                 <option key={bp} value={bp}>
-                  {BO_PHAN[bp].ten} ({bp}){i > 0 ? " — kiêm nhiệm" : ""}
+                  {tenBoPhan(bp)} ({bp})
+                  {i > 0 ? ` — ${t("materials.kiemNhiem")}` : ""}
                 </option>
               ))}
             </select>
           </div>
           <div>
-            <label className={nhan}>Loại</label>
+            <label className={nhan}>{t("materials.loai")}</label>
             <select
               name="materialType"
               value={loai}
               onChange={(e) => setLoai(e.target.value)}
               className={o}
             >
-              <option value="STORE">Vật tư (Store) — IMPA</option>
-              <option value="SPARE">Phụ tùng (Spare) — SPR</option>
+              <option value="STORE">{t("materials.loaiStoreImpa")}</option>
+              <option value="SPARE">{t("materials.loaiSpareSpr")}</option>
             </select>
           </div>
         </div>
 
         <p className="text-xs text-slate-500">
-          Mã sẽ được cấp tự động theo khuôn{" "}
+          {t("materials.maTuDongTheoKhuon")}{" "}
           <span className="font-mono font-medium text-slate-700">{khuonMa}</span>
-          , số thứ tự xếp vào khối của nhóm thiết bị đã chọn.
+          {t("materials.maTuDongSoThuTu")}
         </p>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <label className={nhan}>Tên mặt hàng (tiếng Việt) *</label>
+            <label className={nhan}>{t("materials.tenMatHangVi")} *</label>
             <input
               name="nameVn"
               defaultValue={v.nameVn ?? ""}
               required
               className={o}
-              placeholder={laPhuTung ? "VD: Vòi phun nhiên liệu" : "VD: Găng tay da hàn"}
+              placeholder={
+                laPhuTung
+                  ? t("materials.vdVoiPhun")
+                  : t("materials.vdGangTay")
+              }
             />
           </div>
           <div>
-            <label className={nhan}>Tên tiếng Anh</label>
+            <label className={nhan}>{t("materials.tenTiengAnh")}</label>
             <input
               name="nameEn"
               defaultValue={v.nameEn ?? ""}
@@ -159,13 +168,13 @@ export default function VatTuMoiChoTauForm({
         {laPhuTung ? (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
-              <label className={nhan}>Thiết bị / máy *</label>
+              <label className={nhan}>{t("materials.thietBiMay")} *</label>
               <input
                 name="equipment"
                 defaultValue={v.equipment ?? ""}
                 required
                 className={o}
-                placeholder="VD: Máy đèn số 2 — Yanmar 6N18"
+                placeholder={t("materials.vdMayDen")}
               />
             </div>
             <div>
@@ -180,16 +189,16 @@ export default function VatTuMoiChoTauForm({
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <div>
-              <label className={nhan}>Mã IMPA (nếu có)</label>
+              <label className={nhan}>{t("materials.maImpaNeuCo")}</label>
               <input
                 name="impa"
                 defaultValue={v.impa ?? ""}
                 className={o}
-                placeholder="6 chữ số, VD 190411"
+                placeholder={t("materials.phSauChuSo")}
               />
             </div>
             <div>
-              <label className={nhan}>Maker / hãng</label>
+              <label className={nhan}>{t("materials.makerHang")}</label>
               <input name="manufacturer" defaultValue={v.manufacturer ?? ""} className={o} />
             </div>
           </div>
@@ -197,14 +206,14 @@ export default function VatTuMoiChoTauForm({
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <div className="col-span-2">
-            <label className={nhan}>Nhóm thiết bị</label>
+            <label className={nhan}>{t("materials.nhomThietBi")}</label>
             <select
               name="categoryId"
               value={nhom}
               onChange={(e) => setNhom(e.target.value)}
               className={o}
             >
-              <option value="">— Chưa xếp nhóm —</option>
+              <option value="">{t("materials.optChuaXepNhom")}</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -213,18 +222,20 @@ export default function VatTuMoiChoTauForm({
             </select>
             {lechGoiY && (
               <p className="mt-1 text-xs text-amber-700">
-                Nhóm này thường do <b>{CHUC_DANH[goiY].ten} ({goiY})</b> giữ — bạn
-                đang chọn {CHUC_DANH[rank]?.ten ?? rank}. Vẫn lưu được nếu đúng
-                phân công trên tàu.
+                {t("materials.nhomThuongDo")}{" "}
+                <b>
+                  {tenChucDanh(goiY)} ({goiY})
+                </b>{" "}
+                {t("materials.nhomThuongDoDuoi", { ten: tenChucDanh(rank) })}
               </p>
             )}
           </div>
           <div>
-            <label className={nhan}>ĐVT</label>
+            <label className={nhan}>{t("chung.donVi")}</label>
             <input name="uom" defaultValue={v.uom ?? "PCS"} className={o} />
           </div>
           <div>
-            <label className={nhan}>Tồn tối thiểu</label>
+            <label className={nhan}>{t("materials.tonToiThieu")}</label>
             <input
               name="minStock"
               type="number"
@@ -243,13 +254,13 @@ export default function VatTuMoiChoTauForm({
               name="isCritical"
               defaultChecked={v.isCritical === "on"}
             />
-            Phụ tùng / vật tư thiết yếu (critical)
+            {t("materials.thietYeuCritical")}
           </label>
           <button
             disabled={pending || !rank}
             className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
           >
-            {pending ? "Đang lưu..." : "Khai mới & thêm vào tàu"}
+            {pending ? t("chung.dangLuu") : t("materials.nutKhaiMoi")}
           </button>
         </div>
 

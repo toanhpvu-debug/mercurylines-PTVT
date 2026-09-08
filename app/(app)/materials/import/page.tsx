@@ -8,11 +8,13 @@ import {
   vesselWhere,
 } from "@/lib/auth";
 import MaterialImportForm from "@/components/MaterialImportForm";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function MaterialImportPage() {
   const user = await requireScopedUser();
+  const { t } = await layT();
   const scope = vesselScopeDayDu(user);
   if (!["ADMIN", "MASTER"].includes(user.role)) {
     redirect("/materials");
@@ -37,16 +39,12 @@ export default async function MaterialImportPage() {
           href="/materials"
           className="text-sm text-blue-700 hover:underline"
         >
-          ← Quay lại danh mục vật tư
+          ← {t("materials.quayLaiDanhMuc")}
         </Link>
         <h2 className="text-2xl font-bold text-blue-950">
-          Nhập danh mục từ file
+          {t("materials.nhapDanhMucTuFile")}
         </h2>
-        <p className="text-slate-600">
-          Upload file kiểm kê / danh mục theo form công ty — vật tư &amp; phụ
-          tùng được tự động thêm vào danh mục của tàu đã chọn (kèm tồn kho nếu
-          file có cột R.O.B), giúp kiểm soát nhanh toàn bộ vật tư đội tàu.
-        </p>
+        <p className="text-slate-600">{t("materials.nhapMoTa")}</p>
       </div>
 
       {/* Chưa có sẵn file danh mục thì phải có cái để phát cho tàu điền. Đặt
@@ -55,25 +53,25 @@ export default async function MaterialImportPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-2xl">
             <h3 className="text-lg font-semibold text-blue-950">
-              Chưa có file danh mục? Tải file mẫu về cho tàu điền
+              {t("materials.mauTieuDe")}
             </h3>
             <p className="mt-1 text-sm text-slate-700">
-              File mẫu có sẵn 5 sheet theo nhóm hàng — <b>Phụ tùng</b>, Vật tư
-              máy, Vật tư boong, Phục vụ, Bảo hộ — kèm sheet{" "}
-              <b>Hướng dẫn</b> giải thích từng cột. Tàu điền xong gửi về, tải
-              thẳng file đó lên ở khung dưới là vào danh mục.
+              {t("materials.mauCoSheet")} <b>{t("chung.phuTung")}</b>
+              {t("materials.mauSheetKhac")}{" "}
+              <b>{t("materials.mauSheetHuongDan")}</b>{" "}
+              {t("materials.mauGiaiThichCot")}
             </p>
             <p className="mt-2 text-sm text-slate-600">
-              Tên sheet và dòng tiêu đề đã khớp sẵn với bộ đọc, nên{" "}
-              <b>đừng đổi tên sheet hay sửa dòng tiêu đề</b> — chỉ điền từ dòng
-              bên dưới xuống.
+              {t("materials.mauKhopSan")}{" "}
+              <b>{t("materials.mauDungDoiTen")}</b>{" "}
+              {t("materials.mauChiDienBenDuoi")}
             </p>
           </div>
           <a
             href="/api/materials/template"
             className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-800"
           >
-            ⬇ Tải file Excel mẫu
+            ⬇ {t("materials.taiFileMau")}
           </a>
         </div>
       </div>

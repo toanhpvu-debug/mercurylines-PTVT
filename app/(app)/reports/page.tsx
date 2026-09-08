@@ -5,14 +5,18 @@ import {
   vesselScopeDayDu,
 } from "@/lib/auth";
 import PrintButton from "@/components/PrintButton";
+import { layT } from "@/lib/i18n/server";
+import type { KhoaDich } from "@/lib/i18n/tuDien";
 
 export const dynamic = "force-dynamic";
 
-const DEPT_OPTIONS: Record<string, { label: string; suffix: string | null }> = {
-  ENG: { label: "MÁY", suffix: "-ENG" },
-  DECK: { label: "BOONG", suffix: "-DECK" },
-  STORE: { label: "KHO TIÊU HAO", suffix: "-STORE" },
-  ALL: { label: "TẤT CẢ", suffix: null },
+// Hậu tố mã kho của từng bộ phận; NHÃN là khóa từ điển, dịch lúc dựng để đổi
+// theo ngôn ngữ đang chọn.
+const DEPT_OPTIONS: Record<string, { khoa: KhoaDich; suffix: string | null }> = {
+  ENG: { khoa: "inventory.bpMay", suffix: "-ENG" },
+  DECK: { khoa: "inventory.bpBoong", suffix: "-DECK" },
+  STORE: { khoa: "inventory.bpKhoTieuHao", suffix: "-STORE" },
+  ALL: { khoa: "inventory.bpTatCa", suffix: null },
 };
 
 export default async function ReportsPage({
@@ -21,6 +25,7 @@ export default async function ReportsPage({
   searchParams: Promise<{ vessel?: string; dept?: string; month?: string }>;
 }) {
   const user = await requireScopedUser();
+  const { t, ngay } = await layT();
   const scope = vesselScopeDayDu(user);
   const vessels = await prisma.vessel.findMany({
     where: vesselIdWhere(scope),
@@ -51,9 +56,11 @@ export default async function ReportsPage({
   if (scope.unassigned || !selectedVessel) {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-blue-950">Báo cáo nhận và sử dụng vật tư</h2>
+        <h2 className="text-2xl font-bold text-blue-950">
+          {t("inventory.baoCaoTieuDe")}
+        </h2>
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          Bạn chưa được gán tàu phụ trách. Vui lòng liên hệ quản trị viên.
+          {t("chung.chuaGanTau")}
         </div>
       </div>
     );
@@ -149,22 +156,23 @@ export default async function ReportsPage({
     )
     .sort((a, b) => (a.material!.code < b.material!.code ? -1 : 1));
 
-  const fmtDate = (d: Date | null) =>
-    d ? d.toLocaleDateString("vi-VN") : "";
+  const fmtDate = (d: Date | null) => (d ? ngay(d) : "");
 
   return (
     <div className="space-y-4">
       <div className="no-print">
-        <h2 className="text-2xl font-bold text-blue-950">Báo cáo nhận và sử dụng vật tư</h2>
-        <p className="text-slate-600">
-          Tự động tổng hợp từ giao dịch nhập/xuất kho — mẫu MLS-11-01
-        </p>
+        <h2 className="text-2xl font-bold text-blue-950">
+          {t("inventory.baoCaoTieuDe")}
+        </h2>
+        <p className="text-slate-600">{t("inventory.baoCaoMoTa")}</p>
       </div>
 
       <form className="no-print flex flex-wrap items-end gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
         {scope.all ? (
           <div>
-            <label className="mb-1 block text-sm text-slate-600">Tàu</label>
+            <label className="mb-1 block text-sm text-slate-600">
+              {t("chung.tau")}
+            </label>
             <select
               name="vessel"
               defaultValue={selectedVessel.id}
@@ -181,17 +189,21 @@ export default async function ReportsPage({
           <input type="hidden" name="vessel" value={selectedVessel.id} />
         )}
         <div>
-          <label className="mb-1 block text-sm text-slate-600">Bộ phận</label>
+          <label className="mb-1 block text-sm text-slate-600">
+            {t("inventory.boPhan")}
+          </label>
           <select name="dept" defaultValue={deptKey} className="rounded border p-2">
             {Object.entries(DEPT_OPTIONS).map(([key, option]) => (
               <option key={key} value={key}>
-                {option.label}
+                {t(option.khoa)}
               </option>
             ))}
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-sm text-slate-600">Tháng</label>
+          <label className="mb-1 block text-sm text-slate-600">
+            {t("inventory.thang")}
+          </label>
           <input
             name="month"
             type="month"
@@ -200,9 +212,9 @@ export default async function ReportsPage({
           />
         </div>
         <button className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800">
-          Xem báo cáo
+          {t("inventory.xemBaoCao")}
         </button>
-        <PrintButton label="In báo cáo MLS-11-01" />
+        <PrintButton label={t("inventory.inBaoCaoMLS1101")} />
       </form>
 
       <div className="print-area rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 print:rounded-none print:p-0 print:shadow-none">
@@ -244,11 +256,11 @@ export default async function ReportsPage({
             {selectedVessel.name}
           </p>
           <p>
-            <span className="font-semibold">Date (Ngày):</span>{" "}
-            {lastDay.toLocaleDateString("vi-VN")}
+            <span className="font-semibold">Date (Ngày):</span> {ngay(lastDay)}
           </p>
           <p>
-            <span className="font-semibold">Bộ phận (Dep.):</span> {dept.label}
+            <span className="font-semibold">Bộ phận (Dep.):</span>{" "}
+            {t(dept.khoa)}
           </p>
           <p>
             <span className="font-semibold">Tại cảng (At Sea):</span>{" "}
@@ -336,7 +348,7 @@ export default async function ReportsPage({
                     colSpan={11}
                     className="border border-black p-3 text-center text-slate-500"
                   >
-                    Không có dữ liệu vật tư trong kỳ này.
+                    {t("inventory.khongCoDuLieuKy")}
                   </td>
                 </tr>
               ) : (

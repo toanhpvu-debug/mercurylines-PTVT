@@ -1,6 +1,7 @@
 "use client";
 
 import { BO_PHAN, CHUC_DANH, chucDanhTuVaiTro, type BoPhan } from "@/lib/maVatTu";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 /**
  * Ô chọn CHỨC DANH GIỮ VẬT TƯ của một tài khoản.
@@ -26,12 +27,13 @@ export default function ChonChucDanhGiuVatTu({
   /** Dạng gọn: dùng trong bảng, không có nhãn phía trên. */
   gonGang?: boolean;
 }) {
+  const { t, tenChucDanh, tenBoPhan } = useNgonNgu();
   const suyRa = vaiTro ? chucDanhTuVaiTro(vaiTro) : null;
   return (
     <div className={gonGang ? "" : "space-y-1"}>
       {!gonGang && (
         <label className="block text-sm text-slate-600">
-          Chức danh giữ vật tư
+          {t("materials.chucDanhGiuVatTu")}
         </label>
       )}
       <select
@@ -46,16 +48,16 @@ export default function ChonChucDanhGiuVatTu({
       >
         <option value="">
           {suyRa
-            ? `— Theo vai trò: ${CHUC_DANH[suyRa].ten} —`
-            : "— Chưa khai —"}
+            ? `— ${t("materials.theoVaiTro", { ten: tenChucDanh(suyRa) })} —`
+            : `— ${t("materials.chuaKhai")} —`}
         </option>
         {(Object.keys(BO_PHAN) as BoPhan[]).map((bp) => (
-          <optgroup key={bp} label={BO_PHAN[bp].ten}>
+          <optgroup key={bp} label={tenBoPhan(bp)}>
             {Object.entries(CHUC_DANH)
               .filter(([, cd]) => cd.boPhan === bp)
-              .map(([ma, cd]) => (
+              .map(([ma]) => (
                 <option key={ma} value={ma}>
-                  {cd.ten} ({ma})
+                  {tenChucDanh(ma)} ({ma})
                 </option>
               ))}
           </optgroup>

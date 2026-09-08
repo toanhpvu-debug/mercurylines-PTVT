@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser, vesselIdWhere, vesselScope } from "@/lib/auth";
+import { layT } from "@/lib/i18n/server";
 
 /**
  * Dải nút chọn tàu, đặt ở đầu mọi trang gắn với MỘT tàu.
@@ -18,13 +19,15 @@ import { requireScopedUser, vesselIdWhere, vesselScope } from "@/lib/auth";
 export default async function VesselSwitcher({
   hienTai,
   duongDan,
-  nhan = "Chuyển tàu:",
+  nhan,
 }: {
   hienTai: number;
   duongDan: (vesselId: number) => string;
+  /** Nhãn đứng trước dải nút; bỏ trống thì lấy "Chuyển tàu:" theo ngôn ngữ. */
   nhan?: string;
 }) {
   const user = await requireScopedUser();
+  const { t } = await layT();
   const scope = vesselScope(user);
   const vessels = await prisma.vessel.findMany({
     where: vesselIdWhere(scope),
@@ -36,7 +39,9 @@ export default async function VesselSwitcher({
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm ring-1 ring-blue-100">
-      <span className="text-sm font-medium text-slate-600">{nhan}</span>
+      <span className="text-sm font-medium text-slate-600">
+        {nhan ?? t("inventory.chuyenTau")}
+      </span>
       {vessels.map((v) => {
         const dangXem = v.id === hienTai;
         return (

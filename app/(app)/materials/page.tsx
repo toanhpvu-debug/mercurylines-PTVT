@@ -32,6 +32,7 @@ import {
   vesselIdWhere,
   vesselScopeDayDu,
 } from "@/lib/auth";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,7 @@ export default async function MaterialsPage({
   }>;
 }) {
   const user = await requireScopedUser();
+  const { t, tTuDo, tenChucDanh, tenBoPhan } = await layT();
   const scope = vesselScopeDayDu(user);
   const canManageMaster = user.role === "ADMIN";
   const {
@@ -107,9 +109,9 @@ export default async function MaterialsPage({
   const typeWhere = filterType === "ALL" ? {} : { materialType: filterType };
   const isSpareView = filterType === "SPARE";
   const tabs = [
-    { key: "ALL", label: "Tất cả" },
-    { key: "STORE", label: "Vật tư (Store)" },
-    { key: "SPARE", label: "Phụ tùng (Spare)" },
+    { key: "ALL", label: t("chung.tatCa") },
+    { key: "STORE", label: tTuDo("labels.typeLong_STORE") },
+    { key: "SPARE", label: tTuDo("labels.typeLong_SPARE") },
   ];
   const buildHref = (nextType: string, nextVessel: string | null) => {
     const params = new URLSearchParams();
@@ -301,11 +303,15 @@ export default async function MaterialsPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-blue-950">Danh mục vật tư & phụ tùng</h2>
+          <h2 className="text-2xl font-bold text-blue-950">
+            {t("materials.tieuDe")}
+          </h2>
           <p className="text-slate-600">
             {isVesselMode
-              ? `Danh mục riêng của ${selectedVessel?.name}`
-              : "Danh mục gốc toàn đội (định nghĩa chung)"}
+              ? t("materials.danhMucRiengCua", {
+                  tau: selectedVessel?.name ?? "",
+                })
+              : t("materials.danhMucGocMoTa")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -316,7 +322,7 @@ export default async function MaterialsPage({
               href={`/inventory?vessel=${selectedVesselId}&type=${filterType}`}
               className="rounded border border-blue-200 bg-white px-4 py-2 text-sm text-blue-950 hover:bg-blue-50"
             >
-              Tồn kho &amp; xuất kiểm kê →
+              {t("materials.nutTonKhoKiemKe")} →
             </Link>
           )}
           {["ADMIN", "MASTER"].includes(user.role) && (
@@ -324,7 +330,7 @@ export default async function MaterialsPage({
               href="/materials/import"
               className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800"
             >
-              ⬆ Nhập danh mục từ file
+              ⬆ {t("materials.nhapDanhMucTuFile")}
             </Link>
           )}
         </div>
@@ -337,7 +343,7 @@ export default async function MaterialsPage({
       {/* Bộ chọn tàu */}
       <div className="flex flex-wrap items-center gap-2 px-4 py-3">
         <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-          Xem theo
+          {t("materials.xemTheo")}
         </span>
         {chonDuocTau(scope) && (
           <Link
@@ -348,7 +354,7 @@ export default async function MaterialsPage({
                 : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             }`}
           >
-            Danh mục gốc (toàn đội)
+            {t("materials.danhMucGocToanDoi")}
           </Link>
         )}
         {scope.all ? (
@@ -364,7 +370,7 @@ export default async function MaterialsPage({
               defaultValue={vesselKey}
               className="rounded border p-2 text-sm"
             >
-              <option value="master">— Danh mục gốc —</option>
+              <option value="master">{t("materials.optDanhMucGoc")}</option>
               {vessels.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.code} - {v.name}
@@ -372,14 +378,16 @@ export default async function MaterialsPage({
               ))}
             </select>
             <button className="rounded border px-3 py-1 text-sm hover:bg-blue-50">
-              Chọn tàu
+              {t("chung.chonTau")}
             </button>
           </Form>
         ) : (
           <span className="rounded bg-blue-700 px-3 py-1 text-sm text-white">
             {selectedVessel
-              ? `Tàu: ${selectedVessel.code} - ${selectedVessel.name}`
-              : "Chưa được gán tàu"}
+              ? t("materials.tauLa", {
+                  tau: `${selectedVessel.code} - ${selectedVessel.name}`,
+                })
+              : t("materials.chuaDuocGanTau")}
           </span>
         )}
       </div>
@@ -388,19 +396,19 @@ export default async function MaterialsPage({
       {chucDanhCuaToi && (
         <div className="flex flex-wrap items-center gap-3 bg-blue-50/40 px-4 py-3">
           <span className="text-sm text-slate-700">
-            Bạn là <b>{CHUC_DANH[chucDanhCuaToi].ten}</b> — phần vật tư &amp; phụ
-            tùng bạn quản lý:
+            {t("materials.banLa")} <b>{tenChucDanh(chucDanhCuaToi)}</b>{" "}
+            {t("materials.phanBanQuanLy")}
           </span>
           {rankFilter === chucDanhCuaToi ? (
             <>
               <span className="rounded bg-blue-700 px-3 py-1 text-sm text-white">
-                Đang xem phần của bạn ({rows.length} mặt hàng)
+                {t("materials.dangXemPhanCuaBan", { n: rows.length })}
               </span>
               <Link
                 href={buildHrefRank("")}
                 className="text-sm text-blue-700 hover:underline"
               >
-                Xem tất cả
+                {t("chung.xemTatCa")}
               </Link>
             </>
           ) : (
@@ -408,7 +416,7 @@ export default async function MaterialsPage({
               href={buildHrefRank("toi")}
               className="rounded bg-blue-700 px-3 py-1 text-sm text-white hover:bg-blue-800"
             >
-              Xem vật tư tôi quản lý
+              {t("materials.xemVatTuToiQuanLy")}
             </Link>
           )}
         </div>
@@ -444,16 +452,16 @@ export default async function MaterialsPage({
             defaultValue={rankFilter}
             className="rounded border p-1.5 text-sm"
           >
-            <option value="">Mọi chức danh</option>
+            <option value="">{t("materials.moiChucDanh")}</option>
             {/* Gom theo bộ phận: 15 chức danh xếp phẳng thì phải đọc hết cả
                 danh sách mới thấy người mình cần. */}
             {(Object.keys(BO_PHAN) as BoPhan[]).map((bp) => (
-              <optgroup key={bp} label={BO_PHAN[bp].ten}>
+              <optgroup key={bp} label={tenBoPhan(bp)}>
                 {Object.entries(CHUC_DANH)
                   .filter(([, cd]) => cd.boPhan === bp)
-                  .map(([ma, cd]) => (
+                  .map(([ma]) => (
                     <option key={ma} value={ma}>
-                      {cd.ten} ({ma})
+                      {tenChucDanh(ma)} ({ma})
                     </option>
                   ))}
               </optgroup>
@@ -462,11 +470,11 @@ export default async function MaterialsPage({
           <input
             name="q"
             defaultValue={qRaw ?? ""}
-            placeholder="Tìm tên, mã, IMPA, Part No, hãng..."
+            placeholder={t("materials.timGoiY")}
             className="w-64 rounded border p-1.5 text-sm"
           />
           <button className="rounded bg-blue-700 px-3 py-1.5 text-sm text-white hover:bg-blue-800">
-            Tìm
+            {t("chung.tim")}
           </button>
           {q && (
             <Link
@@ -476,7 +484,7 @@ export default async function MaterialsPage({
               )}
               className="text-sm text-slate-600 hover:underline"
             >
-              Xóa tìm
+              {t("chung.xoaTim")}
             </Link>
           )}
         </Form>
@@ -485,8 +493,7 @@ export default async function MaterialsPage({
 
       {!isVesselMode && !scope.all ? (
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          Bạn chưa được gán tàu phụ trách nên chưa xem được danh mục. Vui lòng
-          liên hệ quản trị viên.
+          {t("materials.chuaGanTauKhongXem")}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -495,14 +502,16 @@ export default async function MaterialsPage({
             ? canEditVessel && (
                 <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 xl:col-span-3">
                   <h3 className="mb-3 text-lg font-semibold">
-                    Thêm vật tư vào danh mục {selectedVessel?.name}
+                    {t("materials.themVaoDanhMucTau", {
+                      tau: selectedVessel?.name ?? "",
+                    })}
                   </h3>
                   <VesselMaterialAddForm
                     vesselId={selectedVesselId!}
                     available={availableToAdd}
                   />
                   <p className="mt-2 text-xs text-slate-500">
-                    Vật tư lấy từ danh mục gốc toàn đội.
+                    {t("materials.vatTuLayTuGoc")}
                   </p>
                   {/* Món hàng chưa có trong danh mục gốc: khai ngay tại tàu,
                       gắn chức danh giữ — không phải nhờ quản trị tạo trước. */}
@@ -521,7 +530,7 @@ export default async function MaterialsPage({
             : canManageMaster && (
                 <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
                   <h3 className="mb-4 text-lg font-semibold">
-                    Thêm vật tư / phụ tùng (danh mục gốc)
+                    {t("materials.themVaoDanhMucGoc")}
                   </h3>
                   <MaterialForm
                     categories={categories.map((c) => ({
@@ -542,41 +551,48 @@ export default async function MaterialsPage({
           >
             <h3 className="mb-4 text-lg font-semibold">
               {isVesselMode
-                ? `Vật tư của ${selectedVessel?.name} (${rows.length})`
-                : `Danh mục gốc (${rows.length})`}
+                ? t("materials.vatTuCuaTau", {
+                    tau: selectedVessel?.name ?? "",
+                    n: rows.length,
+                  })
+                : t("materials.danhMucGocN", { n: rows.length })}
             </h3>
             {rows.length === 0 ? (
               <p className="text-slate-600">
                 {isVesselMode
-                  ? "Tàu chưa có vật tư nào trong danh mục."
-                  : "Chưa có vật tư nào."}
+                  ? t("materials.tauChuaCoVatTu")
+                  : t("materials.chuaCoVatTu")}
               </p>
             ) : (
               <div className="overflow-x-auto rounded-lg ring-1 ring-slate-200">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                      <th className="px-3 py-2.5">Mã</th>
+                      <th className="px-3 py-2.5">{t("chung.ma")}</th>
                       <th className="px-3 py-2.5">
-                        {isSpareView ? "Tên phụ tùng" : "Mô tả"}
+                        {isSpareView
+                          ? t("materials.cotTenPhuTung")
+                          : t("chung.moTa")}
                       </th>
-                      {isSpareView && <th className="px-3 py-2.5">Thiết bị</th>}
+                      {isSpareView && (
+                        <th className="px-3 py-2.5">{t("chung.thietBi")}</th>
+                      )}
                       <th className="px-3 py-2.5">IMPA</th>
                       <th className="px-3 py-2.5">Part No.</th>
                       <th className="px-3 py-2.5">Maker</th>
-                      <th className="px-3 py-2.5">Nhóm</th>
-                      <th className="px-3 py-2.5">Giữ bởi</th>
-                      <th className="px-3 py-2.5">ĐVT</th>
+                      <th className="px-3 py-2.5">{t("chung.nhom")}</th>
+                      <th className="px-3 py-2.5">{t("materials.cotGiuBoi")}</th>
+                      <th className="px-3 py-2.5">{t("chung.donVi")}</th>
                       {filterType === "ALL" && (
-                        <th className="px-3 py-2.5">Loại</th>
+                        <th className="px-3 py-2.5">{t("materials.loai")}</th>
                       )}
                       <th className="px-3 py-2.5">Critical</th>
                       {!isVesselMode && (
-                        <th className="px-3 py-2.5">Trạng thái</th>
+                        <th className="px-3 py-2.5">{t("chung.trangThai")}</th>
                       )}
                       {((isVesselMode && canEditVessel) ||
                         (!isVesselMode && canManageMaster)) && (
-                        <th className="px-3 py-2.5">Thao tác</th>
+                        <th className="px-3 py-2.5">{t("chung.thaoTac")}</th>
                       )}
                     </tr>
                   </thead>
@@ -593,7 +609,7 @@ export default async function MaterialsPage({
                               className="px-3 py-2 text-sm font-semibold text-slate-700"
                             >
                               <span className="mr-1.5">{dept.icon}</span>
-                              {dept.label}
+                              {tTuDo(`labels.dept_${dept.key}`)}
                               <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
                                 {dept.rows.length}
                               </span>
@@ -641,7 +657,7 @@ export default async function MaterialsPage({
                             {material.nameVn}
                             {isVesselMode && !material.isActive && (
                               <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">
-                                Ngừng dùng
+                                {tTuDo("labels.active_false")}
                               </span>
                             )}
                           </p>
@@ -684,7 +700,7 @@ export default async function MaterialsPage({
                                 <span className="text-xs text-slate-400">—</span>
                               );
                             }
-                            const ten = CHUC_DANH[tn.chucDanh]?.ten ?? tn.chucDanh;
+                            const ten = tenChucDanh(tn.chucDanh);
                             const suyRa = tn.nguon !== "gan";
                             return (
                               <span
@@ -695,12 +711,10 @@ export default async function MaterialsPage({
                                 }`}
                                 title={
                                   suyRa
-                                    ? `Suy theo ${
-                                        tn.nguon === "thiet-bi"
-                                          ? "nhóm thiết bị"
-                                          : "bộ phận"
-                                      } — chạy gan-ma-vat-tu.cmd để gán cố định`
-                                    : "Đã gán trực tiếp"
+                                    ? tn.nguon === "thiet-bi"
+                                      ? t("materials.suyRaTuThietBi")
+                                      : t("materials.suyRaTuBoPhan")
+                                    : t("materials.daGanTrucTiep")
                                 }
                               >
                                 {ten} ({tn.chucDanh})
@@ -721,20 +735,24 @@ export default async function MaterialsPage({
                                   : "bg-slate-100 text-slate-600"
                               }`}
                             >
-                              {material.materialType === "SPARE"
-                                ? "Phụ tùng"
-                                : "Vật tư"}
+                              {tTuDo(
+                                `labels.type_${
+                                  material.materialType === "SPARE"
+                                    ? "SPARE"
+                                    : "STORE"
+                                }`
+                              )}
                             </span>
                           </td>
                         )}
                         <td className="px-3 py-2">
                           {material.isCritical ? (
                             <span className="rounded bg-red-100 px-2 py-1 text-red-700">
-                              Critical
+                              {tTuDo("labels.critical_true")}
                             </span>
                           ) : (
                             <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">
-                              Normal
+                              {tTuDo("labels.critical_false")}
                             </span>
                           )}
                         </td>
@@ -742,11 +760,11 @@ export default async function MaterialsPage({
                           <td className="px-3 py-2">
                             {material.isActive ? (
                               <span className="rounded bg-green-100 px-2 py-1 text-xs text-green-700">
-                                Đang dùng
+                                {tTuDo("labels.active_true")}
                               </span>
                             ) : (
                               <span className="rounded bg-slate-200 px-2 py-1 text-xs text-slate-600">
-                                Ngừng dùng
+                                {tTuDo("labels.active_false")}
                               </span>
                             )}
                           </td>
@@ -825,9 +843,9 @@ export default async function MaterialsPage({
             )}
             {hiddenCount > 0 && (
               <div className="mt-3 rounded border border-blue-200 bg-blue-50 p-3 text-sm">
-                Đang hiện {PER_DEPT_LIMIT} dòng đầu mỗi bộ phận — còn{" "}
-                <b>{hiddenCount} dòng</b> chưa hiện. Dùng ô tìm kiếm để lọc cho
-                nhanh, hoặc{" "}
+                {t("materials.dangHienDauMoiBoPhan", { n: PER_DEPT_LIMIT })}{" "}
+                <b>{t("materials.nDong", { n: hiddenCount })}</b>{" "}
+                {t("materials.chuaHienGoiY")}{" "}
                 <Link
                   href={`${buildHref(
                     filterType,
@@ -841,9 +859,9 @@ export default async function MaterialsPage({
                   }full=1`}
                   className="font-medium text-blue-700 hover:underline"
                 >
-                  xem tất cả {rows.length} dòng
+                  {t("materials.xemTatCaNDong", { n: rows.length })}
                 </Link>{" "}
-                (trang sẽ nặng hơn).
+                {t("materials.trangSeNangHon")}
               </div>
             )}
           </div>

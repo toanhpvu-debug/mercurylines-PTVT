@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { uploadReportDocument } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type VesselOption = {
   id: number;
@@ -16,6 +17,7 @@ export default function DocumentUploadForm({
 }: {
   vessels: VesselOption[];
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(uploadReportDocument, {
     message: "",
   });
@@ -33,7 +35,10 @@ export default function DocumentUploadForm({
         if (file && file.size > MAX_UPLOAD_BYTES) {
           e.preventDefault();
           setClientError(
-            `File "${file.name}" nặng ${(file.size / (1024 * 1024)).toFixed(1)}MB, vượt quá giới hạn 20MB.`
+            t("inventory.fileQuaNang", {
+              ten: file.name,
+              mb: (file.size / (1024 * 1024)).toFixed(1),
+            })
           );
         } else {
           setClientError("");
@@ -45,14 +50,16 @@ export default function DocumentUploadForm({
         <input type="hidden" name="vesselId" value={vessels[0].id} />
       ) : (
         <div>
-          <label className="mb-1 block text-sm text-slate-600">Tàu</label>
+          <label className="mb-1 block text-sm text-slate-600">
+            {t("chung.tau")}
+          </label>
           <select
             name="vesselId"
             defaultValue={v.vesselId ?? ""}
             className="w-full rounded border p-2"
             required
           >
-            <option value="">Chọn tàu</option>
+            <option value="">{t("chung.chonTau")}</option>
             {vessels.map((vessel) => (
               <option key={vessel.id} value={vessel.id}>
                 {vessel.code} - {vessel.name}
@@ -64,28 +71,23 @@ export default function DocumentUploadForm({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div>
           <label className="mb-1 block text-sm text-slate-600">
-            Loại báo cáo
+            {t("inventory.loaiBaoCao")}
           </label>
           <select
             name="reportType"
             defaultValue={v.reportType ?? "MLS-11-01"}
             className="w-full rounded border p-2"
           >
-            <option value="MLS-11-01">
-              MLS-11-01 — Nhận & sử dụng vật tư
-            </option>
-            <option value="MLS-11-04">
-              MLS-11-04 — Nhận & sử dụng vật tư (Boong)
-            </option>
-            <option value="MLS-11-13">
-              MLS-11-13 — Dụng cụ chằng buộc container
-            </option>
-            <option value="KHÁC">Khác</option>
+            <option value="MLS-11-01">{t("inventory.docMLS1101")}</option>
+            <option value="MLS-11-04">{t("inventory.docMLS1104")}</option>
+            <option value="MLS-11-13">{t("inventory.docMLS1113")}</option>
+            {/* Giá trị "KHÁC" là dữ liệu lưu xuống database — chỉ dịch nhãn. */}
+            <option value="KHÁC">{t("inventory.docKhac")}</option>
           </select>
         </div>
         <div>
           <label className="mb-1 block text-sm text-slate-600">
-            Kỳ báo cáo
+            {t("inventory.kyBaoCao")}
           </label>
           <input
             name="period"
@@ -97,13 +99,13 @@ export default function DocumentUploadForm({
       </div>
       <input
         name="title"
-        placeholder="Tiêu đề (bỏ trống sẽ dùng tên file)"
+        placeholder={t("inventory.tieuDePlaceholder")}
         defaultValue={v.title ?? ""}
         className="w-full rounded border p-2"
       />
       <div>
         <label className="mb-1 block text-sm text-slate-600">
-          File báo cáo (PDF hoặc Excel, tối đa 20MB)
+          {t("inventory.fileBaoCao")}
         </label>
         <input
           name="file"
@@ -115,7 +117,7 @@ export default function DocumentUploadForm({
       </div>
       <input
         name="note"
-        placeholder="Ghi chú (tùy chọn)"
+        placeholder={t("inventory.ghiChuTuyChon")}
         defaultValue={v.note ?? ""}
         className="w-full rounded border p-2"
       />
@@ -123,7 +125,7 @@ export default function DocumentUploadForm({
         disabled={pending}
         className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
       >
-        {pending ? "Đang tải lên..." : "Tải báo cáo lên"}
+        {pending ? t("inventory.dangTaiLen") : t("inventory.taiBaoCaoLen")}
       </button>
       {clientError && <p className="text-sm text-red-600">{clientError}</p>}
       {state.message && (
@@ -136,9 +138,8 @@ export default function DocumentUploadForm({
         </p>
       )}
       <p className="text-xs text-slate-500">
-        Lưu ý: file sau khi tải lên là <b>bản lưu bất biến</b> — không thể sửa
-        hay thay thế. Nếu nhầm, hãy tải lên bản đúng (bản mới nằm trên cùng);
-        chỉ quản trị viên công ty có quyền xóa.
+        {t("inventory.luuYTruoc")} <b>{t("inventory.luuYDam")}</b>{" "}
+        {t("inventory.luuYSau")}
       </p>
     </form>
   );

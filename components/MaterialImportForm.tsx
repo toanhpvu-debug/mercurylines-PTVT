@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useState } from "react";
 import { importMaterials } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type VesselOption = { id: number; label: string };
 type WarehouseOption = { id: number; vesselId: number; label: string };
@@ -13,6 +14,7 @@ export default function MaterialImportForm({
   vessels: VesselOption[];
   warehouses: WarehouseOption[];
 }) {
+  const { t, tTuDo } = useNgonNgu();
   const [state, formAction, pending] = useActionState(importMaterials, {
     message: "",
   });
@@ -35,7 +37,9 @@ export default function MaterialImportForm({
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">Tàu *</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("chung.tau")} *
+          </span>
           <select
             name="vesselId"
             value={vesselId}
@@ -48,7 +52,7 @@ export default function MaterialImportForm({
             className="w-full rounded border p-2"
             required
           >
-            <option value="">— Chọn tàu —</option>
+            <option value="">— {t("chung.chonTau")} —</option>
             {vessels.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.label}
@@ -58,7 +62,7 @@ export default function MaterialImportForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Loại dự phòng (khi không đoán được từ tên sheet)
+            {t("materials.loaiDuPhong")}
           </span>
           <select
             name="kind"
@@ -66,13 +70,13 @@ export default function MaterialImportForm({
             onChange={(e) => setKind(e.target.value)}
             className="w-full rounded border p-2"
           >
-            <option value="STORE">Vật tư (Store)</option>
-            <option value="SPARE">Phụ tùng (Spare)</option>
+            <option value="STORE">{tTuDo("labels.typeLong_STORE")}</option>
+            <option value="SPARE">{tTuDo("labels.typeLong_SPARE")}</option>
           </select>
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Ghi tồn (R.O.B) vào kho
+            {t("materials.ghiTonVaoKho")}
           </span>
           {/* Danh sách kho phụ thuộc tàu. Trước đây ô này bị khóa im lặng và chỉ
               hiện "— Không ghi tồn —" nên trông như hỏng; nay nói rõ phải chọn tàu. */}
@@ -84,19 +88,18 @@ export default function MaterialImportForm({
             disabled={!vesselId}
           >
             {!vesselId ? (
-              <option value="">← Chọn tàu trước để hiện danh sách kho</option>
+              <option value="">← {t("materials.chonTauTruoc")}</option>
             ) : (
               <>
                 <option value="AUTO">
-                  ⭑ Tự động theo sheet (Phụ tùng→kho máy, Boong→kho boong, còn
-                  lại→kho tiêu hao)
+                  ⭑ {t("materials.tuDongTheoSheet")}
                 </option>
                 {vesselWarehouses.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.label}
                   </option>
                 ))}
-                <option value="">— Không ghi tồn, chỉ nạp danh mục —</option>
+                <option value="">{t("materials.khongGhiTon")}</option>
               </>
             )}
           </select>
@@ -105,36 +108,30 @@ export default function MaterialImportForm({
 
       {vesselId && vesselWarehouses.length === 0 && (
         <p className="rounded border border-yellow-300 bg-yellow-50 p-2 text-sm text-yellow-800">
-          Tàu này chưa có kho nào nên không ghi được tồn. Vào trang{" "}
-          <b>Đội tàu → chi tiết tàu</b> để tạo kho trước, hoặc cứ nhập danh mục
-          rồi ghi tồn sau.
+          {t("materials.tauChuaCoKho")}{" "}
+          <b>{t("materials.duongDanTaoKho")}</b>{" "}
+          {t("materials.taoKhoTruoc")}
         </p>
       )}
       {warehouseId === "AUTO" && (
         <p className="rounded border border-blue-200 bg-blue-50 p-2 text-sm text-blue-900">
-          Cột <b>Tồn trên tàu</b> trong file sẽ được ghi vào kho tương ứng với
-          từng sheet. Đây là cách dùng đúng cho file kiểm kê MLS-11-06.
+          {t("materials.robTruoc")} <b>{t("materials.robTenCot")}</b>{" "}
+          {t("materials.robSau")}
         </p>
       )}
 
       <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4">
         <p className="mb-1 font-semibold text-blue-950">
-          File danh mục (.xls / .xlsx / .doc / .docx)
+          {t("materials.fileDanhMuc")}
         </p>
         <p className="mb-3 text-xs text-slate-600">
-          Nhận trực tiếp form công ty: <b>MLS-11-06</b> Store &amp; Spare Part
-          Inventory (Excel — cột Nhóm/Mô tả/Mã IMPA/Đơn vị/Tồn trên tàu) và{" "}
-          <b>MLS-11-04</b> Danh mục phụ tùng thiết yếu (Word — tự nhận nhóm
-          thiết bị, số lượng tối thiểu). Vật tư trùng (theo IMPA/Part No/tên) sẽ
-          được gán vào tàu thay vì tạo mới.
+          {t("materials.nhanFormCongTy")} <b>MLS-11-06</b>{" "}
+          {t("materials.moTaMLS1106")} <b>MLS-11-04</b>{" "}
+          {t("materials.moTaMLS1104")}
         </p>
         <p className="mb-3 rounded border border-blue-200 bg-white/70 p-2 text-xs text-slate-700">
-          <b>Đọc toàn bộ sheet trong file.</b> Loại vật tư nhận theo tên sheet —
-          &quot;Phụ tùng (Spare Parts)&quot; vào nhóm phụ tùng; &quot;Vật tư
-          (Stores)&quot;, &quot;Vật tư Boong&quot;, &quot;Phục vụ
-          (Catering)&quot;, &quot;Bảo hộ (Safety)&quot; vào nhóm vật tư. Sheet
-          Dashboard hoặc trang ghi chú được bỏ qua. Sau khi nhập, hệ thống liệt
-          kê từng sheet đã đọc kèm số dòng để bạn đối chiếu.
+          <b>{t("materials.docToanBoSheet")}</b>{" "}
+          {t("materials.docSheetTheoTen")}
         </p>
         <input
           type="file"
@@ -150,7 +147,9 @@ export default function MaterialImportForm({
           disabled={pending}
           className="rounded bg-blue-700 px-6 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
         >
-          {pending ? "Đang nhập dữ liệu..." : "Nhập vào danh mục tàu"}
+          {pending
+            ? t("materials.dangNhapDuLieu")
+            : t("materials.nutNhapVaoDanhMuc")}
         </button>
       </div>
       {state.message && (

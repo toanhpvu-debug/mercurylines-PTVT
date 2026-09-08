@@ -6,6 +6,7 @@ import {
   setMaterialActive,
   updateMaterial,
 } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export type EditableMaterial = {
   id: number;
@@ -40,6 +41,7 @@ export default function MaterialRowActions({
    */
   onlyEdit?: boolean;
 }) {
+  const { t } = useNgonNgu();
   const [editing, setEditing] = useState(false);
   const [saveState, saveAction, savePending] = useActionState(updateMaterial, {
     message: "",
@@ -60,7 +62,7 @@ export default function MaterialRowActions({
           onClick={() => setEditing(true)}
           className="rounded bg-blue-100 px-2 py-1 text-xs text-blue-800 hover:bg-blue-200"
         >
-          Sửa
+          {t("chung.sua")}
         </button>
         {!onlyEdit && (
         <form action={toggleAction}>
@@ -81,8 +83,8 @@ export default function MaterialRowActions({
             {togglePending
               ? "..."
               : material.isActive
-                ? "Ngừng sử dụng"
-                : "Dùng lại"}
+                ? t("materials.nutNgungDung")
+                : t("materials.nutDungLai")}
           </button>
         </form>
         )}
@@ -91,7 +93,7 @@ export default function MaterialRowActions({
           action={deleteAction}
           onSubmit={(e) => {
             const ok = window.confirm(
-              `Xóa vĩnh viễn vật tư ${material.code}? Chỉ xóa được khi chưa có tồn kho và chưa dùng trong yêu cầu nào.`
+              t("materials.xacNhanXoa", { ma: material.code })
             );
             if (!ok) e.preventDefault();
           }}
@@ -101,7 +103,7 @@ export default function MaterialRowActions({
             disabled={deletePending}
             className="rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
           >
-            {deletePending ? "..." : "Xóa"}
+            {deletePending ? "..." : t("chung.xoa")}
           </button>
         </form>
         )}
@@ -156,6 +158,7 @@ function EditDialog({
   success?: boolean;
   onClose: () => void;
 }) {
+  const { t, tTuDo } = useNgonNgu();
   const [type, setType] = useState(material.materialType);
 
   return (
@@ -168,13 +171,15 @@ function EditDialog({
 
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold text-blue-950">Sửa vật tư</h3>
+            <h3 className="text-lg font-semibold text-blue-950">
+              {t("materials.suaVatTu")}
+            </h3>
             <p className="font-mono text-sm text-slate-500">{material.code}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Đóng"
+            aria-label={t("chung.dong")}
             className="rounded px-2 py-1 text-slate-500 hover:bg-slate-100"
           >
             ✕
@@ -183,7 +188,9 @@ function EditDialog({
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">Mã *</span>
+            <span className="mb-1 block text-sm text-slate-600">
+              {t("chung.ma")} *
+            </span>
             <input
               name="code"
               defaultValue={material.code}
@@ -193,7 +200,7 @@ function EditDialog({
           </label>
           <label className="block md:col-span-2">
             <span className="mb-1 block text-sm text-slate-600">
-              Tên tiếng Việt *
+              {t("materials.tenTiengViet")} *
             </span>
             <input
               name="nameVn"
@@ -204,7 +211,7 @@ function EditDialog({
           </label>
           <label className="block md:col-span-3">
             <span className="mb-1 block text-sm text-slate-600">
-              Tên tiếng Anh
+              {t("materials.tenTiengAnh")}
             </span>
             <input
               name="nameEn"
@@ -214,21 +221,23 @@ function EditDialog({
           </label>
 
           <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">Loại</span>
+            <span className="mb-1 block text-sm text-slate-600">
+              {t("materials.loai")}
+            </span>
             <select
               name="materialType"
               value={type}
               onChange={(e) => setType(e.target.value)}
               className="w-full rounded border p-2"
             >
-              <option value="STORE">Vật tư (Store)</option>
-              <option value="SPARE">Phụ tùng (Spare)</option>
+              <option value="STORE">{tTuDo("labels.typeLong_STORE")}</option>
+              <option value="SPARE">{tTuDo("labels.typeLong_SPARE")}</option>
             </select>
           </label>
           <label className="block md:col-span-2">
             <span className="mb-1 block text-sm text-slate-600">
-              Thiết bị
-              {type !== "SPARE" ? " — chỉ dùng cho phụ tùng" : ""}
+              {t("chung.thietBi")}
+              {type !== "SPARE" ? ` ${t("materials.chiDungChoPhuTung")}` : ""}
             </span>
             <input
               name="equipment"
@@ -241,7 +250,7 @@ function EditDialog({
 
           <label className="block">
             <span className="mb-1 block text-sm text-slate-600">
-              IMPA — 6 chữ số
+              {t("materials.impaSauChuSo")}
             </span>
             <input
               name="impa"
@@ -252,7 +261,7 @@ function EditDialog({
           </label>
           <label className="block">
             <span className="mb-1 block text-sm text-slate-600">
-              Part No. — mã nhà sản xuất
+              {t("materials.partNoMaNhaSanXuat")}
             </span>
             <input
               name="partNumber"
@@ -271,13 +280,15 @@ function EditDialog({
           </label>
 
           <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">Nhóm</span>
+            <span className="mb-1 block text-sm text-slate-600">
+              {t("chung.nhom")}
+            </span>
             <select
               name="categoryId"
               defaultValue={material.categoryId ?? ""}
               className="w-full rounded border p-2"
             >
-              <option value="">— Không thuộc nhóm nào —</option>
+              <option value="">{t("materials.optKhongThuocNhom")}</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -286,7 +297,9 @@ function EditDialog({
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">Đơn vị</span>
+            <span className="mb-1 block text-sm text-slate-600">
+              {t("chung.donVi")}
+            </span>
             <input
               name="uom"
               defaultValue={material.uom}
@@ -296,7 +309,7 @@ function EditDialog({
           <div className="flex gap-3">
             <label className="block flex-1">
               <span className="mb-1 block text-sm text-slate-600">
-                Tồn tối thiểu
+                {t("materials.tonToiThieu")}
               </span>
               <input
                 name="minStock"
@@ -309,7 +322,7 @@ function EditDialog({
             </label>
             <label className="block flex-1">
               <span className="mb-1 block text-sm text-slate-600">
-                Tồn tối đa
+                {t("materials.tonToiDa")}
               </span>
               <input
                 name="maxStock"
@@ -330,7 +343,7 @@ function EditDialog({
               className="h-4 w-4"
             />
             <span className="text-sm text-slate-700">
-              Phụ tùng thiết yếu (Critical) — theo dõi riêng trên Dashboard
+              {t("materials.phuTungThietYeu")}
             </span>
           </label>
         </div>
@@ -340,14 +353,14 @@ function EditDialog({
             disabled={pending}
             className="rounded bg-blue-700 px-6 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
           >
-            {pending ? "Đang lưu..." : "Lưu thay đổi"}
+            {pending ? t("chung.dangLuu") : t("materials.luuThayDoi")}
           </button>
           <button
             type="button"
             onClick={onClose}
             className="text-sm text-slate-600 hover:underline"
           >
-            Hủy
+            {t("chung.huy")}
           </button>
           {message && (
             <span

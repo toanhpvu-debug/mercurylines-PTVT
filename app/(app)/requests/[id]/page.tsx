@@ -1,10 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import {
-  REQUEST_STATUS_BADGE,
-  REQUEST_STATUS_LABEL,
-} from "@/lib/requestStatus";
+import { REQUEST_STATUS_BADGE } from "@/lib/requestStatus";
 import {
   canDeleteRequest,
   capDuyetChoPhep,
@@ -16,9 +13,11 @@ import {
   LAP_YEU_CAU,
   ROLE_LABEL,
   ROLE_LABEL_EN,
+  SI_QUAN,
   nguoiDuyetCapTau,
-  viSaoKhongDuyetDuoc,
 } from "@/lib/roles";
+import type { KhoaDich } from "@/lib/i18n";
+import { layT } from "@/lib/i18n/server";
 import PrintButton from "@/components/PrintButton";
 import RequestStatusForm from "@/components/RequestStatusForm";
 import RequestApprovalForm from "@/components/RequestApprovalForm";
@@ -35,12 +34,25 @@ const deptLabels: Record<string, string> = {
   GENERAL: "Phục vụ / Chung",
 };
 
+/**
+ * Vì sao người đang xem không được duyệt — cùng phân nhánh với
+ * viSaoKhongDuyetDuoc() ở lib/roles, nhưng trả về KHÓA từ điển để câu giải
+ * thích đổi theo ngôn ngữ đang chọn.
+ */
+function khoaViSaoKhongDuyet(role: string): KhoaDich {
+  if (SI_QUAN.includes(role)) return "requests.viSaoSiQuan";
+  if (role === "CHIEF_ENGINEER") return "requests.viSaoMayTruong";
+  if (role === "TECH_MANAGER") return "requests.viSaoQuanLyKyThuat";
+  return "chung.khongCoQuyen";
+}
+
 export default async function RequestDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const user = await requireScopedUser();
+  const { t, tTuDo, ngayGio } = await layT();
   const scope = vesselScopeDayDu(user);
   const canModerate = ["ADMIN", "MASTER", "TECH_MANAGER"].includes(user.role);
   const { id: idRaw } = await params;
@@ -82,9 +94,9 @@ export default async function RequestDetailPage({
   const lineEquipment = (item: Line) =>
     item.material ? (item.material.equipment ?? "") : "";
   const lineShortName = (item: Line) =>
-    item.material ? item.material.nameVn : (item.itemName ?? "(mới)");
+    item.material ? item.material.nameVn : (item.itemName ?? t("requests.moi"));
   const lineDisplayCode = (item: Line) =>
-    item.material ? item.material.code : "(mới)";
+    item.material ? item.material.code : t("requests.moi");
   const dateStr = (request.requiredDate ?? request.createdAt).toLocaleDateString(
     "vi-VN"
   );
@@ -96,9 +108,11 @@ export default async function RequestDetailPage({
     request.status === "PENDING_MASTER" || request.status === "PENDING_OFFICE";
   const nguoiPhaiDuyet =
     request.status === "PENDING_MASTER"
-      ? `${ROLE_LABEL[nguoiDuyetCapTau(request.department)]} (hoặc thuyền trưởng)`
+      ? t("requests.nguoiDuyetTau", {
+          ai: tTuDo(`labels.role_${nguoiDuyetCapTau(request.department)}`),
+        })
       : request.status === "PENDING_OFFICE"
-        ? ROLE_LABEL.TECH_MANAGER
+        ? tTuDo("labels.role_TECH_MANAGER")
         : "";
   // Người lập (hoặc quản lý) trình yêu cầu nháp lên cấp duyệt; bị từ chối thì
   // sửa xong trình lại được.
@@ -110,7 +124,7 @@ export default async function RequestDetailPage({
     <div className="space-y-4">
       <div className="no-print flex flex-wrap items-center justify-between gap-2">
         <Link href="/requests" className="text-sm text-blue-700 hover:underline">
-          ← Quay lại danh sách yêu cầu
+          {t("requests.quayLaiDanhSach")}
         </Link>
         <div className="flex items-center gap-2">
           <span
@@ -118,7 +132,7 @@ export default async function RequestDetailPage({
               REQUEST_STATUS_BADGE[request.status] ?? "bg-slate-100 text-slate-700"
             }`}
           >
-            {REQUEST_STATUS_LABEL[request.status] ?? request.status}
+            {tTuDo(`labels.reqStatus_${request.status}`)}
           </span>
           {canDeleteRequest(user, request) && (
             <RequestDeleteButton
@@ -127,7 +141,7 @@ export default async function RequestDetailPage({
               returnTo="/requests"
             />
           )}
-          <PrintButton label={`In ${formCode}`} />
+          <PrintButton label={`${t("chung.in")} ${formCode}`} />
         </div>
       </div>
 
@@ -379,26 +393,26 @@ export default async function RequestDetailPage({
       {/* Đường đi phê duyệt — nhìn là biết đang ở đâu và còn ai phải ký */}
       <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
         <h3 className="mb-3 text-lg font-semibold text-blue-950">
-          Tiến độ phê duyệt
+          {t("requests.tienDoDuyet")}
         </h3>
         <ol className="grid gap-3 sm:grid-cols-3">
           {[
             {
-              ten: "Người lập trình duyệt",
+              ten: t("requests.buocTrinh"),
               ai: request.submittedBy,
               luc: request.submittedAt,
               vaiTro: null as string | null,
               xong: !!request.submittedAt,
             },
             {
-              ten: "Tàu duyệt (thuyền trưởng / máy trưởng)",
+              ten: t("requests.buocTauDuyet"),
               ai: request.shipApprovedBy,
               luc: request.shipApprovedAt,
               vaiTro: request.shipApprovedRole as string | null,
               xong: !!request.shipApprovedAt,
             },
             {
-              ten: "Công ty duyệt (quản lý kỹ thuật)",
+              ten: t("requests.buocCongTyDuyet"),
               ai: request.approvedBy,
               luc: request.approvedAt,
               vaiTro: null as string | null,
@@ -427,14 +441,16 @@ export default async function RequestDetailPage({
                 {buoc.xong ? (
                   <>
                     {buoc.ai}
-                    {buoc.vaiTro ? ` · ${ROLE_LABEL[buoc.vaiTro] ?? buoc.vaiTro}` : ""}
+                    {buoc.vaiTro
+                      ? ` · ${tTuDo(`labels.role_${buoc.vaiTro}`)}`
+                      : ""}
                     <br />
                     <span className="text-xs text-slate-500">
-                      {buoc.luc?.toLocaleString("vi-VN")}
+                      {buoc.luc ? ngayGio(buoc.luc) : ""}
                     </span>
                   </>
                 ) : (
-                  <span className="text-slate-400">chưa</span>
+                  <span className="text-slate-400">{t("requests.chuaXong")}</span>
                 )}
               </p>
             </li>
@@ -442,10 +458,10 @@ export default async function RequestDetailPage({
         </ol>
         {dangChoDuyet && (
           <p className="mt-3 text-sm text-slate-600">
-            Đang chờ <b>{nguoiPhaiDuyet}</b> duyệt.
+            {t("requests.dangChoDuyetBoi")} <b>{nguoiPhaiDuyet}</b>.
             {!capDuyet && (
               <span className="ml-1 text-slate-500">
-                {viSaoKhongDuyetDuoc(user.role)}
+                {t(khoaViSaoKhongDuyet(user.role))}
               </span>
             )}
           </p>
@@ -455,28 +471,44 @@ export default async function RequestDetailPage({
       {canSubmit && (
         <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
           <h3 className="mb-1 text-lg font-semibold text-blue-950">
-            {request.status === "REJECTED" ? "Trình lại" : "Trình duyệt"}
+            {request.status === "REJECTED"
+              ? t("requests.nutTrinhLai")
+              : t("requests.nutTrinh")}
           </h3>
           <p className="mb-3 text-sm text-slate-600">
             {request.status === "REJECTED" ? (
               <>
-                Yêu cầu đã bị từ chối. Sửa lại rồi trình lên{" "}
-                <b>{ROLE_LABEL[nguoiDuyetCapTau(request.department)]}</b> một lần
-                nữa.
+                {t("requests.trinhLaiMoTa")}{" "}
+                <b>
+                  {tTuDo(
+                    `labels.role_${nguoiDuyetCapTau(request.department)}`
+                  )}
+                </b>
+                .
               </>
             ) : (
               <>
-                Yêu cầu đang là <b>Nháp</b> — vẫn sửa/xóa được và chưa ai duyệt
-                được. Trình lên để chuyển sang{" "}
-                <b>Chờ tàu duyệt</b>, người duyệt là{" "}
-                <b>{ROLE_LABEL[nguoiDuyetCapTau(request.department)]}</b>.
+                {t("requests.nhapTruoc")} <b>{tTuDo("labels.reqStatus_DRAFT")}</b>{" "}
+                {t("requests.nhapGiua")}{" "}
+                <b>{tTuDo("labels.reqStatus_PENDING_MASTER")}</b>
+                {t("requests.nhapCuoi")}{" "}
+                <b>
+                  {tTuDo(
+                    `labels.role_${nguoiDuyetCapTau(request.department)}`
+                  )}
+                </b>
+                .
               </>
             )}
           </p>
           <RequestStatusForm
             id={request.id}
             status="PENDING_MASTER"
-            label={request.status === "REJECTED" ? "Trình lại" : "Trình duyệt"}
+            label={
+              request.status === "REJECTED"
+                ? t("requests.nutTrinhLai")
+                : t("requests.nutTrinh")
+            }
             className="rounded bg-amber-500 px-5 py-2 text-white hover:bg-amber-600 disabled:opacity-50"
             returnTo={`/requests/${request.id}`}
           />
@@ -484,13 +516,15 @@ export default async function RequestDetailPage({
       )}
       {request.status === "REJECTED" && request.rejectionReason && (
         <div className="no-print rounded-xl border border-red-200 bg-red-50 p-4">
-          <p className="font-semibold text-red-800">Yêu cầu bị từ chối</p>
+          <p className="font-semibold text-red-800">
+            {t("requests.yeuCauBiTuChoi")}
+          </p>
           <p className="mt-1 text-sm text-red-700">
             {request.rejectionReason}
           </p>
           <p className="mt-1 text-xs text-red-600">
             {request.rejectedBy} ·{" "}
-            {request.rejectedAt?.toLocaleString("vi-VN") ?? ""}
+            {request.rejectedAt ? ngayGio(request.rejectedAt) : ""}
           </p>
         </div>
       )}
@@ -498,13 +532,13 @@ export default async function RequestDetailPage({
         <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
           <h3 className="mb-1 text-lg font-semibold">
             {capDuyet === "TAU"
-              ? "Duyệt cấp tàu"
-              : "Duyệt cấp công ty (quản lý kỹ thuật)"}
+              ? t("requests.duyetCapTau")
+              : t("requests.duyetCapCongTy")}
           </h3>
           <p className="mb-4 text-sm text-slate-600">
             {capDuyet === "TAU"
-              ? "Duyệt xong yêu cầu sẽ chuyển tiếp lên quản lý kỹ thuật công ty."
-              : "Đây là bước duyệt cuối. Duyệt xong yêu cầu sẵn sàng chuyển sang mua sắm."}
+              ? t("requests.duyetCapTauMoTa")
+              : t("requests.duyetCapCongTyMoTa")}
           </p>
           <RequestApprovalForm
             requestId={request.id}
@@ -531,7 +565,7 @@ export default async function RequestDetailPage({
           <RequestStatusForm
             id={request.id}
             status="IN_PROCUREMENT"
-            label="Chuyển mua sắm (Purchasing)"
+            label={t("requests.nutChuyenMuaSam")}
             className="rounded bg-blue-100 px-3 py-1 text-blue-700 hover:bg-blue-200 disabled:opacity-50"
             returnTo={`/requests/${request.id}`}
           />
@@ -541,13 +575,10 @@ export default async function RequestDetailPage({
       {/* Nhật ký phê duyệt — ai làm gì, lúc nào, vì sao */}
       <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
         <h3 className="mb-3 text-lg font-semibold text-blue-950">
-          Nhật ký phê duyệt
+          {t("requests.nhatKyDuyet")}
         </h3>
         {request.events.length === 0 ? (
-          <p className="text-sm text-slate-500">
-            Chưa có mốc nào được ghi. Các yêu cầu lập trước khi bật nhật ký sẽ
-            không có lịch sử.
-          </p>
+          <p className="text-sm text-slate-500">{t("requests.chuaCoMoc")}</p>
         ) : (
           <ol className="space-y-3">
             {request.events.map((ev) => (
@@ -561,18 +592,17 @@ export default async function RequestDetailPage({
                         "bg-slate-100 text-slate-700"
                       }`}
                     >
-                      {REQUEST_STATUS_LABEL[ev.toStatus] ?? ev.toStatus}
+                      {tTuDo(`labels.reqStatus_${ev.toStatus}`)}
                     </span>
                     {ev.fromStatus && (
                       <span className="ml-2 text-xs text-slate-500">
-                        (từ{" "}
-                        {REQUEST_STATUS_LABEL[ev.fromStatus] ?? ev.fromStatus})
+                        ({t("requests.tuTrangThai")}{" "}
+                        {tTuDo(`labels.reqStatus_${ev.fromStatus}`)})
                       </span>
                     )}
                   </p>
                   <p className="text-xs text-slate-600">
-                    {ev.actorName} · {ev.actorRole} ·{" "}
-                    {ev.createdAt.toLocaleString("vi-VN")}
+                    {ev.actorName} · {ev.actorRole} · {ngayGio(ev.createdAt)}
                   </p>
                   {ev.note && (
                     <p className="mt-0.5 text-sm text-slate-700">{ev.note}</p>

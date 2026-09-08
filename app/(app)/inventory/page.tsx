@@ -17,6 +17,7 @@ import {
   vesselScopeDayDu,
   vesselWhere,
 } from "@/lib/auth";
+import { layT } from "@/lib/i18n/server";
 import { VAN_HANH_TAU } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,7 @@ export default async function InventoryPage({
   }>;
 }) {
   const user = await requireScopedUser();
+  const { t, tTuDo, ngayGio } = await layT();
   const scope = vesselScopeDayDu(user);
   // Phải khớp đúng danh sách của createInventoryTransaction (VAN_HANH_TAU,
   // app/actions.ts) — liệt kê tay ở đây làm máy trưởng không thấy form dù server
@@ -131,8 +133,6 @@ export default async function InventoryPage({
   );
 
   const warehouseById = new Map(warehouses.map((w) => [w.id, w]));
-  const fmtTime = (d: Date) =>
-    `${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
 
   // Áp bộ lọc loại / tìm kiếm / chỉ-thiếu (dữ liệu nhỏ — lọc tại chỗ).
   const filtered = inventories.filter((inv) => {
@@ -203,26 +203,25 @@ export default async function InventoryPage({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-blue-950">
-            {scope.all ? "Tồn kho đội tàu" : "Tồn kho tàu của bạn"}
+            {scope.all ? t("inventory.tieuDeDoi") : t("inventory.tieuDeTau")}
           </h2>
-          <p className="text-sm text-slate-600">
-            Tổng quan → lọc → chi tiết từng tàu · nhập/xuất và nhật ký ở cuối
-            trang
-          </p>
+          <p className="text-sm text-slate-600">{t("inventory.moTa")}</p>
         </div>
         <div className="flex flex-wrap gap-2 text-sm">
           <span className="rounded-lg bg-white px-3 py-1.5 shadow-sm ring-1 ring-blue-100">
-            <span className="text-slate-500">Dòng:</span>{" "}
+            <span className="text-slate-500">{t("inventory.chiSoDong")}:</span>{" "}
             <b className="text-blue-950">{filtered.length}</b>
           </span>
           <span className="rounded-lg bg-white px-3 py-1.5 shadow-sm ring-1 ring-blue-100">
-            <span className="text-slate-500">Dưới tối thiểu:</span>{" "}
+            <span className="text-slate-500">
+              {t("inventory.chiSoDuoiToiThieu")}:
+            </span>{" "}
             <b className={lowCount > 0 ? "text-red-600" : "text-green-700"}>
               {lowCount}
             </b>
           </span>
           <span className="rounded-lg bg-white px-3 py-1.5 shadow-sm ring-1 ring-blue-100">
-            <span className="text-slate-500">Tàu:</span>{" "}
+            <span className="text-slate-500">{t("chung.tau")}:</span>{" "}
             <b className="text-blue-950">{groups.length}</b>
           </span>
         </div>
@@ -230,8 +229,7 @@ export default async function InventoryPage({
 
       {scope.unassigned && (
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          Bạn chưa được gán tàu phụ trách nên chưa xem được tồn kho. Vui lòng
-          liên hệ quản trị viên.
+          {t("inventory.chuaGanTauTonKho")}
         </div>
       )}
 
@@ -245,9 +243,9 @@ export default async function InventoryPage({
               name="vessel"
               defaultValue={vesselFilter ?? ""}
               className="rounded border p-1.5"
-              title="Tàu"
+              title={t("chung.tau")}
             >
-              <option value="">Tất cả tàu</option>
+              <option value="">{t("chung.tatCaTau")}</option>
               {vessels.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.code} — {v.name}
@@ -259,9 +257,9 @@ export default async function InventoryPage({
             name="wh"
             defaultValue={whFilter ?? ""}
             className="rounded border p-1.5"
-            title="Kho"
+            title={t("chung.kho")}
           >
-            <option value="">Tất cả kho</option>
+            <option value="">{t("inventory.tatCaKho")}</option>
             {filterWarehouses.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.code}
@@ -272,16 +270,16 @@ export default async function InventoryPage({
             name="type"
             defaultValue={typeFilter}
             className="rounded border p-1.5"
-            title="Loại"
+            title={t("inventory.loai")}
           >
-            <option value="ALL">Store + Spare</option>
-            <option value="STORE">Vật tư (Store)</option>
-            <option value="SPARE">Phụ tùng (Spare)</option>
+            <option value="ALL">{t("inventory.loaiCaHai")}</option>
+            <option value="STORE">{t("labels.typeLong_STORE")}</option>
+            <option value="SPARE">{t("labels.typeLong_SPARE")}</option>
           </select>
           <input
             name="q"
             defaultValue={String(params.q ?? "")}
-            placeholder="Tìm tên / mã / IMPA..."
+            placeholder={t("inventory.timPlaceholder")}
             className="min-w-40 flex-1 rounded border p-1.5"
           />
           <label className="flex items-center gap-1.5 whitespace-nowrap">
@@ -291,16 +289,16 @@ export default async function InventoryPage({
               value="1"
               defaultChecked={lowOnly}
             />
-            <span className="text-slate-700">Chỉ thiếu</span>
+            <span className="text-slate-700">{t("inventory.chiThieu")}</span>
           </label>
           <button className="rounded bg-blue-700 px-4 py-1.5 text-white hover:bg-blue-800">
-            Lọc
+            {t("chung.loc")}
           </button>
           <Link
             href="/inventory"
             className="rounded border border-blue-200 px-3 py-1.5 text-blue-950 hover:bg-blue-50"
           >
-            Xóa lọc
+            {t("chung.boLoc")}
           </Link>
         </Form>
       </div>
@@ -308,7 +306,7 @@ export default async function InventoryPage({
       {/* 3. Tồn kho nhóm theo tàu */}
       {groups.length === 0 ? (
         <div className="rounded-xl bg-white p-6 text-slate-600 shadow-sm ring-1 ring-blue-100">
-          Không có dòng tồn kho nào khớp bộ lọc.
+          {t("inventory.khongCoDongKhop")}
         </div>
       ) : (
         <div className="space-y-2">
@@ -338,15 +336,15 @@ export default async function InventoryPage({
                       ⚓ {vessel.code} — {vessel.name}
                     </Link>
                     <span className="text-xs text-slate-500">
-                      {rows.length} dòng
+                      {t("inventory.nDong", { n: rows.length })}
                     </span>
                     {groupLow > 0 ? (
                       <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
-                        {groupLow} thiếu
+                        {t("inventory.nThieu", { n: groupLow })}
                       </span>
                     ) : (
                       <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                        đủ
+                        {t("inventory.du")}
                       </span>
                     )}
                   </span>
@@ -362,13 +360,19 @@ export default async function InventoryPage({
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 z-10">
                       <tr className="border-b border-blue-200 bg-blue-50 text-left text-xs uppercase tracking-wide text-blue-950">
-                        <th className="p-1.5">Kho</th>
-                        <th className="p-1.5">Mã</th>
-                        <th className="p-1.5">Tên vật tư</th>
-                        <th className="p-1.5">ĐVT</th>
-                        <th className="p-1.5 text-right">Tồn</th>
-                        <th className="p-1.5 text-right">Khả dụng</th>
-                        <th className="p-1.5 text-right">Tối thiểu</th>
+                        <th className="p-1.5">{t("chung.kho")}</th>
+                        <th className="p-1.5">{t("chung.ma")}</th>
+                        <th className="p-1.5">{t("inventory.cotTenVatTu")}</th>
+                        <th className="p-1.5">{t("chung.donVi")}</th>
+                        <th className="p-1.5 text-right">
+                          {t("inventory.cotTon")}
+                        </th>
+                        <th className="p-1.5 text-right">
+                          {t("inventory.cotKhaDung")}
+                        </th>
+                        <th className="p-1.5 text-right">
+                          {t("inventory.cotToiThieu")}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -397,18 +401,24 @@ export default async function InventoryPage({
                                 colSpan={7}
                                 className="p-1.5 text-xs font-bold uppercase tracking-wide text-blue-950"
                               >
-                                {dept.icon} {dept.label}
+                                {dept.icon} {tTuDo(`labels.dept_${dept.key}`)}
                                 <span className="ml-2 font-normal normal-case text-slate-500">
-                                  {deptRowsFull.length} dòng
-                                  {deptLow > 0 ? ` · ${deptLow} thiếu` : ""}
+                                  {t("inventory.nDong", {
+                                    n: deptRowsFull.length,
+                                  })}
+                                  {deptLow > 0
+                                    ? ` · ${t("inventory.nThieu", { n: deptLow })}`
+                                    : ""}
                                 </span>
                               </td>
                             </tr>
                             {conLai > 0 && (
                               <tr className="border-b bg-slate-50/60">
                                 <td colSpan={7} className="px-3 py-1.5 text-xs text-slate-500">
-                                  Đang hiện {deptRows.length} dòng đầu — còn{" "}
-                                  <b>{conLai}</b> dòng nữa.{" "}
+                                  {t("inventory.dangHienNDongDau", {
+                                    n: deptRows.length,
+                                  })}{" "}
+                                  <b>{conLai}</b> {t("inventory.conLaiDongNua")}{" "}
                                   <Link
                                     href={`?${new URLSearchParams({
                                       ...(params.vessel ? { vessel: params.vessel } : {}),
@@ -420,7 +430,7 @@ export default async function InventoryPage({
                                     }).toString()}`}
                                     className="text-blue-700 hover:underline"
                                   >
-                                    Xem tất cả
+                                    {t("chung.xemTatCa")}
                                   </Link>
                                 </td>
                               </tr>
@@ -435,7 +445,8 @@ export default async function InventoryPage({
                                 inventory.material.materialType === "SPARE";
                               // Tiêu đề nhóm thiết bị cho phụ tùng
                               const equipment = isSpare
-                                ? (inventory.material.equipment ?? "Thiết bị khác")
+                                ? (inventory.material.equipment ??
+                                  t("inventory.thietBiKhac"))
                                 : null;
                               const showEquipmentHeader =
                                 equipment !== null &&
@@ -449,7 +460,9 @@ export default async function InventoryPage({
                                         colSpan={7}
                                         className="p-1 pl-4 text-[11px] font-semibold text-indigo-800"
                                       >
-                                        🔧 Phụ tùng — {equipment}
+                                        {t("inventory.phuTungThietBi", {
+                                          ten: equipment ?? "",
+                                        })}
                                       </td>
                                     </tr>
                                   )}
@@ -468,12 +481,12 @@ export default async function InventoryPage({
                                       {inventory.material.nameVn}
                                       {isSpare && (
                                         <span className="ml-1.5 rounded bg-indigo-100 px-1 py-0.5 text-[10px] text-indigo-700">
-                                          PT
+                                          {t("inventory.badgePhuTung")}
                                         </span>
                                       )}
                                       {isLow && (
                                         <span className="ml-1.5 rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-700">
-                                          THIẾU
+                                          {t("inventory.badgeThieu")}
                                         </span>
                                       )}
                                     </td>
@@ -485,7 +498,9 @@ export default async function InventoryPage({
                                       {inventory.reservedQuantity > 0 && (
                                         <span className="text-xs text-slate-400">
                                           {" "}
-                                          (giữ {inventory.reservedQuantity})
+                                          {t("inventory.dangGiu", {
+                                            n: inventory.reservedQuantity,
+                                          })}
                                         </span>
                                       )}
                                     </td>
@@ -521,7 +536,7 @@ export default async function InventoryPage({
       {canTransact && (
         <details className="rounded-xl bg-white shadow-sm ring-1 ring-blue-100">
           <summary className="cursor-pointer rounded-xl px-4 py-3 font-semibold text-blue-950 hover:bg-blue-50/50">
-            ➕ Nhập / xuất kho
+            {t("inventory.nutNhapXuat")}
           </summary>
           <div className="px-4 pb-4">
             <InventoryForm
@@ -543,28 +558,29 @@ export default async function InventoryPage({
       {/* 5. Nhật ký giao dịch (gập) */}
       <details className="rounded-xl bg-white shadow-sm ring-1 ring-blue-100">
         <summary className="cursor-pointer rounded-xl px-4 py-3 font-semibold text-blue-950 hover:bg-blue-50/50">
-          🕘 Lịch sử nhập xuất gần đây{" "}
+          {t("inventory.lichSuGanDay")}{" "}
           <span className="text-sm font-normal text-slate-500">
-            ({recentTx.length} giao dịch mới nhất — có thời điểm & người thực
-            hiện)
+            ({t("inventory.nGiaoDichMoiNhat", { n: recentTx.length })})
           </span>
         </summary>
         <div className="px-4 pb-4">
           {recentTx.length === 0 ? (
-            <p className="text-slate-600">Chưa có giao dịch nào.</p>
+            <p className="text-slate-600">{t("inventory.chuaCoGiaoDich")}</p>
           ) : (
             <div className="max-h-80 overflow-auto rounded border border-blue-100">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10">
                   <tr className="border-b border-blue-200 bg-blue-50 text-left text-xs uppercase tracking-wide text-blue-950">
-                    <th className="p-1.5">Thời điểm thực hiện</th>
-                    <th className="p-1.5">Loại</th>
-                    <th className="p-1.5">Vật tư</th>
-                    <th className="p-1.5">Kho</th>
-                    <th className="p-1.5 text-right">SL</th>
-                    <th className="p-1.5">Người thực hiện</th>
-                    <th className="p-1.5">Ghi chú</th>
-                    <th className="p-1.5">Ghi sổ lúc</th>
+                    <th className="p-1.5">{t("inventory.cotThoiDiem")}</th>
+                    <th className="p-1.5">{t("inventory.loai")}</th>
+                    <th className="p-1.5">{t("chung.vatTu")}</th>
+                    <th className="p-1.5">{t("chung.kho")}</th>
+                    <th className="p-1.5 text-right">
+                      {t("inventory.cotSoLuongNgan")}
+                    </th>
+                    <th className="p-1.5">{t("chung.nguoiThucHien")}</th>
+                    <th className="p-1.5">{t("chung.ghiChu")}</th>
+                    <th className="p-1.5">{t("inventory.cotGhiSoLuc")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -579,7 +595,7 @@ export default async function InventoryPage({
                     return (
                       <tr key={tx.id} className="border-b">
                         <td className="p-1.5 font-medium text-blue-950">
-                          {fmtTime(tx.occurredAt)}
+                          {ngayGio(tx.occurredAt)}
                         </td>
                         <td className="p-1.5">
                           <span
@@ -589,7 +605,7 @@ export default async function InventoryPage({
                                 : "bg-amber-100 text-amber-700"
                             }`}
                           >
-                            {tx.type === "IN" ? "Nhập" : "Xuất"}
+                            {tTuDo(`labels.tx_${tx.type}`)}
                           </span>
                         </td>
                         <td className="p-1.5">
@@ -601,7 +617,7 @@ export default async function InventoryPage({
                                   danh mục hiện hành rồi tưởng dữ liệu sai. */}
                               {idNgungDung.has(tx.materialId) && (
                                 <span className="ml-1 rounded bg-slate-200 px-1 py-0.5 text-[10px] font-medium text-slate-600">
-                                  đã ngừng dùng
+                                  {t("inventory.daNgungDung")}
                                 </span>
                               )}
                             </>
@@ -627,7 +643,7 @@ export default async function InventoryPage({
                         <td className="p-1.5">{tx.performedBy ?? "—"}</td>
                         <td className="p-1.5 text-slate-500">{tx.note}</td>
                         <td className="p-1.5 text-xs text-slate-400">
-                          {backdated ? fmtTime(tx.createdAt) : "—"}
+                          {backdated ? ngayGio(tx.createdAt) : "—"}
                         </td>
                       </tr>
                     );
@@ -637,8 +653,7 @@ export default async function InventoryPage({
             </div>
           )}
           <p className="mt-2 text-xs text-slate-500">
-            Cột &quot;Ghi sổ lúc&quot; chỉ hiện khi giao dịch được nhập bù (thời
-            điểm thực hiện khác thời điểm ghi vào hệ thống).
+            {t("inventory.ghiChuGhiSoLuc")}
           </p>
         </div>
       </details>

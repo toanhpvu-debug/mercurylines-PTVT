@@ -5,6 +5,7 @@ import {
   assignMaterialToVessel,
   unassignMaterialFromVessel,
 } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type MaterialOption = {
   id: number;
@@ -20,6 +21,7 @@ export function VesselMaterialAddForm({
   vesselId: number;
   available: MaterialOption[];
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(assignMaterialToVessel, {
     message: "",
   });
@@ -32,11 +34,11 @@ export function VesselMaterialAddForm({
         defaultValue=""
         required
       >
-        <option value="">Chọn vật tư từ danh mục gốc để thêm vào tàu</option>
+        <option value="">{t("materials.optChonTuGoc")}</option>
         {available.map((m) => (
           <option key={m.id} value={m.id}>
             {m.code} - {m.nameVn}
-            {m.materialType === "SPARE" ? " (Phụ tùng)" : ""}
+            {m.materialType === "SPARE" ? ` (${t("chung.phuTung")})` : ""}
           </option>
         ))}
       </select>
@@ -44,11 +46,11 @@ export function VesselMaterialAddForm({
         disabled={pending || available.length === 0}
         className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
       >
-        {pending ? "..." : "Thêm vào tàu"}
+        {pending ? "..." : t("materials.nutThemVaoTau")}
       </button>
       {available.length === 0 && (
         <span className="text-xs text-slate-500">
-          Tàu đã có tất cả vật tư trong danh mục gốc.
+          {t("materials.tauDaCoDu")}
         </span>
       )}
       {state.message && (
@@ -67,6 +69,7 @@ export function VesselMaterialRemoveButton({
   materialId: number;
   code: string;
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(
     unassignMaterialFromVessel,
     { message: "" }
@@ -75,11 +78,7 @@ export function VesselMaterialRemoveButton({
     <form
       action={formAction}
       onSubmit={(e) => {
-        if (
-          !window.confirm(
-            `Gỡ "${code}" khỏi danh mục tàu này? (Định nghĩa gốc và tồn kho không bị xóa.)`
-          )
-        ) {
+        if (!window.confirm(t("materials.xacNhanGo", { ma: code }))) {
           e.preventDefault();
         }
       }}
@@ -90,7 +89,7 @@ export function VesselMaterialRemoveButton({
         disabled={pending}
         className="rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
       >
-        {pending ? "..." : "Gỡ khỏi tàu"}
+        {pending ? "..." : t("materials.nutGoKhoiTau")}
       </button>
       {state.message && (
         <p className="mt-1 text-xs text-red-600">{state.message}</p>

@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ROLE_LABEL, boPhanCuaChucDanh } from "@/lib/roles";
+import { boPhanCuaChucDanh } from "@/lib/roles";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type VesselOption = {
   id: number;
@@ -52,6 +53,7 @@ export default function RequestForm({
   /** Người đang đăng nhập — tên và chức danh đi thẳng vào yêu cầu. */
   nguoiLap: { name: string; role: string };
 }) {
+  const { t, tTuDo } = useNgonNgu();
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
@@ -131,13 +133,13 @@ export default function RequestForm({
           ),
       };
       if (!payload.vesselId) {
-        setMessage("Vui lòng chọn tàu.");
+        setMessage(t("requests.canChonTau"));
         setIsError(true);
         setLoading(false);
         return;
       }
       if (!payload.items.length) {
-        setMessage("Vui lòng chọn ít nhất một dòng.");
+        setMessage(t("requests.canMotDong"));
         setIsError(true);
         setLoading(false);
         return;
@@ -149,21 +151,21 @@ export default function RequestForm({
       });
       if (!res.ok) {
         const data = await res.json();
-        setMessage(data.error || "Có lỗi xảy ra.");
+        setMessage(data.error || t("requests.coLoi"));
         setIsError(true);
         setLoading(false);
         return;
       }
       setMessage(
         kind === "SPARE"
-          ? "Tạo yêu cầu phụ tùng thành công."
-          : "Tạo yêu cầu vật tư thành công."
+          ? t("requests.taoPhuTungThanhCong")
+          : t("requests.taoVatTuThanhCong")
       );
       setPurpose("");
       setItems([blankItem()]);
       router.refresh();
     } catch {
-      setMessage("Có lỗi xảy ra.");
+      setMessage(t("requests.coLoi"));
       setIsError(true);
     } finally {
       setLoading(false);
@@ -176,8 +178,8 @@ export default function RequestForm({
     <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
       <h3 className="mb-4 text-lg font-semibold">
         {isSpare
-          ? "Tạo yêu cầu phụ tùng (MLS-11-05A)"
-          : "Tạo yêu cầu vật tư (MLS-11-05B)"}
+          ? t("requests.taoYeuCauPhuTung")
+          : t("requests.taoYeuCauVatTu")}
       </h3>
       <form onSubmit={submit} className="space-y-4">
         <div className="flex gap-2">
@@ -193,7 +195,7 @@ export default function RequestForm({
                 : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             }`}
           >
-            Yêu cầu vật tư
+            {t("requests.nutLoaiVatTu")}
           </button>
           <button
             type="button"
@@ -207,7 +209,7 @@ export default function RequestForm({
                 : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             }`}
           >
-            Yêu cầu phụ tùng
+            {t("requests.nutLoaiPhuTung")}
           </button>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -217,7 +219,7 @@ export default function RequestForm({
             className="rounded border p-2"
             required
           >
-            <option value="">Chọn tàu</option>
+            <option value="">{t("chung.chonTau")}</option>
             {vessels.map((vessel) => (
               <option key={vessel.id} value={vessel.id}>
                 {vessel.code} - {vessel.name}
@@ -227,11 +229,13 @@ export default function RequestForm({
           {/* Người yêu cầu không gõ tay nữa — lấy thẳng từ tài khoản đăng nhập
               để chứng từ và nhật ký khớp với người thật sự bấm nút. */}
           <div className="rounded border border-slate-200 bg-slate-50 p-2 text-sm">
-            <span className="text-slate-500">Người yêu cầu: </span>
+            <span className="text-slate-500">
+              {t("requests.nguoiYeuCau")}:{" "}
+            </span>
             <b>{nguoiLap.name}</b>
             <span className="text-slate-600">
               {" · "}
-              {ROLE_LABEL[nguoiLap.role] ?? nguoiLap.role}
+              {tTuDo(`labels.role_${nguoiLap.role}`)}
             </span>
           </div>
           <select
@@ -239,10 +243,11 @@ export default function RequestForm({
             onChange={(e) => setDepartment(e.target.value)}
             className="rounded border p-2"
           >
-            <option value="ENGINE">Máy (Engine)</option>
-            <option value="DECK">Boong (Deck)</option>
-            <option value="ELECTRICAL">Điện (Electrical)</option>
-            <option value="GENERAL">Phục vụ / Chung</option>
+            {["ENGINE", "DECK", "ELECTRICAL", "GENERAL"].map((bp) => (
+              <option key={bp} value={bp}>
+                {tTuDo(`labels.reqDept_${bp}`)}
+              </option>
+            ))}
           </select>
           <input
             type="date"
@@ -255,15 +260,16 @@ export default function RequestForm({
             onChange={(e) => setPriority(e.target.value)}
             className="rounded border p-2"
           >
-            <option value="LOW">Low</option>
-            <option value="NORMAL">Normal</option>
-            <option value="HIGH">High</option>
-            <option value="URGENT">Urgent</option>
+            {["LOW", "NORMAL", "HIGH", "URGENT"].map((uu) => (
+              <option key={uu} value={uu}>
+                {tTuDo(`labels.priority_${uu}`)}
+              </option>
+            ))}
           </select>
           <input
             value={purpose}
             onChange={(e) => setPurpose(e.target.value)}
-            placeholder="Mục đích / lý do yêu cầu"
+            placeholder={t("requests.phMucDich")}
             className="rounded border p-2"
           />
         </div>
@@ -273,19 +279,19 @@ export default function RequestForm({
             <input
               value={equipment}
               onChange={(e) => setEquipment(e.target.value)}
-              placeholder="Thiết bị / Equipment"
+              placeholder={t("chung.thietBi")}
               className="rounded border p-2"
             />
             <input
               value={maker}
               onChange={(e) => setMaker(e.target.value)}
-              placeholder="Hãng sản xuất / Maker"
+              placeholder={t("requests.phHangSanXuat")}
               className="rounded border p-2"
             />
             <input
               value={serialNo}
               onChange={(e) => setSerialNo(e.target.value)}
-              placeholder="Số máy / Serial (Engine) No."
+              placeholder={t("requests.phSoMay")}
               className="rounded border p-2"
             />
           </div>
@@ -305,7 +311,7 @@ export default function RequestForm({
                         : "bg-white text-slate-700 hover:bg-blue-50"
                     }`}
                   >
-                    Có sẵn
+                    {t("requests.coSan")}
                   </button>
                   <button
                     type="button"
@@ -316,16 +322,18 @@ export default function RequestForm({
                         : "bg-white text-slate-700 hover:bg-blue-50"
                     }`}
                   >
-                    Mới (ngoài danh mục)
+                    {t("requests.moiNgoaiDanhMuc")}
                   </button>
                 </div>
-                <span className="text-xs text-slate-500">Dòng {index + 1}</span>
+                <span className="text-xs text-slate-500">
+                  {t("requests.dongThu", { n: index + 1 })}
+                </span>
                 <button
                   type="button"
                   onClick={() => removeItem(index)}
                   className="ml-auto rounded bg-red-100 px-3 py-1 text-sm text-red-700 hover:bg-red-200"
                 >
-                  Xóa dòng
+                  {t("requests.xoaDong")}
                 </button>
               </div>
 
@@ -340,7 +348,9 @@ export default function RequestForm({
                     required
                   >
                     <option value="">
-                      {isSpare ? "Chọn phụ tùng" : "Chọn vật tư"}
+                      {isSpare
+                        ? t("requests.chonPhuTung")
+                        : t("requests.chonVatTu")}
                     </option>
                     {filteredMaterials.map((material) => (
                       <option key={material.id} value={material.id}>
@@ -359,14 +369,14 @@ export default function RequestForm({
                     onChange={(e) =>
                       updateItem(index, "quantity", e.target.value)
                     }
-                    placeholder="SL yêu cầu"
+                    placeholder={t("requests.slYeuCau")}
                     className="rounded border p-2"
                     required
                   />
                   <input
                     value={item.note}
                     onChange={(e) => updateItem(index, "note", e.target.value)}
-                    placeholder="Ghi chú"
+                    placeholder={t("chung.ghiChu")}
                     className="rounded border p-2"
                   />
                 </div>
@@ -379,8 +389,8 @@ export default function RequestForm({
                     }
                     placeholder={
                       isSpare
-                        ? "Tên phụ tùng mới"
-                        : "Tên / mô tả vật tư mới"
+                        ? t("requests.phTenPhuTungMoi")
+                        : t("requests.phTenVatTuMoi")
                     }
                     className="rounded border p-2 md:col-span-2"
                     required
@@ -390,7 +400,7 @@ export default function RequestForm({
                     onChange={(e) =>
                       updateItem(index, "itemCode", e.target.value)
                     }
-                    placeholder={isSpare ? "Part No." : "Mã IMPA"}
+                    placeholder={isSpare ? "Part No." : t("requests.maImpa")}
                     className="rounded border p-2"
                   />
                   <input
@@ -398,7 +408,7 @@ export default function RequestForm({
                     onChange={(e) =>
                       updateItem(index, "itemUom", e.target.value)
                     }
-                    placeholder="ĐVT (PCS...)"
+                    placeholder={t("requests.phDvt")}
                     className="rounded border p-2"
                   />
                   <input
@@ -409,14 +419,14 @@ export default function RequestForm({
                     onChange={(e) =>
                       updateItem(index, "quantity", e.target.value)
                     }
-                    placeholder="SL yêu cầu"
+                    placeholder={t("requests.slYeuCau")}
                     className="rounded border p-2"
                     required
                   />
                   <input
                     value={item.note}
                     onChange={(e) => updateItem(index, "note", e.target.value)}
-                    placeholder="Ghi chú"
+                    placeholder={t("chung.ghiChu")}
                     className="rounded border p-2"
                   />
                 </div>
@@ -425,8 +435,9 @@ export default function RequestForm({
           ))}
           {filteredMaterials.length === 0 && (
             <p className="text-sm text-amber-700">
-              Danh mục chưa có {isSpare ? "phụ tùng" : "vật tư"} có sẵn nào —
-              bạn vẫn có thể chọn &quot;Mới (ngoài danh mục)&quot; để nhập tay.
+              {isSpare
+                ? t("requests.chuaCoPhuTungCoSan")
+                : t("requests.chuaCoVatTuCoSan")}
             </p>
           )}
         </div>
@@ -436,14 +447,14 @@ export default function RequestForm({
             onClick={addItem}
             className="rounded border px-4 py-2 hover:bg-blue-50"
           >
-            Thêm dòng
+            {t("requests.themDong")}
           </button>
           <button
             type="submit"
             disabled={loading}
             className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
           >
-            {loading ? "Đang xử lý..." : "Tạo yêu cầu"}
+            {loading ? t("chung.dangXuLy") : t("requests.nutTaoYeuCau")}
           </button>
         </div>
         {message && (

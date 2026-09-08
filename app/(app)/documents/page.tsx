@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth";
 import DocumentUploadForm from "@/components/DocumentUploadForm";
 import DocumentDeleteButton from "@/components/DocumentDeleteButton";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ function formatSize(bytes: number) {
 
 export default async function DocumentsPage() {
   const user = await requireScopedUser();
+  const { t, ngay } = await layT();
   const scope = vesselScopeDayDu(user);
   const canDelete = user.role === "ADMIN";
   const [vessels, documents] = await Promise.all([
@@ -41,42 +43,42 @@ export default async function DocumentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-blue-950">Báo cáo từ tàu</h2>
-        <p className="text-slate-600">
-          Tải lên file báo cáo vật tư (PDF / Excel) — bản lưu bất biến, có mã
-          toàn vẹn SHA-256
-        </p>
+        <h2 className="text-2xl font-bold text-blue-950">
+          {t("inventory.taiLieuTieuDe")}
+        </h2>
+        <p className="text-slate-600">{t("inventory.taiLieuMoTa")}</p>
       </div>
 
       {scope.unassigned ? (
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          Bạn chưa được gán tàu phụ trách nên chưa thể tải báo cáo lên. Vui
-          lòng liên hệ quản trị viên.
+          {t("inventory.taiLieuChuaGanTau")}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <h3 className="mb-4 text-lg font-semibold">Tải báo cáo lên</h3>
+            <h3 className="mb-4 text-lg font-semibold">
+              {t("inventory.taiBaoCaoLen")}
+            </h3>
             <DocumentUploadForm vessels={vessels} />
           </div>
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 xl:col-span-2">
             <h3 className="mb-4 text-lg font-semibold">
-              Hồ sơ đã lưu ({documents.length})
+              {t("inventory.hoSoDaLuu", { n: documents.length })}
             </h3>
             {documents.length === 0 ? (
-              <p className="text-slate-600">Chưa có báo cáo nào được tải lên.</p>
+              <p className="text-slate-600">{t("inventory.chuaCoBaoCao")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border text-sm">
                   <thead>
                     <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                      <th className="p-2">Ngày tải</th>
-                      <th className="p-2">Tàu</th>
-                      <th className="p-2">Loại</th>
-                      <th className="p-2">Kỳ</th>
-                      <th className="p-2">Tiêu đề / File</th>
-                      <th className="p-2">Cỡ</th>
-                      <th className="p-2">Người tải</th>
+                      <th className="p-2">{t("inventory.cotNgayTai")}</th>
+                      <th className="p-2">{t("chung.tau")}</th>
+                      <th className="p-2">{t("inventory.loai")}</th>
+                      <th className="p-2">{t("inventory.cotKy")}</th>
+                      <th className="p-2">{t("inventory.cotTieuDeFile")}</th>
+                      <th className="p-2">{t("inventory.cotCo")}</th>
+                      <th className="p-2">{t("inventory.cotNguoiTai")}</th>
                       <th className="p-2">SHA-256</th>
                       <th className="p-2"></th>
                     </tr>
@@ -85,7 +87,7 @@ export default async function DocumentsPage() {
                     {documents.map((doc) => (
                       <tr key={doc.id} className="border-b align-top">
                         <td className="p-2 whitespace-nowrap">
-                          {doc.createdAt.toLocaleDateString("vi-VN")}
+                          {ngay(doc.createdAt)}
                         </td>
                         <td className="p-2 whitespace-nowrap">
                           <Link
@@ -108,7 +110,7 @@ export default async function DocumentsPage() {
                           )}
                           {doc.note && (
                             <p className="text-xs text-slate-500">
-                              Ghi chú: {doc.note}
+                              {t("chung.ghiChu")}: {doc.note}
                             </p>
                           )}
                         </td>
@@ -132,7 +134,7 @@ export default async function DocumentsPage() {
                               rel="noopener noreferrer"
                               className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200"
                             >
-                              Xem / Tải
+                              {t("inventory.xemTai")}
                             </a>
                             {canDelete && (
                               <DocumentDeleteButton
@@ -149,9 +151,7 @@ export default async function DocumentsPage() {
               </div>
             )}
             <p className="mt-3 text-xs text-slate-500">
-              File đã tải lên không thể chỉnh sửa hay thay thế — mọi bản nộp
-              đều được lưu vĩnh viễn kèm mã SHA-256 để đối chiếu toàn vẹn. Chỉ
-              quản trị viên công ty có quyền xóa.
+              {t("inventory.luuYBatBien")}
             </p>
           </div>
         </div>

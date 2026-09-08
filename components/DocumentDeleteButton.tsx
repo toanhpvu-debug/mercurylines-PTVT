@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { deleteReportDocument } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export default function DocumentDeleteButton({
   id,
@@ -10,6 +11,7 @@ export default function DocumentDeleteButton({
   id: number;
   fileName: string;
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(deleteReportDocument, {
     message: "",
   });
@@ -19,7 +21,7 @@ export default function DocumentDeleteButton({
       onSubmit={(e) => {
         if (
           !window.confirm(
-            `Xóa vĩnh viễn hồ sơ "${fileName}"? Hành động này không hoàn tác được.`
+            t("inventory.xacNhanXoaHoSo", { ten: fileName })
           )
         ) {
           e.preventDefault();
@@ -31,7 +33,7 @@ export default function DocumentDeleteButton({
         disabled={pending}
         className="rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
       >
-        {pending ? "..." : "Xóa"}
+        {pending ? "..." : t("chung.xoa")}
       </button>
       {state.message && (
         <p className="mt-1 text-xs text-red-600">{state.message}</p>

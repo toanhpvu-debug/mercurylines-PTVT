@@ -18,7 +18,8 @@ import {
   vesselScopeDayDu,
   vesselWhere,
 } from "@/lib/auth";
-import { CHI_HUY_TAU, DUYET_CONG_TY, LAP_YEU_CAU, ROLE_LABEL } from "@/lib/roles";
+import { CHI_HUY_TAU, DUYET_CONG_TY, LAP_YEU_CAU } from "@/lib/roles";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function RequestsPage({
   searchParams: Promise<{ vessel?: string; status?: string }>;
 }) {
   const user = await requireScopedUser();
+  const { t, tTuDo, ngayGio } = await layT();
   const scope = vesselScopeDayDu(user);
   // CHI_HUY_TAU ∪ DUYET_CONG_TY — đúng danh sách updateRequestStatus nhận.
   // Liệt kê tay ở đây từng bỏ sót máy trưởng, làm họ không thấy nút duyệt.
@@ -87,17 +89,14 @@ export default async function RequestsPage({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-blue-950">Yêu cầu vật tư & phụ tùng</h2>
+        <h2 className="text-2xl font-bold text-blue-950">{t("requests.tieuDe")}</h2>
         <p className="text-slate-600">
-          {scope.all
-            ? "Tạo yêu cầu theo mẫu MLS-11-05B (vật tư) / MLS-11-05A (phụ tùng), duyệt và in"
-            : "Yêu cầu vật tư / phụ tùng của tàu bạn phụ trách"}
+          {scope.all ? t("requests.moTaDoi") : t("requests.moTaTau")}
         </p>
       </div>
       {scope.unassigned ? (
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          Bạn chưa được gán tàu phụ trách nên chưa tạo được yêu cầu vật tư. Vui
-          lòng liên hệ quản trị viên.
+          {t("requests.chuaGanTau")}
         </div>
       ) : (
         <RequestForm
@@ -110,7 +109,7 @@ export default async function RequestsPage({
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-lg font-semibold">
-            Danh sách yêu cầu ({requests.length})
+            {t("requests.danhSach", { n: requests.length })}
           </h3>
           {/* next/form: bấm "Lọc" chỉ tải phần nội dung (chuyển trang phía
               client, hiện khung chờ ngay) thay vì tải lại cả trang như
@@ -122,7 +121,7 @@ export default async function RequestsPage({
                 defaultValue={vesselFilter ? String(vesselFilter) : ""}
                 className="rounded border p-1.5 text-sm"
               >
-                <option value="">Tất cả tàu</option>
+                <option value="">{t("chung.tatCaTau")}</option>
                 {vessels.map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.code} — {v.name}
@@ -135,22 +134,22 @@ export default async function RequestsPage({
               defaultValue={statusFilter}
               className="rounded border p-1.5 text-sm"
             >
-              <option value="">Mọi trạng thái</option>
-              {Object.entries(REQUEST_STATUS_LABEL).map(([value, label]) => (
+              <option value="">{t("requests.moiTrangThai")}</option>
+              {Object.keys(REQUEST_STATUS_LABEL).map((value) => (
                 <option key={value} value={value}>
-                  {label}
+                  {tTuDo(`labels.reqStatus_${value}`)}
                 </option>
               ))}
             </select>
             <button className="rounded bg-blue-700 px-3 py-1.5 text-sm text-white hover:bg-blue-800">
-              Lọc
+              {t("chung.loc")}
             </button>
             {(vesselFilter || statusFilter) && (
               <Link
                 href="/requests"
                 className="text-sm text-slate-600 hover:underline"
               >
-                Bỏ lọc
+                {t("chung.boLoc")}
               </Link>
             )}
           </Form>
@@ -159,16 +158,16 @@ export default async function RequestsPage({
           <table className="w-full border text-sm">
             <thead>
               <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                <th className="p-2">Số yêu cầu</th>
-                <th className="p-2">Loại</th>
-                <th className="p-2">Tàu</th>
-                <th className="p-2">Người yêu cầu</th>
-                <th className="p-2">Lập lúc</th>
-                <th className="p-2">Bộ phận</th>
-                <th className="p-2">Ưu tiên</th>
-                <th className="p-2">Nội dung</th>
-                <th className="p-2">Trạng thái</th>
-                <th className="p-2">Thao tác</th>
+                <th className="p-2">{t("requests.cotSoYeuCau")}</th>
+                <th className="p-2">{t("requests.cotLoai")}</th>
+                <th className="p-2">{t("chung.tau")}</th>
+                <th className="p-2">{t("requests.nguoiYeuCau")}</th>
+                <th className="p-2">{t("requests.cotLapLuc")}</th>
+                <th className="p-2">{t("requests.cotBoPhan")}</th>
+                <th className="p-2">{t("requests.cotUuTien")}</th>
+                <th className="p-2">{t("requests.cotNoiDung")}</th>
+                <th className="p-2">{t("chung.trangThai")}</th>
+                <th className="p-2">{t("chung.thaoTac")}</th>
               </tr>
             </thead>
             <tbody>
@@ -190,7 +189,9 @@ export default async function RequestsPage({
                           : "bg-slate-100 text-slate-600"
                       }`}
                     >
-                      {request.kind === "SPARE" ? "Phụ tùng" : "Vật tư"}
+                      {tTuDo(
+                        `labels.type_${request.kind === "SPARE" ? "SPARE" : "STORE"}`
+                      )}
                     </span>
                   </td>
                   <td className="p-2">
@@ -205,30 +206,27 @@ export default async function RequestsPage({
                     {request.requestedBy}
                     {request.requestedByRole && (
                       <span className="block text-xs text-slate-500">
-                        {ROLE_LABEL[request.requestedByRole] ??
-                          request.requestedByRole}
+                        {tTuDo(`labels.role_${request.requestedByRole}`)}
                       </span>
                     )}
                   </td>
                   {/* Đến phút, không chỉ ngày: hai yêu cầu cùng ngày phải phân
                       biệt được cái nào lập trước. */}
                   <td className="p-2 whitespace-nowrap text-slate-600">
-                    {request.createdAt.toLocaleString("vi-VN", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {ngayGio(request.createdAt)}
                   </td>
-                  <td className="p-2">{request.department}</td>
-                  <td className="p-2">{request.priority}</td>
+                  <td className="p-2">
+                    {tTuDo(`labels.reqDept_${request.department}`)}
+                  </td>
+                  <td className="p-2">
+                    {tTuDo(`labels.priority_${request.priority}`)}
+                  </td>
                   <td className="p-2">
                     {request.items.map((item) => (
                       <p key={item.id}>
                         {item.material
                           ? item.material.code
-                          : `${item.itemName ?? "(mới)"} (mới)`}{" "}
+                          : `${item.itemName ?? t("requests.moi")} ${t("requests.moi")}`}{" "}
                         x {item.quantity}
                       </p>
                     ))}
@@ -240,7 +238,7 @@ export default async function RequestsPage({
                         "bg-slate-100 text-slate-700"
                       }`}
                     >
-                      {REQUEST_STATUS_LABEL[request.status] ?? request.status}
+                      {tTuDo(`labels.reqStatus_${request.status}`)}
                     </span>
                   </td>
                   <td className="p-2">
@@ -249,7 +247,7 @@ export default async function RequestsPage({
                         href={`/requests/${request.id}`}
                         className="rounded bg-slate-100 px-3 py-1 text-center text-slate-700 hover:bg-slate-200"
                       >
-                        Xem / In
+                        {t("requests.nutXemIn")}
                       </Link>
                       {canSubmit &&
                         (request.status === "DRAFT" ||
@@ -259,8 +257,8 @@ export default async function RequestsPage({
                             status="PENDING_MASTER"
                             label={
                               request.status === "REJECTED"
-                                ? "Trình lại"
-                                : "Trình duyệt"
+                                ? t("requests.nutTrinhLai")
+                                : t("requests.nutTrinh")
                             }
                             className="w-full rounded bg-amber-100 px-3 py-1 text-amber-800 hover:bg-amber-200 disabled:opacity-50"
                           />
@@ -274,15 +272,15 @@ export default async function RequestsPage({
                           className="rounded bg-green-100 px-3 py-1 text-center text-green-700 hover:bg-green-200"
                         >
                           {capDuyetChoPhep(user, request) === "TAU"
-                            ? "Tàu duyệt"
-                            : "Công ty duyệt"}
+                            ? t("requests.nutTauDuyet")
+                            : t("requests.nutCongTyDuyet")}
                         </Link>
                       )}
                       {canModerate && request.status === "APPROVED" && (
                         <RequestStatusForm
                           id={request.id}
                           status="IN_PROCUREMENT"
-                          label="Chuyển mua sắm"
+                          label={t("requests.nutChuyenMuaSam")}
                           className="rounded bg-blue-100 px-3 py-1 text-blue-700 hover:bg-blue-200 disabled:opacity-50"
                         />
                       )}

@@ -402,6 +402,49 @@ Vài điểm đã tính sẵn:
 Thư mục `dong-bo/` chứa dữ liệu thật của công ty nên **không** được đưa lên Git (đã có trong
 `.gitignore`).
 
+## Đổi ngôn ngữ: Tiếng Việt · English
+
+Nút **VI | EN** nằm ở cuối thanh bên (ngay trên thẻ tài khoản) và ở **trang đăng nhập** — đổi
+được cả khi chưa đăng nhập, để thuyền viên nước ngoài không phải đoán chữ Việt mới tìm ra ô
+đăng nhập. Lựa chọn lưu trong cookie `lang` (1 năm), theo từng trình duyệt: mỗi người trên
+cùng một tàu chọn ngôn ngữ riêng, không ảnh hưởng nhau và **không** đụng vào dữ liệu.
+
+Vì sao dùng cookie chứ không đổi đường dẫn (`/en/...`): mọi trang sau đăng nhập vốn đã là
+trang động (đọc phiên đăng nhập) nên đọc thêm một cookie không tốn gì; còn đổi đường dẫn thì
+phải sửa toàn bộ liên kết, chuyển hướng và bộ chặn cửa `proxy.ts` — cho cùng một kết quả.
+
+**Dịch cái gì:** chữ của giao diện (menu, tiêu đề, nút, nhãn cột, thông báo), tên chức danh
+(Thủy thủ trưởng ⇄ Bosun), tên bộ phận, tên trạng thái, và **định dạng ngày/số** theo ngôn ngữ.
+**Không dịch:** dữ liệu do người dùng nhập (tên vật tư, tên tàu, ghi chú) và **biểu mẫu in của
+công ty** (MLS-11-05A/B, MLS-11-06…) — các mẫu đó vốn đã song ngữ cố định theo bản gốc giấy,
+đổi chữ trên đó là sai chứng từ.
+
+### Thêm chữ mới vào từ điển
+
+Từ điển là mã nguồn TypeScript, mỗi module một file trong `lib/i18n/dict/` (xem quy ước ở
+`dict/_kieu.ts`). Hàm `tuDien(vi, en)` ép ở **tầng kiểu**: bảng tiếng Anh phải có ĐÚNG bộ khóa
+của bảng tiếng Việt — thiếu một khóa là `tsc` báo ngay tại file từ điển, chứ không đợi tới lúc
+người dùng bấm sang tiếng Anh mới thấy một ô trống.
+
+```tsx
+// Server component / server action:
+import { layT } from "@/lib/i18n/server";
+const { t, tTuDo, ngay, ngayGio, so, tenChucDanh } = await layT();
+
+// Client component ("use client"):
+import { useNgonNgu } from "@/lib/i18n/client";
+const { t, locale } = useNgonNgu();
+
+t("materials.tieuDe")                  // khóa có kiểm tra kiểu
+t("dashboard.nCanhBao", { n: 3 })      // tham số {n}
+tTuDo(`labels.reqStatus_${status}`)    // khóa tính động
+```
+
+Nhãn dùng chung (vai trò · trạng thái yêu cầu / đơn mua · bộ phận · loại hàng) nằm ở
+`dict/labels.ts`, từ chung (Lưu, Hủy, Tìm…) ở `dict/chung.ts` — module **không** định nghĩa lại
+những thứ đó. Chạy `kiem-tra-ngon-ngu.cmd` để soát: chuỗi trống, tham số `{ten}` lệch giữa hai
+bảng, và bản tiếng Anh còn sót chữ Việt.
+
 ## Đăng nhập & phân quyền
 
 App yêu cầu đăng nhập (session cookie ký JWT, hạn 7 ngày). Tài khoản seed sẵn dùng chung mật khẩu đặt ở biến môi trường `SEED_PASSWORD`; bỏ trống thì seed dùng tạm `ChangeMe@123` và in cảnh báo — **đổi ngay sau lần đăng nhập đầu tiên**:

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { deleteMaterialRequest } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export default function RequestDeleteButton({
   id,
@@ -14,6 +15,7 @@ export default function RequestDeleteButton({
   returnTo?: string;
   className?: string;
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(deleteMaterialRequest, {
     message: "",
   });
@@ -21,11 +23,7 @@ export default function RequestDeleteButton({
     <form
       action={formAction}
       onSubmit={(e) => {
-        if (
-          !window.confirm(
-            `Xóa yêu cầu "${requestNo}"? Toàn bộ dòng vật tư trong yêu cầu sẽ bị xóa theo. Hành động này không hoàn tác được.`
-          )
-        ) {
+        if (!window.confirm(t("requests.xacNhanXoa", { ma: requestNo }))) {
           e.preventDefault();
         }
       }}
@@ -39,7 +37,7 @@ export default function RequestDeleteButton({
           "rounded bg-red-100 px-3 py-1 text-red-700 hover:bg-red-200 disabled:opacity-50"
         }
       >
-        {pending ? "Đang xóa..." : "Xóa"}
+        {pending ? t("requests.dangXoa") : t("chung.xoa")}
       </button>
       {state.message && (
         <p className="mt-1 text-xs text-red-600">{state.message}</p>

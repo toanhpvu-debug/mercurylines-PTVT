@@ -381,7 +381,10 @@ export default async function DashboardPage() {
           {/* Kiểm soát nhanh phụ tùng thiết yếu */}
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-lg font-semibold text-blue-950">
+              {/* Đỏ thay vì xanh như các tiêu đề khác: đây là mục quan trọng
+                  nhất trên Dashboard (phụ tùng thiết yếu thiếu là tàu có thể
+                  không chạy được), cùng tông với nhãn "Critical" ở danh mục. */}
+              <h3 className="text-lg font-bold text-red-700">
                 ⚙️ Kiểm soát phụ tùng thiết yếu
               </h3>
               <div className="flex items-center gap-2">

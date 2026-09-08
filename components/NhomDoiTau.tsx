@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export type TauTrongMenu = {
   id: number;
@@ -21,6 +22,7 @@ export type TauTrongMenu = {
  * đang ở đâu trong đội tàu.
  */
 export default function NhomDoiTau({ vessels }: { vessels: TauTrongMenu[] }) {
+  const { t } = useNgonNgu();
   const pathname = usePathname();
   const dangOTrangTau = pathname?.startsWith("/vessels") ?? false;
   const [mo, setMo] = useState(dangOTrangTau);
@@ -36,7 +38,7 @@ export default function NhomDoiTau({ vessels }: { vessels: TauTrongMenu[] }) {
         <span className="w-5 text-center text-base opacity-80 group-hover:opacity-100">
           ⚓
         </span>
-        Đội tàu
+        {t("menu.doiTau")}
       </Link>
     );
   }
@@ -52,7 +54,7 @@ export default function NhomDoiTau({ vessels }: { vessels: TauTrongMenu[] }) {
         <span className="w-5 text-center text-base opacity-80 group-hover:opacity-100">
           ⚓
         </span>
-        <span className="flex-1">Đội tàu</span>
+        <span className="flex-1">{t("menu.doiTau")}</span>
         <span
           className={`text-[10px] opacity-70 transition-transform ${
             mo ? "rotate-90" : ""
@@ -69,7 +71,7 @@ export default function NhomDoiTau({ vessels }: { vessels: TauTrongMenu[] }) {
             href="/vessels"
             className="block rounded px-2 py-1.5 text-xs text-sky-300/90 transition hover:bg-white/10 hover:text-white"
           >
-            Tất cả đội tàu →
+            {t("menu.tatCaDoiTau")}
           </Link>
           {vessels.map((tau) => {
             const dangXem = pathname === `/vessels/${tau.id}`;

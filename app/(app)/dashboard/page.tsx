@@ -1,40 +1,40 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import {
-  BO_PHAN,
-  CHUC_DANH,
-  chucDanhCuaNguoiDung,
-} from "@/lib/maVatTu";
+import { CHUC_DANH, chucDanhCuaNguoiDung } from "@/lib/maVatTu";
 import {
   requireScopedUser,
   vesselIdWhere,
   vesselScopeDayDu,
   vesselWhere,
 } from "@/lib/auth";
+import { MA_LOCALE } from "@/lib/i18n/ngonNgu";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
-const REQ_STATUS: Record<string, { label: string; badge: string; bar: string }> = {
-  DRAFT: { label: "Nháp", badge: "bg-slate-100 text-slate-600", bar: "bg-slate-400" },
-  PENDING_MASTER: { label: "Chờ tàu duyệt", badge: "bg-amber-100 text-amber-700", bar: "bg-amber-400" },
-  PENDING_OFFICE: { label: "Chờ công ty duyệt", badge: "bg-orange-100 text-orange-700", bar: "bg-orange-400" },
-  APPROVED: { label: "Đã duyệt", badge: "bg-green-100 text-green-700", bar: "bg-green-500" },
-  REJECTED: { label: "Từ chối", badge: "bg-red-100 text-red-700", bar: "bg-red-400" },
-  IN_PROCUREMENT: { label: "Đang mua sắm", badge: "bg-blue-100 text-blue-700", bar: "bg-blue-500" },
-  PARTIALLY_DELIVERED: { label: "Giao một phần", badge: "bg-indigo-100 text-indigo-700", bar: "bg-indigo-500" },
-  FULLY_DELIVERED: { label: "Giao đủ", badge: "bg-emerald-100 text-emerald-700", bar: "bg-emerald-500" },
-  CLOSED: { label: "Hoàn tất", badge: "bg-slate-100 text-slate-500", bar: "bg-slate-300" },
-  CANCELLED: { label: "Đã hủy", badge: "bg-slate-100 text-slate-400", bar: "bg-slate-300" },
+// Màu của từng trạng thái; NHÃN lấy từ từ điển (labels.reqStatus_* / poStatus_*)
+// để đổi theo ngôn ngữ — bảng này chỉ còn phần trang trí.
+const REQ_STATUS: Record<string, { badge: string; bar: string }> = {
+  DRAFT: { badge: "bg-slate-100 text-slate-600", bar: "bg-slate-400" },
+  PENDING_MASTER: { badge: "bg-amber-100 text-amber-700", bar: "bg-amber-400" },
+  PENDING_OFFICE: { badge: "bg-orange-100 text-orange-700", bar: "bg-orange-400" },
+  APPROVED: { badge: "bg-green-100 text-green-700", bar: "bg-green-500" },
+  REJECTED: { badge: "bg-red-100 text-red-700", bar: "bg-red-400" },
+  IN_PROCUREMENT: { badge: "bg-blue-100 text-blue-700", bar: "bg-blue-500" },
+  PARTIALLY_DELIVERED: { badge: "bg-indigo-100 text-indigo-700", bar: "bg-indigo-500" },
+  FULLY_DELIVERED: { badge: "bg-emerald-100 text-emerald-700", bar: "bg-emerald-500" },
+  CLOSED: { badge: "bg-slate-100 text-slate-500", bar: "bg-slate-300" },
+  CANCELLED: { badge: "bg-slate-100 text-slate-400", bar: "bg-slate-300" },
 };
 
-const PO_STATUS: Record<string, { label: string; bar: string }> = {
-  DRAFT: { label: "Nháp", bar: "bg-slate-400" },
-  SENT: { label: "Đã gửi NCC", bar: "bg-blue-500" },
-  CONFIRMED: { label: "NCC xác nhận", bar: "bg-indigo-500" },
-  PARTIALLY_RECEIVED: { label: "Nhận một phần", bar: "bg-amber-400" },
-  RECEIVED: { label: "Đã nhận đủ", bar: "bg-emerald-500" },
-  CLOSED: { label: "Hoàn tất", bar: "bg-slate-300" },
-  CANCELLED: { label: "Đã hủy", bar: "bg-slate-300" },
+const PO_STATUS: Record<string, { bar: string }> = {
+  DRAFT: { bar: "bg-slate-400" },
+  SENT: { bar: "bg-blue-500" },
+  CONFIRMED: { bar: "bg-indigo-500" },
+  PARTIALLY_RECEIVED: { bar: "bg-amber-400" },
+  RECEIVED: { bar: "bg-emerald-500" },
+  CLOSED: { bar: "bg-slate-300" },
+  CANCELLED: { bar: "bg-slate-300" },
 };
 
 const REQ_OPEN = [
@@ -88,6 +88,7 @@ function KpiCard({
 
 export default async function DashboardPage() {
   const user = await requireScopedUser();
+  const { t, tTuDo, ngay, tenChucDanh, tenBoPhan, locale } = await layT();
   const scope = vesselScopeDayDu(user);
   // Chức danh giữ vật tư của người đang đăng nhập: dùng cho dải "phần của bạn"
   // ngay đầu trang. Người văn phòng (quản trị, quản lý kỹ thuật) không giữ kho
@@ -252,7 +253,7 @@ export default async function DashboardPage() {
   const maxReq = Math.max(1, ...reqByStatus.map((r) => r._count));
   const maxPo = Math.max(1, ...poByStatus.map((r) => r._count));
 
-  const today = new Date().toLocaleDateString("vi-VN", {
+  const today = new Date().toLocaleDateString(MA_LOCALE[locale], {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -268,11 +269,13 @@ export default async function DashboardPage() {
       {/* Tiêu đề + thao tác nhanh */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-blue-950">Dashboard</h2>
+          <h2 className="text-2xl font-bold text-blue-950">{t("dashboard.tieuDe")}</h2>
           <p className="text-slate-600">
             {scope.all
-              ? "Tổng quan vật tư đội tàu Mercury Lines"
-              : `Tổng quan vật tư ${vessels[0]?.name ?? "tàu của bạn"}`}
+              ? t("dashboard.tongQuanDoi")
+              : t("dashboard.tongQuanTau", {
+                  tau: vessels[0]?.name ?? t("dashboard.tauCuaBan"),
+                })}
             <span className="text-slate-400"> · {today}</span>
           </p>
         </div>
@@ -281,19 +284,19 @@ export default async function DashboardPage() {
             href="/requests"
             className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800"
           >
-            + Tạo yêu cầu vật tư
+            {t("dashboard.taoYeuCau")}
           </Link>
           <Link
             href="/inventory"
             className="rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm text-blue-950 hover:bg-blue-50"
           >
-            Nhập / xuất kho
+            {t("dashboard.nhapXuatKho")}
           </Link>
           <Link
             href="/purchasing"
             className="rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm text-blue-950 hover:bg-blue-50"
           >
-            Mua sắm
+            {t("dashboard.muaSam")}
           </Link>
         </div>
       </div>
@@ -305,25 +308,26 @@ export default async function DashboardPage() {
         >
           <div>
             <p className="text-sm text-slate-600">
-              Bạn là <b>{CHUC_DANH[chucDanhCuaToi].ten}</b> ·{" "}
-              {BO_PHAN[CHUC_DANH[chucDanhCuaToi].boPhan].ten}
+              {t("dashboard.banLa")} <b>{tenChucDanh(chucDanhCuaToi)}</b> ·{" "}
+              {tenBoPhan(CHUC_DANH[chucDanhCuaToi].boPhan)}
             </p>
             <p className="text-lg font-semibold text-blue-950">
               {soVatTuCuaToi > 0
-                ? `${soVatTuCuaToi} mặt hàng bạn quản lý`
-                : "Chưa có mặt hàng nào ghi tên bạn quản lý"}
+                ? t("dashboard.matHangBanQuanLy", { n: soVatTuCuaToi })
+                : t("dashboard.chuaCoMatHang")}
             </p>
           </div>
           <span className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white">
-            {soVatTuCuaToi > 0 ? "Xem vật tư của tôi →" : "Mở danh mục →"}
+            {soVatTuCuaToi > 0
+              ? t("dashboard.xemVatTuCuaToi")
+              : t("dashboard.moDanhMuc")}
           </span>
         </Link>
       )}
 
       {scope.unassigned && (
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          Bạn chưa được gán tàu phụ trách nên chưa xem được dữ liệu tàu. Vui
-          lòng liên hệ quản trị viên.
+          {t("dashboard.chuaGanTau")}
         </div>
       )}
 
@@ -333,35 +337,35 @@ export default async function DashboardPage() {
           href="/vessels"
           icon="⚓"
           iconBg="bg-blue-100"
-          label="Đội tàu"
+          label={t("dashboard.kpiDoiTau")}
           value={vesselCount}
         />
         <KpiCard
           href="/materials"
           icon="🧰"
           iconBg="bg-sky-100"
-          label="Vật tư danh mục"
+          label={t("dashboard.kpiVatTu")}
           value={materialCount}
         />
         <KpiCard
           href="/requests"
           icon="📝"
           iconBg="bg-indigo-100"
-          label="Yêu cầu đang xử lý"
+          label={t("dashboard.kpiYeuCau")}
           value={openRequests}
         />
         <KpiCard
           href="/purchasing"
           icon="🛒"
           iconBg="bg-violet-100"
-          label="Đơn mua đang mở"
+          label={t("dashboard.kpiDonMua")}
           value={openPOs}
         />
         <KpiCard
           href="/inventory"
           icon="⚠️"
           iconBg="bg-red-100"
-          label="Cảnh báo tồn kho"
+          label={t("dashboard.kpiCanhBao")}
           value={allLowStock.length}
           valueClass={allLowStock.length > 0 ? "text-red-600" : "text-blue-950"}
         />
@@ -369,7 +373,7 @@ export default async function DashboardPage() {
           href="/paint"
           icon="🎨"
           iconBg="bg-amber-100"
-          label="Sơn dưới định mức"
+          label={t("dashboard.kpiSon")}
           value={lowPaintCount}
           valueClass={lowPaintCount > 0 ? "text-amber-700" : "text-blue-950"}
         />
@@ -385,41 +389,41 @@ export default async function DashboardPage() {
                   nhất trên Dashboard (phụ tùng thiết yếu thiếu là tàu có thể
                   không chạy được), cùng tông với nhãn "Critical" ở danh mục. */}
               <h3 className="text-lg font-bold text-red-700">
-                ⚙️ Kiểm soát phụ tùng thiết yếu
+                {t("dashboard.kiemSoatPhuTung")}
               </h3>
               <div className="flex items-center gap-2">
                 {spareShortages.length > 0 ? (
                   <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
-                    {spareShortages.length} thiếu / {spareStatus.length} theo dõi
+                    {t("dashboard.thieuTheoDoi", {
+                      thieu: spareShortages.length,
+                      tong: spareStatus.length,
+                    })}
                   </span>
                 ) : spareStatus.length > 0 ? (
                   <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
-                    Đủ {spareStatus.length}/{spareStatus.length}
+                    {t("dashboard.duTatCa", { tong: spareStatus.length })}
                   </span>
                 ) : null}
                 <Link
                   href="/materials?type=SPARE"
                   className="text-sm text-blue-700 hover:underline"
                 >
-                  Danh mục →
+                  {t("dashboard.danhMuc")}
                 </Link>
               </div>
             </div>
             {spareStatus.length === 0 ? (
               <p className="text-sm text-slate-600">
-                Chưa có phụ tùng thiết yếu (SPARE có mức tối thiểu) trong danh
-                mục tàu.{" "}
+                {t("dashboard.chuaCoPhuTung")}{" "}
                 <Link
                   href="/materials/import"
                   className="text-blue-700 hover:underline"
                 >
-                  Nhập từ file MLS-11-04 →
+                  {t("dashboard.nhapTuFile")}
                 </Link>
               </p>
             ) : spareShortages.length === 0 ? (
-              <p className="text-sm text-slate-600">
-                ✅ Tất cả phụ tùng thiết yếu đều đủ mức tối thiểu.
-              </p>
+              <p className="text-sm text-slate-600">{t("dashboard.phuTungDuHet")}</p>
             ) : (
               <div className="space-y-3">
                 {spareTopRows.map((row, index) => {
@@ -480,7 +484,7 @@ export default async function DashboardPage() {
                     href="/materials?type=SPARE"
                     className="block pt-1 text-sm text-blue-700 hover:underline"
                   >
-                    Xem tất cả {spareShortages.length} phụ tùng thiếu →
+                    {t("dashboard.xemTatCaThieu", { n: spareShortages.length })}
                   </Link>
                 )}
               </div>
@@ -491,18 +495,16 @@ export default async function DashboardPage() {
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-blue-950">
-                Cảnh báo tồn kho thấp
+                {t("dashboard.canhBaoTonThap")}
               </h3>
               {allLowStock.length > 0 && (
                 <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
-                  {allLowStock.length} cảnh báo
+                  {t("dashboard.nCanhBao", { n: allLowStock.length })}
                 </span>
               )}
             </div>
             {lowStockRows.length === 0 ? (
-              <p className="text-slate-600">
-                ✅ Không có vật tư nào dưới tồn tối thiểu.
-              </p>
+              <p className="text-slate-600">{t("dashboard.khongDuoiTon")}</p>
             ) : (
               <div className="space-y-3">
                 {lowStockRows.map((row, index) => {
@@ -557,7 +559,7 @@ export default async function DashboardPage() {
                     href="/inventory"
                     className="block pt-1 text-sm text-blue-700 hover:underline"
                   >
-                    Xem tất cả {allLowStock.length} cảnh báo →
+                    {t("dashboard.xemTatCaCanhBao", { n: allLowStock.length })}
                   </Link>
                 )}
               </div>
@@ -568,23 +570,23 @@ export default async function DashboardPage() {
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-blue-950">
-                Yêu cầu vật tư gần đây
+                {t("dashboard.yeuCauGanDay")}
               </h3>
               <Link
                 href="/requests"
                 className="text-sm text-blue-700 hover:underline"
               >
-                Xem tất cả →
+                {t("dashboard.xemTatCa")}
               </Link>
             </div>
             {recentRequests.length === 0 ? (
-              <p className="text-slate-600">Chưa có yêu cầu vật tư nào.</p>
+              <p className="text-slate-600">{t("dashboard.chuaCoYeuCauVatTu")}</p>
             ) : (
               <div className="divide-y divide-blue-50">
                 {recentRequests.map((request) => {
                   const st = REQ_STATUS[request.status] ?? {
-                    label: request.status,
                     badge: "bg-slate-100 text-slate-600",
+                    bar: "bg-slate-300",
                   };
                   return (
                     <div
@@ -600,14 +602,14 @@ export default async function DashboardPage() {
                         </Link>
                         <p className="text-xs text-slate-500">
                           {request.vessel.name} ·{" "}
-                          {request.kind === "SPARE" ? "Phụ tùng" : "Vật tư"} ·{" "}
-                          {request.createdAt.toLocaleDateString("vi-VN")}
+                          {tTuDo(`labels.type_${request.kind === "SPARE" ? "SPARE" : "STORE"}`)} ·{" "}
+                          {ngay(request.createdAt)}
                         </p>
                       </div>
                       <span
                         className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${st.badge}`}
                       >
-                        {st.label}
+                        {tTuDo(`labels.reqStatus_${request.status}`)}
                       </span>
                     </div>
                   );
@@ -622,10 +624,10 @@ export default async function DashboardPage() {
           {/* Yêu cầu theo trạng thái */}
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
             <h3 className="mb-4 text-lg font-semibold text-blue-950">
-              Yêu cầu theo trạng thái
+              {t("dashboard.yeuCauTheoTrangThai")}
             </h3>
             {totalRequests === 0 ? (
-              <p className="text-sm text-slate-600">Chưa có yêu cầu nào.</p>
+              <p className="text-sm text-slate-600">{t("dashboard.chuaCoYeuCau")}</p>
             ) : (
               <div className="space-y-2.5">
                 {Object.entries(REQ_STATUS)
@@ -635,7 +637,9 @@ export default async function DashboardPage() {
                     return (
                       <div key={status}>
                         <div className="mb-1 flex justify-between text-xs">
-                          <span className="text-slate-600">{meta.label}</span>
+                          <span className="text-slate-600">
+                            {tTuDo(`labels.reqStatus_${status}`)}
+                          </span>
                           <span className="font-semibold text-blue-950">
                             {count}
                           </span>
@@ -659,17 +663,17 @@ export default async function DashboardPage() {
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-blue-950">
-                Đơn mua hàng
+                {t("dashboard.donMuaHang")}
               </h3>
               <Link
                 href="/purchasing"
                 className="text-sm text-blue-700 hover:underline"
               >
-                Mua sắm →
+                {t("dashboard.muaSamLink")}
               </Link>
             </div>
             {totalPOs === 0 ? (
-              <p className="text-sm text-slate-600">Chưa có đơn mua nào.</p>
+              <p className="text-sm text-slate-600">{t("dashboard.chuaCoDonMua")}</p>
             ) : (
               <div className="space-y-2.5">
                 {Object.entries(PO_STATUS)
@@ -679,7 +683,9 @@ export default async function DashboardPage() {
                     return (
                       <div key={status}>
                         <div className="mb-1 flex justify-between text-xs">
-                          <span className="text-slate-600">{meta.label}</span>
+                          <span className="text-slate-600">
+                            {tTuDo(`labels.poStatus_${status}`)}
+                          </span>
                           <span className="font-semibold text-blue-950">
                             {count}
                           </span>
@@ -703,19 +709,17 @@ export default async function DashboardPage() {
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-blue-950">
-                Hoạt động kho gần đây
+                {t("dashboard.hoatDongKho")}
               </h3>
               <Link
                 href="/inventory"
                 className="text-sm text-blue-700 hover:underline"
               >
-                Tồn kho →
+                {t("dashboard.tonKhoLink")}
               </Link>
             </div>
             {recentTx.length === 0 ? (
-              <p className="text-sm text-slate-600">
-                Chưa có giao dịch nhập/xuất nào.
-              </p>
+              <p className="text-sm text-slate-600">{t("dashboard.chuaCoGiaoDich")}</p>
             ) : (
               <div className="divide-y divide-blue-50">
                 {recentTx.map((tx) => {
@@ -735,12 +739,12 @@ export default async function DashboardPage() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm text-blue-950">
-                          {material?.nameVn ?? `Vật tư #${tx.materialId}`}
+                          {material?.nameVn ??
+                            t("dashboard.vatTuSo", { id: tx.materialId })}
                         </p>
                         <p className="text-xs text-slate-500">
-                          {vessel?.name ?? "—"} ·{" "}
-                          {tx.occurredAt.toLocaleDateString("vi-VN")}{" "}
-                          {tx.occurredAt.toLocaleTimeString("vi-VN", {
+                          {vessel?.name ?? "—"} · {ngay(tx.occurredAt)}{" "}
+                          {tx.occurredAt.toLocaleTimeString(MA_LOCALE[locale], {
                             hour: "2-digit",
                             minute: "2-digit",
                           })}

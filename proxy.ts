@@ -27,6 +27,11 @@ const PHUONG_THUC_GHI = ["POST", "PUT", "PATCH", "DELETE"];
 
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // Đổi ngôn ngữ giao diện (GET, chỉ đặt cookie `lang`) phải chạy được cả khi
+  // CHƯA đăng nhập — trang login có nút VI | EN — nên đi thẳng, không qua cửa.
+  if (pathname === "/api/ngon-ngu") {
+    return NextResponse.next();
+  }
   const session = await decrypt(request.cookies.get("session")?.value);
   const ghiDuLieu = PHUONG_THUC_GHI.includes(request.method);
 

@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { login } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 function EyeIcon({ off }: { off: boolean }) {
   return (
@@ -24,6 +25,7 @@ function EyeIcon({ off }: { off: boolean }) {
 }
 
 export default function LoginForm() {
+  const { t } = useNgonNgu();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "";
   const [showPassword, setShowPassword] = useState(false);
@@ -34,7 +36,9 @@ export default function LoginForm() {
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="next" value={next} />
       <div>
-        <label className="mb-1 block text-sm text-slate-600">Email</label>
+        <label className="mb-1 block text-sm text-slate-600">
+          {t("login.email")}
+        </label>
         <input
           name="email"
           type="email"
@@ -46,7 +50,9 @@ export default function LoginForm() {
         />
       </div>
       <div>
-        <label className="mb-1 block text-sm text-slate-600">Mật khẩu</label>
+        <label className="mb-1 block text-sm text-slate-600">
+          {t("login.matKhau")}
+        </label>
         <div className="relative">
           <input
             name="password"
@@ -58,8 +64,8 @@ export default function LoginForm() {
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
-            aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-            title={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+            aria-label={showPassword ? t("login.anMatKhau") : t("login.hienMatKhau")}
+            title={showPassword ? t("login.anMatKhau") : t("login.hienMatKhau")}
             className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-slate-400 hover:text-blue-700"
           >
             <EyeIcon off={showPassword} />
@@ -70,7 +76,7 @@ export default function LoginForm() {
         disabled={pending}
         className="w-full rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
       >
-        {pending ? "Đang đăng nhập..." : "Đăng nhập"}
+        {pending ? t("login.dangDangNhap") : t("login.dangNhap")}
       </button>
       {state.message && (
         <p className="text-sm text-red-600">{state.message}</p>

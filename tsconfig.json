@@ -30,5 +30,16 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    // Script chuyển dữ liệu SQLite → Postgres, chạy MỘT LẦN lúc đổi database.
+    // Nó import ".prisma/client-sqlite" — client Prisma chỉ được SINH RA trên
+    // máy đã cài bản SQLite, không có trong bản cài sạch (Docker/CI). Để trong
+    // phạm vi type-check thì `next build` trượt ở bước "Failed to type check"
+    // với TS2307 trên mọi máy không có client đó, tức là app KHÔNG deploy được
+    // chỉ vì một script không thuộc app. Loại riêng đúng file này (không loại
+    // cả thư mục scripts/) để các script còn lại vẫn được kiểm tra kiểu.
+    // Đánh đổi: file này mất type-check; nó vẫn chạy bình thường qua tsx.
+    "scripts/chuyen-sang-postgres.ts"
+  ]
 }

@@ -1,18 +1,22 @@
 "use client";
 
 import { useActionState } from "react";
+import { Trash2 } from "lucide-react";
 import { deleteMaterialRequest } from "@/app/actions";
+import { Button } from "@/components/ui";
 import { useNgonNgu } from "@/lib/i18n/client";
 
 export default function RequestDeleteButton({
   id,
   requestNo,
   returnTo,
+  size = "md",
   className,
 }: {
   id: number;
   requestNo: string;
   returnTo?: string;
+  size?: "sm" | "md";
   className?: string;
 }) {
   const { t } = useNgonNgu();
@@ -30,17 +34,17 @@ export default function RequestDeleteButton({
     >
       <input type="hidden" name="id" value={id} />
       {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
-      <button
-        disabled={pending}
-        className={
-          className ??
-          "rounded bg-red-100 px-3 py-1 text-red-700 hover:bg-red-200 disabled:opacity-50"
-        }
+      <Button
+        variant="danger"
+        size={size}
+        icon={<Trash2 className="size-4" />}
+        loading={pending}
+        className={className}
       >
         {pending ? t("requests.dangXoa") : t("chung.xoa")}
-      </button>
+      </Button>
       {state.message && (
-        <p className="mt-1 text-xs text-red-600">{state.message}</p>
+        <p className="mt-1 text-xs text-[var(--text-danger)]">{state.message}</p>
       )}
     </form>
   );

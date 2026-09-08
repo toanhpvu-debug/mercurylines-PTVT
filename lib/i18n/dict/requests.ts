@@ -28,7 +28,7 @@ export const requests = tuDien(
     nutChuyenMuaSam: "Chuyển mua sắm",
 
     // Trang chi tiết (phần ngoài biểu mẫu in)
-    quayLaiDanhSach: "← Quay lại danh sách yêu cầu",
+    quayLaiDanhSach: "Quay lại danh sách yêu cầu",
     tienDoDuyet: "Tiến độ phê duyệt",
     buocTrinh: "Người lập trình duyệt",
     buocTauDuyet: "Tàu duyệt (thuyền trưởng / máy trưởng)",
@@ -138,7 +138,7 @@ export const requests = tuDien(
     nutCongTyDuyet: "Office approval",
     nutChuyenMuaSam: "Move to purchasing",
 
-    quayLaiDanhSach: "← Back to requisitions",
+    quayLaiDanhSach: "Back to requisitions",
     tienDoDuyet: "Approval progress",
     buocTrinh: "Submitted by the originator",
     buocTauDuyet: "Vessel approval (Master / Chief Engineer)",

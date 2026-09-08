@@ -2,8 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ClipboardList, Plus, Send, Trash2 } from "lucide-react";
 import { boPhanCuaChucDanh } from "@/lib/roles";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { cn } from "@/lib/cn";
+import {
+  Button,
+  Card,
+  CardHeader,
+  Field,
+  Input,
+  Notice,
+  Select,
+} from "@/components/ui";
 
 type VesselOption = {
   id: number;
@@ -40,6 +51,13 @@ const blankItem = (): RequestItem => ({
   quantity: "1",
   note: "",
 });
+
+/* Nút trong bộ chọn phân đoạn (Vật tư / Phụ tùng, Có sẵn / Mới). */
+const SEG_BTN =
+  "rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none";
+const SEG_ON = "bg-brand-700 text-white shadow-sm";
+const SEG_OFF =
+  "text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:text-[var(--text-primary)]";
 
 export default function RequestForm({
   vessels,
@@ -175,25 +193,25 @@ export default function RequestForm({
   const isSpare = kind === "SPARE";
 
   return (
-    <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-      <h3 className="mb-4 text-lg font-semibold">
-        {isSpare
-          ? t("requests.taoYeuCauPhuTung")
-          : t("requests.taoYeuCauVatTu")}
-      </h3>
+    <Card>
+      <CardHeader
+        icon={<ClipboardList className="size-4" />}
+        title={
+          isSpare
+            ? t("requests.taoYeuCauPhuTung")
+            : t("requests.taoYeuCauVatTu")
+        }
+      />
       <form onSubmit={submit} className="space-y-4">
-        <div className="flex gap-2">
+        <div className="inline-flex gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-1">
           <button
             type="button"
             onClick={() => {
               setKind("STORE");
               setItems([blankItem()]);
             }}
-            className={`rounded px-3 py-1 text-sm ${
-              !isSpare
-                ? "bg-blue-700 text-white"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
+            aria-pressed={!isSpare}
+            className={cn(SEG_BTN, !isSpare ? SEG_ON : SEG_OFF)}
           >
             {t("requests.nutLoaiVatTu")}
           </button>
@@ -203,148 +221,161 @@ export default function RequestForm({
               setKind("SPARE");
               setItems([blankItem()]);
             }}
-            className={`rounded px-3 py-1 text-sm ${
-              isSpare
-                ? "bg-blue-700 text-white"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
+            aria-pressed={isSpare}
+            className={cn(SEG_BTN, isSpare ? SEG_ON : SEG_OFF)}
           >
             {t("requests.nutLoaiPhuTung")}
           </button>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <select
-            value={vesselId}
-            onChange={(e) => setVesselId(e.target.value)}
-            className="rounded border p-2"
-            required
-          >
-            <option value="">{t("chung.chonTau")}</option>
-            {vessels.map((vessel) => (
-              <option key={vessel.id} value={vessel.id}>
-                {vessel.code} - {vessel.name}
-              </option>
-            ))}
-          </select>
+          <Field label={t("chung.tau")}>
+            <Select
+              value={vesselId}
+              onChange={(e) => setVesselId(e.target.value)}
+              required
+            >
+              <option value="">{t("chung.chonTau")}</option>
+              {vessels.map((vessel) => (
+                <option key={vessel.id} value={vessel.id}>
+                  {vessel.code} - {vessel.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
           {/* Người yêu cầu không gõ tay nữa — lấy thẳng từ tài khoản đăng nhập
               để chứng từ và nhật ký khớp với người thật sự bấm nút. */}
-          <div className="rounded border border-slate-200 bg-slate-50 p-2 text-sm">
-            <span className="text-slate-500">
-              {t("requests.nguoiYeuCau")}:{" "}
+          <div>
+            <span className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+              {t("requests.nguoiYeuCau")}
             </span>
-            <b>{nguoiLap.name}</b>
-            <span className="text-slate-600">
-              {" · "}
-              {tTuDo(`labels.role_${nguoiLap.role}`)}
-            </span>
+            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] px-3 py-2 text-sm">
+              <b className="text-[var(--text-primary)]">{nguoiLap.name}</b>
+              <span className="text-[var(--text-secondary)]">
+                {" · "}
+                {tTuDo(`labels.role_${nguoiLap.role}`)}
+              </span>
+            </div>
           </div>
-          <select
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-            className="rounded border p-2"
-          >
-            {["ENGINE", "DECK", "ELECTRICAL", "GENERAL"].map((bp) => (
-              <option key={bp} value={bp}>
-                {tTuDo(`labels.reqDept_${bp}`)}
-              </option>
-            ))}
-          </select>
-          <input
-            type="date"
-            value={requiredDate}
-            onChange={(e) => setRequiredDate(e.target.value)}
-            className="rounded border p-2"
-          />
-          <select
-            value={priority}
-            onChange={(e) => setPriority(e.target.value)}
-            className="rounded border p-2"
-          >
-            {["LOW", "NORMAL", "HIGH", "URGENT"].map((uu) => (
-              <option key={uu} value={uu}>
-                {tTuDo(`labels.priority_${uu}`)}
-              </option>
-            ))}
-          </select>
-          <input
-            value={purpose}
-            onChange={(e) => setPurpose(e.target.value)}
-            placeholder={t("requests.phMucDich")}
-            className="rounded border p-2"
-          />
+          <Field label={t("requests.cotBoPhan")}>
+            <Select
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+            >
+              {["ENGINE", "DECK", "ELECTRICAL", "GENERAL"].map((bp) => (
+                <option key={bp} value={bp}>
+                  {tTuDo(`labels.reqDept_${bp}`)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t("chung.ngay")}>
+            <Input
+              type="date"
+              value={requiredDate}
+              onChange={(e) => setRequiredDate(e.target.value)}
+            />
+          </Field>
+          <Field label={t("requests.cotUuTien")}>
+            <Select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+            >
+              {["LOW", "NORMAL", "HIGH", "URGENT"].map((uu) => (
+                <option key={uu} value={uu}>
+                  {tTuDo(`labels.priority_${uu}`)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t("requests.phMucDich")}>
+            <Input
+              value={purpose}
+              onChange={(e) => setPurpose(e.target.value)}
+              placeholder={t("requests.phMucDich")}
+            />
+          </Field>
         </div>
 
         {isSpare && (
-          <div className="grid grid-cols-1 gap-3 rounded border bg-slate-50 p-3 md:grid-cols-3">
-            <input
-              value={equipment}
-              onChange={(e) => setEquipment(e.target.value)}
-              placeholder={t("chung.thietBi")}
-              className="rounded border p-2"
-            />
-            <input
-              value={maker}
-              onChange={(e) => setMaker(e.target.value)}
-              placeholder={t("requests.phHangSanXuat")}
-              className="rounded border p-2"
-            />
-            <input
-              value={serialNo}
-              onChange={(e) => setSerialNo(e.target.value)}
-              placeholder={t("requests.phSoMay")}
-              className="rounded border p-2"
-            />
+          <div className="grid grid-cols-1 gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-3 md:grid-cols-3">
+            <Field label={t("chung.thietBi")}>
+              <Input
+                value={equipment}
+                onChange={(e) => setEquipment(e.target.value)}
+                placeholder={t("chung.thietBi")}
+              />
+            </Field>
+            <Field label={t("requests.phHangSanXuat")}>
+              <Input
+                value={maker}
+                onChange={(e) => setMaker(e.target.value)}
+                placeholder={t("requests.phHangSanXuat")}
+              />
+            </Field>
+            <Field label={t("requests.phSoMay")}>
+              <Input
+                value={serialNo}
+                onChange={(e) => setSerialNo(e.target.value)}
+                placeholder={t("requests.phSoMay")}
+              />
+            </Field>
           </div>
         )}
 
         <div className="space-y-3">
           {items.map((item, index) => (
-            <div key={index} className="space-y-2 rounded border p-3">
+            <div
+              key={index}
+              className="space-y-2 rounded-lg border border-[var(--border-subtle)] p-3"
+            >
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex rounded border text-xs">
+                <div className="inline-flex gap-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-0.5 text-xs">
                   <button
                     type="button"
                     onClick={() => updateItem(index, "mode", "existing")}
-                    className={`rounded-l px-2 py-1 ${
-                      item.mode === "existing"
-                        ? "bg-blue-700 text-white"
-                        : "bg-white text-slate-700 hover:bg-blue-50"
-                    }`}
+                    aria-pressed={item.mode === "existing"}
+                    className={cn(
+                      "rounded-md px-2 py-1 font-medium transition focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
+                      item.mode === "existing" ? SEG_ON : SEG_OFF
+                    )}
                   >
                     {t("requests.coSan")}
                   </button>
                   <button
                     type="button"
                     onClick={() => updateItem(index, "mode", "new")}
-                    className={`rounded-r px-2 py-1 ${
-                      item.mode === "new"
-                        ? "bg-blue-700 text-white"
-                        : "bg-white text-slate-700 hover:bg-blue-50"
-                    }`}
+                    aria-pressed={item.mode === "new"}
+                    className={cn(
+                      "rounded-md px-2 py-1 font-medium transition focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
+                      item.mode === "new" ? SEG_ON : SEG_OFF
+                    )}
                   >
                     {t("requests.moiNgoaiDanhMuc")}
                   </button>
                 </div>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-[var(--text-muted)]">
                   {t("requests.dongThu", { n: index + 1 })}
                 </span>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => removeItem(index)}
-                  className="ml-auto rounded bg-red-100 px-3 py-1 text-sm text-red-700 hover:bg-red-200"
+                  icon={<Trash2 className="size-4" />}
+                  className="ml-auto text-[var(--text-danger)]"
                 >
                   {t("requests.xoaDong")}
-                </button>
+                </Button>
               </div>
 
               {item.mode === "existing" ? (
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-6">
-                  <select
+                  <Select
                     value={item.materialId}
                     onChange={(e) =>
                       updateItem(index, "materialId", e.target.value)
                     }
-                    className="rounded border p-2 md:col-span-4"
+                    className="md:col-span-4"
                     required
                   >
                     <option value="">
@@ -360,8 +391,8 @@ export default function RequestForm({
                           : ""}
                       </option>
                     ))}
-                  </select>
-                  <input
+                  </Select>
+                  <Input
                     type="number"
                     step="0.01"
                     min="0.01"
@@ -370,19 +401,18 @@ export default function RequestForm({
                       updateItem(index, "quantity", e.target.value)
                     }
                     placeholder={t("requests.slYeuCau")}
-                    className="rounded border p-2"
+                    className="tabular"
                     required
                   />
-                  <input
+                  <Input
                     value={item.note}
                     onChange={(e) => updateItem(index, "note", e.target.value)}
                     placeholder={t("chung.ghiChu")}
-                    className="rounded border p-2"
                   />
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-6">
-                  <input
+                  <Input
                     value={item.itemName}
                     onChange={(e) =>
                       updateItem(index, "itemName", e.target.value)
@@ -392,26 +422,24 @@ export default function RequestForm({
                         ? t("requests.phTenPhuTungMoi")
                         : t("requests.phTenVatTuMoi")
                     }
-                    className="rounded border p-2 md:col-span-2"
+                    className="md:col-span-2"
                     required
                   />
-                  <input
+                  <Input
                     value={item.itemCode}
                     onChange={(e) =>
                       updateItem(index, "itemCode", e.target.value)
                     }
                     placeholder={isSpare ? "Part No." : t("requests.maImpa")}
-                    className="rounded border p-2"
                   />
-                  <input
+                  <Input
                     value={item.itemUom}
                     onChange={(e) =>
                       updateItem(index, "itemUom", e.target.value)
                     }
                     placeholder={t("requests.phDvt")}
-                    className="rounded border p-2"
                   />
-                  <input
+                  <Input
                     type="number"
                     step="0.01"
                     min="0.01"
@@ -420,53 +448,48 @@ export default function RequestForm({
                       updateItem(index, "quantity", e.target.value)
                     }
                     placeholder={t("requests.slYeuCau")}
-                    className="rounded border p-2"
+                    className="tabular"
                     required
                   />
-                  <input
+                  <Input
                     value={item.note}
                     onChange={(e) => updateItem(index, "note", e.target.value)}
                     placeholder={t("chung.ghiChu")}
-                    className="rounded border p-2"
                   />
                 </div>
               )}
             </div>
           ))}
           {filteredMaterials.length === 0 && (
-            <p className="text-sm text-amber-700">
+            <Notice tone="warning">
               {isSpare
                 ? t("requests.chuaCoPhuTungCoSan")
                 : t("requests.chuaCoVatTuCoSan")}
-            </p>
+            </Notice>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          <button
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
             type="button"
+            variant="secondary"
             onClick={addItem}
-            className="rounded border px-4 py-2 hover:bg-blue-50"
+            icon={<Plus className="size-4" />}
           >
             {t("requests.themDong")}
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
-            disabled={loading}
-            className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
+            variant="primary"
+            loading={loading}
+            icon={<Send className="size-4" />}
           >
             {loading ? t("chung.dangXuLy") : t("requests.nutTaoYeuCau")}
-          </button>
+          </Button>
         </div>
         {message && (
-          <p
-            className={`text-sm ${
-              isError ? "text-red-600" : "text-green-700"
-            }`}
-          >
-            {message}
-          </p>
+          <Notice tone={isError ? "danger" : "success"}>{message}</Notice>
         )}
       </form>
-    </div>
+    </Card>
   );
 }

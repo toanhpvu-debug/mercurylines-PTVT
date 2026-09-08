@@ -1,6 +1,22 @@
 import { Fragment } from "react";
 import Form from "next/form";
 import Link from "next/link";
+import {
+  Anchor,
+  ArrowRight,
+  Boxes,
+  Cog,
+  LifeBuoy,
+  Package,
+  Plus,
+  Search,
+  Upload,
+  UtensilsCrossed,
+  Warehouse,
+  Wrench,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   BO_PHAN,
@@ -34,8 +50,42 @@ import {
   vesselScopeDayDu,
 } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
+import { cn } from "@/lib/cn";
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  EmptyState,
+  Input,
+  Notice,
+  PageHeader,
+  Select,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+  TrNhom,
+  buttonClass,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Biểu tượng bộ phận theo `key` của lib/departments.ts — thay cho trường
+ * `icon` (emoji) ở đó, để cùng bộ nét vẽ với phần còn lại của giao diện.
+ */
+const DEPT_ICON: Record<string, LucideIcon> = {
+  DECK: Anchor,
+  ENGINE: Cog,
+  ELEC: Zap,
+  SERVICE: UtensilsCrossed,
+  SAFETY: LifeBuoy,
+  OTHER: Package,
+};
+
+const LINK = "text-sm text-brand-700 hover:underline dark:text-brand-300";
 
 export default async function MaterialsPage({
   searchParams,
@@ -300,220 +350,219 @@ export default async function MaterialsPage({
       ? 1
       : 0);
 
+  const xemTatCaHref = (() => {
+    const base = buildHref(filterType, isVesselMode ? vesselKey : null);
+    return `${base}${base.includes("?") ? "&" : "?"}full=1`;
+  })();
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold text-blue-950">
-            {t("materials.tieuDe")}
-          </h2>
-          <p className="text-slate-600">
-            {isVesselMode
-              ? t("materials.danhMucRiengCua", {
-                  tau: selectedVessel?.name ?? "",
-                })
-              : t("materials.danhMucGocMoTa")}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {/* Xuất kiểm kê MLS-11-06 nằm ở module Tồn kho — đúng ngữ cảnh và có
-              sẵn bộ lọc phạm vi. Trước đây nút này có ở 3 nơi cùng gọi một API. */}
-          {isVesselMode && selectedVesselId && (
-            <Link
-              href={`/inventory?vessel=${selectedVesselId}&type=${filterType}`}
-              className="rounded border border-blue-200 bg-white px-4 py-2 text-sm text-blue-950 hover:bg-blue-50"
-            >
-              {t("materials.nutTonKhoKiemKe")} →
-            </Link>
-          )}
-          {["ADMIN", "MASTER"].includes(user.role) && (
-            <Link
-              href="/materials/import"
-              className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800"
-            >
-              ⬆ {t("materials.nhapDanhMucTuFile")}
-            </Link>
-          )}
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title={t("materials.tieuDe")}
+        subtitle={
+          isVesselMode
+            ? t("materials.danhMucRiengCua", {
+                tau: selectedVessel?.name ?? "",
+              })
+            : t("materials.danhMucGocMoTa")
+        }
+        action={
+          <>
+            {/* Xuất kiểm kê MLS-11-06 nằm ở module Tồn kho — đúng ngữ cảnh và có
+                sẵn bộ lọc phạm vi. Trước đây nút này có ở 3 nơi cùng gọi một API. */}
+            {isVesselMode && selectedVesselId && (
+              <Link
+                href={`/inventory?vessel=${selectedVesselId}&type=${filterType}`}
+                className={buttonClass("secondary")}
+              >
+                <Warehouse className="size-4" />
+                {t("materials.nutTonKhoKiemKe")}
+                <ArrowRight className="size-4" />
+              </Link>
+            )}
+            {["ADMIN", "MASTER"].includes(user.role) && (
+              <Link href="/materials/import" className={buttonClass("primary")}>
+                <Upload className="size-4" />
+                {t("materials.nhapDanhMucTuFile")}
+              </Link>
+            )}
+          </>
+        }
+      />
 
       {/* Thanh công cụ gộp: chọn tàu · lọc loại · chức danh · tìm kiếm. Trước
           đây là ba dải rời xếp dọc trông rối; gộp vào một khung có đường phân
           cách cho gọn và dễ đọc. */}
-      <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white shadow-sm">
-      {/* Bộ chọn tàu */}
-      <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-          {t("materials.xemTheo")}
-        </span>
-        {chonDuocTau(scope) && (
-          <Link
-            href={buildHref(filterType, null)}
-            className={`rounded px-3 py-1 text-sm ${
-              !isVesselMode
-                ? "bg-blue-700 text-white"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-          >
-            {t("materials.danhMucGocToanDoi")}
-          </Link>
+      <Card padded={false} className="divide-y divide-[var(--border-subtle)]">
+        {/* Bộ chọn tàu */}
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+          <span className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+            {t("materials.xemTheo")}
+          </span>
+          {chonDuocTau(scope) && (
+            <Link
+              href={buildHref(filterType, null)}
+              className={buttonClass(!isVesselMode ? "primary" : "secondary")}
+            >
+              {t("materials.danhMucGocToanDoi")}
+            </Link>
+          )}
+          {scope.all ? (
+            // next/form: đổi tàu / lọc / tìm chỉ tải phần nội dung (chuyển trang
+            // phía client, khung chờ hiện ngay) thay vì tải lại cả trang như
+            // <form method="get"> thường. Áp dụng cho cả ô tìm kiếm bên dưới.
+            <Form action="/materials" className="flex items-center gap-2">
+              {filterType !== "ALL" && (
+                <input type="hidden" name="type" value={filterType} />
+              )}
+              <div className="w-60">
+                <Select name="vessel" defaultValue={vesselKey}>
+                  <option value="master">{t("materials.optDanhMucGoc")}</option>
+                  {vessels.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.code} - {v.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <Button type="submit" variant="secondary">
+                {t("chung.chonTau")}
+              </Button>
+            </Form>
+          ) : (
+            <Badge tone="brand">
+              {selectedVessel
+                ? t("materials.tauLa", {
+                    tau: `${selectedVessel.code} - ${selectedVessel.name}`,
+                  })
+                : t("materials.chuaDuocGanTau")}
+            </Badge>
+          )}
+        </div>
+
+        {/* Vật tư của chính người đang đăng nhập — thứ họ mở app ra để xem. */}
+        {chucDanhCuaToi && (
+          <div className="flex flex-wrap items-center gap-3 bg-brand-500/8 px-4 py-3">
+            <span className="text-sm text-[var(--text-secondary)]">
+              {t("materials.banLa")}{" "}
+              <b className="text-[var(--text-primary)]">
+                {tenChucDanh(chucDanhCuaToi)}
+              </b>{" "}
+              {t("materials.phanBanQuanLy")}
+            </span>
+            {rankFilter === chucDanhCuaToi ? (
+              <>
+                <Badge tone="brand" dot>
+                  {t("materials.dangXemPhanCuaBan", { n: rows.length })}
+                </Badge>
+                <Link href={buildHrefRank("")} className={LINK}>
+                  {t("chung.xemTatCa")}
+                </Link>
+              </>
+            ) : (
+              <Link
+                href={buildHrefRank("toi")}
+                className={buttonClass("primary", "sm")}
+              >
+                {t("materials.xemVatTuToiQuanLy")}
+              </Link>
+            )}
+          </div>
         )}
-        {scope.all ? (
-          // next/form: đổi tàu / lọc / tìm chỉ tải phần nội dung (chuyển trang
-          // phía client, khung chờ hiện ngay) thay vì tải lại cả trang như
-          // <form method="get"> thường. Áp dụng cho cả ô tìm kiếm bên dưới.
-          <Form action="/materials" className="flex items-center gap-2">
+
+        {/* Tab lọc loại + chức danh + tìm kiếm */}
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+          <div className="flex overflow-hidden rounded-lg border border-[var(--border-subtle)] text-xs font-semibold">
+            {tabs.map((tab) => (
+              <Link
+                key={tab.key}
+                href={buildHref(tab.key, isVesselMode ? vesselKey : null)}
+                aria-current={filterType === tab.key ? "page" : undefined}
+                className={cn(
+                  "px-3 py-1.5 transition",
+                  filterType === tab.key
+                    ? "bg-brand-700 text-white"
+                    : "text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)]"
+                )}
+              >
+                {tab.label}
+              </Link>
+            ))}
+          </div>
+          <Form action="/materials" className="ml-auto flex flex-wrap items-center gap-2">
             {filterType !== "ALL" && (
               <input type="hidden" name="type" value={filterType} />
             )}
-            <select
-              name="vessel"
-              defaultValue={vesselKey}
-              className="rounded border p-2 text-sm"
+            {isVesselMode && (
+              <input type="hidden" name="vessel" value={vesselKey} />
+            )}
+            {showAll && <input type="hidden" name="full" value="1" />}
+            <div className="w-52">
+              <Select name="rank" defaultValue={rankFilter}>
+                <option value="">{t("materials.moiChucDanh")}</option>
+                {/* Gom theo bộ phận: 15 chức danh xếp phẳng thì phải đọc hết cả
+                    danh sách mới thấy người mình cần. */}
+                {(Object.keys(BO_PHAN) as BoPhan[]).map((bp) => (
+                  <optgroup key={bp} label={tenBoPhan(bp)}>
+                    {Object.entries(CHUC_DANH)
+                      .filter(([, cd]) => cd.boPhan === bp)
+                      .map(([ma]) => (
+                        <option key={ma} value={ma}>
+                          {tenChucDanh(ma)} ({ma})
+                        </option>
+                      ))}
+                  </optgroup>
+                ))}
+              </Select>
+            </div>
+            <div className="w-64">
+              <Input
+                name="q"
+                defaultValue={qRaw ?? ""}
+                placeholder={t("materials.timGoiY")}
+              />
+            </div>
+            <Button
+              type="submit"
+              variant="primary"
+              icon={<Search className="size-4" />}
             >
-              <option value="master">{t("materials.optDanhMucGoc")}</option>
-              {vessels.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.code} - {v.name}
-                </option>
-              ))}
-            </select>
-            <button className="rounded border px-3 py-1 text-sm hover:bg-blue-50">
-              {t("chung.chonTau")}
-            </button>
-          </Form>
-        ) : (
-          <span className="rounded bg-blue-700 px-3 py-1 text-sm text-white">
-            {selectedVessel
-              ? t("materials.tauLa", {
-                  tau: `${selectedVessel.code} - ${selectedVessel.name}`,
-                })
-              : t("materials.chuaDuocGanTau")}
-          </span>
-        )}
-      </div>
-
-      {/* Vật tư của chính người đang đăng nhập — thứ họ mở app ra để xem. */}
-      {chucDanhCuaToi && (
-        <div className="flex flex-wrap items-center gap-3 bg-blue-50/40 px-4 py-3">
-          <span className="text-sm text-slate-700">
-            {t("materials.banLa")} <b>{tenChucDanh(chucDanhCuaToi)}</b>{" "}
-            {t("materials.phanBanQuanLy")}
-          </span>
-          {rankFilter === chucDanhCuaToi ? (
-            <>
-              <span className="rounded bg-blue-700 px-3 py-1 text-sm text-white">
-                {t("materials.dangXemPhanCuaBan", { n: rows.length })}
-              </span>
+              {t("chung.tim")}
+            </Button>
+            {q && (
               <Link
-                href={buildHrefRank("")}
-                className="text-sm text-blue-700 hover:underline"
+                href={buildHref(filterType, isVesselMode ? vesselKey : null).replace(
+                  /[?&]q=[^&]*/,
+                  ""
+                )}
+                className="text-sm text-[var(--text-secondary)] hover:underline"
               >
-                {t("chung.xemTatCa")}
+                {t("chung.xoaTim")}
               </Link>
-            </>
-          ) : (
-            <Link
-              href={buildHrefRank("toi")}
-              className="rounded bg-blue-700 px-3 py-1 text-sm text-white hover:bg-blue-800"
-            >
-              {t("materials.xemVatTuToiQuanLy")}
-            </Link>
-          )}
+            )}
+          </Form>
         </div>
-      )}
-
-      {/* Tab lọc loại + chức danh + tìm kiếm */}
-      <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-          {tabs.map((tab) => (
-            <Link
-              key={tab.key}
-              href={buildHref(tab.key, isVesselMode ? vesselKey : null)}
-              className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-                filterType === tab.key
-                  ? "bg-white text-blue-700 shadow-sm ring-1 ring-slate-200"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              {tab.label}
-            </Link>
-          ))}
-        </div>
-        <Form action="/materials" className="ml-auto flex items-center gap-2">
-          {filterType !== "ALL" && (
-            <input type="hidden" name="type" value={filterType} />
-          )}
-          {isVesselMode && (
-            <input type="hidden" name="vessel" value={vesselKey} />
-          )}
-          {showAll && <input type="hidden" name="full" value="1" />}
-          <select
-            name="rank"
-            defaultValue={rankFilter}
-            className="rounded border p-1.5 text-sm"
-          >
-            <option value="">{t("materials.moiChucDanh")}</option>
-            {/* Gom theo bộ phận: 15 chức danh xếp phẳng thì phải đọc hết cả
-                danh sách mới thấy người mình cần. */}
-            {(Object.keys(BO_PHAN) as BoPhan[]).map((bp) => (
-              <optgroup key={bp} label={tenBoPhan(bp)}>
-                {Object.entries(CHUC_DANH)
-                  .filter(([, cd]) => cd.boPhan === bp)
-                  .map(([ma]) => (
-                    <option key={ma} value={ma}>
-                      {tenChucDanh(ma)} ({ma})
-                    </option>
-                  ))}
-              </optgroup>
-            ))}
-          </select>
-          <input
-            name="q"
-            defaultValue={qRaw ?? ""}
-            placeholder={t("materials.timGoiY")}
-            className="w-64 rounded border p-1.5 text-sm"
-          />
-          <button className="rounded bg-blue-700 px-3 py-1.5 text-sm text-white hover:bg-blue-800">
-            {t("chung.tim")}
-          </button>
-          {q && (
-            <Link
-              href={buildHref(filterType, isVesselMode ? vesselKey : null).replace(
-                /[?&]q=[^&]*/,
-                ""
-              )}
-              className="text-sm text-slate-600 hover:underline"
-            >
-              {t("chung.xoaTim")}
-            </Link>
-          )}
-        </Form>
-      </div>
-      </div>
+      </Card>
 
       {!isVesselMode && !scope.all ? (
-        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          {t("materials.chuaGanTauKhongXem")}
-        </div>
+        <Notice tone="warning">{t("materials.chuaGanTauKhongXem")}</Notice>
       ) : (
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
           {/* Cột trái: thêm mới (tùy chế độ) */}
           {isVesselMode
             ? canEditVessel && (
-                <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 xl:col-span-3">
-                  <h3 className="mb-3 text-lg font-semibold">
-                    {t("materials.themVaoDanhMucTau", {
+                <Card className="xl:col-span-3">
+                  <CardHeader
+                    icon={<Plus className="size-4" />}
+                    title={t("materials.themVaoDanhMucTau", {
                       tau: selectedVessel?.name ?? "",
                     })}
-                  </h3>
+                    subtitle={t("materials.vatTuLayTuGoc")}
+                  />
                   <VesselMaterialAddForm
                     vesselId={selectedVesselId!}
                     available={availableToAdd}
                   />
-                  <p className="mt-2 text-xs text-slate-500">
-                    {t("materials.vatTuLayTuGoc")}
-                  </p>
                   {/* Món hàng chưa có trong danh mục gốc: khai ngay tại tàu,
                       gắn chức danh giữ — không phải nhờ quản trị tạo trước. */}
                   <VatTuMoiChoTauForm
@@ -526,74 +575,75 @@ export default async function MaterialsPage({
                     }))}
                     chucDanhMacDinh={chucDanhCuaToi}
                   />
-                </div>
+                </Card>
               )
             : canManageMaster && (
-                <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-                  <h3 className="mb-4 text-lg font-semibold">
-                    {t("materials.themVaoDanhMucGoc")}
-                  </h3>
+                <Card>
+                  <CardHeader
+                    icon={<Plus className="size-4" />}
+                    title={t("materials.themVaoDanhMucGoc")}
+                  />
                   <MaterialForm
                     categories={categories.map((c) => ({
                       id: c.id,
                       name: c.name,
                     }))}
                   />
-                </div>
+                </Card>
               )}
 
           {/* Bảng danh sách */}
-          <div
-            className={`rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200 ${
+          <Card
+            className={
               isVesselMode || !canManageMaster
                 ? "xl:col-span-3"
                 : "xl:col-span-2"
-            }`}
+            }
           >
-            <h3 className="mb-4 text-lg font-semibold">
-              {isVesselMode
-                ? t("materials.vatTuCuaTau", {
-                    tau: selectedVessel?.name ?? "",
-                    n: rows.length,
-                  })
-                : t("materials.danhMucGocN", { n: rows.length })}
-            </h3>
+            <CardHeader
+              icon={<Boxes className="size-4" />}
+              title={
+                isVesselMode
+                  ? t("materials.vatTuCuaTau", {
+                      tau: selectedVessel?.name ?? "",
+                      n: rows.length,
+                    })
+                  : t("materials.danhMucGocN", { n: rows.length })
+              }
+            />
             {rows.length === 0 ? (
-              <p className="text-slate-600">
-                {isVesselMode
-                  ? t("materials.tauChuaCoVatTu")
-                  : t("materials.chuaCoVatTu")}
-              </p>
+              <EmptyState
+                icon={<Boxes className="size-5" />}
+                title={
+                  isVesselMode
+                    ? t("materials.tauChuaCoVatTu")
+                    : t("materials.chuaCoVatTu")
+                }
+              />
             ) : (
-              <div className="overflow-x-auto rounded-lg ring-1 ring-slate-200">
-                <table className="w-full text-sm">
+              <TableWrap>
+                <Table dense>
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                      <th className="px-3 py-2.5">{t("chung.ma")}</th>
-                      <th className="px-3 py-2.5">
+                    <tr>
+                      <Th>{t("chung.ma")}</Th>
+                      <Th>
                         {isSpareView
                           ? t("materials.cotTenPhuTung")
                           : t("chung.moTa")}
-                      </th>
-                      {isSpareView && (
-                        <th className="px-3 py-2.5">{t("chung.thietBi")}</th>
-                      )}
-                      <th className="px-3 py-2.5">IMPA</th>
-                      <th className="px-3 py-2.5">Part No.</th>
-                      <th className="px-3 py-2.5">Maker</th>
-                      <th className="px-3 py-2.5">{t("chung.nhom")}</th>
-                      <th className="px-3 py-2.5">{t("materials.cotGiuBoi")}</th>
-                      <th className="px-3 py-2.5">{t("chung.donVi")}</th>
-                      {filterType === "ALL" && (
-                        <th className="px-3 py-2.5">{t("materials.loai")}</th>
-                      )}
-                      <th className="px-3 py-2.5">Critical</th>
-                      {!isVesselMode && (
-                        <th className="px-3 py-2.5">{t("chung.trangThai")}</th>
-                      )}
+                      </Th>
+                      {isSpareView && <Th>{t("chung.thietBi")}</Th>}
+                      <Th>IMPA</Th>
+                      <Th>Part No.</Th>
+                      <Th>Maker</Th>
+                      <Th>{t("chung.nhom")}</Th>
+                      <Th>{t("materials.cotGiuBoi")}</Th>
+                      <Th>{t("chung.donVi")}</Th>
+                      {filterType === "ALL" && <Th>{t("materials.loai")}</Th>}
+                      <Th>Critical</Th>
+                      {!isVesselMode && <Th>{t("chung.trangThai")}</Th>}
                       {((isVesselMode && canEditVessel) ||
                         (!isVesselMode && canManageMaster)) && (
-                        <th className="px-3 py-2.5">{t("chung.thaoTac")}</th>
+                        <Th>{t("chung.thaoTac")}</Th>
                       )}
                     </tr>
                   </thead>
@@ -602,20 +652,16 @@ export default async function MaterialsPage({
                       // Trong bộ phận, chèn tiêu đề phụ mỗi khi đổi thiết bị
                       // (chỉ với phụ tùng) — VD Máy chính, Máy đèn.
                       let lastEquip: string | null = null;
+                      const DeptIcon = DEPT_ICON[dept.key] ?? Package;
                       return (
                         <Fragment key={dept.key}>
-                          <tr className="border-y border-slate-200 bg-slate-100/80">
-                            <td
-                              colSpan={colCount}
-                              className="px-3 py-2 text-sm font-semibold text-slate-700"
-                            >
-                              <span className="mr-1.5">{dept.icon}</span>
+                          <TrNhom colSpan={colCount}>
+                            <span className="inline-flex items-center gap-2">
+                              <DeptIcon className="size-4 text-[var(--text-muted)]" />
                               {tTuDo(`labels.dept_${dept.key}`)}
-                              <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
-                                {dept.rows.length}
-                              </span>
-                            </td>
-                          </tr>
+                              <Badge tone="neutral">{dept.rows.length}</Badge>
+                            </span>
+                          </TrNhom>
                           {dept.rows.map((material) => {
                             const equip = equipmentOf({
                               materialType: material.materialType,
@@ -632,209 +678,203 @@ export default async function MaterialsPage({
                             return (
                               <Fragment key={material.id}>
                                 {showEquipHeader && (
-                                  <tr className="bg-slate-50/70">
+                                  <tr>
                                     <td
                                       colSpan={colCount}
-                                      className="py-1.5 pl-8 text-xs font-medium uppercase tracking-wide text-slate-500"
+                                      className="bg-[var(--surface-sunken)]/60 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]"
                                     >
-                                      🔧{" "}
+                                      <Wrench className="mr-1 inline size-3" />
                                       {equip === THIET_BI_CHUA_RO
                                         ? t("materials.chuaRoThietBi")
                                         : equip}
                                     </td>
                                   </tr>
                                 )}
-                                {(
-                      <tr
-                        key={material.id}
-                        className={`border-b border-slate-100 transition-colors hover:bg-blue-50/40 ${
-                          !isVesselMode && !material.isActive
-                            ? "bg-slate-50 text-slate-400"
-                            : ""
-                        }`}
-                      >
-                        <td className="px-3 py-2 font-mono text-[13px] font-medium text-slate-800">
-                          {material.code}
-                        </td>
-                        <td className="px-3 py-2">
-                          <p>
-                            {material.nameVn}
-                            {isVesselMode && !material.isActive && (
-                              <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">
-                                {tTuDo("labels.active_false")}
-                              </span>
-                            )}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {material.nameEn}
-                          </p>
-                        </td>
-                        {isSpareView && (
-                          <td className="px-3 py-2">{material.equipment}</td>
-                        )}
-                        <td className="px-3 py-2">{material.impa}</td>
-                        <td className="px-3 py-2">{material.partNumber}</td>
-                        <td className="px-3 py-2">{material.manufacturer}</td>
-                        <td className="px-3 py-2">
-                          {"category" in material
-                            ? // @ts-expect-error category included
-                              material.category?.name
-                            : ""}
-                        </td>
-                        <td className="px-3 py-2">
-                          {(() => {
-                            // Chức danh chịu trách nhiệm: ưu tiên cột đã gán, nếu
-                            // trống thì suy theo nhóm thiết bị / bộ phận nên MỌI
-                            // dòng đều có người giữ hiện ra, không còn "—".
-                            const tn = chucDanhChiuTrachNhiem({
-                              responsibleRank: material.responsibleRank,
-                              categoryCode: material.categoryId
-                                ? categoryCodeById.get(material.categoryId)
-                                : null,
-                              categoryName: material.categoryId
-                                ? categoryNameById.get(material.categoryId)
-                                : null,
-                              department: material.department,
-                              equipment: material.equipment,
-                              code: material.code,
-                              materialType: material.materialType,
-                            });
-                            if (!tn) {
-                              return (
-                                <span className="text-xs text-slate-400">—</span>
-                              );
-                            }
-                            const ten = tenChucDanh(tn.chucDanh);
-                            const suyRa = tn.nguon !== "gan";
-                            return (
-                              <span
-                                className={`rounded px-1.5 py-0.5 text-xs ${
-                                  suyRa
-                                    ? "bg-slate-50 text-slate-500 ring-1 ring-slate-200"
-                                    : "bg-slate-100 text-slate-700"
-                                }`}
-                                title={
-                                  suyRa
-                                    ? tn.nguon === "thiet-bi"
-                                      ? t("materials.suyRaTuThietBi")
-                                      : t("materials.suyRaTuBoPhan")
-                                    : t("materials.daGanTrucTiep")
-                                }
-                              >
-                                {ten} ({tn.chucDanh})
-                                {suyRa && (
-                                  <span className="ml-1 text-slate-400">•</span>
-                                )}
-                              </span>
-                            );
-                          })()}
-                        </td>
-                        <td className="px-3 py-2">{material.uom}</td>
-                        {filterType === "ALL" && (
-                          <td className="px-3 py-2">
-                            <span
-                              className={`rounded px-2 py-1 text-xs ${
-                                material.materialType === "SPARE"
-                                  ? "bg-indigo-100 text-indigo-700"
-                                  : "bg-slate-100 text-slate-600"
-                              }`}
-                            >
-                              {tTuDo(
-                                `labels.type_${
-                                  material.materialType === "SPARE"
-                                    ? "SPARE"
-                                    : "STORE"
-                                }`
-                              )}
-                            </span>
-                          </td>
-                        )}
-                        <td className="px-3 py-2">
-                          {material.isCritical ? (
-                            <span className="rounded bg-red-100 px-2 py-1 text-red-700">
-                              {tTuDo("labels.critical_true")}
-                            </span>
-                          ) : (
-                            <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">
-                              {tTuDo("labels.critical_false")}
-                            </span>
-                          )}
-                        </td>
-                        {!isVesselMode && (
-                          <td className="px-3 py-2">
-                            {material.isActive ? (
-                              <span className="rounded bg-green-100 px-2 py-1 text-xs text-green-700">
-                                {tTuDo("labels.active_true")}
-                              </span>
-                            ) : (
-                              <span className="rounded bg-slate-200 px-2 py-1 text-xs text-slate-600">
-                                {tTuDo("labels.active_false")}
-                              </span>
-                            )}
-                          </td>
-                        )}
-                        {isVesselMode && canEditVessel && (
-                          <td className="px-3 py-2">
-                            <div className="flex flex-col gap-1">
-                              {/* Sửa ở đây là sửa bản ghi dùng chung toàn đội,
-                                  nên chỉ quản trị viên mới thấy nút này. */}
-                              {canManageMaster && (
-                                <MaterialRowActions
-                                  material={{
-                                    id: material.id,
-                                    code: material.code,
-                                    nameVn: material.nameVn,
-                                    nameEn: material.nameEn,
-                                    impa: material.impa,
-                                    partNumber: material.partNumber,
-                                    manufacturer: material.manufacturer,
-                                    materialType: material.materialType,
-                                    equipment: material.equipment,
-                                    uom: material.uom,
-                                    categoryId: material.categoryId,
-                                    minStock: material.minStock,
-                                    maxStock: material.maxStock,
-                                    isCritical: material.isCritical,
-                                    isActive: material.isActive,
-                                  }}
-                                  categories={categoryOptions}
-                                  onlyEdit
-                                />
-                              )}
-                              <VesselMaterialRemoveButton
-                                vesselId={selectedVesselId!}
-                                materialId={material.id}
-                                code={material.code}
-                              />
-                            </div>
-                          </td>
-                        )}
-                        {!isVesselMode && canManageMaster && (
-                          <td className="px-3 py-2">
-                            <MaterialRowActions
-                              material={{
-                                id: material.id,
-                                code: material.code,
-                                nameVn: material.nameVn,
-                                nameEn: material.nameEn,
-                                impa: material.impa,
-                                partNumber: material.partNumber,
-                                manufacturer: material.manufacturer,
-                                materialType: material.materialType,
-                                equipment: material.equipment,
-                                uom: material.uom,
-                                categoryId: material.categoryId,
-                                minStock: material.minStock,
-                                maxStock: material.maxStock,
-                                isCritical: material.isCritical,
-                                isActive: material.isActive,
-                              }}
-                              categories={categoryOptions}
-                            />
-                          </td>
-                        )}
-                      </tr>
-                                )}
+                                <Tr
+                                  className={cn(
+                                    "transition-colors hover:bg-[var(--surface-sunken)]/50",
+                                    !isVesselMode &&
+                                      !material.isActive &&
+                                      "opacity-60"
+                                  )}
+                                >
+                                  <Td className="font-display text-xs tracking-wide whitespace-nowrap text-[var(--text-primary)]">
+                                    {material.code}
+                                  </Td>
+                                  <Td>
+                                    <p>
+                                      {material.nameVn}
+                                      {isVesselMode && !material.isActive && (
+                                        <Badge tone="muted" className="ml-2">
+                                          {tTuDo("labels.active_false")}
+                                        </Badge>
+                                      )}
+                                    </p>
+                                    <p className="text-xs text-[var(--text-muted)]">
+                                      {material.nameEn}
+                                    </p>
+                                  </Td>
+                                  {isSpareView && <Td>{material.equipment}</Td>}
+                                  <Td>{material.impa}</Td>
+                                  <Td>{material.partNumber}</Td>
+                                  <Td>{material.manufacturer}</Td>
+                                  <Td>
+                                    {"category" in material
+                                      ? // @ts-expect-error category included
+                                        material.category?.name
+                                      : ""}
+                                  </Td>
+                                  <Td>
+                                    {(() => {
+                                      // Chức danh chịu trách nhiệm: ưu tiên cột đã gán, nếu
+                                      // trống thì suy theo nhóm thiết bị / bộ phận nên MỌI
+                                      // dòng đều có người giữ hiện ra, không còn "—".
+                                      const tn = chucDanhChiuTrachNhiem({
+                                        responsibleRank: material.responsibleRank,
+                                        categoryCode: material.categoryId
+                                          ? categoryCodeById.get(material.categoryId)
+                                          : null,
+                                        categoryName: material.categoryId
+                                          ? categoryNameById.get(material.categoryId)
+                                          : null,
+                                        department: material.department,
+                                        equipment: material.equipment,
+                                        code: material.code,
+                                        materialType: material.materialType,
+                                      });
+                                      if (!tn) {
+                                        return (
+                                          <span className="text-xs text-[var(--text-muted)]">
+                                            —
+                                          </span>
+                                        );
+                                      }
+                                      const ten = tenChucDanh(tn.chucDanh);
+                                      const suyRa = tn.nguon !== "gan";
+                                      return (
+                                        <Badge
+                                          tone={suyRa ? "muted" : "brand"}
+                                          title={
+                                            suyRa
+                                              ? tn.nguon === "thiet-bi"
+                                                ? t("materials.suyRaTuThietBi")
+                                                : t("materials.suyRaTuBoPhan")
+                                              : t("materials.daGanTrucTiep")
+                                          }
+                                        >
+                                          {ten} ({tn.chucDanh})
+                                          {suyRa && (
+                                            <span className="opacity-60">•</span>
+                                          )}
+                                        </Badge>
+                                      );
+                                    })()}
+                                  </Td>
+                                  <Td>{material.uom}</Td>
+                                  {filterType === "ALL" && (
+                                    <Td>
+                                      <Badge
+                                        tone={
+                                          material.materialType === "SPARE"
+                                            ? "brand"
+                                            : "neutral"
+                                        }
+                                      >
+                                        {tTuDo(
+                                          `labels.type_${
+                                            material.materialType === "SPARE"
+                                              ? "SPARE"
+                                              : "STORE"
+                                          }`
+                                        )}
+                                      </Badge>
+                                    </Td>
+                                  )}
+                                  <Td>
+                                    {material.isCritical ? (
+                                      <Badge tone="danger">
+                                        {tTuDo("labels.critical_true")}
+                                      </Badge>
+                                    ) : (
+                                      <Badge tone="muted">
+                                        {tTuDo("labels.critical_false")}
+                                      </Badge>
+                                    )}
+                                  </Td>
+                                  {!isVesselMode && (
+                                    <Td>
+                                      {material.isActive ? (
+                                        <Badge tone="success" dot>
+                                          {tTuDo("labels.active_true")}
+                                        </Badge>
+                                      ) : (
+                                        <Badge tone="muted">
+                                          {tTuDo("labels.active_false")}
+                                        </Badge>
+                                      )}
+                                    </Td>
+                                  )}
+                                  {isVesselMode && canEditVessel && (
+                                    <Td>
+                                      <div className="flex flex-col items-start gap-1">
+                                        {/* Sửa ở đây là sửa bản ghi dùng chung toàn đội,
+                                            nên chỉ quản trị viên mới thấy nút này. */}
+                                        {canManageMaster && (
+                                          <MaterialRowActions
+                                            material={{
+                                              id: material.id,
+                                              code: material.code,
+                                              nameVn: material.nameVn,
+                                              nameEn: material.nameEn,
+                                              impa: material.impa,
+                                              partNumber: material.partNumber,
+                                              manufacturer: material.manufacturer,
+                                              materialType: material.materialType,
+                                              equipment: material.equipment,
+                                              uom: material.uom,
+                                              categoryId: material.categoryId,
+                                              minStock: material.minStock,
+                                              maxStock: material.maxStock,
+                                              isCritical: material.isCritical,
+                                              isActive: material.isActive,
+                                            }}
+                                            categories={categoryOptions}
+                                            onlyEdit
+                                          />
+                                        )}
+                                        <VesselMaterialRemoveButton
+                                          vesselId={selectedVesselId!}
+                                          materialId={material.id}
+                                          code={material.code}
+                                        />
+                                      </div>
+                                    </Td>
+                                  )}
+                                  {!isVesselMode && canManageMaster && (
+                                    <Td>
+                                      <MaterialRowActions
+                                        material={{
+                                          id: material.id,
+                                          code: material.code,
+                                          nameVn: material.nameVn,
+                                          nameEn: material.nameEn,
+                                          impa: material.impa,
+                                          partNumber: material.partNumber,
+                                          manufacturer: material.manufacturer,
+                                          materialType: material.materialType,
+                                          equipment: material.equipment,
+                                          uom: material.uom,
+                                          categoryId: material.categoryId,
+                                          minStock: material.minStock,
+                                          maxStock: material.maxStock,
+                                          isCritical: material.isCritical,
+                                          isActive: material.isActive,
+                                        }}
+                                        categories={categoryOptions}
+                                      />
+                                    </Td>
+                                  )}
+                                </Tr>
                               </Fragment>
                             );
                           })}
@@ -842,33 +882,21 @@ export default async function MaterialsPage({
                       );
                     })}
                   </tbody>
-                </table>
-              </div>
+                </Table>
+              </TableWrap>
             )}
             {hiddenCount > 0 && (
-              <div className="mt-3 rounded border border-blue-200 bg-blue-50 p-3 text-sm">
+              <Notice tone="info" className="mt-3">
                 {t("materials.dangHienDauMoiBoPhan", { n: PER_DEPT_LIMIT })}{" "}
                 <b>{t("materials.nDong", { n: hiddenCount })}</b>{" "}
                 {t("materials.chuaHienGoiY")}{" "}
-                <Link
-                  href={`${buildHref(
-                    filterType,
-                    isVesselMode ? vesselKey : null
-                  )}${
-                    buildHref(filterType, isVesselMode ? vesselKey : null).includes(
-                      "?"
-                    )
-                      ? "&"
-                      : "?"
-                  }full=1`}
-                  className="font-medium text-blue-700 hover:underline"
-                >
+                <Link href={xemTatCaHref} className="font-medium underline">
                   {t("materials.xemTatCaNDong", { n: rows.length })}
                 </Link>{" "}
                 {t("materials.trangSeNangHon")}
-              </div>
+              </Notice>
             )}
-          </div>
+          </Card>
         </div>
       )}
     </div>

@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Upload } from "lucide-react";
 import { uploadReportDocument } from "@/app/actions";
+import { Button, Field, Input, Notice, Select } from "@/components/ui";
 import { useNgonNgu } from "@/lib/i18n/client";
 
 type VesselOption = {
@@ -49,96 +51,67 @@ export default function DocumentUploadForm({
       {single ? (
         <input type="hidden" name="vesselId" value={vessels[0].id} />
       ) : (
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("chung.tau")}
-          </label>
-          <select
-            name="vesselId"
-            defaultValue={v.vesselId ?? ""}
-            className="w-full rounded border p-2"
-            required
-          >
+        <Field label={t("chung.tau")}>
+          <Select name="vesselId" defaultValue={v.vesselId ?? ""} required>
             <option value="">{t("chung.chonTau")}</option>
             {vessels.map((vessel) => (
               <option key={vessel.id} value={vessel.id}>
                 {vessel.code} - {vessel.name}
               </option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </Field>
       )}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("inventory.loaiBaoCao")}
-          </label>
-          <select
-            name="reportType"
-            defaultValue={v.reportType ?? "MLS-11-01"}
-            className="w-full rounded border p-2"
-          >
+        <Field label={t("inventory.loaiBaoCao")}>
+          <Select name="reportType" defaultValue={v.reportType ?? "MLS-11-01"}>
             <option value="MLS-11-01">{t("inventory.docMLS1101")}</option>
             <option value="MLS-11-04">{t("inventory.docMLS1104")}</option>
             <option value="MLS-11-13">{t("inventory.docMLS1113")}</option>
             {/* Giá trị "KHÁC" là dữ liệu lưu xuống database — chỉ dịch nhãn. */}
             <option value="KHÁC">{t("inventory.docKhac")}</option>
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("inventory.kyBaoCao")}
-          </label>
-          <input
-            name="period"
-            type="month"
-            defaultValue={v.period ?? ""}
-            className="w-full rounded border p-2"
-          />
-        </div>
+          </Select>
+        </Field>
+        <Field label={t("inventory.kyBaoCao")}>
+          <Input name="period" type="month" defaultValue={v.period ?? ""} />
+        </Field>
       </div>
-      <input
+      <Input
         name="title"
         placeholder={t("inventory.tieuDePlaceholder")}
         defaultValue={v.title ?? ""}
-        className="w-full rounded border p-2"
       />
-      <div>
-        <label className="mb-1 block text-sm text-slate-600">
-          {t("inventory.fileBaoCao")}
-        </label>
-        <input
+      <Field label={t("inventory.fileBaoCao")}>
+        <Input
           name="file"
           type="file"
           accept=".pdf,.xls,.xlsx"
-          className="w-full rounded border p-2"
+          className="file:mr-3 file:rounded-md file:border-0 file:bg-[var(--surface-sunken)] file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-[var(--text-primary)]"
           required
         />
-      </div>
-      <input
+      </Field>
+      <Input
         name="note"
         placeholder={t("inventory.ghiChuTuyChon")}
         defaultValue={v.note ?? ""}
-        className="w-full rounded border p-2"
       />
-      <button
-        disabled={pending}
-        className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
+      <Button
+        type="submit"
+        variant="primary"
+        loading={pending}
+        icon={<Upload className="size-4" />}
       >
         {pending ? t("inventory.dangTaiLen") : t("inventory.taiBaoCaoLen")}
-      </button>
-      {clientError && <p className="text-sm text-red-600">{clientError}</p>}
+      </Button>
+      {clientError && <Notice tone="danger">{clientError}</Notice>}
       {state.message && (
-        <p
-          className={`text-sm ${
-            state.success ? "text-green-700" : "text-red-600"
-          }`}
-        >
+        <Notice tone={state.success ? "success" : "danger"}>
           {state.message}
-        </p>
+        </Notice>
       )}
-      <p className="text-xs text-slate-500">
-        {t("inventory.luuYTruoc")} <b>{t("inventory.luuYDam")}</b>{" "}
+      <p className="text-xs text-[var(--text-muted)]">
+        {t("inventory.luuYTruoc")}{" "}
+        <b className="text-[var(--text-secondary)]">{t("inventory.luuYDam")}</b>{" "}
         {t("inventory.luuYSau")}
       </p>
     </form>

@@ -1,7 +1,18 @@
 "use client";
 
 import { useActionState } from "react";
+import { Check } from "lucide-react";
 import { approveRequestQuantities } from "@/app/actions";
+import {
+  Button,
+  Input,
+  Notice,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui";
 import { useNgonNgu } from "@/lib/i18n/client";
 
 type ItemInput = {
@@ -35,62 +46,63 @@ export default function RequestApprovalForm({
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="id" value={requestId} />
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-[var(--text-secondary)]">
         {laCongTy
           ? t("requests.huongDanDuyetCongTy")
           : t("requests.huongDanDuyetTau")}
       </p>
-      <div className="overflow-x-auto">
-        <table className="w-full border text-sm">
+      <TableWrap className="shadow-none">
+        <Table dense>
           <thead>
-            <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-              <th className="p-2">{t("chung.ma")}</th>
-              <th className="p-2">{t("chung.ten")}</th>
-              <th className="p-2">{t("requests.cotRob")}</th>
-              <th className="p-2">{t("requests.slYeuCau")}</th>
-              {laCongTy && <th className="p-2">{t("requests.slTauDuyet")}</th>}
-              <th className="p-2">
+            <tr>
+              <Th>{t("chung.ma")}</Th>
+              <Th>{t("chung.ten")}</Th>
+              <Th align="right">{t("requests.cotRob")}</Th>
+              <Th align="right">{t("requests.slYeuCau")}</Th>
+              {laCongTy && <Th align="right">{t("requests.slTauDuyet")}</Th>}
+              <Th>
                 {laCongTy ? t("requests.slCongTyDuyet") : t("requests.slDuyet")}
-              </th>
+              </Th>
             </tr>
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr key={item.id} className="border-b">
-                <td className="p-2 font-medium">{item.code}</td>
-                <td className="p-2">{item.name}</td>
-                <td className="p-2">{item.rob}</td>
-                <td className="p-2">{item.quantity}</td>
-                {laCongTy && <td className="p-2">{item.tauDuyet}</td>}
-                <td className="p-2">
-                  <input
-                    name={`approved_${item.id}`}
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max={tran(item)}
-                    defaultValue={tran(item)}
-                    className="w-24 rounded border p-1"
-                  />
-                </td>
-              </tr>
+              <Tr key={item.id}>
+                <Td className="font-medium">{item.code}</Td>
+                <Td>{item.name}</Td>
+                <Td align="right">{item.rob}</Td>
+                <Td align="right">{item.quantity}</Td>
+                {laCongTy && <Td align="right">{item.tauDuyet}</Td>}
+                <Td>
+                  <div className="w-24">
+                    <Input
+                      name={`approved_${item.id}`}
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={tran(item)}
+                      defaultValue={tran(item)}
+                      className="tabular"
+                    />
+                  </div>
+                </Td>
+              </Tr>
             ))}
           </tbody>
-        </table>
-      </div>
-      <button
-        disabled={pending}
-        className="rounded bg-green-100 px-4 py-2 text-green-700 hover:bg-green-200 disabled:opacity-50"
+        </Table>
+      </TableWrap>
+      <Button
+        variant="primary"
+        loading={pending}
+        icon={<Check className="size-4" />}
       >
         {pending
           ? t("requests.dangDuyet")
           : laCongTy
             ? t("requests.nutCongTyDuyet")
             : t("requests.nutTauDuyetVaChuyen")}
-      </button>
-      {state.message && (
-        <p className="text-sm text-red-600">{state.message}</p>
-      )}
+      </Button>
+      {state.message && <Notice tone="danger">{state.message}</Notice>}
     </form>
   );
 }

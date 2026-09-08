@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { Anchor } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser, vesselIdWhere, vesselScope } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
+import { cn } from "@/lib/cn";
+import { Card } from "@/components/ui";
 
 /**
  * Dải nút chọn tàu, đặt ở đầu mọi trang gắn với MỘT tàu.
@@ -38,8 +41,8 @@ export default async function VesselSwitcher({
   if (vessels.length <= 1) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white p-3 shadow-sm ring-1 ring-blue-100">
-      <span className="text-sm font-medium text-slate-600">
+    <Card padded={false} className="flex flex-wrap items-center gap-2 px-3 py-2.5">
+      <span className="text-sm font-medium text-[var(--text-secondary)]">
         {nhan ?? t("inventory.chuyenTau")}
       </span>
       {vessels.map((v) => {
@@ -50,21 +53,23 @@ export default async function VesselSwitcher({
             href={duongDan(v.id)}
             title={`${v.code} — ${v.name}`}
             aria-current={dangXem ? "page" : undefined}
-            className={`rounded px-3 py-1.5 text-sm ${
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition",
+              "focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
               dangXem
-                ? "bg-blue-700 font-medium text-white"
-                : v.status === "ACTIVE"
-                  ? "bg-slate-100 text-slate-700 hover:bg-blue-100 hover:text-blue-900"
-                  : "bg-slate-50 text-slate-400 hover:bg-slate-100"
-            }`}
+                ? "bg-brand-700 font-medium text-white"
+                : "bg-[var(--surface-sunken)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+              v.status !== "ACTIVE" && "opacity-60"
+            )}
           >
-            ⚓ {v.code}
+            <Anchor className="size-3.5 shrink-0" />
+            <span className="font-display text-xs tracking-wide">{v.code}</span>
             <span className="ml-1 hidden text-xs opacity-80 sm:inline">
               {v.name}
             </span>
           </Link>
         );
       })}
-    </div>
+    </Card>
   );
 }

@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
+import { Trash2 } from "lucide-react";
 import { deleteReportDocument } from "@/app/actions";
+import { Button } from "@/components/ui";
 import { useNgonNgu } from "@/lib/i18n/client";
 
 export default function DocumentDeleteButton({
@@ -29,14 +31,17 @@ export default function DocumentDeleteButton({
       }}
     >
       <input type="hidden" name="id" value={id} />
-      <button
-        disabled={pending}
-        className="rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
+      <Button
+        type="submit"
+        variant="danger"
+        size="sm"
+        loading={pending}
+        icon={<Trash2 className="size-4" />}
       >
-        {pending ? "..." : t("chung.xoa")}
-      </button>
+        {t("chung.xoa")}
+      </Button>
       {state.message && (
-        <p className="mt-1 text-xs text-red-600">{state.message}</p>
+        <p className="mt-1 text-xs text-[var(--text-danger)]">{state.message}</p>
       )}
     </form>
   );

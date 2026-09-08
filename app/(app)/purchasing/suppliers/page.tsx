@@ -8,11 +8,13 @@ import {
   SupplierEditForm,
   SupplierForm,
 } from "@/components/SupplierForm";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function SuppliersPage() {
   const user = await requireScopedUser();
+  const { t } = await layT();
   const canManage = user.role === "ADMIN";
   const suppliers = await prisma.supplier.findMany({
     orderBy: { code: "asc" },
@@ -26,15 +28,19 @@ export default async function SuppliersPage() {
           href="/purchasing"
           className="text-sm text-blue-700 hover:underline"
         >
-          ← Quay lại mua sắm
+          {t("purchasing.quayLaiMuaSam")}
         </Link>
-        <h2 className="text-2xl font-bold text-blue-950">Nhà cung cấp</h2>
-        <p className="text-slate-600">Danh sách nhà cung cấp cho mua sắm</p>
+        <h2 className="text-2xl font-bold text-blue-950">
+          {t("purchasing.nhaCungCap")}
+        </h2>
+        <p className="text-slate-600">{t("purchasing.moTaNcc")}</p>
       </div>
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {canManage && (
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <h3 className="mb-4 text-lg font-semibold">Thêm nhà cung cấp</h3>
+            <h3 className="mb-4 text-lg font-semibold">
+              {t("purchasing.themNcc")}
+            </h3>
             <SupplierForm />
           </div>
         )}
@@ -44,22 +50,22 @@ export default async function SuppliersPage() {
           }`}
         >
           <h3 className="mb-4 text-lg font-semibold">
-            Danh sách ({suppliers.length})
+            {t("purchasing.danhSach", { n: suppliers.length })}
           </h3>
           {suppliers.length === 0 ? (
-            <p className="text-slate-600">Chưa có nhà cung cấp nào.</p>
+            <p className="text-slate-600">{t("purchasing.chuaCoNcc")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border text-sm">
                 <thead>
                   <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                    <th className="p-2">Mã</th>
-                    <th className="p-2">Tên</th>
-                    <th className="p-2">Liên hệ</th>
-                    <th className="p-2">Email / ĐT</th>
-                    <th className="p-2">Số PO</th>
-                    <th className="p-2">Trạng thái</th>
-                    {canManage && <th className="p-2">Thao tác</th>}
+                    <th className="p-2">{t("chung.ma")}</th>
+                    <th className="p-2">{t("chung.ten")}</th>
+                    <th className="p-2">{t("purchasing.cotLienHe")}</th>
+                    <th className="p-2">{t("purchasing.cotEmailDt")}</th>
+                    <th className="p-2">{t("purchasing.cotSoDonPo")}</th>
+                    <th className="p-2">{t("chung.trangThai")}</th>
+                    {canManage && <th className="p-2">{t("chung.thaoTac")}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -81,11 +87,11 @@ export default async function SuppliersPage() {
                         <td className="p-2">
                           {s.isActive ? (
                             <span className="rounded bg-green-100 px-2 py-1 text-xs text-green-700">
-                              Đang dùng
+                              {t("labels.active_true")}
                             </span>
                           ) : (
                             <span className="rounded bg-slate-200 px-2 py-1 text-xs text-slate-600">
-                              Ngừng dùng
+                              {t("labels.active_false")}
                             </span>
                           )}
                         </td>
@@ -106,7 +112,7 @@ export default async function SuppliersPage() {
                           <td colSpan={7} className="p-2 pt-0">
                             <details>
                               <summary className="cursor-pointer text-xs text-blue-700 hover:underline">
-                                Sửa thông tin nhà cung cấp
+                                {t("purchasing.suaThongTinNcc")}
                               </summary>
                               <SupplierEditForm
                                 supplier={{

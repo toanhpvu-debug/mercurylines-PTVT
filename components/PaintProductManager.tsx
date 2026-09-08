@@ -6,6 +6,7 @@ import {
   savePaintProduct,
   togglePaintProduct,
 } from "@/app/paint-actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export type PaintProductRow = {
   id: number;
@@ -35,20 +36,25 @@ function ProductFields({
   product?: PaintProductRow;
   types: readonly TypeOption[];
 }) {
+  const { t, tTuDo } = useNgonNgu();
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
       <label className="block">
-        <span className="mb-1 block text-sm text-slate-600">Tên sơn *</span>
+        <span className="mb-1 block text-sm text-slate-600">
+          {t("paint.tenSon")} *
+        </span>
         <input
           name="name"
           defaultValue={product?.name ?? ""}
           required
-          placeholder="VD: Marathon 500"
+          placeholder={t("paint.phVdMarathon")}
           className="w-full rounded border p-2"
         />
       </label>
       <label className="block">
-        <span className="mb-1 block text-sm text-slate-600">Hãng</span>
+        <span className="mb-1 block text-sm text-slate-600">
+          {t("paint.hang")}
+        </span>
         <input
           name="maker"
           defaultValue={product?.maker ?? ""}
@@ -57,21 +63,25 @@ function ProductFields({
         />
       </label>
       <label className="block">
-        <span className="mb-1 block text-sm text-slate-600">Loại sơn *</span>
+        <span className="mb-1 block text-sm text-slate-600">
+          {t("paint.kieuSon")} *
+        </span>
         <select
           name="paintType"
           defaultValue={product?.paintType ?? "OTHER"}
           className="w-full rounded border p-2"
         >
-          {types.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
+          {types.map((loai) => (
+            <option key={loai.value} value={loai.value}>
+              {tTuDo(`paint.loaiSon_${loai.value}`)}
             </option>
           ))}
         </select>
       </label>
       <label className="block">
-        <span className="mb-1 block text-sm text-slate-600">Mã màu</span>
+        <span className="mb-1 block text-sm text-slate-600">
+          {t("paint.maMau")}
+        </span>
         <input
           name="colorCode"
           defaultValue={product?.colorCode ?? ""}
@@ -80,26 +90,30 @@ function ProductFields({
         />
       </label>
       <label className="block">
-        <span className="mb-1 block text-sm text-slate-600">Tên màu</span>
+        <span className="mb-1 block text-sm text-slate-600">
+          {t("paint.tenMau")}
+        </span>
         <input
           name="colorName"
           defaultValue={product?.colorName ?? ""}
-          placeholder="Xám nhạt"
-          className="w-full rounded border p-2"
-        />
-      </label>
-      <label className="block">
-        <span className="mb-1 block text-sm text-slate-600">Đơn vị</span>
-        <input
-          name="uom"
-          defaultValue={product?.uom ?? "L"}
-          placeholder="L / Lon / Thùng"
+          placeholder={t("paint.phTenMau")}
           className="w-full rounded border p-2"
         />
       </label>
       <label className="block">
         <span className="mb-1 block text-sm text-slate-600">
-          Dung tích 1 lon (lít)
+          {t("chung.donVi")}
+        </span>
+        <input
+          name="uom"
+          defaultValue={product?.uom ?? "L"}
+          placeholder={t("paint.phDonViSon")}
+          className="w-full rounded border p-2"
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-sm text-slate-600">
+          {t("paint.dungTichLon")}
         </span>
         <input
           name="packSize"
@@ -113,7 +127,7 @@ function ProductFields({
       </label>
       <label className="block">
         <span className="mb-1 block text-sm text-slate-600">
-          Độ phủ lý thuyết (m²/lít)
+          {t("paint.doPhuLyThuyet")}
         </span>
         <input
           name="coverage"
@@ -127,7 +141,7 @@ function ProductFields({
       </label>
       <label className="block">
         <span className="mb-1 block text-sm text-slate-600">
-          DFT mỗi lớp (micron)
+          {t("paint.dftMoiLop")}
         </span>
         <input
           name="dftPerCoat"
@@ -140,7 +154,9 @@ function ProductFields({
         />
       </label>
       <label className="block md:col-span-1">
-        <span className="mb-1 block text-sm text-slate-600">Dung môi pha</span>
+        <span className="mb-1 block text-sm text-slate-600">
+          {t("paint.dungMoi")}
+        </span>
         <input
           name="thinner"
           defaultValue={product?.thinner ?? ""}
@@ -149,7 +165,9 @@ function ProductFields({
         />
       </label>
       <label className="block md:col-span-2">
-        <span className="mb-1 block text-sm text-slate-600">Ghi chú</span>
+        <span className="mb-1 block text-sm text-slate-600">
+          {t("chung.ghiChu")}
+        </span>
         <input
           name="notes"
           defaultValue={product?.notes ?? ""}
@@ -161,6 +179,7 @@ function ProductFields({
 }
 
 export function PaintProductAddForm({ types }: { types: readonly TypeOption[] }) {
+  const { t } = useNgonNgu();
   const [state, action, pending] = useActionState(savePaintProduct, {
     message: "",
   });
@@ -171,7 +190,7 @@ export function PaintProductAddForm({ types }: { types: readonly TypeOption[] })
         onClick={() => setOpen(true)}
         className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800"
       >
-        + Thêm loại sơn
+        + {t("paint.themLoaiSon")}
       </button>
     );
   }
@@ -180,21 +199,21 @@ export function PaintProductAddForm({ types }: { types: readonly TypeOption[] })
       action={action}
       className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/40 p-4"
     >
-      <p className="font-semibold text-blue-950">Thêm loại sơn</p>
+      <p className="font-semibold text-blue-950">{t("paint.themLoaiSon")}</p>
       <ProductFields types={types} />
       <div className="flex items-center gap-3">
         <button
           disabled={pending}
           className="rounded bg-blue-700 px-5 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
         >
-          {pending ? "Đang lưu..." : "Lưu"}
+          {pending ? t("chung.dangLuu") : t("chung.luu")}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
           className="text-sm text-slate-600 hover:underline"
         >
-          Đóng
+          {t("chung.dong")}
         </button>
         {state.message && (
           <span
@@ -219,6 +238,7 @@ export function PaintProductRowActions({
   types: readonly TypeOption[];
   canDelete: boolean;
 }) {
+  const { t } = useNgonNgu();
   const [editing, setEditing] = useState(false);
   const [saveState, saveAction, savePending] = useActionState(
     savePaintProduct,
@@ -239,7 +259,7 @@ export function PaintProductRowActions({
           onClick={() => setEditing((v) => !v)}
           className="text-sm text-blue-700 hover:underline"
         >
-          {editing ? "Đóng" : "Sửa"}
+          {editing ? t("chung.dong") : t("chung.sua")}
         </button>
         <form action={toggleAction}>
           <input type="hidden" name="id" value={product.id} />
@@ -247,7 +267,9 @@ export function PaintProductRowActions({
             disabled={togglePending}
             className="text-sm text-amber-700 hover:underline disabled:opacity-50"
           >
-            {product.isActive ? "Ngừng dùng" : "Dùng lại"}
+            {product.isActive
+              ? t("paint.nutNgungDung")
+              : t("paint.nutDungLai")}
           </button>
         </form>
         {canDelete && (
@@ -256,7 +278,7 @@ export function PaintProductRowActions({
               e.preventDefault();
               if (
                 !confirm(
-                  `Xóa vĩnh viễn loại sơn "${product.name}"? Chỉ xóa được khi chưa dùng ở đâu.`
+                  t("paint.xacNhanXoaLoaiSon", { ten: product.name })
                 )
               )
                 return;
@@ -269,7 +291,7 @@ export function PaintProductRowActions({
               disabled={delPending}
               className="text-sm text-red-600 hover:underline disabled:opacity-50"
             >
-              Xóa
+              {t("chung.xoa")}
             </button>
           </form>
         )}
@@ -292,7 +314,9 @@ export function PaintProductRowActions({
         >
           <input type="hidden" name="id" value={product.id} />
           <label className="block max-w-xs">
-            <span className="mb-1 block text-sm text-slate-600">Mã sơn</span>
+            <span className="mb-1 block text-sm text-slate-600">
+              {t("paint.maSon")}
+            </span>
             <input
               name="code"
               defaultValue={product.code}
@@ -305,7 +329,7 @@ export function PaintProductRowActions({
               disabled={savePending}
               className="rounded bg-blue-700 px-5 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
             >
-              {savePending ? "Đang lưu..." : "Lưu thay đổi"}
+              {savePending ? t("chung.dangLuu") : t("paint.luuThayDoi")}
             </button>
             {saveState.message && (
               <span

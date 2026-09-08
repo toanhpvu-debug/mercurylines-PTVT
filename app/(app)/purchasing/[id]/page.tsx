@@ -14,18 +14,9 @@ import {
   POStatusButton,
   ReceiveGoodsForm,
 } from "@/components/PurchaseOrderForms";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
-
-const poStatusLabels: Record<string, string> = {
-  DRAFT: "Nháp",
-  SENT: "Đã gửi NCC",
-  CONFIRMED: "NCC xác nhận",
-  PARTIALLY_RECEIVED: "Nhận một phần",
-  RECEIVED: "Đã nhận đủ",
-  CLOSED: "Hoàn tất",
-  CANCELLED: "Đã hủy",
-};
 
 export default async function PurchaseOrderDetailPage({
   params,
@@ -37,6 +28,7 @@ export default async function PurchaseOrderDetailPage({
   const { skipped: skippedRaw } = await searchParams;
   const skippedRows = Number(skippedRaw);
   const user = await requireScopedUser();
+  const { t, tTuDo } = await layT();
   const scope = vesselScopeDayDu(user);
   const canManage = ["ADMIN", "MASTER"].includes(user.role);
   const { id: idRaw } = await params;
@@ -88,19 +80,19 @@ export default async function PurchaseOrderDetailPage({
           href="/purchasing"
           className="text-sm text-blue-700 hover:underline"
         >
-          ← Quay lại mua sắm
+          {t("purchasing.quayLaiMuaSam")}
         </Link>
         <div className="flex items-center gap-2">
           <span className="rounded bg-slate-100 px-2 py-1 text-sm">
-            {poStatusLabels[po.status] ?? po.status}
+            {tTuDo(`labels.poStatus_${po.status}`)}
           </span>
           <Link
             href={`/purchasing/${po.id}/rfq`}
             className="rounded border px-4 py-2 text-sm hover:bg-blue-50"
           >
-            Yêu cầu báo giá (RFQ)
+            {t("purchasing.nutRfq")}
           </Link>
-          <PrintButton label="In đơn mua (PO)" />
+          <PrintButton label={t("purchasing.inDonMua")} />
           {/* Dọn đơn đã hủy — điều kiện kiểm lại ở server. */}
           {user.role === "ADMIN" && po.status === "CANCELLED" && (
             <PurchaseOrderDeleteButton
@@ -114,16 +106,15 @@ export default async function PurchaseOrderDetailPage({
 
       {Number.isInteger(skippedRows) && skippedRows > 0 && (
         <div className="no-print rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-          ⚠ {skippedRows} dòng trong file Excel đã bị bỏ qua vì thiếu hoặc không
-          đọc được số lượng — hãy đối chiếu lại với file gốc.
+          ⚠ {t("purchasing.boQuaDong", { n: skippedRows })}
         </div>
       )}
 
       <p className="no-print text-xs text-slate-500">
-        Chứng từ theo chuẩn:{" "}
-        <b>{standard.label}</b> (đổi ở{" "}
+        {t("purchasing.chungTuTheoChuan")}{" "}
+        <b>{standard.label}</b> ({t("purchasing.doiO")}{" "}
         <Link href="/purchasing/forms" className="text-blue-700 hover:underline">
-          Mẫu biểu theo tàu
+          {t("purchasing.nutMauBieu")}
         </Link>
         )
       </p>
@@ -346,13 +337,15 @@ export default async function PurchaseOrderDetailPage({
       {/* Điều khiển quy trình */}
       {canManage && po.status !== "CANCELLED" && po.status !== "CLOSED" && (
         <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-          <h3 className="mb-3 text-lg font-semibold">Tiến trình đơn mua</h3>
+          <h3 className="mb-3 text-lg font-semibold">
+            {t("purchasing.tienTrinhDon")}
+          </h3>
           <div className="flex flex-wrap items-center gap-2">
             {po.status === "DRAFT" && (
               <POStatusButton
                 id={po.id}
                 status="SENT"
-                label="Gửi nhà cung cấp"
+                label={t("purchasing.nutGuiNcc")}
                 className="rounded bg-blue-100 px-3 py-1 text-sm text-blue-700 hover:bg-blue-200 disabled:opacity-50"
               />
             )}
@@ -360,7 +353,7 @@ export default async function PurchaseOrderDetailPage({
               <POStatusButton
                 id={po.id}
                 status="CONFIRMED"
-                label="NCC đã xác nhận"
+                label={t("purchasing.nutNccXacNhan")}
                 className="rounded bg-indigo-100 px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-200 disabled:opacity-50"
               />
             )}
@@ -368,7 +361,7 @@ export default async function PurchaseOrderDetailPage({
               <POStatusButton
                 id={po.id}
                 status="CLOSED"
-                label="Hoàn tất đơn"
+                label={t("purchasing.nutHoanTat")}
                 className="rounded bg-green-100 px-3 py-1 text-sm text-green-700 hover:bg-green-200 disabled:opacity-50"
               />
             )}
@@ -376,7 +369,7 @@ export default async function PurchaseOrderDetailPage({
               <POStatusButton
                 id={po.id}
                 status="CLOSED"
-                label="Đóng đơn (nhận thiếu, không nhận thêm)"
+                label={t("purchasing.nutDongDonThieu")}
                 className="rounded bg-green-100 px-3 py-1 text-sm text-green-700 hover:bg-green-200 disabled:opacity-50"
               />
             )}
@@ -384,7 +377,7 @@ export default async function PurchaseOrderDetailPage({
               <POStatusButton
                 id={po.id}
                 status="CANCELLED"
-                label="Hủy đơn"
+                label={t("purchasing.nutHuyDon")}
                 className="rounded bg-red-100 px-3 py-1 text-sm text-red-700 hover:bg-red-200 disabled:opacity-50"
               />
             )}
@@ -395,7 +388,9 @@ export default async function PurchaseOrderDetailPage({
       {/* Nhận hàng */}
       {canReceive && (
         <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-          <h3 className="mb-3 text-lg font-semibold">Nhận hàng (Goods Receipt)</h3>
+          <h3 className="mb-3 text-lg font-semibold">
+            {t("purchasing.nhanHang")}
+          </h3>
           <ReceiveGoodsForm
             poId={po.id}
             warehouses={warehouses}
@@ -410,8 +405,7 @@ export default async function PurchaseOrderDetailPage({
             }))}
           />
           <p className="mt-2 text-xs text-slate-500">
-            Nhận hàng sẽ tự nhập kho cho vật tư có trong danh mục và cập nhật
-            tiến độ giao của yêu cầu liên quan.
+            {t("purchasing.nhanHangMoTa")}
           </p>
         </div>
       )}

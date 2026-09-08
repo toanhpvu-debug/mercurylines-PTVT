@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useState } from "react";
 import { createPaintJob, deletePaintJob } from "@/app/paint-actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type Option = { id: number; label: string };
 type StockOption = { id: number; label: string; uom: string; onHand: number };
@@ -19,6 +20,7 @@ export function PaintJobForm({
   products: StockOption[];
   defaultDate: string;
 }) {
+  const { t } = useNgonNgu();
   const [state, action, pending] = useActionState(createPaintJob, {
     message: "",
   });
@@ -27,8 +29,9 @@ export function PaintJobForm({
   if (products.length === 0) {
     return (
       <p className="text-sm text-slate-500">
-        Chưa có sơn nào trên tàu. Hãy ghi nhận sơn ở mục{" "}
-        <span className="font-medium">Tồn sơn</span> trước khi ghi thi công.
+        {t("paint.chuaCoSonTruoc")}{" "}
+        <span className="font-medium">{t("paint.tonSon")}</span>{" "}
+        {t("paint.chuaCoSonSau")}
       </p>
     );
   }
@@ -39,7 +42,7 @@ export function PaintJobForm({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Ngày thi công *
+            {t("paint.ngayThiCong")} *
           </span>
           <input
             name="jobDate"
@@ -50,9 +53,11 @@ export function PaintJobForm({
           />
         </label>
         <label className="block md:col-span-2">
-          <span className="mb-1 block text-sm text-slate-600">Khu vực</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("paint.khuVuc")}
+          </span>
           <select name="areaId" className="w-full rounded border p-2">
-            <option value="">— Không gắn khu vực —</option>
+            <option value="">{t("paint.khongGanKhuVuc")}</option>
             {areas.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.label}
@@ -62,7 +67,7 @@ export function PaintJobForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Diện tích sơn (m²)
+            {t("paint.dienTichSon")}
           </span>
           <input
             name="paintedM2"
@@ -73,7 +78,9 @@ export function PaintJobForm({
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">Số lớp phủ</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("paint.soLopPhu")}
+          </span>
           <input
             name="coats"
             type="number"
@@ -84,16 +91,18 @@ export function PaintJobForm({
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">Thời tiết</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("paint.thoiTiet")}
+          </span>
           <input
             name="weather"
-            placeholder="Nắng, gió nhẹ..."
+            placeholder={t("paint.phThoiTiet")}
             className="w-full rounded border p-2"
           />
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Nhiệt độ không khí (°C)
+            {t("paint.nhietDoKhongKhi")}
           </span>
           <input
             name="airTemp"
@@ -103,7 +112,9 @@ export function PaintJobForm({
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">Độ ẩm (%)</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("paint.doAm")}
+          </span>
           <input
             name="humidity"
             type="number"
@@ -115,7 +126,7 @@ export function PaintJobForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Nhiệt độ bề mặt (°C)
+            {t("paint.nhietDoBeMat")}
           </span>
           <input
             name="surfaceTemp"
@@ -126,42 +137,45 @@ export function PaintJobForm({
         </label>
         <label className="block md:col-span-3">
           <span className="mb-1 block text-sm text-slate-600">
-            Người thực hiện (để trống = tài khoản đang đăng nhập)
+            {t("paint.nguoiThucHienGoiY")}
           </span>
           <input name="performedBy" className="w-full rounded border p-2" />
         </label>
         <label className="block md:col-span-4">
-          <span className="mb-1 block text-sm text-slate-600">Ghi chú</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("chung.ghiChu")}
+          </span>
           <input name="notes" className="w-full rounded border p-2" />
         </label>
       </div>
 
       <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3">
         <p className="mb-2 text-sm font-semibold text-blue-950">
-          Sơn đã dùng (tự trừ vào tồn của tàu)
+          {t("paint.sonDaDungTuTru")}
         </p>
         <div className="space-y-2">
           {lines.map((key) => (
             <div key={key} className="flex flex-wrap items-end gap-2">
               <label className="block flex-1 min-w-[220px]">
                 <span className="mb-1 block text-xs text-slate-600">
-                  Loại sơn
+                  {t("paint.loaiSon")}
                 </span>
                 <select
                   name="lineProductId"
                   className="w-full rounded border p-2"
                 >
-                  <option value="">— Chọn sơn —</option>
+                  <option value="">{t("paint.chonSon")}</option>
                   {products.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.label} (còn {p.onHand} {p.uom})
+                      {p.label}{" "}
+                      {t("paint.conLaiN", { n: p.onHand, dv: p.uom })}
                     </option>
                   ))}
                 </select>
               </label>
               <label className="block w-32">
                 <span className="mb-1 block text-xs text-slate-600">
-                  Số lượng
+                  {t("chung.soLuong")}
                 </span>
                 <input
                   name="lineQuantity"
@@ -177,7 +191,7 @@ export function PaintJobForm({
                   onClick={() => setLines((ls) => ls.filter((k) => k !== key))}
                   className="pb-2 text-sm text-red-600 hover:underline"
                 >
-                  Xóa dòng
+                  {t("paint.xoaDong")}
                 </button>
               )}
             </div>
@@ -188,7 +202,7 @@ export function PaintJobForm({
           onClick={() => setLines((ls) => [...ls, lineKey++])}
           className="mt-2 text-sm text-blue-700 hover:underline"
         >
-          + Thêm dòng
+          + {t("paint.themDong")}
         </button>
       </div>
 
@@ -197,7 +211,7 @@ export function PaintJobForm({
           disabled={pending}
           className="rounded bg-blue-700 px-6 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
         >
-          {pending ? "Đang ghi..." : "Ghi nhật ký thi công"}
+          {pending ? t("paint.dangGhi") : t("paint.nutGhiNhatKy")}
         </button>
         {state.message && (
           <span
@@ -220,6 +234,7 @@ export function PaintJobDeleteButton({
   vesselId: number;
   jobId: number;
 }) {
+  const { t } = useNgonNgu();
   const [state, action, pending] = useActionState(deletePaintJob, {
     message: "",
   });
@@ -227,12 +242,7 @@ export function PaintJobDeleteButton({
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        if (
-          !confirm(
-            "Xóa bản ghi thi công này? Lượng sơn đã trừ sẽ được hoàn lại vào tồn."
-          )
-        )
-          return;
+        if (!confirm(t("paint.xacNhanXoaThiCong"))) return;
         const fd = new FormData(e.currentTarget);
         startTransition(() => action(fd));
       }}
@@ -244,7 +254,7 @@ export function PaintJobDeleteButton({
         className="text-xs text-red-600 hover:underline disabled:opacity-50"
         title={state.message || undefined}
       >
-        Xóa
+        {t("chung.xoa")}
       </button>
     </form>
   );

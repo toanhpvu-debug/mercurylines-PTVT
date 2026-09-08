@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { setVesselFormStandard } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type StandardOption = { key: string; label: string };
 
@@ -16,6 +17,7 @@ export default function VesselFormStandardRow({
   hullNo: string | null;
   standards: StandardOption[];
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(setVesselFormStandard, {
     message: "",
   });
@@ -43,7 +45,7 @@ export default function VesselFormStandardRow({
         disabled={pending}
         className="rounded border px-2 py-1 text-sm hover:bg-blue-50 disabled:opacity-50"
       >
-        {pending ? "..." : "Lưu"}
+        {pending ? "..." : t("chung.luu")}
       </button>
       {state.message && (
         <span

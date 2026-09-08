@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useState } from "react";
 import { createDirectPurchaseOrder } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type Option = { id: number; label: string };
 
@@ -28,6 +29,7 @@ export default function DirectPurchaseForm({
   vessels: Option[];
   suppliers: Option[];
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(
     createDirectPurchaseOrder,
     { message: "" }
@@ -63,7 +65,9 @@ export default function DirectPurchaseForm({
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">Tàu *</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("chung.tau")} *
+          </span>
           <select
             name="vesselId"
             value={vesselId}
@@ -71,7 +75,7 @@ export default function DirectPurchaseForm({
             className="w-full rounded border p-2"
             required
           >
-            <option value="">— Chọn tàu —</option>
+            <option value="">— {t("chung.chonTau")} —</option>
             {vessels.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.label}
@@ -81,7 +85,7 @@ export default function DirectPurchaseForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Nhà cung cấp *
+            {t("purchasing.nhaCungCap")} *
           </span>
           <select
             name="supplierId"
@@ -90,7 +94,7 @@ export default function DirectPurchaseForm({
             className="w-full rounded border p-2"
             required
           >
-            <option value="">— Chọn nhà cung cấp —</option>
+            <option value="">— {t("purchasing.chonNcc")} —</option>
             {suppliers.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.label}
@@ -103,19 +107,19 @@ export default function DirectPurchaseForm({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Subject / Nội dung
+            {t("purchasing.labelSubject")}
           </span>
           <input
             name="subject"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            placeholder="VD: Supply Lashing Equipment"
+            placeholder={t("purchasing.phViDuSubject")}
             className="w-full rounded border p-2"
           />
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Y/ref nhà cung cấp
+            {t("purchasing.labelYref")}
           </span>
           <input
             name="supplierRef"
@@ -128,7 +132,9 @@ export default function DirectPurchaseForm({
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">Tiền tệ</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("purchasing.tienTe")}
+          </span>
           <input
             name="currency"
             value={currency}
@@ -137,7 +143,9 @@ export default function DirectPurchaseForm({
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">Cần hàng</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("purchasing.canHang")}
+          </span>
           <input
             name="expectedDate"
             type="date"
@@ -148,7 +156,7 @@ export default function DirectPurchaseForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Chiết khấu (%)
+            {t("purchasing.chietKhau")}
           </span>
           <input
             name="discountPercent"
@@ -163,7 +171,7 @@ export default function DirectPurchaseForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Phí vận chuyển
+            {t("purchasing.phiVanChuyen")}
           </span>
           <input
             name="transportFee"
@@ -177,7 +185,7 @@ export default function DirectPurchaseForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Phí giao lên tàu
+            {t("purchasing.phiGiaoLenTau")}
           </span>
           <input
             name="deliveryFee"
@@ -192,7 +200,9 @@ export default function DirectPurchaseForm({
       </div>
 
       <label className="block">
-        <span className="mb-1 block text-sm text-slate-600">Ghi chú</span>
+        <span className="mb-1 block text-sm text-slate-600">
+          {t("chung.ghiChu")}
+        </span>
         <input
           name="notes"
           value={notes}
@@ -204,14 +214,12 @@ export default function DirectPurchaseForm({
       {/* Upload Excel theo form công ty */}
       <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4">
         <p className="mb-1 font-semibold text-blue-950">
-          Upload file Excel vật tư (theo form công ty)
+          {t("purchasing.uploadExcel")}
         </p>
         <p className="mb-3 text-xs text-slate-600">
-          Nhận file .xls/.xlsx có bảng vật tư với cột <b>Description</b> và{" "}
-          <b>Q&apos;ty</b> (các cột PN/IMPA, Unit, U.Price tự nhận nếu có) —
-          dùng được trực tiếp form PURCHASING ORDER / INQUIRY FOR QUOTE của công
-          ty. Các dòng trong file sẽ được thêm vào đơn cùng các dòng nhập tay
-          bên dưới.
+          {t("purchasing.uploadExcelMoTaDau")} <b>Description</b>{" "}
+          {t("chung.va")} <b>Q&apos;ty</b>{" "}
+          {t("purchasing.uploadExcelMoTaCuoi")}
         </p>
         <input
           type="file"
@@ -224,13 +232,15 @@ export default function DirectPurchaseForm({
       {/* Dòng nhập tay */}
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <p className="font-semibold text-blue-950">Dòng vật tư nhập tay</p>
+          <p className="font-semibold text-blue-950">
+            {t("purchasing.dongNhapTay")}
+          </p>
           <button
             type="button"
             onClick={() => setManualLines((prev) => [...prev, blankLine()])}
             className="rounded border border-blue-200 px-3 py-1 text-sm text-blue-700 hover:bg-blue-50"
           >
-            + Thêm dòng
+            + {t("purchasing.themDong")}
           </button>
         </div>
         <div className="space-y-2">
@@ -243,7 +253,7 @@ export default function DirectPurchaseForm({
                 name={`line_desc_${index}`}
                 value={line.description}
                 onChange={(e) => setLine(index, { description: e.target.value })}
-                placeholder="Mô tả vật tư (Description)"
+                placeholder={t("purchasing.phMoTaVatTu")}
                 className="col-span-2 rounded border p-2 md:col-span-1"
               />
               <input
@@ -257,7 +267,7 @@ export default function DirectPurchaseForm({
                 name={`line_uom_${index}`}
                 value={line.uom}
                 onChange={(e) => setLine(index, { uom: e.target.value })}
-                placeholder="ĐVT"
+                placeholder={t("chung.donVi")}
                 className="rounded border p-2"
               />
               <input
@@ -267,7 +277,7 @@ export default function DirectPurchaseForm({
                 min="0"
                 value={line.quantity}
                 onChange={(e) => setLine(index, { quantity: e.target.value })}
-                placeholder="SL"
+                placeholder={t("purchasing.phSl")}
                 className="rounded border p-2"
               />
               <input
@@ -277,7 +287,7 @@ export default function DirectPurchaseForm({
                 min="0"
                 value={line.unitPrice}
                 onChange={(e) => setLine(index, { unitPrice: e.target.value })}
-                placeholder="Đơn giá"
+                placeholder={t("purchasing.cotDonGia")}
                 className="rounded border p-2"
               />
               <button
@@ -289,8 +299,8 @@ export default function DirectPurchaseForm({
                       : [blankLine()]
                   )
                 }
-                aria-label="Xóa dòng"
-                title="Xóa dòng"
+                aria-label={t("purchasing.xoaDong")}
+                title={t("purchasing.xoaDong")}
                 className="rounded border border-red-200 text-red-600 hover:bg-red-50"
               >
                 ×
@@ -305,7 +315,9 @@ export default function DirectPurchaseForm({
           disabled={pending}
           className="rounded bg-blue-700 px-6 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
         >
-          {pending ? "Đang tạo đơn..." : "Tạo đơn (IFQ / PO)"}
+          {pending
+            ? t("purchasing.dangTaoDon")
+            : t("purchasing.nutTaoDonIfqPo")}
         </button>
         {state.message && (
           <p className="text-sm text-red-600">{state.message}</p>

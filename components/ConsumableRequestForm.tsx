@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useState } from "react";
 import { taoYeuCauNhienLieu } from "@/app/consumable-actions";
 import { CATEGORY_ICON } from "@/lib/consumables";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export type RequestLine = {
   productId: number;
@@ -35,6 +36,7 @@ export default function ConsumableRequestForm({
   /** Chức danh sẽ duyệt ở cấp tàu, hoặc null nếu đi thẳng lên công ty. */
   nguoiDuyet: string | null;
 }) {
+  const { t } = useNgonNgu();
   const [state, action, pending] = useActionState(taoYeuCauNhienLieu, {
     message: "",
   });
@@ -61,12 +63,12 @@ export default function ConsumableRequestForm({
         sl === 0
           ? ""
           : duDung > buDinhMuc
-            ? `đủ dùng ${soNgay} ngày`
-            : "bù cho đủ định mức";
+            ? t("consumables.duDungNNgay", { n: soNgay })
+            : t("consumables.buChoDuDinhMuc");
       m.set(l.productId, { sl: Math.ceil(sl * 1000) / 1000, vi });
     }
     return m;
-  }, [lines, soNgay]);
+  }, [lines, soNgay, t]);
 
   const [chiThieu, setChiThieu] = useState(true);
   const hienThi = chiThieu
@@ -76,7 +78,7 @@ export default function ConsumableRequestForm({
   if (lines.length === 0) {
     return (
       <p className="text-sm text-slate-500">
-        Chưa có mặt hàng nào thuộc nhóm bạn phụ trách.
+        {t("consumables.chuaCoMatHangNhom")}
       </p>
     );
   }
@@ -89,19 +91,24 @@ export default function ConsumableRequestForm({
         <p className="text-sm text-slate-600">
           {nguoiDuyet ? (
             <>
-              Yêu cầu về bàn <b>{nguoiDuyet}</b> duyệt cấp tàu, rồi chuyển tiếp
-              lên <b>quản lý kỹ thuật công ty</b>, sau đó sang <b>mua sắm</b>.
+              {t("consumables.luongDuyetTruoc")} <b>{nguoiDuyet}</b>{" "}
+              {t("consumables.luongDuyetGiua")}{" "}
+              <b>{t("consumables.quanLyKyThuat")}</b>
+              {t("consumables.luongDuyetSau")}{" "}
+              <b>{t("consumables.muaSam")}</b>.
             </>
           ) : (
             <>
-              Bạn là cấp duyệt cao nhất trên tàu nên yêu cầu đi <b>thẳng lên
-              quản lý kỹ thuật công ty</b>, sau đó sang <b>mua sắm</b>.
+              {t("consumables.luongDuyetThangTruoc")}{" "}
+              <b>{t("consumables.luongDuyetThangDam")}</b>
+              {t("consumables.luongDuyetSau")}{" "}
+              <b>{t("consumables.muaSam")}</b>.
             </>
           )}
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-slate-600">
-            Dự trữ đủ dùng
+            {t("consumables.duTruDuDung")}
             <select
               value={soNgay}
               onChange={(e) => setSoNgay(Number(e.target.value))}
@@ -109,7 +116,7 @@ export default function ConsumableRequestForm({
             >
               {[30, 45, 60, 90, 120].map((n) => (
                 <option key={n} value={n}>
-                  {n} ngày
+                  {t("consumables.nNgay", { n })}
                 </option>
               ))}
             </select>
@@ -120,28 +127,31 @@ export default function ConsumableRequestForm({
               checked={chiThieu}
               onChange={(e) => setChiThieu(e.target.checked)}
             />
-            Chỉ hiện mặt hàng cần cấp
+            {t("consumables.chiHienCanCap")}
           </label>
         </div>
       </div>
 
       {hienThi.length === 0 ? (
         <p className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-          Không mặt hàng nào cần cấp: tất cả đều trên định mức và đủ dùng{" "}
-          {soNgay} ngày. Bỏ dấu tick ở trên để xin cấp mặt hàng khác.
+          {t("consumables.khongCanCap", { n: soNgay })}
         </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full border text-sm">
             <thead>
               <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                <th className="p-2">Mặt hàng</th>
-                <th className="p-2">ĐVT</th>
-                <th className="p-2 text-right">Tồn</th>
-                <th className="p-2 text-right">Dùng/ngày</th>
-                <th className="p-2 text-right">Còn dùng được</th>
-                <th className="p-2 text-right">Định mức</th>
-                <th className="p-2">Số lượng xin cấp</th>
+                <th className="p-2">{t("consumables.matHang")}</th>
+                <th className="p-2">{t("chung.donVi")}</th>
+                <th className="p-2 text-right">{t("consumables.ton")}</th>
+                <th className="p-2 text-right">
+                  {t("consumables.dungMoiNgay")}
+                </th>
+                <th className="p-2 text-right">
+                  {t("consumables.conDungDuoc")}
+                </th>
+                <th className="p-2 text-right">{t("consumables.dinhMuc")}</th>
+                <th className="p-2">{t("consumables.cotSoLuongXinCap")}</th>
               </tr>
             </thead>
             <tbody>
@@ -178,7 +188,7 @@ export default function ConsumableRequestForm({
                               : "text-slate-700"
                           }
                         >
-                          {conDung} ngày
+                          {t("consumables.nNgay", { n: conDung })}
                         </span>
                       )}
                     </td>
@@ -213,21 +223,23 @@ export default function ConsumableRequestForm({
       <div className="grid gap-3 md:grid-cols-3">
         <label className="block md:col-span-2">
           <span className="mb-1 block text-sm text-slate-600">
-            Lý do / mục đích
+            {t("consumables.lyDoMucDich")}
           </span>
           <input
             name="purpose"
-            placeholder="VD: Dự trữ cho chuyến đi Nhật, tồn còn dưới định mức"
+            placeholder={t("consumables.lyDoPlaceholder")}
             className="w-full rounded border p-2"
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">Mức ưu tiên</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("consumables.mucUuTien")}
+          </span>
           <select name="priority" className="w-full rounded border p-2">
-            <option value="NORMAL">Bình thường</option>
-            <option value="HIGH">Cao</option>
-            <option value="URGENT">Khẩn</option>
-            <option value="LOW">Thấp</option>
+            <option value="NORMAL">{t("labels.priority_NORMAL")}</option>
+            <option value="HIGH">{t("labels.priority_HIGH")}</option>
+            <option value="URGENT">{t("labels.priority_URGENT")}</option>
+            <option value="LOW">{t("labels.priority_LOW")}</option>
           </select>
         </label>
       </div>
@@ -236,7 +248,9 @@ export default function ConsumableRequestForm({
         disabled={pending || hienThi.length === 0}
         className="rounded bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
       >
-        {pending ? "Đang gửi..." : "Gửi yêu cầu phê duyệt"}
+        {pending
+          ? t("consumables.dangGui")
+          : t("consumables.nutGuiYeuCau")}
       </button>
 
       {state.message && (

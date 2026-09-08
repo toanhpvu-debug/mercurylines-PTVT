@@ -2,6 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { createPurchaseOrder } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type PendingLine = {
   id: number;
@@ -26,6 +27,7 @@ export default function CreatePurchaseOrderForm({
   lines: PendingLine[];
   defaultDate: string;
 }) {
+  const { t, so } = useNgonNgu();
   const [state, formAction, pending] = useActionState(createPurchaseOrder, {
     message: "",
   });
@@ -42,7 +44,7 @@ export default function CreatePurchaseOrderForm({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div>
           <label className="mb-1 block text-sm text-slate-600">
-            Nhà cung cấp
+            {t("purchasing.nhaCungCap")}
           </label>
           <select
             name="supplierId"
@@ -50,7 +52,7 @@ export default function CreatePurchaseOrderForm({
             defaultValue=""
             required
           >
-            <option value="">Chọn nhà cung cấp</option>
+            <option value="">{t("purchasing.chonNcc")}</option>
             {suppliers.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.code} - {s.name}
@@ -59,7 +61,9 @@ export default function CreatePurchaseOrderForm({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-sm text-slate-600">Tiền tệ</label>
+          <label className="mb-1 block text-sm text-slate-600">
+            {t("purchasing.tienTe")}
+          </label>
           <select
             name="currency"
             className="w-full rounded border p-2"
@@ -73,7 +77,7 @@ export default function CreatePurchaseOrderForm({
         </div>
         <div>
           <label className="mb-1 block text-sm text-slate-600">
-            Ngày cần hàng
+            {t("purchasing.ngayCanHang")}
           </label>
           <input
             name="expectedDate"
@@ -86,24 +90,24 @@ export default function CreatePurchaseOrderForm({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <input
           name="subject"
-          placeholder="Subject / Nội dung (VD: Supply Lashing Equipment)"
+          placeholder={t("purchasing.phSubject")}
           className="rounded border p-2"
         />
         <input
           name="supplierRef"
-          placeholder="Y/ref của nhà cung cấp (nếu có)"
+          placeholder={t("purchasing.phYref")}
           className="rounded border p-2"
         />
       </div>
       <input
         name="notes"
-        placeholder="Ghi chú đơn hàng"
+        placeholder={t("purchasing.phGhiChuDon")}
         className="w-full rounded border p-2"
       />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div>
           <label className="mb-1 block text-sm text-slate-600">
-            Chiết khấu (%)
+            {t("purchasing.chietKhau")}
           </label>
           <input
             name="discountPercent"
@@ -117,7 +121,7 @@ export default function CreatePurchaseOrderForm({
         </div>
         <div>
           <label className="mb-1 block text-sm text-slate-600">
-            Phí vận chuyển
+            {t("purchasing.phiVanChuyen")}
           </label>
           <input
             name="transportFee"
@@ -130,7 +134,7 @@ export default function CreatePurchaseOrderForm({
         </div>
         <div>
           <label className="mb-1 block text-sm text-slate-600">
-            Phí giao lên tàu
+            {t("purchasing.phiGiaoLenTau")}
           </label>
           <input
             name="deliveryFee"
@@ -147,14 +151,14 @@ export default function CreatePurchaseOrderForm({
         <table className="w-full border text-sm">
           <thead>
             <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-              <th className="p-2">Chọn</th>
-              <th className="p-2">Số yêu cầu</th>
-              <th className="p-2">Mô tả</th>
+              <th className="p-2">{t("chung.chon")}</th>
+              <th className="p-2">{t("purchasing.cotSoYeuCau")}</th>
+              <th className="p-2">{t("chung.moTa")}</th>
               <th className="p-2">Part No.</th>
-              <th className="p-2">ĐVT</th>
-              <th className="p-2">SL cần mua</th>
-              <th className="p-2">Đơn giá</th>
-              <th className="p-2">Thành tiền</th>
+              <th className="p-2">{t("chung.donVi")}</th>
+              <th className="p-2">{t("purchasing.cotSlCanMua")}</th>
+              <th className="p-2">{t("purchasing.cotDonGia")}</th>
+              <th className="p-2">{t("purchasing.cotThanhTien")}</th>
             </tr>
           </thead>
           <tbody>
@@ -203,7 +207,7 @@ export default function CreatePurchaseOrderForm({
                     />
                   </td>
                   <td className="p-2 text-slate-600">
-                    {amount ? amount.toLocaleString("vi-VN") : ""}
+                    {amount ? so(amount) : ""}
                   </td>
                 </tr>
               );
@@ -217,8 +221,8 @@ export default function CreatePurchaseOrderForm({
         className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
       >
         {pending
-          ? "Đang tạo..."
-          : `Tạo đơn mua (${selectedCount} dòng đã chọn)`}
+          ? t("purchasing.dangTao")
+          : t("purchasing.nutTaoDonSoDong", { n: selectedCount })}
       </button>
       {state.message && (
         <p className="text-sm text-red-600">{state.message}</p>

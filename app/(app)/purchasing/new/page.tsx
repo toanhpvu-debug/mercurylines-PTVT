@@ -9,6 +9,7 @@ import {
   vesselScopeDayDu,
 } from "@/lib/auth";
 import CreatePurchaseOrderForm from "@/components/CreatePurchaseOrderForm";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export default async function NewPurchaseOrderPage({
   searchParams: Promise<{ vessel?: string }>;
 }) {
   const user = await requireScopedUser();
+  const { t } = await layT();
   const scope = vesselScopeDayDu(user);
   if (!["ADMIN", "MASTER"].includes(user.role)) {
     redirect("/purchasing");
@@ -40,9 +42,11 @@ export default async function NewPurchaseOrderPage({
   if (scope.unassigned) {
     return (
       <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-blue-950">Tạo đơn mua</h2>
+        <h2 className="text-2xl font-bold text-blue-950">
+          {t("purchasing.tieuDeTaoDon")}
+        </h2>
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          Bạn chưa được gán tàu phụ trách.
+          {t("chung.chuaGanTau")}
         </div>
       </div>
     );
@@ -56,9 +60,11 @@ export default async function NewPurchaseOrderPage({
           href="/purchasing"
           className="text-sm text-blue-700 hover:underline"
         >
-          ← Quay lại mua sắm
+          {t("purchasing.quayLaiMuaSam")}
         </Link>
-        <h2 className="text-2xl font-bold text-blue-950">Tạo đơn mua — chọn tàu</h2>
+        <h2 className="text-2xl font-bold text-blue-950">
+          {t("purchasing.taoDonChonTau")}
+        </h2>
         <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
           {/* next/form: chọn tàu xong chuyển trang phía client (không tải lại
               cả trang); `required` vẫn chặn gửi khi chưa chọn. */}
@@ -69,7 +75,7 @@ export default async function NewPurchaseOrderPage({
               defaultValue=""
               required
             >
-              <option value="">Chọn tàu cần mua sắm</option>
+              <option value="">{t("purchasing.phChonTauMuaSam")}</option>
               {vessels.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.code} - {v.name}
@@ -77,7 +83,7 @@ export default async function NewPurchaseOrderPage({
               ))}
             </select>
             <button className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800">
-              Tiếp tục
+              {t("chung.tiepTuc")}
             </button>
           </Form>
         </div>
@@ -140,33 +146,29 @@ export default async function NewPurchaseOrderPage({
   return (
     <div className="space-y-4">
       <Link href="/purchasing" className="text-sm text-blue-700 hover:underline">
-        ← Quay lại mua sắm
+        {t("purchasing.quayLaiMuaSam")}
       </Link>
       <div>
         <h2 className="text-2xl font-bold text-blue-950">
-          Tạo đơn mua — {selectedVessel.code} {selectedVessel.name}
+          {t("purchasing.tieuDeTaoDon")} — {selectedVessel.code}{" "}
+          {selectedVessel.name}
         </h2>
-        <p className="text-slate-600">
-          Chọn các dòng vật tư cần mua, nhập đơn giá và nhà cung cấp
-        </p>
+        <p className="text-slate-600">{t("purchasing.moTaTaoDon")}</p>
       </div>
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
         {suppliers.length === 0 ? (
           <p className="text-amber-700">
-            Chưa có nhà cung cấp nào.{" "}
+            {t("purchasing.chuaCoNcc")}{" "}
             <Link
               href="/purchasing/suppliers"
               className="text-blue-700 hover:underline"
             >
-              Thêm nhà cung cấp
+              {t("purchasing.themNcc")}
             </Link>{" "}
-            trước.
+            {t("purchasing.truoc")}
           </p>
         ) : pendingLines.length === 0 ? (
-          <p className="text-slate-600">
-            Tàu này không có dòng vật tư nào đang chờ mua (mọi yêu cầu đã được
-            đặt hàng hoặc chưa chuyển sang mua sắm).
-          </p>
+          <p className="text-slate-600">{t("purchasing.khongCoDongCho")}</p>
         ) : (
           <CreatePurchaseOrderForm
             vesselId={selectedVesselId}

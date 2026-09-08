@@ -3,20 +3,18 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { danhTinhHieuLuc, requireScopedUser } from "@/lib/auth";
 import { QUAN_DANH_MUC_NHIEN_LIEU, VAN_HANH_HOA_CHAT } from "@/lib/roles";
-import {
-  CATEGORY_ICON,
-  CONSUMABLE_CATEGORIES,
-  GRADE_LABEL,
-} from "@/lib/consumables";
+import { CONSUMABLE_CATEGORIES } from "@/lib/consumables";
 import {
   ConsumableProductActions,
   ConsumableProductForm,
 } from "@/components/ConsumableProductManager";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function ConsumableProductsPage() {
   const user = await requireScopedUser();
+  const { t, tTuDo } = await layT();
   // Vào xem và THÊM mới thì người quản nhóm trên tàu cũng được; sửa/xóa một mặt
   // hàng đang dùng chung thì server chặn riêng ở từng action.
   //
@@ -52,37 +50,34 @@ export default async function ConsumableProductsPage() {
           href="/consumables"
           className="text-sm text-blue-700 hover:underline"
         >
-          ← Quay lại Dầu · Dầu nhờn · Hóa chất
+          ← {t("consumables.quayLaiTieuHao")}
         </Link>
         <h2 className="text-2xl font-bold text-blue-950">
-          Danh mục dầu &amp; hóa chất
+          {t("consumables.tieuDeDanhMuc")}
         </h2>
-        <p className="text-slate-600">
-          Định nghĩa dùng chung toàn đội. Đặc tính thực của từng lô ghi ở phiếu
-          nhận của tàu, không ghi ở đây.
-        </p>
+        <p className="text-slate-600">{t("consumables.moTaDanhMuc")}</p>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
         <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-          <h3 className="mb-4 text-lg font-semibold">Thêm mặt hàng</h3>
+          <h3 className="mb-4 text-lg font-semibold">
+            {t("consumables.themMatHang")}
+          </h3>
           <ConsumableProductForm />
           {!laVanPhong && (
             <p className="mt-4 rounded bg-slate-50 p-3 text-xs text-slate-600">
-              Bạn thêm được mặt hàng mới. Sửa hoặc xóa một mặt hàng đang dùng
-              chung là việc của thuyền trưởng hoặc văn phòng — sửa định nghĩa
-              dùng chung thì đổi luôn số liệu của cả đội.
+              {t("consumables.luuYQuyenSua")}
             </p>
           )}
         </div>
 
         <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 xl:col-span-2">
           <h3 className="mb-4 text-lg font-semibold">
-            Danh sách ({products.length})
+            {t("consumables.danhSachN", { n: products.length })}
           </h3>
           {products.length === 0 ? (
             <p className="text-sm text-slate-500">
-              Chưa có mặt hàng nào. Thêm ở form bên trái.
+              {t("consumables.chuaCoMatHangNao")}
             </p>
           ) : (
             CONSUMABLE_CATEGORIES.map((c) => {
@@ -91,19 +86,20 @@ export default async function ConsumableProductsPage() {
               return (
                 <div key={c.value} className="mb-6">
                   <h4 className="mb-2 font-semibold text-blue-950">
-                    {c.icon} {c.label} ({rows.length})
+                    {c.icon} {tTuDo(`consumables.nhom_${c.value}`)} (
+                    {rows.length})
                   </h4>
                   <div className="overflow-x-auto">
                     <table className="w-full border text-sm">
                       <thead>
                         <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                          <th className="p-2">Mã</th>
-                          <th className="p-2">Tên</th>
-                          <th className="p-2">Chủng loại</th>
-                          <th className="p-2">Hãng</th>
-                          <th className="p-2">ĐVT</th>
-                          <th className="p-2">Đặc tính</th>
-                          <th className="p-2">Trạng thái</th>
+                          <th className="p-2">{t("chung.ma")}</th>
+                          <th className="p-2">{t("chung.ten")}</th>
+                          <th className="p-2">{t("consumables.chungLoai")}</th>
+                          <th className="p-2">{t("consumables.cotHang")}</th>
+                          <th className="p-2">{t("chung.donVi")}</th>
+                          <th className="p-2">{t("consumables.cotDacTinh")}</th>
+                          <th className="p-2">{t("chung.trangThai")}</th>
                           {laVanPhong && <th className="p-2"></th>}
                         </tr>
                       </thead>
@@ -120,7 +116,7 @@ export default async function ConsumableProductsPage() {
                               )}
                             </td>
                             <td className="p-2 text-slate-600">
-                              {GRADE_LABEL[p.grade] ?? p.grade}
+                              {tTuDo(`consumables.loai_${p.grade}`)}
                             </td>
                             <td className="p-2 text-slate-600">
                               {p.maker ?? "—"}
@@ -131,7 +127,12 @@ export default async function ConsumableProductsPage() {
                               {p.viscosity !== null && <>· {p.viscosity} cSt </>}
                               {p.bnValue !== null && <>· TBN {p.bnValue} </>}
                               {p.shelfLifeMonths !== null && (
-                                <>· HD {p.shelfLifeMonths} tháng </>
+                                <>
+                                  ·{" "}
+                                  {t("consumables.hdNThang", {
+                                    n: p.shelfLifeMonths,
+                                  })}{" "}
+                                </>
                               )}
                               {p.hazardClass && <>· {p.hazardClass}</>}
                               {p.sulphurMax === null &&
@@ -149,11 +150,13 @@ export default async function ConsumableProductsPage() {
                                     : "bg-slate-100 text-slate-600"
                                 }`}
                               >
-                                {p.isActive ? "Đang dùng" : "Ngừng dùng"}
+                                {tTuDo(`labels.active_${p.isActive}`)}
                               </span>
                               <span className="mt-1 block text-xs text-slate-500">
-                                {p._count.receipts} phiếu ·{" "}
-                                {p._count.transactions} giao dịch
+                                {t("consumables.nPhieuNGiaoDich", {
+                                  p: p._count.receipts,
+                                  g: p._count.transactions,
+                                })}
                               </span>
                             </td>
                             {laVanPhong && (
@@ -192,9 +195,7 @@ export default async function ConsumableProductsPage() {
       </div>
 
       <p className="text-xs text-slate-500">
-        {CATEGORY_ICON.FUEL} Dầu đốt · {CATEGORY_ICON.LUBE} dầu nhờn ·{" "}
-        {CATEGORY_ICON.CHEMICAL} hóa chất dùng chung một danh mục vì vòng đời
-        giống nhau: nhận theo lô có chứng từ → nằm trong két/kho → tiêu thụ dần.
+        {t("consumables.chuThichVongDoi")}
       </p>
     </div>
   );

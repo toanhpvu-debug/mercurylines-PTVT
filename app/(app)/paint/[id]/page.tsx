@@ -8,7 +8,8 @@ import {
   vesselIdWhere,
   vesselScopeDayDu,
 } from "@/lib/auth";
-import { LAP_YEU_CAU, ROLE_LABEL, nguoiDuyetCapTau, boPhanCuaChucDanh } from "@/lib/roles";
+import { LAP_YEU_CAU, nguoiDuyetCapTau, boPhanCuaChucDanh } from "@/lib/roles";
+import { layT } from "@/lib/i18n/server";
 import { PAINT_TYPE_LABEL } from "@/lib/paintTypes";
 import {
   PaintAreaAddForm,
@@ -26,15 +27,18 @@ export const dynamic = "force-dynamic";
 
 const TYPE_LABEL = PAINT_TYPE_LABEL;
 
-function productLabel(p: {
-  name: string;
-  maker: string | null;
-  paintType: string;
-  colorName: string | null;
-}) {
+function productLabel(
+  p: {
+    name: string;
+    maker: string | null;
+    paintType: string;
+    colorName: string | null;
+  },
+  tenLoaiSon: (ma: string) => string
+) {
   const bits = [p.name];
   if (p.maker) bits.push(p.maker);
-  bits.push(TYPE_LABEL[p.paintType] ?? p.paintType);
+  bits.push(tenLoaiSon(p.paintType));
   if (p.colorName) bits.push(p.colorName);
   return bits.join(" · ");
 }
@@ -45,6 +49,10 @@ export default async function PaintVesselPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireScopedUser();
+  const { t, tTuDo, ngay, ngayGio, so } = await layT();
+  // Nhãn loại sơn lấy theo ngôn ngữ; mã lạ (dữ liệu cũ) thì hiện nguyên mã.
+  const tenLoaiSon = (ma: string) =>
+    ma in TYPE_LABEL ? tTuDo(`paint.loaiSon_${ma}`) : ma;
   const scope = vesselScopeDayDu(user);
   const { id } = await params;
   const vesselId = Number(id);
@@ -113,7 +121,7 @@ export default async function PaintVesselPage({
 
   const productOptions = products.map((p) => ({
     id: p.id,
-    label: productLabel(p),
+    label: productLabel(p, tenLoaiSon),
     coverage: p.coverage,
     dftPerCoat: p.dftPerCoat,
     uom: p.uom,
@@ -122,7 +130,7 @@ export default async function PaintVesselPage({
     .filter((s) => s.quantity > 0)
     .map((s) => ({
       id: s.productId,
-      label: productLabel(s.product),
+      label: productLabel(s.product, tenLoaiSon),
       uom: s.product.uom,
       onHand: s.quantity,
     }));
@@ -135,7 +143,7 @@ export default async function PaintVesselPage({
     const st = stocks.find((s) => s.productId === p.id);
     return {
       productId: p.id,
-      label: productLabel(p),
+      label: productLabel(p, tenLoaiSon),
       uom: p.uom,
       ton: st?.quantity ?? 0,
       minQty: st?.minQty ?? 0,
@@ -195,15 +203,15 @@ export default async function PaintVesselPage({
     number,
     { name: string; uom: string; qty: number }
   >();
-  for (const t of transactions) {
-    if (t.type !== "OUT" || t.occurredAt < since) continue;
-    const cur = consumption.get(t.productId) ?? {
-      name: t.product.name,
-      uom: t.product.uom,
+  for (const tx of transactions) {
+    if (tx.type !== "OUT" || tx.occurredAt < since) continue;
+    const cur = consumption.get(tx.productId) ?? {
+      name: tx.product.name,
+      uom: tx.product.uom,
       qty: 0,
     };
-    cur.qty += t.quantity;
-    consumption.set(t.productId, cur);
+    cur.qty += tx.quantity;
+    consumption.set(tx.productId, cur);
   }
   const consumptionRows = [...consumption.values()].sort(
     (a, b) => b.qty - a.qty
@@ -214,15 +222,16 @@ export default async function PaintVesselPage({
       <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
         <div>
           <Link href="/paint" className="text-sm text-blue-700 hover:underline">
-            ← Quay lại quản lý sơn
+            ← {t("paint.quayLaiQuanLySon")}
           </Link>
           <h2 className="text-2xl font-bold text-blue-950">
-            Sơn — {vessel.name}
+            {t("paint.tieuDeSonTau", { ten: vessel.name })}
           </h2>
           <p className="text-slate-600">
             {vessel.code}
-            {vessel.imo ? ` · IMO ${vessel.imo}` : ""} · {areas.length} khu vực ·{" "}
-            {jobs.length} lần thi công gần đây
+            {vessel.imo ? ` · IMO ${vessel.imo}` : ""} ·{" "}
+            {t("paint.nKhuVuc", { n: areas.length })} ·{" "}
+            {t("paint.nLanThiCongGanDay", { n: jobs.length })}
           </p>
         </div>
         <PrintButton />
@@ -231,13 +240,17 @@ export default async function PaintVesselPage({
       {lowStocks.length > 0 && (
         <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">
           <p className="font-semibold">
-            {lowStocks.length} loại sơn dưới định mức tối thiểu
+            {t("paint.nLoaiDuoiToiThieu", { n: lowStocks.length })}
           </p>
           <ul className="mt-1 list-inside list-disc text-sm">
             {lowStocks.map((s) => (
               <li key={s.id}>
-                {s.product.name}: còn {s.quantity} {s.product.uom} / tối thiểu{" "}
-                {s.minQty} {s.product.uom}
+                {t("paint.dongDuoiToiThieu", {
+                  ten: s.product.name,
+                  con: s.quantity,
+                  dv: s.product.uom,
+                  min: s.minQty,
+                })}
               </li>
             ))}
           </ul>
@@ -255,7 +268,7 @@ export default async function PaintVesselPage({
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-xl font-semibold text-blue-950">
-            Sơ đồ sơn theo khu vực
+            {t("paint.soDoSon")}
           </h3>
           {canEdit && (
             <div className="flex flex-wrap items-center gap-3">
@@ -275,8 +288,8 @@ export default async function PaintVesselPage({
         </div>
         {areas.length === 0 ? (
           <div className="rounded-xl bg-white p-6 text-center text-slate-500 shadow-sm ring-1 ring-blue-100">
-            Chưa khai báo khu vực sơn nào cho tàu này.
-            {canEdit && " Bấm “+ Thêm khu vực sơn” để bắt đầu."}
+            {t("paint.chuaCoKhuVuc")}
+            {canEdit && ` ${t("paint.goiYThemKhuVuc")}`}
           </div>
         ) : (
           areas.map((a) => (
@@ -299,7 +312,7 @@ export default async function PaintVesselPage({
                 dft: l.dft,
                 notes: l.notes,
                 productId: l.productId,
-                productLabel: productLabel(l.product),
+                productLabel: productLabel(l.product, tenLoaiSon),
                 coverage: l.product.coverage,
                 uom: l.product.uom,
               }))}
@@ -313,28 +326,29 @@ export default async function PaintVesselPage({
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-xl font-semibold text-blue-950">
-              Dự trù sơn theo sơ đồ
+              {t("paint.duTruSon")}
             </h3>
             {shortfallCount > 0 && (
               <span className="rounded bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800">
-                {shortfallCount} loại cần mua thêm
+                {t("paint.nLoaiCanMuaThem", { n: shortfallCount })}
               </span>
             )}
           </div>
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
             <p className="mb-3 text-sm text-slate-600">
-              Lượng cần để sơn trọn sơ đồ của tất cả khu vực đã khai báo, đối
-              chiếu với sơn đang có trên tàu.
+              {t("paint.duTruMoTa")}
             </p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
                 <thead className="bg-blue-900 text-left text-white">
                   <tr>
-                    <th className="p-2">Sơn</th>
-                    <th className="p-2">Dùng cho khu vực</th>
-                    <th className="p-2 text-right">Cần</th>
-                    <th className="p-2 text-right">Đang có</th>
-                    <th className="p-2 text-right">Cần mua thêm</th>
+                    <th className="p-2">{t("paint.son")}</th>
+                    <th className="p-2">{t("paint.cotDungChoKhuVuc")}</th>
+                    <th className="p-2 text-right">{t("paint.cotCan")}</th>
+                    <th className="p-2 text-right">{t("paint.cotDangCo")}</th>
+                    <th className="p-2 text-right">
+                      {t("paint.cotCanMuaThem")}
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-blue-50">
@@ -348,18 +362,20 @@ export default async function PaintVesselPage({
                         {p.areas.join("; ")}
                       </td>
                       <td className="p-2 text-right">
-                        {p.required.toLocaleString("vi-VN")} {p.uom}
+                        {so(p.required)} {p.uom}
                       </td>
                       <td className="p-2 text-right">
-                        {p.onHand.toLocaleString("vi-VN")} {p.uom}
+                        {so(p.onHand)} {p.uom}
                       </td>
                       <td className="p-2 text-right font-semibold">
                         {p.shortfall > 0 ? (
                           <span className="text-amber-800">
-                            {p.shortfall.toLocaleString("vi-VN")} {p.uom}
+                            {so(p.shortfall)} {p.uom}
                           </span>
                         ) : (
-                          <span className="text-emerald-700">đủ</span>
+                          <span className="text-emerald-700">
+                            {t("paint.du")}
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -369,9 +385,7 @@ export default async function PaintVesselPage({
             </div>
             {unmeasurable > 0 && (
               <p className="mt-2 text-sm text-amber-700">
-                ⚠ {unmeasurable} lớp chưa tính được vì khu vực thiếu diện tích
-                m² hoặc loại sơn chưa khai độ phủ (m²/lít). Con số dự trù ở trên
-                chưa gồm các lớp đó.
+                ⚠ {t("paint.nLopChuaTinhDuoc", { n: unmeasurable })}
               </p>
             )}
           </div>
@@ -380,22 +394,22 @@ export default async function PaintVesselPage({
 
       {/* ── Tồn sơn ───────────────────────────────────────────────────── */}
       <section className="space-y-3">
-        <h3 className="text-xl font-semibold text-blue-950">Tồn sơn trên tàu</h3>
+        <h3 className="text-xl font-semibold text-blue-950">
+          {t("paint.tonSonTrenTau")}
+        </h3>
         <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
           {stocks.length === 0 ? (
-            <p className="text-sm text-slate-500">
-              Chưa có sơn nào trên tàu.
-            </p>
+            <p className="text-sm text-slate-500">{t("paint.chuaCoSon")}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-sm">
                 <thead className="bg-blue-900 text-left text-white">
                   <tr>
-                    <th className="p-2">Sơn</th>
-                    <th className="p-2">Loại</th>
-                    <th className="p-2">Màu</th>
-                    <th className="p-2 text-right">Còn lại</th>
-                    <th className="p-2 text-right">Tối thiểu</th>
+                    <th className="p-2">{t("paint.son")}</th>
+                    <th className="p-2">{t("paint.cotLoai")}</th>
+                    <th className="p-2">{t("paint.cotMau")}</th>
+                    <th className="p-2 text-right">{t("paint.cotConLai")}</th>
+                    <th className="p-2 text-right">{t("paint.cotToiThieu")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-blue-50">
@@ -413,12 +427,12 @@ export default async function PaintVesselPage({
                           ) : null}
                           {low && (
                             <span className="ml-2 rounded bg-red-600 px-1.5 py-0.5 text-xs font-semibold text-white">
-                              THIẾU
+                              {t("paint.badgeThieu")}
                             </span>
                           )}
                         </td>
                         <td className="p-2">
-                          {TYPE_LABEL[s.product.paintType] ?? s.product.paintType}
+                          {tenLoaiSon(s.product.paintType)}
                         </td>
                         <td className="p-2">
                           {[s.product.colorName, s.product.colorCode]
@@ -458,12 +472,12 @@ export default async function PaintVesselPage({
             className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100 print:hidden"
           >
             <summary className="cursor-pointer font-semibold text-blue-950">
-              Nhập / xuất sơn
+              {t("paint.nhapXuatSon")}
             </summary>
             <div className="mt-3 space-y-6">
               <div>
                 <h4 className="mb-2 text-sm font-semibold text-slate-700">
-                  Từng dòng
+                  {t("paint.tungDong")}
                 </h4>
                 <PaintStockMoveForm
                   vesselId={vesselId}
@@ -476,7 +490,7 @@ export default async function PaintVesselPage({
               </div>
               <div className="border-t pt-4">
                 <h4 className="mb-2 text-sm font-semibold text-slate-700">
-                  Hàng loạt từ file Excel
+                  {t("paint.hangLoatExcel")}
                 </h4>
                 <PaintStockBulkForm vesselId={vesselId} />
               </div>
@@ -487,26 +501,34 @@ export default async function PaintVesselPage({
         {canRequest && (
           <details className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100 print:hidden">
             <summary className="cursor-pointer font-semibold text-blue-950">
-              Yêu cầu cấp sơn — gửi lên phê duyệt
+              {t("paint.yeuCauCapSon")}
               {duoiDinhMuc > 0 && (
                 <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                  {duoiDinhMuc} loại dưới định mức
+                  {t("paint.nLoaiDuoiDinhMuc", { n: duoiDinhMuc })}
                 </span>
               )}
             </summary>
             <div className="mt-3 space-y-3">
               <p className="rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
-                Bạn lập với chức danh <b>{ROLE_LABEL[user.role] ?? user.role}</b>{" "}
-                (bộ phận{" "}
-                {boPhanCuaChucDanh(user.role) === "ENGINE" ? "Máy" : "Boong"}).
-                Yêu cầu sẽ về bàn{" "}
+                {t("paint.luongDuyetTruoc")}{" "}
+                <b>{tTuDo(`labels.role_${user.role}`)}</b>{" "}
+                {t("paint.luongDuyetBoPhan", {
+                  bp:
+                    boPhanCuaChucDanh(user.role) === "ENGINE"
+                      ? t("labels.reqDept_ENGINE")
+                      : t("labels.reqDept_DECK"),
+                })}{" "}
+                {t("paint.luongDuyetGiua")}{" "}
                 <b>
-                  {ROLE_LABEL[
-                    nguoiDuyetCapTau(boPhanCuaChucDanh(user.role) ?? "DECK")
-                  ]}
+                  {tTuDo(
+                    `labels.role_${nguoiDuyetCapTau(
+                      boPhanCuaChucDanh(user.role) ?? "DECK"
+                    )}`
+                  )}
                 </b>{" "}
-                duyệt cấp tàu, rồi chuyển tiếp lên{" "}
-                <b>{ROLE_LABEL.TECH_MANAGER}</b> duyệt cấp công ty.
+                {t("paint.luongDuyetCapTau")}{" "}
+                <b>{t("labels.role_TECH_MANAGER")}</b>{" "}
+                {t("paint.luongDuyetCapCongTy")}
               </p>
               <PaintRequestForm
                 vesselId={vesselId}
@@ -521,12 +543,12 @@ export default async function PaintVesselPage({
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-xl font-semibold text-blue-950">
-            Nhật ký thi công sơn
+            {t("paint.nhatKyThiCong")}
           </h3>
           {totalPaintedM2 > 0 && (
             <p className="text-sm text-slate-600">
-              Tổng đã sơn (50 lần gần nhất):{" "}
-              <b>{totalPaintedM2.toLocaleString("vi-VN")} m²</b>
+              {t("paint.tongDaSon")}{" "}
+              <b>{t("paint.nM2", { n: so(totalPaintedM2) })}</b>
             </p>
           )}
         </div>
@@ -534,7 +556,7 @@ export default async function PaintVesselPage({
         {canEdit && (
           <details className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100 print:hidden">
             <summary className="cursor-pointer font-semibold text-blue-950">
-              + Ghi một lần thi công
+              + {t("paint.ghiLanThiCong")}
             </summary>
             <div className="mt-3">
               <PaintJobForm
@@ -549,19 +571,21 @@ export default async function PaintVesselPage({
 
         <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
           {jobs.length === 0 ? (
-            <p className="text-sm text-slate-500">Chưa có lần thi công nào.</p>
+            <p className="text-sm text-slate-500">
+              {t("paint.chuaCoThiCong")}
+            </p>
           ) : (
             <div className="max-h-[28rem] overflow-auto">
               <table className="w-full min-w-[900px] text-sm">
                 <thead className="sticky top-0 bg-blue-900 text-left text-white">
                   <tr>
-                    <th className="p-2">Ngày</th>
-                    <th className="p-2">Khu vực</th>
+                    <th className="p-2">{t("chung.ngay")}</th>
+                    <th className="p-2">{t("paint.khuVuc")}</th>
                     <th className="p-2 text-right">m²</th>
-                    <th className="p-2 text-right">Lớp</th>
-                    <th className="p-2">Sơn đã dùng</th>
-                    <th className="p-2">Điều kiện</th>
-                    <th className="p-2">Người thực hiện</th>
+                    <th className="p-2 text-right">{t("paint.cotSoLopNgan")}</th>
+                    <th className="p-2">{t("paint.cotSonDaDung")}</th>
+                    <th className="p-2">{t("paint.cotDieuKien")}</th>
+                    <th className="p-2">{t("chung.nguoiThucHien")}</th>
                     {canEdit && <th className="p-2 print:hidden"></th>}
                   </tr>
                 </thead>
@@ -569,7 +593,7 @@ export default async function PaintVesselPage({
                   {jobs.map((j) => (
                     <tr key={j.id}>
                       <td className="p-2 whitespace-nowrap">
-                        {j.jobDate.toLocaleDateString("vi-VN")}
+                        {ngay(j.jobDate)}
                       </td>
                       <td className="p-2">{j.area?.name ?? "—"}</td>
                       <td className="p-2 text-right">{j.paintedM2 || "—"}</td>
@@ -587,10 +611,14 @@ export default async function PaintVesselPage({
                       <td className="p-2 text-slate-600">
                         {[
                           j.weather,
-                          j.airTemp !== null ? `KK ${j.airTemp}°C` : null,
-                          j.humidity !== null ? `Ẩm ${j.humidity}%` : null,
+                          j.airTemp !== null
+                            ? t("paint.dkKhongKhi", { n: j.airTemp })
+                            : null,
+                          j.humidity !== null
+                            ? t("paint.dkDoAm", { n: j.humidity })
+                            : null,
                           j.surfaceTemp !== null
-                            ? `BM ${j.surfaceTemp}°C`
+                            ? t("paint.dkBeMat", { n: j.surfaceTemp })
                             : null,
                         ]
                           .filter(Boolean)
@@ -618,15 +646,15 @@ export default async function PaintVesselPage({
       {consumptionRows.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-xl font-semibold text-blue-950">
-            Tiêu thụ sơn 12 tháng gần nhất
+            {t("paint.tieuThu12Thang")}
           </h3>
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[420px] text-sm">
                 <thead className="bg-blue-50 text-left text-blue-900">
                   <tr>
-                    <th className="p-2">Sơn</th>
-                    <th className="p-2 text-right">Đã dùng</th>
+                    <th className="p-2">{t("paint.son")}</th>
+                    <th className="p-2 text-right">{t("paint.cotDaDung")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-blue-50">
@@ -634,7 +662,7 @@ export default async function PaintVesselPage({
                     <tr key={c.name}>
                       <td className="p-2">{c.name}</td>
                       <td className="p-2 text-right font-semibold">
-                        {c.qty.toLocaleString("vi-VN")} {c.uom}
+                        {so(c.qty)} {c.uom}
                       </td>
                     </tr>
                   ))}
@@ -642,8 +670,7 @@ export default async function PaintVesselPage({
               </table>
             </div>
             <p className="mt-2 text-xs text-slate-500">
-              Tính từ 40 giao dịch xuất gần nhất — gồm cả sơn trừ tự động khi ghi
-              nhật ký thi công.
+              {t("paint.ghiChuTieuThu")}
             </p>
           </div>
         </section>
@@ -652,52 +679,52 @@ export default async function PaintVesselPage({
       {/* ── Lịch sử nhập xuất ─────────────────────────────────────────── */}
       <section className="space-y-3 print:hidden">
         <h3 className="text-xl font-semibold text-blue-950">
-          Lịch sử nhập / xuất sơn
+          {t("paint.lichSuNhapXuat")}
         </h3>
         <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
           {transactions.length === 0 ? (
-            <p className="text-sm text-slate-500">Chưa có giao dịch nào.</p>
+            <p className="text-sm text-slate-500">
+              {t("paint.chuaCoGiaoDich")}
+            </p>
           ) : (
             <div className="max-h-80 overflow-auto">
               <table className="w-full min-w-[700px] text-sm">
                 <thead className="sticky top-0 bg-blue-50 text-left text-blue-900">
                   <tr>
-                    <th className="p-2">Thời điểm</th>
-                    <th className="p-2">Loại</th>
-                    <th className="p-2">Sơn</th>
-                    <th className="p-2 text-right">SL</th>
-                    <th className="p-2">Người thực hiện</th>
-                    <th className="p-2">Ghi chú</th>
+                    <th className="p-2">{t("paint.thoiDiem")}</th>
+                    <th className="p-2">{t("paint.cotLoai")}</th>
+                    <th className="p-2">{t("paint.son")}</th>
+                    <th className="p-2 text-right">{t("paint.cotSL")}</th>
+                    <th className="p-2">{t("chung.nguoiThucHien")}</th>
+                    <th className="p-2">{t("chung.ghiChu")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-blue-50">
-                  {transactions.map((t) => (
-                    <tr key={t.id}>
+                  {transactions.map((tx) => (
+                    <tr key={tx.id}>
                       <td className="p-2 whitespace-nowrap">
-                        {t.occurredAt.toLocaleDateString("vi-VN")}{" "}
-                        {t.occurredAt.toLocaleTimeString("vi-VN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {ngayGio(tx.occurredAt)}
                       </td>
                       <td className="p-2">
                         <span
                           className={
-                            t.type === "IN"
+                            tx.type === "IN"
                               ? "text-emerald-700"
                               : "text-amber-700"
                           }
                         >
-                          {t.type === "IN" ? "↓ Nhận" : "↑ Xuất"}
+                          {tx.type === "IN"
+                            ? t("paint.giaoDichNhan")
+                            : t("paint.giaoDichXuat")}
                         </span>
                       </td>
-                      <td className="p-2">{t.product.name}</td>
+                      <td className="p-2">{tx.product.name}</td>
                       <td className="p-2 text-right">
-                        {t.type === "IN" ? "+" : "−"}
-                        {t.quantity} {t.product.uom}
+                        {tx.type === "IN" ? "+" : "−"}
+                        {tx.quantity} {tx.product.uom}
                       </td>
-                      <td className="p-2">{t.performedBy ?? "—"}</td>
-                      <td className="p-2 text-slate-600">{t.note ?? ""}</td>
+                      <td className="p-2">{tx.performedBy ?? "—"}</td>
+                      <td className="p-2 text-slate-600">{tx.note ?? ""}</td>
                     </tr>
                   ))}
                 </tbody>

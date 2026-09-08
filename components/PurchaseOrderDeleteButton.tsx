@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState } from "react";
 import { deletePurchaseOrder } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 // Xóa đơn mua đã hủy. Chỉ hiện với quản trị viên và chỉ ở đơn ĐÃ HỦY —
 // điều kiện được kiểm lại ở server nên nút này không phải lớp bảo vệ duy nhất.
@@ -14,6 +15,7 @@ export default function PurchaseOrderDeleteButton({
   poNo: string;
   className?: string;
 }) {
+  const { t } = useNgonNgu();
   const [state, action, pending] = useActionState(deletePurchaseOrder, {
     message: "",
   });
@@ -24,7 +26,7 @@ export default function PurchaseOrderDeleteButton({
         e.preventDefault();
         if (
           !confirm(
-            `Xóa vĩnh viễn đơn mua ${poNo}?\n\nĐơn này đã hủy và chưa nhận hàng nên xóa không ảnh hưởng tồn kho. Thao tác không hoàn tác được.`
+            `${t("purchasing.xacNhanXoaDon", { ma: poNo })}\n\n${t("purchasing.xacNhanXoaDonLyDo")}`
           )
         )
           return;
@@ -40,9 +42,9 @@ export default function PurchaseOrderDeleteButton({
           className ??
           "text-sm text-red-600 hover:underline disabled:opacity-50"
         }
-        title={state.message || "Xóa vĩnh viễn đơn mua đã hủy"}
+        title={state.message || t("purchasing.tooltipXoaDon")}
       >
-        {pending ? "Đang xóa..." : "Xóa"}
+        {pending ? t("purchasing.dangXoa") : t("chung.xoa")}
       </button>
       {state.message && !state.success && (
         <p className="mt-1 text-xs text-red-600">{state.message}</p>

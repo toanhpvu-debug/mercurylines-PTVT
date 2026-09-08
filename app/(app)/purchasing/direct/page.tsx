@@ -7,11 +7,13 @@ import {
   vesselScopeDayDu,
 } from "@/lib/auth";
 import DirectPurchaseForm from "@/components/DirectPurchaseForm";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function DirectPurchasePage() {
   const user = await requireScopedUser();
+  const { t } = await layT();
   const scope = vesselScopeDayDu(user);
   if (!["ADMIN", "MASTER"].includes(user.role)) {
     redirect("/purchasing");
@@ -36,16 +38,16 @@ export default async function DirectPurchasePage() {
           href="/purchasing"
           className="text-sm text-blue-700 hover:underline"
         >
-          ← Quay lại mua sắm
+          {t("purchasing.quayLaiMuaSam")}
         </Link>
         <h2 className="text-2xl font-bold text-blue-950">
-          Tạo IFQ / PO trực tiếp — Phòng Kỹ thuật &amp; Vật tư
+          {t("purchasing.tieuDeTrucTiep")}
         </h2>
         <p className="text-slate-600">
-          Lập đơn mua không cần yêu cầu từ tàu: nhập dòng vật tư tay hoặc upload
-          file Excel theo form công ty. Sau khi tạo, từ trang đơn có thể in{" "}
-          <b>Yêu cầu báo giá (IFQ/RFQ)</b> gửi nhà cung cấp và in <b>PO</b> theo
-          biểu mẫu của tàu.
+          {t("purchasing.moTaTrucTiepDau")}{" "}
+          <b>{t("purchasing.damRfq")}</b>{" "}
+          {t("purchasing.moTaTrucTiepGiua")} <b>PO</b>{" "}
+          {t("purchasing.moTaTrucTiepCuoi")}
         </p>
       </div>
 

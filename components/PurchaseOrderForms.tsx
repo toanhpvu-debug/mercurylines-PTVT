@@ -5,6 +5,7 @@ import {
   receivePurchaseOrder,
   updatePurchaseOrderStatus,
 } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export function POStatusButton({
   id,
@@ -17,6 +18,7 @@ export function POStatusButton({
   label: string;
   className: string;
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(
     updatePurchaseOrderStatus,
     { message: "" }
@@ -27,7 +29,7 @@ export function POStatusButton({
       onSubmit={(e) => {
         if (
           status === "CANCELLED" &&
-          !window.confirm("Hủy đơn mua này? Không hoàn tác được.")
+          !window.confirm(t("purchasing.xacNhanHuyDon"))
         ) {
           e.preventDefault();
         }
@@ -66,6 +68,7 @@ export function ReceiveGoodsForm({
   lines: ReceiveLine[];
   warehouses: WarehouseOption[];
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(receivePurchaseOrder, {
     message: "",
   });
@@ -76,7 +79,7 @@ export function ReceiveGoodsForm({
       {anyMaterial && (
         <div>
           <label className="mb-1 block text-sm text-slate-600">
-            Kho nhận vào (cho vật tư có trong danh mục)
+            {t("purchasing.khoNhanVao")}
           </label>
           <select
             name="warehouseId"
@@ -84,7 +87,7 @@ export function ReceiveGoodsForm({
             defaultValue=""
             required
           >
-            <option value="">Chọn kho</option>
+            <option value="">{t("purchasing.chonKho")}</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.code} - {w.name}
@@ -97,12 +100,12 @@ export function ReceiveGoodsForm({
         <table className="w-full border text-sm">
           <thead>
             <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-              <th className="p-2">Mô tả</th>
+              <th className="p-2">{t("chung.moTa")}</th>
               <th className="p-2">Part No.</th>
-              <th className="p-2">ĐVT</th>
-              <th className="p-2">SL đặt</th>
-              <th className="p-2">Đã nhận</th>
-              <th className="p-2">Nhận lần này</th>
+              <th className="p-2">{t("chung.donVi")}</th>
+              <th className="p-2">{t("purchasing.cotSlDat")}</th>
+              <th className="p-2">{t("purchasing.cotDaNhan")}</th>
+              <th className="p-2">{t("purchasing.cotNhanLanNay")}</th>
             </tr>
           </thead>
           <tbody>
@@ -114,7 +117,7 @@ export function ReceiveGoodsForm({
                     {l.description}
                     {!l.hasMaterial && (
                       <span className="ml-1 text-xs text-slate-400">
-                        (ngoài danh mục — không nhập kho)
+                        {t("purchasing.ngoaiDanhMuc")}
                       </span>
                     )}
                   </td>
@@ -144,7 +147,9 @@ export function ReceiveGoodsForm({
         disabled={pending}
         className="rounded bg-green-100 px-4 py-2 text-green-700 hover:bg-green-200 disabled:opacity-50"
       >
-        {pending ? "Đang ghi nhận..." : "Ghi nhận nhận hàng"}
+        {pending
+          ? t("purchasing.dangGhiNhan")
+          : t("purchasing.nutGhiNhanNhanHang")}
       </button>
       {state.message && (
         <p

@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { copyPaintScheme } from "@/app/paint-actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export default function PaintSchemeCopyForm({
   vesselId,
@@ -10,6 +11,7 @@ export default function PaintSchemeCopyForm({
   vesselId: number;
   sources: { id: number; label: string; areaCount: number }[];
 }) {
+  const { t } = useNgonNgu();
   const [state, action, pending] = useActionState(copyPaintScheme, {
     message: "",
   });
@@ -24,7 +26,7 @@ export default function PaintSchemeCopyForm({
         onClick={() => setOpen(true)}
         className="rounded border border-blue-300 bg-white px-4 py-2 text-sm text-blue-800 hover:bg-blue-50"
       >
-        Sao chép sơ đồ từ tàu khác
+        {t("paint.saoChepTuTauKhac")}
       </button>
     );
   }
@@ -35,23 +37,25 @@ export default function PaintSchemeCopyForm({
       className="w-full space-y-3 rounded-lg border border-blue-200 bg-blue-50/40 p-4"
     >
       <input type="hidden" name="vesselId" value={vesselId} />
-      <p className="font-semibold text-blue-950">Sao chép sơ đồ sơn</p>
+      <p className="font-semibold text-blue-950">{t("paint.saoChepSoDo")}</p>
       <p className="text-sm text-slate-600">
-        Chép toàn bộ khu vực và các lớp sơn của tàu nguồn sang tàu này. Khu vực
-        trùng tên sẽ được <b>bỏ qua</b>, không ghi đè.
+        {t("paint.saoChepMoTa1")} <b>{t("paint.saoChepMoTaDam")}</b>
+        {t("paint.saoChepMoTa2")}
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="block min-w-[260px] flex-1">
-          <span className="mb-1 block text-sm text-slate-600">Tàu nguồn *</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("paint.tauNguon")} *
+          </span>
           <select
             name="fromVesselId"
             required
             className="w-full rounded border p-2"
           >
-            <option value="">— Chọn tàu —</option>
+            <option value="">{t("paint.chonTauOption")}</option>
             {usable.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.label} ({s.areaCount} khu vực)
+                {s.label} ({t("paint.nKhuVuc", { n: s.areaCount })})
               </option>
             ))}
           </select>
@@ -60,14 +64,14 @@ export default function PaintSchemeCopyForm({
           disabled={pending}
           className="rounded bg-blue-700 px-5 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
         >
-          {pending ? "Đang chép..." : "Sao chép"}
+          {pending ? t("paint.dangChep") : t("paint.nutSaoChep")}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
           className="pb-2 text-sm text-slate-600 hover:underline"
         >
-          Đóng
+          {t("chung.dong")}
         </button>
       </div>
       {state.message && (

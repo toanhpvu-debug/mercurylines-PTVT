@@ -12,11 +12,13 @@ import {
   FormStandardEditForm,
   FormStandardRowActions,
 } from "@/components/FormStandardManager";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function VesselFormsPage() {
   const user = await requireScopedUser();
+  const { t } = await layT();
   const scope = vesselScopeDayDu(user);
   const canManage = user.role === "ADMIN";
   if (!["ADMIN", "MASTER"].includes(user.role)) {
@@ -50,20 +52,21 @@ export default async function VesselFormsPage() {
           href="/purchasing"
           className="text-sm text-blue-700 hover:underline"
         >
-          ← Quay lại mua sắm
+          {t("purchasing.quayLaiMuaSam")}
         </Link>
-        <h2 className="text-2xl font-bold text-blue-950">Biểu mẫu chứng từ theo tàu</h2>
-        <p className="text-slate-600">
-          Quản lý danh sách biểu mẫu (công ty quản lý) và gán cho từng tàu —
-          quyết định đầu & chữ ký của Yêu cầu báo giá (RFQ), Đơn mua hàng (PO).
-        </p>
+        <h2 className="text-2xl font-bold text-blue-950">
+          {t("purchasing.tieuDeBieuMau")}
+        </h2>
+        <p className="text-slate-600">{t("purchasing.moTaBieuMau")}</p>
       </div>
 
       {/* Quản lý danh sách biểu mẫu */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {canManage && (
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <h3 className="mb-4 text-lg font-semibold">Thêm biểu mẫu mới</h3>
+            <h3 className="mb-4 text-lg font-semibold">
+              {t("purchasing.themBieuMauMoi")}
+            </h3>
             <FormStandardAddForm />
           </div>
         )}
@@ -73,7 +76,7 @@ export default async function VesselFormsPage() {
           }`}
         >
           <h3 className="mb-4 text-lg font-semibold">
-            Danh sách biểu mẫu ({allStandards.length})
+            {t("purchasing.danhSachBieuMau", { n: allStandards.length })}
           </h3>
           <div className="space-y-3">
             {allStandards.map((s) => (
@@ -94,15 +97,17 @@ export default async function VesselFormsPage() {
                       <span className="font-semibold">{s.label}</span>
                       {s.isActive ? (
                         <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-700">
-                          Đang dùng
+                          {t("labels.active_true")}
                         </span>
                       ) : (
                         <span className="rounded bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
-                          Ngừng dùng
+                          {t("labels.active_false")}
                         </span>
                       )}
                       <span className="text-xs text-slate-500">
-                        {usageByCode.get(s.code) ?? 0} tàu đang gán
+                        {t("purchasing.soTauDangGan", {
+                          n: usageByCode.get(s.code) ?? 0,
+                        })}
                       </span>
                     </div>
                     <p className="text-sm">{s.companyName}</p>
@@ -127,7 +132,7 @@ export default async function VesselFormsPage() {
                 {canManage && (
                   <details className="mt-2">
                     <summary className="cursor-pointer text-sm text-blue-700 hover:underline">
-                      Sửa thông tin biểu mẫu
+                      {t("purchasing.suaThongTinBieuMau")}
                     </summary>
                     <FormStandardEditForm
                       standard={{
@@ -152,16 +157,20 @@ export default async function VesselFormsPage() {
 
       {/* Gán biểu mẫu cho tàu */}
       <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <h3 className="mb-4 text-lg font-semibold">Gán biểu mẫu cho tàu</h3>
+        <h3 className="mb-4 text-lg font-semibold">
+          {t("purchasing.ganBieuMauChoTau")}
+        </h3>
         <div className="overflow-x-auto">
           <table className="w-full border text-sm">
             <thead>
               <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                <th className="p-2">Mã tàu</th>
-                <th className="p-2">Tên tàu</th>
+                <th className="p-2">{t("purchasing.cotMaTau")}</th>
+                <th className="p-2">{t("purchasing.cotTenTau")}</th>
                 <th className="p-2">IMO</th>
-                <th className="p-2">Biểu mẫu hiện tại</th>
-                {canManage && <th className="p-2">Đổi biểu mẫu / Hull No.</th>}
+                <th className="p-2">{t("purchasing.cotBieuMauHienTai")}</th>
+                {canManage && (
+                  <th className="p-2">{t("purchasing.cotDoiBieuMau")}</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -180,7 +189,9 @@ export default async function VesselFormsPage() {
                             : "bg-red-100 text-red-700"
                         }`}
                       >
-                        {std ? std.label : `${v.formStandard} (không tồn tại)`}
+                        {std
+                          ? std.label
+                          : `${v.formStandard} (${t("purchasing.khongTonTai")})`}
                       </span>
                     </td>
                     {canManage && (

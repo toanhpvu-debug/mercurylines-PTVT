@@ -5,20 +5,24 @@ import {
   vesselIdWhere,
   vesselScopeDayDu,
 } from "@/lib/auth";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function PaintOverviewPage() {
   const user = await requireScopedUser();
+  const { t, ngay } = await layT();
   const scope = vesselScopeDayDu(user);
   const canManageCatalog = ["ADMIN", "MASTER"].includes(user.role);
 
   if (scope.unassigned) {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-blue-950">Quản lý sơn</h2>
+        <h2 className="text-2xl font-bold text-blue-950">
+          {t("paint.tieuDe")}
+        </h2>
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          Bạn chưa được gán tàu phụ trách. Vui lòng liên hệ quản trị viên.
+          {t("chung.chuaGanTau")}
         </div>
       </div>
     );
@@ -57,35 +61,37 @@ export default async function PaintOverviewPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-blue-950">Quản lý sơn</h2>
-          <p className="text-slate-600">
-            Sơ đồ sơn theo khu vực · nhật ký thi công · tồn sơn từng tàu
-          </p>
+          <h2 className="text-2xl font-bold text-blue-950">
+            {t("paint.tieuDe")}
+          </h2>
+          <p className="text-slate-600">{t("paint.moTa")}</p>
         </div>
         {canManageCatalog && (
           <Link
             href="/paint/products"
             className="rounded border border-blue-300 bg-white px-4 py-2 text-sm text-blue-800 hover:bg-blue-50"
           >
-            Danh mục sơn ({productCount})
+            {t("paint.danhMucSonN", { n: productCount })}
           </Link>
         )}
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Tàu</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500">
+            {t("chung.tau")}
+          </p>
           <p className="text-2xl font-bold text-blue-950">{vessels.length}</p>
         </div>
         <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
           <p className="text-xs uppercase tracking-wide text-slate-500">
-            Loại sơn đang dùng
+            {t("paint.loaiSonDangDung")}
           </p>
           <p className="text-2xl font-bold text-blue-950">{productCount}</p>
         </div>
         <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
           <p className="text-xs uppercase tracking-wide text-slate-500">
-            Sơn dưới định mức
+            {t("paint.sonDuoiDinhMuc")}
           </p>
           <p
             className={`text-2xl font-bold ${
@@ -98,18 +104,18 @@ export default async function PaintOverviewPage() {
       </div>
 
       <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-        <p className="mb-3 font-semibold text-blue-950">Theo tàu</p>
+        <p className="mb-3 font-semibold text-blue-950">{t("paint.theoTau")}</p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
             <thead className="bg-blue-900 text-left text-white">
               <tr>
-                <th className="p-2">Mã tàu</th>
-                <th className="p-2">Tên tàu</th>
-                <th className="p-2 text-right">Khu vực sơn</th>
-                <th className="p-2 text-right">Loại sơn có tồn</th>
-                <th className="p-2 text-right">Dưới định mức</th>
-                <th className="p-2 text-right">Lần thi công</th>
-                <th className="p-2">Gần nhất</th>
+                <th className="p-2">{t("paint.cotMaTau")}</th>
+                <th className="p-2">{t("paint.cotTenTau")}</th>
+                <th className="p-2 text-right">{t("paint.cotKhuVuc")}</th>
+                <th className="p-2 text-right">{t("paint.cotLoaiCoTon")}</th>
+                <th className="p-2 text-right">{t("paint.cotDuoiDinhMuc")}</th>
+                <th className="p-2 text-right">{t("paint.cotLanThiCong")}</th>
+                <th className="p-2">{t("paint.cotGanNhat")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-blue-50">
@@ -151,8 +157,10 @@ export default async function PaintOverviewPage() {
                     <td className="p-2 text-right">{v._count.paintJobs}</td>
                     <td className="p-2 text-slate-600">
                       {last
-                        ? `${last.jobDate.toLocaleDateString("vi-VN")}${
-                            last.paintedM2 ? ` · ${last.paintedM2} m²` : ""
+                        ? `${ngay(last.jobDate)}${
+                            last.paintedM2
+                              ? ` · ${t("paint.nM2", { n: last.paintedM2 })}`
+                              : ""
                           }`
                         : "—"}
                     </td>

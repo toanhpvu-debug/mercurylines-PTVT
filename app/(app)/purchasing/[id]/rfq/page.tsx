@@ -9,6 +9,7 @@ import {
 import { getStandardForVessel } from "@/lib/formStandardsDb";
 import FormDocHeader from "@/components/FormDocHeader";
 import PrintButton from "@/components/PrintButton";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export default async function RfqPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireScopedUser();
+  const { t } = await layT();
   const scope = vesselScopeDayDu(user);
   const { id: idRaw } = await params;
   const id = Number(idRaw);
@@ -48,13 +50,13 @@ export default async function RfqPage({
           href={`/purchasing/${po.id}`}
           className="text-sm text-blue-700 hover:underline"
         >
-          ← Quay lại đơn mua
+          {t("purchasing.quayLaiDonMua")}
         </Link>
-        <PrintButton label="In Yêu cầu báo giá (RFQ)" />
+        <PrintButton label={t("purchasing.inRfq")} />
       </div>
 
       <p className="no-print text-xs text-slate-500">
-        Chứng từ theo chuẩn: <b>{standard.label}</b>
+        {t("purchasing.chungTuTheoChuan")} <b>{standard.label}</b>
       </p>
 
       <style>{`@page { size: A4 portrait; margin: 12mm; }`}</style>

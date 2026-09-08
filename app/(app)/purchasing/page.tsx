@@ -6,24 +6,24 @@ import {
   vesselScopeDayDu,
   vesselWhere,
 } from "@/lib/auth";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
-const poStatusLabels: Record<string, { label: string; className: string }> = {
-  DRAFT: { label: "Nháp", className: "bg-slate-100 text-slate-600" },
-  SENT: { label: "Đã gửi NCC", className: "bg-blue-100 text-blue-700" },
-  CONFIRMED: { label: "NCC xác nhận", className: "bg-indigo-100 text-indigo-700" },
-  PARTIALLY_RECEIVED: {
-    label: "Nhận một phần",
-    className: "bg-amber-100 text-amber-700",
-  },
-  RECEIVED: { label: "Đã nhận đủ", className: "bg-green-100 text-green-700" },
-  CLOSED: { label: "Hoàn tất", className: "bg-green-200 text-green-800" },
-  CANCELLED: { label: "Đã hủy", className: "bg-red-100 text-red-700" },
+// Chỉ còn màu của huy hiệu trạng thái — chữ lấy từ labels.poStatus_*.
+const poStatusClass: Record<string, string> = {
+  DRAFT: "bg-slate-100 text-slate-600",
+  SENT: "bg-blue-100 text-blue-700",
+  CONFIRMED: "bg-indigo-100 text-indigo-700",
+  PARTIALLY_RECEIVED: "bg-amber-100 text-amber-700",
+  RECEIVED: "bg-green-100 text-green-700",
+  CLOSED: "bg-green-200 text-green-800",
+  CANCELLED: "bg-red-100 text-red-700",
 };
 
 export default async function PurchasingPage() {
   const user = await requireScopedUser();
+  const { t, tTuDo, so } = await layT();
   const scope = vesselScopeDayDu(user);
   const canManage = ["ADMIN", "MASTER"].includes(user.role);
   // Xóa chứng từ mua sắm chỉ dành cho quản trị viên.
@@ -53,10 +53,10 @@ export default async function PurchasingPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-2xl font-bold text-blue-950">Mua sắm (Purchasing)</h2>
-          <p className="text-slate-600">
-            Quy trình từ yêu cầu đã duyệt → đơn mua hàng → nhận hàng → hoàn tất
-          </p>
+          <h2 className="text-2xl font-bold text-blue-950">
+            {t("purchasing.tieuDe")}
+          </h2>
+          <p className="text-slate-600">{t("purchasing.moTa")}</p>
         </div>
         <div className="flex items-center gap-2">
           {canManage && (
@@ -64,27 +64,27 @@ export default async function PurchasingPage() {
               href="/purchasing/direct"
               className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800"
             >
-              + Tạo IFQ/PO trực tiếp (KT-VT)
+              {t("purchasing.nutTaoTrucTiep")}
             </Link>
           )}
           <Link
             href="/purchasing/forms"
             className="rounded border px-4 py-2 text-sm hover:bg-blue-50"
           >
-            Mẫu biểu theo tàu
+            {t("purchasing.nutMauBieu")}
           </Link>
           <Link
             href="/purchasing/suppliers"
             className="rounded border px-4 py-2 text-sm hover:bg-blue-50"
           >
-            Nhà cung cấp
+            {t("purchasing.nhaCungCap")}
           </Link>
           {canManage && (
             <Link
               href="/purchasing/new"
               className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800"
             >
-              + Tạo đơn mua
+              {t("purchasing.nutTaoDon")}
             </Link>
           )}
         </div>
@@ -92,33 +92,32 @@ export default async function PurchasingPage() {
 
       {scope.unassigned ? (
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          Bạn chưa được gán tàu phụ trách nên chưa xem được mua sắm. Vui lòng
-          liên hệ quản trị viên.
+          {t("purchasing.chuaGanTau")}
         </div>
       ) : (
         <>
           {/* Bước 1: yêu cầu đã duyệt, chờ lập đơn mua */}
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
             <h3 className="mb-1 text-lg font-semibold">
-              Yêu cầu chờ mua sắm ({pendingRequests.length})
+              {t("purchasing.yeuCauChoMuaSam", { n: pendingRequests.length })}
             </h3>
             <p className="mb-4 text-sm text-slate-500">
-              Yêu cầu đã duyệt và chuyển sang mua sắm — chọn để lập đơn mua hàng.
+              {t("purchasing.yeuCauChoMuaSamMoTa")}
             </p>
             {pendingRequests.length === 0 ? (
               <p className="text-slate-600">
-                Không có yêu cầu nào đang chờ mua sắm.
+                {t("purchasing.khongCoYeuCauCho")}
               </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border text-sm">
                   <thead>
                     <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                      <th className="p-2">Số yêu cầu</th>
-                      <th className="p-2">Loại</th>
-                      <th className="p-2">Tàu</th>
-                      <th className="p-2">Người yêu cầu</th>
-                      <th className="p-2">Số dòng</th>
+                      <th className="p-2">{t("purchasing.cotSoYeuCau")}</th>
+                      <th className="p-2">{t("purchasing.cotLoai")}</th>
+                      <th className="p-2">{t("chung.tau")}</th>
+                      <th className="p-2">{t("purchasing.nguoiYeuCau")}</th>
+                      <th className="p-2">{t("purchasing.cotSoDong")}</th>
                       <th className="p-2"></th>
                     </tr>
                   </thead>
@@ -134,7 +133,9 @@ export default async function PurchasingPage() {
                           </Link>
                         </td>
                         <td className="p-2">
-                          {req.kind === "SPARE" ? "Phụ tùng" : "Vật tư"}
+                          {tTuDo(
+                            `labels.type_${req.kind === "SPARE" ? "SPARE" : "STORE"}`
+                          )}
                         </td>
                         <td className="p-2">{req.vessel.name}</td>
                         <td className="p-2">{req.requestedBy}</td>
@@ -145,7 +146,7 @@ export default async function PurchasingPage() {
                               href={`/purchasing/new?vessel=${req.vessel.id}`}
                               className="rounded bg-slate-100 px-3 py-1 text-slate-700 hover:bg-slate-200"
                             >
-                              Lập đơn mua
+                              {t("purchasing.nutLapDon")}
                             </Link>
                           )}
                         </td>
@@ -160,22 +161,22 @@ export default async function PurchasingPage() {
           {/* Danh sách đơn mua hàng */}
           <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
             <h3 className="mb-4 text-lg font-semibold">
-              Đơn mua hàng ({purchaseOrders.length})
+              {t("purchasing.danhSachDon", { n: purchaseOrders.length })}
             </h3>
             {purchaseOrders.length === 0 ? (
-              <p className="text-slate-600">Chưa có đơn mua nào.</p>
+              <p className="text-slate-600">{t("purchasing.chuaCoDonMua")}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border text-sm">
                   <thead>
                     <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                      <th className="p-2">Số PO</th>
-                      <th className="p-2">Nhà cung cấp</th>
-                      <th className="p-2">Tàu</th>
-                      <th className="p-2">Trạng thái</th>
-                      <th className="p-2">Số dòng</th>
-                      <th className="p-2">Tiến độ nhận</th>
-                      <th className="p-2">Giá trị</th>
+                      <th className="p-2">{t("purchasing.cotSoPo")}</th>
+                      <th className="p-2">{t("purchasing.nhaCungCap")}</th>
+                      <th className="p-2">{t("chung.tau")}</th>
+                      <th className="p-2">{t("chung.trangThai")}</th>
+                      <th className="p-2">{t("purchasing.cotSoDong")}</th>
+                      <th className="p-2">{t("purchasing.cotTienDoNhan")}</th>
+                      <th className="p-2">{t("purchasing.cotGiaTri")}</th>
                       <th className="p-2"></th>
                     </tr>
                   </thead>
@@ -193,11 +194,8 @@ export default async function PurchasingPage() {
                         (s, it) => s + it.quantityReceived,
                         0
                       );
-                      const st =
-                        poStatusLabels[po.status] ?? {
-                          label: po.status,
-                          className: "bg-slate-100",
-                        };
+                      const stClass =
+                        poStatusClass[po.status] ?? "bg-slate-100";
                       return (
                         <tr key={po.id} className="border-b">
                           <td className="p-2 font-medium">
@@ -212,9 +210,9 @@ export default async function PurchasingPage() {
                           <td className="p-2">{po.vessel.code}</td>
                           <td className="p-2">
                             <span
-                              className={`rounded px-2 py-1 text-xs ${st.className}`}
+                              className={`rounded px-2 py-1 text-xs ${stClass}`}
                             >
-                              {st.label}
+                              {tTuDo(`labels.poStatus_${po.status}`)}
                             </span>
                           </td>
                           <td className="p-2">{po.items.length}</td>
@@ -222,9 +220,7 @@ export default async function PurchasingPage() {
                             {received} / {ordered}
                           </td>
                           <td className="p-2">
-                            {total
-                              ? `${total.toLocaleString("vi-VN")} ${po.currency}`
-                              : "—"}
+                            {total ? `${so(total)} ${po.currency}` : "—"}
                           </td>
                           <td className="p-2">
                             <div className="flex items-center gap-3">
@@ -232,7 +228,7 @@ export default async function PurchasingPage() {
                                 href={`/purchasing/${po.id}`}
                                 className="text-blue-700 hover:underline"
                               >
-                                Xem
+                                {t("purchasing.nutXem")}
                               </Link>
                               {/* Đơn đã hủy là rác trong danh sách — cho quản
                                   trị viên dọn. Điều kiện kiểm lại ở server. */}

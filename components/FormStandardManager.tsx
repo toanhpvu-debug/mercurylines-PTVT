@@ -7,6 +7,7 @@ import {
   setFormStandardActive,
   updateFormStandard,
 } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export type FormStandardData = {
   id: number;
@@ -21,6 +22,7 @@ export type FormStandardData = {
 };
 
 export function FormStandardAddForm() {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(createFormStandard, {
     message: "",
   });
@@ -30,42 +32,42 @@ export function FormStandardAddForm() {
       <div className="grid grid-cols-2 gap-3">
         <input
           name="code"
-          placeholder="Mã (VD: OWNER)"
+          placeholder={t("purchasing.phMaBieuMau")}
           className="rounded border p-2 uppercase"
           defaultValue={v.code ?? ""}
           required
         />
         <input
           name="label"
-          placeholder="Nhãn hiển thị"
+          placeholder={t("purchasing.nhanHienThi")}
           className="rounded border p-2"
           defaultValue={v.label ?? ""}
         />
       </div>
       <input
         name="companyName"
-        placeholder="Tên công ty (in trên chứng từ)"
+        placeholder={t("purchasing.tenCongTy")}
         className="w-full rounded border p-2"
         defaultValue={v.companyName ?? ""}
         required
       />
       <input
         name="address"
-        placeholder="Địa chỉ"
+        placeholder={t("purchasing.diaChi")}
         className="w-full rounded border p-2"
         defaultValue={v.address ?? ""}
         required
       />
       <input
         name="repAddress"
-        placeholder="Địa chỉ VP đại diện (tùy chọn)"
+        placeholder={t("purchasing.diaChiVpDaiDien")}
         className="w-full rounded border p-2"
         defaultValue={v.repAddress ?? ""}
       />
       <div className="grid grid-cols-3 gap-3">
         <input
           name="tel"
-          placeholder="Điện thoại"
+          placeholder={t("purchasing.dienThoai")}
           className="rounded border p-2"
           defaultValue={v.tel ?? ""}
         />
@@ -86,7 +88,7 @@ export function FormStandardAddForm() {
         disabled={pending}
         className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
       >
-        {pending ? "Đang lưu..." : "Thêm biểu mẫu"}
+        {pending ? t("chung.dangLuu") : t("purchasing.nutThemBieuMau")}
       </button>
       {state.message && (
         <p
@@ -107,6 +109,7 @@ export function FormStandardEditForm({
 }: {
   standard: FormStandardData;
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(updateFormStandard, {
     message: "",
   });
@@ -117,7 +120,7 @@ export function FormStandardEditForm({
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
           <span className="mb-1 block text-xs text-slate-600">
-            Mã (đổi mã sẽ tự cập nhật các tàu đang gán)
+            {t("purchasing.maBieuMauGhiChu")}
           </span>
           <input
             name="code"
@@ -128,7 +131,7 @@ export function FormStandardEditForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-xs text-slate-600">
-            Nhãn hiển thị
+            {t("purchasing.nhanHienThi")}
           </span>
           <input
             name="label"
@@ -139,7 +142,7 @@ export function FormStandardEditForm({
       </div>
       <label className="block">
         <span className="mb-1 block text-xs text-slate-600">
-          Tên công ty (in trên chứng từ)
+          {t("purchasing.tenCongTy")}
         </span>
         <input
           name="companyName"
@@ -149,7 +152,9 @@ export function FormStandardEditForm({
         />
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs text-slate-600">Địa chỉ</span>
+        <span className="mb-1 block text-xs text-slate-600">
+          {t("purchasing.diaChi")}
+        </span>
         <input
           name="address"
           className="w-full rounded border p-2"
@@ -159,7 +164,7 @@ export function FormStandardEditForm({
       </label>
       <label className="block">
         <span className="mb-1 block text-xs text-slate-600">
-          Địa chỉ VP đại diện (tùy chọn)
+          {t("purchasing.diaChiVpDaiDien")}
         </span>
         <input
           name="repAddress"
@@ -169,7 +174,9 @@ export function FormStandardEditForm({
       </label>
       <div className="grid grid-cols-3 gap-3">
         <label className="block">
-          <span className="mb-1 block text-xs text-slate-600">Điện thoại</span>
+          <span className="mb-1 block text-xs text-slate-600">
+            {t("purchasing.dienThoai")}
+          </span>
           <input
             name="tel"
             className="w-full rounded border p-2"
@@ -198,7 +205,7 @@ export function FormStandardEditForm({
           disabled={pending}
           className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
         >
-          {pending ? "Đang lưu..." : "Lưu thay đổi"}
+          {pending ? t("chung.dangLuu") : t("purchasing.luuThayDoi")}
         </button>
         {state.message && (
           <p
@@ -221,6 +228,7 @@ export function FormStandardRowActions({
   id: number;
   isActive: boolean;
 }) {
+  const { t } = useNgonNgu();
   const [tState, tAction, tPending] = useActionState(setFormStandardActive, {
     message: "",
   });
@@ -245,13 +253,17 @@ export function FormStandardRowActions({
                 : "bg-green-100 text-green-700 hover:bg-green-200"
             }`}
           >
-            {tPending ? "..." : isActive ? "Ngừng dùng" : "Dùng lại"}
+            {tPending
+              ? "..."
+              : isActive
+                ? t("purchasing.nutNgungDung")
+                : t("purchasing.nutDungLai")}
           </button>
         </form>
         <form
           action={dAction}
           onSubmit={(e) => {
-            if (!window.confirm("Xóa vĩnh viễn biểu mẫu này?")) {
+            if (!window.confirm(t("purchasing.xacNhanXoaBieuMau"))) {
               e.preventDefault();
             }
           }}
@@ -261,7 +273,7 @@ export function FormStandardRowActions({
             disabled={dPending}
             className="rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
           >
-            Xóa
+            {t("chung.xoa")}
           </button>
         </form>
       </div>

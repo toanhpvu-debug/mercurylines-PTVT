@@ -8,16 +8,17 @@ import {
 } from "@/lib/auth";
 import { VAN_HANH_HOA_CHAT, nhomNhienLieuChoPhep } from "@/lib/roles";
 import {
-  CATEGORY_ICON,
   CONSUMABLE_CATEGORIES,
   NGUONG_CANH_BAO_HAN_DUNG,
   soNgayToi,
 } from "@/lib/consumables";
+import { layT } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function ConsumablesPage() {
   const user = await requireScopedUser();
+  const { t, tTuDo, ngay } = await layT();
   const scope = vesselScopeDayDu(user);
   // Nút này dẫn sang TRANG /consumables/products nên phải khớp ĐÚNG cổng của
   // trang đó — cả nhóm vai trò (VAN_HANH_HOA_CHAT) lẫn cách tính danh tính
@@ -83,19 +84,16 @@ export default async function ConsumablesPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-blue-950">
-            Dầu · Dầu nhờn · Hóa chất
+            {t("consumables.tieuDe")}
           </h2>
-          <p className="text-slate-600">
-            Nhận theo BDN / phiếu giao · tồn từng tàu · tiêu thụ theo M/E, A/E,
-            nồi hơi · lưu huỳnh MARPOL · mẫu dầu · hạn dùng hóa chất
-          </p>
+          <p className="text-slate-600">{t("consumables.moTa")}</p>
         </div>
         {canManageCatalog && (
           <Link
             href="/consumables/products"
             className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800"
           >
-            Danh mục dầu &amp; hóa chất ({products.length})
+            {t("consumables.nutDanhMuc", { n: products.length })}
           </Link>
         )}
       </div>
@@ -107,85 +105,97 @@ export default async function ConsumablesPage() {
             className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100"
           >
             <p className="text-xs font-medium uppercase text-slate-500">
-              {c.icon} {c.label}
+              {c.icon} {tTuDo(`consumables.nhom_${c.value}`)}
             </p>
             <p className="text-2xl font-bold text-blue-950">{c.soMatHang}</p>
-            <p className="text-xs text-slate-500">mặt hàng trong danh mục</p>
+            <p className="text-xs text-slate-500">
+              {t("consumables.matHangTrongDanhMuc")}
+            </p>
           </div>
         ))}
         <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
           <p className="text-xs font-medium uppercase text-slate-500">
-            ⚠️ Cần chú ý
+            {t("consumables.canChuY")}
           </p>
           <p className="text-2xl font-bold text-blue-950">
             {duoiDinhMuc.length + sapHetHan.length}
           </p>
           <p className="text-xs text-slate-500">
-            {duoiDinhMuc.length} dưới định mức · {sapHetHan.length} sắp/đã hết hạn
+            {t("consumables.tomTatCanChuY", {
+              duoi: duoiDinhMuc.length,
+              han: sapHetHan.length,
+            })}
           </p>
         </div>
       </div>
 
       {loVuotEca.length > 0 && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          <b>{loVuotEca.length} lô dầu có lưu huỳnh trên 0,10%</b> — không dùng
-          được trong vùng kiểm soát khí thải (ECA) nếu tàu không có hệ thống lọc
-          khí thải. MARPOL Annex VI Reg 14.
+          <b>{t("consumables.ecaDam", { n: loVuotEca.length })}</b>{" "}
+          {t("consumables.ecaSau")}
         </div>
       )}
 
       <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-        <h3 className="mb-3 text-lg font-semibold text-blue-950">Theo tàu</h3>
+        <h3 className="mb-3 text-lg font-semibold text-blue-950">
+          {t("consumables.theoTau")}
+        </h3>
         <div className="overflow-x-auto">
           <table className="w-full border text-sm">
             <thead>
               <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                <th className="p-2">Mã tàu</th>
-                <th className="p-2">Tên tàu</th>
-                <th className="p-2 text-right">Mặt hàng có tồn</th>
-                <th className="p-2 text-right">Dưới định mức</th>
-                <th className="p-2 text-right">Phiếu nhận</th>
-                <th className="p-2">Nhận gần nhất</th>
-                <th className="p-2">Quyền của bạn</th>
+                <th className="p-2">{t("consumables.cotMaTau")}</th>
+                <th className="p-2">{t("consumables.cotTenTau")}</th>
+                <th className="p-2 text-right">
+                  {t("consumables.cotMatHangCoTon")}
+                </th>
+                <th className="p-2 text-right">
+                  {t("consumables.cotDuoiDinhMuc")}
+                </th>
+                <th className="p-2 text-right">
+                  {t("consumables.cotPhieuNhan")}
+                </th>
+                <th className="p-2">{t("consumables.cotNhanGanNhat")}</th>
+                <th className="p-2">{t("consumables.cotQuyenCuaBan")}</th>
               </tr>
             </thead>
             <tbody>
-              {theoTau.map((t) => (
-                <tr key={t.v.id} className="border-b">
+              {theoTau.map((dong) => (
+                <tr key={dong.v.id} className="border-b">
                   <td className="p-2 font-medium">
                     <Link
-                      href={`/consumables/${t.v.id}`}
+                      href={`/consumables/${dong.v.id}`}
                       className="text-blue-700 hover:underline"
                     >
-                      {t.v.code}
+                      {dong.v.code}
                     </Link>
                   </td>
                   <td className="p-2">
                     <Link
-                      href={`/consumables/${t.v.id}`}
+                      href={`/consumables/${dong.v.id}`}
                       className="font-medium text-blue-900 hover:underline"
                     >
-                      {t.v.name}
+                      {dong.v.name}
                     </Link>
                   </td>
-                  <td className="p-2 text-right">{t.soMatHang}</td>
+                  <td className="p-2 text-right">{dong.soMatHang}</td>
                   <td className="p-2 text-right">
-                    {t.thieu > 0 ? (
+                    {dong.thieu > 0 ? (
                       <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
-                        {t.thieu}
+                        {dong.thieu}
                       </span>
                     ) : (
                       "—"
                     )}
                   </td>
-                  <td className="p-2 text-right">{t.soPhieu}</td>
+                  <td className="p-2 text-right">{dong.soPhieu}</td>
                   <td className="p-2 text-slate-600">
-                    {t.ganNhat ? t.ganNhat.toLocaleDateString("vi-VN") : "—"}
+                    {dong.ganNhat ? ngay(dong.ganNhat) : "—"}
                   </td>
                   <td className="p-2 text-xs text-slate-600">
-                    {t.nhomGhiDuoc > 0
-                      ? `ghi được ${t.nhomGhiDuoc}/3 nhóm`
-                      : "chỉ xem"}
+                    {dong.nhomGhiDuoc > 0
+                      ? t("consumables.ghiDuocNNhom", { n: dong.nhomGhiDuoc })
+                      : t("consumables.chiXem")}
                   </td>
                 </tr>
               ))}
@@ -195,10 +205,7 @@ export default async function ConsumablesPage() {
       </div>
 
       <p className="text-xs text-slate-500">
-        {CATEGORY_ICON.FUEL} Dầu đốt và {CATEGORY_ICON.LUBE} dầu nhờn thuộc buồng
-        máy — máy trưởng ghi. {CATEGORY_ICON.CHEMICAL} Hóa chất thì cả máy trưởng
-        (nồi hơi, nước làm mát, xử lý dầu) và đại phó (tẩy rửa, vệ sinh hầm hàng)
-        cùng ghi được.
+        {t("consumables.chuThichQuyenGhi")}
       </p>
     </div>
   );

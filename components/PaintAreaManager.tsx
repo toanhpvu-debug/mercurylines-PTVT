@@ -7,6 +7,7 @@ import {
   savePaintArea,
   savePaintSchemeLayer,
 } from "@/app/paint-actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export type ProductOption = {
   id: number;
@@ -65,6 +66,7 @@ function SchemeLayerRow({
   canEdit: boolean;
   onDelete: (formData: FormData) => void;
 }) {
+  const { t, so } = useNgonNgu();
   const [editing, setEditing] = useState(false);
   const [state, action, pending] = useActionState(savePaintSchemeLayer, {
     message: "",
@@ -81,7 +83,9 @@ function SchemeLayerRow({
             <input type="hidden" name="id" value={layer.id} />
             <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
               <label className="block md:col-span-2">
-                <span className="mb-1 block text-xs text-slate-600">Sơn</span>
+                <span className="mb-1 block text-xs text-slate-600">
+                  {t("paint.son")}
+                </span>
                 <select
                   name="productId"
                   defaultValue={layer.productId}
@@ -97,7 +101,7 @@ function SchemeLayerRow({
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs text-slate-600">
-                  Lớp thứ
+                  {t("paint.lopThu")}
                 </span>
                 <input
                   name="layerNo"
@@ -110,7 +114,7 @@ function SchemeLayerRow({
               </label>
               <label className="block">
                 <span className="mb-1 block text-xs text-slate-600">
-                  Số lớp phủ
+                  {t("paint.soLopPhu")}
                 </span>
                 <input
                   name="coats"
@@ -136,7 +140,7 @@ function SchemeLayerRow({
               </label>
               <label className="block md:col-span-5">
                 <span className="mb-1 block text-xs text-slate-600">
-                  Ghi chú
+                  {t("chung.ghiChu")}
                 </span>
                 <input
                   name="notes"
@@ -150,14 +154,14 @@ function SchemeLayerRow({
                 disabled={pending}
                 className="rounded bg-blue-700 px-4 py-1.5 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
               >
-                {pending ? "Đang lưu..." : "Lưu lớp"}
+                {pending ? t("chung.dangLuu") : t("paint.luuLop")}
               </button>
               <button
                 type="button"
                 onClick={() => setEditing(false)}
                 className="text-sm text-slate-600 hover:underline"
               >
-                Hủy
+                {t("chung.huy")}
               </button>
               {state.message && (
                 <span
@@ -185,12 +189,12 @@ function SchemeLayerRow({
         {est === null ? (
           <span
             className="text-slate-400"
-            title="Cần nhập diện tích khu vực và độ phủ của sơn"
+            title={t("paint.goiYThieuDuLieuUocTinh")}
           >
             —
           </span>
         ) : (
-          `${est.toLocaleString("vi-VN")} ${layer.uom}`
+          `${so(est)} ${layer.uom}`
         )}
       </td>
       <td className="p-2 text-slate-600">{layer.notes ?? ""}</td>
@@ -200,13 +204,13 @@ function SchemeLayerRow({
             onClick={() => setEditing(true)}
             className="mr-3 text-xs text-blue-700 hover:underline"
           >
-            Sửa
+            {t("chung.sua")}
           </button>
           <form
             className="inline"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!confirm("Xóa lớp sơn này khỏi sơ đồ?")) return;
+              if (!confirm(t("paint.xacNhanXoaLop"))) return;
               const fd = new FormData(e.currentTarget);
               startTransition(() => onDelete(fd));
             }}
@@ -214,7 +218,7 @@ function SchemeLayerRow({
             <input type="hidden" name="vesselId" value={vesselId} />
             <input type="hidden" name="id" value={layer.id} />
             <button className="text-xs text-red-600 hover:underline">
-              Xóa
+              {t("chung.xoa")}
             </button>
           </form>
         </td>
@@ -224,6 +228,7 @@ function SchemeLayerRow({
 }
 
 export function PaintAreaAddForm({ vesselId }: { vesselId: number }) {
+  const { t } = useNgonNgu();
   const [state, action, pending] = useActionState(savePaintArea, {
     message: "",
   });
@@ -234,7 +239,7 @@ export function PaintAreaAddForm({ vesselId }: { vesselId: number }) {
         onClick={() => setOpen(true)}
         className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800"
       >
-        + Thêm khu vực sơn
+        + {t("paint.themKhuVuc")}
       </button>
     );
   }
@@ -244,22 +249,22 @@ export function PaintAreaAddForm({ vesselId }: { vesselId: number }) {
       className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/40 p-4"
     >
       <input type="hidden" name="vesselId" value={vesselId} />
-      <p className="font-semibold text-blue-950">Thêm khu vực sơn</p>
+      <p className="font-semibold text-blue-950">{t("paint.themKhuVuc")}</p>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <label className="block md:col-span-2">
           <span className="mb-1 block text-sm text-slate-600">
-            Tên khu vực *
+            {t("paint.tenKhuVuc")} *
           </span>
           <input
             name="name"
             required
-            placeholder="VD: Vỏ dưới nước / Mạn khô / Boong chính"
+            placeholder={t("paint.phTenKhuVuc")}
             className="w-full rounded border p-2"
           />
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Diện tích (m²)
+            {t("paint.dienTich")}
           </span>
           <input
             name="areaM2"
@@ -270,7 +275,9 @@ export function PaintAreaAddForm({ vesselId }: { vesselId: number }) {
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">Thứ tự</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("paint.thuTu")}
+          </span>
           <input
             name="sortOrder"
             type="number"
@@ -280,7 +287,9 @@ export function PaintAreaAddForm({ vesselId }: { vesselId: number }) {
           />
         </label>
         <label className="block md:col-span-4">
-          <span className="mb-1 block text-sm text-slate-600">Ghi chú</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("chung.ghiChu")}
+          </span>
           <input name="notes" className="w-full rounded border p-2" />
         </label>
       </div>
@@ -289,14 +298,14 @@ export function PaintAreaAddForm({ vesselId }: { vesselId: number }) {
           disabled={pending}
           className="rounded bg-blue-700 px-5 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
         >
-          {pending ? "Đang lưu..." : "Lưu khu vực"}
+          {pending ? t("chung.dangLuu") : t("paint.luuKhuVuc")}
         </button>
         <button
           type="button"
           onClick={() => setOpen(false)}
           className="text-sm text-slate-600 hover:underline"
         >
-          Đóng
+          {t("chung.dong")}
         </button>
         {state.message && (
           <span
@@ -325,6 +334,7 @@ export function PaintAreaCard({
   products: ProductOption[];
   canEdit: boolean;
 }) {
+  const { t, so } = useNgonNgu();
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [areaState, areaAction, areaPending] = useActionState(savePaintArea, {
@@ -353,14 +363,16 @@ export function PaintAreaCard({
         <div>
           <h4 className="text-lg font-semibold text-blue-950">{area.name}</h4>
           <p className="text-sm text-slate-500">
-            {area.areaM2 ? `${area.areaM2.toLocaleString("vi-VN")} m²` : "chưa nhập diện tích"}
+            {area.areaM2
+              ? t("paint.nM2", { n: so(area.areaM2) })
+              : t("paint.chuaNhapDienTich")}
             {" · "}
-            {layers.length} lớp sơ đồ
+            {t("paint.nLopSoDo", { n: layers.length })}
             {totalLitres > 0 && (
               <>
                 {" · "}
                 <span className="text-blue-800">
-                  ước tính {totalLitres.toLocaleString("vi-VN")} L cho trọn sơ đồ
+                  {t("paint.uocTinhTronSoDo", { n: so(totalLitres) })}
                 </span>
               </>
             )}
@@ -375,12 +387,14 @@ export function PaintAreaCard({
               onClick={() => setEditing((v) => !v)}
               className="text-sm text-blue-700 hover:underline"
             >
-              {editing ? "Đóng" : "Sửa khu vực"}
+              {editing ? t("chung.dong") : t("paint.suaKhuVuc")}
             </button>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!confirm(`Xóa khu vực "${area.name}" và toàn bộ lớp sơ đồ của nó?`))
+                if (
+                  !confirm(t("paint.xacNhanXoaKhuVuc", { ten: area.name }))
+                )
                   return;
                 const fd = new FormData(e.currentTarget);
                 startTransition(() => delAction(fd));
@@ -392,7 +406,7 @@ export function PaintAreaCard({
                 disabled={delPending}
                 className="text-sm text-red-600 hover:underline disabled:opacity-50"
               >
-                Xóa
+                {t("chung.xoa")}
               </button>
             </form>
           </div>
@@ -411,7 +425,9 @@ export function PaintAreaCard({
           <input type="hidden" name="id" value={area.id} />
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <label className="block md:col-span-2">
-              <span className="mb-1 block text-sm text-slate-600">Tên</span>
+              <span className="mb-1 block text-sm text-slate-600">
+                {t("chung.ten")}
+              </span>
               <input
                 name="name"
                 defaultValue={area.name}
@@ -431,7 +447,9 @@ export function PaintAreaCard({
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-sm text-slate-600">Thứ tự</span>
+              <span className="mb-1 block text-sm text-slate-600">
+                {t("paint.thuTu")}
+              </span>
               <input
                 name="sortOrder"
                 type="number"
@@ -441,7 +459,9 @@ export function PaintAreaCard({
               />
             </label>
             <label className="block md:col-span-4">
-              <span className="mb-1 block text-sm text-slate-600">Ghi chú</span>
+              <span className="mb-1 block text-sm text-slate-600">
+                {t("chung.ghiChu")}
+              </span>
               <input
                 name="notes"
                 defaultValue={area.notes ?? ""}
@@ -454,7 +474,7 @@ export function PaintAreaCard({
               disabled={areaPending}
               className="rounded bg-blue-700 px-5 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
             >
-              Lưu
+              {t("chung.luu")}
             </button>
             {areaState.message && (
               <span
@@ -473,12 +493,12 @@ export function PaintAreaCard({
         <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-blue-50 text-left text-blue-900">
             <tr>
-              <th className="p-2 w-16">Lớp</th>
-              <th className="p-2">Sơn</th>
-              <th className="p-2 text-right">Số lớp phủ</th>
+              <th className="p-2 w-16">{t("paint.cotLop")}</th>
+              <th className="p-2">{t("paint.son")}</th>
+              <th className="p-2 text-right">{t("paint.soLopPhu")}</th>
               <th className="p-2 text-right">DFT (µm)</th>
-              <th className="p-2 text-right">Ước tính (L)</th>
-              <th className="p-2">Ghi chú</th>
+              <th className="p-2 text-right">{t("paint.cotUocTinhL")}</th>
+              <th className="p-2">{t("chung.ghiChu")}</th>
               {canEdit && <th className="p-2"></th>}
             </tr>
           </thead>
@@ -489,7 +509,7 @@ export function PaintAreaCard({
                   colSpan={canEdit ? 7 : 6}
                   className="p-3 text-center text-slate-500"
                 >
-                  Chưa khai báo lớp sơn nào cho khu vực này.
+                  {t("paint.chuaCoLop")}
                 </td>
               </tr>
             ) : (
@@ -522,7 +542,7 @@ export function PaintAreaCard({
               onClick={() => setAdding(true)}
               className="text-sm text-blue-700 hover:underline"
             >
-              + Thêm lớp sơn vào sơ đồ
+              + {t("paint.themLopVaoSoDo")}
             </button>
           ) : (
             <form
@@ -534,14 +554,14 @@ export function PaintAreaCard({
               <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
                 <label className="block md:col-span-2">
                   <span className="mb-1 block text-sm text-slate-600">
-                    Loại sơn *
+                    {t("paint.loaiSon")} *
                   </span>
                   <select
                     name="productId"
                     required
                     className="w-full rounded border p-2"
                   >
-                    <option value="">— Chọn sơn —</option>
+                    <option value="">{t("paint.chonSon")}</option>
                     {products.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.label}
@@ -551,7 +571,7 @@ export function PaintAreaCard({
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-sm text-slate-600">
-                    Lớp thứ
+                    {t("paint.lopThu")}
                   </span>
                   <input
                     name="layerNo"
@@ -564,7 +584,7 @@ export function PaintAreaCard({
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-sm text-slate-600">
-                    Số lớp phủ
+                    {t("paint.soLopPhu")}
                   </span>
                   <input
                     name="coats"
@@ -589,7 +609,7 @@ export function PaintAreaCard({
                 </label>
                 <label className="block md:col-span-5">
                   <span className="mb-1 block text-sm text-slate-600">
-                    Ghi chú
+                    {t("chung.ghiChu")}
                   </span>
                   <input name="notes" className="w-full rounded border p-2" />
                 </label>
@@ -599,14 +619,14 @@ export function PaintAreaCard({
                   disabled={layerPending}
                   className="rounded bg-blue-700 px-5 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
                 >
-                  {layerPending ? "Đang lưu..." : "Thêm lớp"}
+                  {layerPending ? t("chung.dangLuu") : t("paint.themLop")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setAdding(false)}
                   className="text-sm text-slate-600 hover:underline"
                 >
-                  Đóng
+                  {t("chung.dong")}
                 </button>
                 {layerState.message && (
                   <span

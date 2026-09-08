@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { docPhieuTuPdf } from "@/app/consumable-actions";
 import type { PhieuDeXuat } from "@/lib/bunkerParse";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export type KetQuaDoc = {
   deXuat?: PhieuDeXuat;
@@ -28,6 +29,7 @@ export default function ConsumablePdfReader({
   vesselId: number;
   onDoc: (kq: KetQuaDoc) => void;
 }) {
+  const { t } = useNgonNgu();
   const [dangChay, batDau] = useTransition();
   const [thongBao, setThongBao] = useState("");
   const [tot, setTot] = useState(false);
@@ -36,7 +38,7 @@ export default function ConsumablePdfReader({
 
   const doc = () => {
     if (!tep) {
-      setThongBao("Hãy chọn file PDF.");
+      setThongBao(t("consumables.hayChonPdf"));
       setTot(false);
       return;
     }
@@ -60,13 +62,12 @@ export default function ConsumablePdfReader({
   return (
     <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
       <p className="text-sm font-medium text-blue-950">
-        Đọc từ file PDF (kể cả bản scan)
+        {t("consumables.docTuPdf")}
       </p>
       <p className="mt-1 text-xs text-blue-900">
-        Chọn file BDN / phiếu giao. Hệ thống nhận dạng chữ trong bản scan rồi{" "}
-        <b>điền sẵn</b> các ô bên dưới. Chữ nhận từ ảnh không bao giờ đúng tuyệt
-        đối — <b>đối chiếu với bản gốc trước khi lưu</b>. File được đính kèm vào
-        phiếu để sau này còn đối chiếu.
+        {t("consumables.moTaDocTruoc")} <b>{t("consumables.dienSanDam")}</b>{" "}
+        {t("consumables.moTaDocGiua")} <b>{t("consumables.doiChieuDam")}</b>.{" "}
+        {t("consumables.moTaDocSau")}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <input
@@ -81,7 +82,9 @@ export default function ConsumablePdfReader({
           disabled={dangChay}
           className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
         >
-          {dangChay ? "Đang đọc bản scan..." : "Đọc file"}
+          {dangChay
+            ? t("consumables.dangDocScan")
+            : t("consumables.nutDocFile")}
         </button>
       </div>
       {thongBao && (
@@ -96,7 +99,7 @@ export default function ConsumablePdfReader({
       {chu && (
         <details className="mt-2 text-xs">
           <summary className="cursor-pointer text-blue-800">
-            Xem chữ máy đọc được từ bản scan
+            {t("consumables.xemChuDoc")}
           </summary>
           <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded bg-white p-2 text-[11px] text-slate-700">
             {chu}

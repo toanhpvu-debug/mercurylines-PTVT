@@ -9,12 +9,12 @@ import {
 import {
   CONSUMERS,
   GIOI_HAN_LUU_HUYNH,
-  TRANSACTION_LABEL,
   kiemTraLuuHuynh,
 } from "@/lib/consumables";
 import ConsumablePdfReader, {
   type KetQuaDoc,
 } from "@/components/ConsumablePdfReader";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export type ProductOption = {
   id: number;
@@ -53,6 +53,7 @@ export function ConsumableReceiptForm({
   vesselId: number;
   products: ProductOption[];
 }) {
+  const { t, tTuDo } = useNgonNgu();
   const [state, action, pending] = useActionState(createConsumableReceipt, {
     message: "",
   });
@@ -79,8 +80,9 @@ export function ConsumableReceiptForm({
   if (products.length === 0) {
     return (
       <p className="text-sm text-slate-500">
-        Chưa có mặt hàng nào thuộc nhóm bạn phụ trách. Thêm ở{" "}
-        <span className="font-medium">Danh mục dầu &amp; hóa chất</span> trước.
+        {t("consumables.chuaCoMatHangTruoc")}{" "}
+        <span className="font-medium">{t("consumables.danhMucDam")}</span>{" "}
+        {t("consumables.chuaCoMatHangSau")}
       </p>
     );
   }
@@ -103,9 +105,11 @@ export function ConsumableReceiptForm({
 
       {dx && (
         <p className="rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
-          Ô có <b>viền vàng</b> là do máy đọc từ bản scan điền sẵn. Đối chiếu với
-          bản gốc rồi sửa lại nếu sai — nhất là <b>số lượng</b> và{" "}
-          <b>lưu huỳnh</b>.
+          {t("consumables.goiYVienVangTruoc")}{" "}
+          <b>{t("consumables.goiYVienVangDam")}</b>{" "}
+          {t("consumables.goiYVienVangGiua")}{" "}
+          <b>{t("consumables.goiYSoLuongDam")}</b> {t("chung.va")}{" "}
+          <b>{t("consumables.goiYLuuHuynhDam")}</b>.
         </p>
       )}
 
@@ -121,7 +125,7 @@ export function ConsumableReceiptForm({
 
       <div className="grid gap-3 md:grid-cols-4">
         <label className="block md:col-span-2">
-          <Nhan>Mặt hàng *</Nhan>
+          <Nhan>{t("consumables.matHang")} *</Nhan>
           <select
             name="productId"
             required
@@ -129,7 +133,7 @@ export function ConsumableReceiptForm({
             onChange={(e) => setProductId(e.target.value)}
             className="w-full rounded border p-2"
           >
-            <option value="">— Chọn mặt hàng —</option>
+            <option value="">{t("consumables.chonMatHang")}</option>
             {products.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.label}
@@ -138,7 +142,12 @@ export function ConsumableReceiptForm({
           </select>
         </label>
         <label className="block">
-          <Nhan>{laDau ? "Số BDN *" : "Số phiếu giao *"}</Nhan>
+          <Nhan>
+            {laDau
+              ? t("consumables.soBdn")
+              : t("consumables.soPhieuGiao")}{" "}
+            *
+          </Nhan>
           <input
             name="docNo"
             required
@@ -147,7 +156,7 @@ export function ConsumableReceiptForm({
           />
         </label>
         <label className="block">
-          <Nhan>Ngày nhận *</Nhan>
+          <Nhan>{t("consumables.ngayNhan")} *</Nhan>
           <input
             type="date"
             name="receivedAt"
@@ -157,7 +166,9 @@ export function ConsumableReceiptForm({
           />
         </label>
         <label className="block">
-          <Nhan>Số lượng * {chon ? `(${chon.uom})` : ""}</Nhan>
+          <Nhan>
+            {t("chung.soLuong")} * {chon ? `(${chon.uom})` : ""}
+          </Nhan>
           <input
             name="quantity"
             type="number"
@@ -169,7 +180,7 @@ export function ConsumableReceiptForm({
           />
         </label>
         <label className="block">
-          <Nhan>Cảng nhận</Nhan>
+          <Nhan>{t("consumables.cangNhan")}</Nhan>
           <input
             name="port"
             defaultValue={dx?.port ?? ""}
@@ -177,7 +188,7 @@ export function ConsumableReceiptForm({
           />
         </label>
         <label className="block">
-          <Nhan>Nhà cung cấp</Nhan>
+          <Nhan>{t("consumables.nhaCungCap")}</Nhan>
           <input
             name="supplier"
             defaultValue={dx?.supplier ?? ""}
@@ -186,7 +197,7 @@ export function ConsumableReceiptForm({
         </label>
         {laDau && (
           <label className="block">
-            <Nhan>Sà lan / xe cấp</Nhan>
+            <Nhan>{t("consumables.saLanXeCap")}</Nhan>
             <input
               name="barge"
               defaultValue={dx?.barge ?? ""}
@@ -199,12 +210,13 @@ export function ConsumableReceiptForm({
       {(laDau || laNhon) && (
         <fieldset className="rounded border border-slate-200 p-3">
           <legend className="px-1 text-sm font-medium text-slate-700">
-            Đặc tính lô hàng {laDau ? "(theo BDN / chứng thư phân tích)" : ""}
+            {t("consumables.dacTinhLoHang")}{" "}
+            {laDau ? t("consumables.theoBdn") : ""}
           </legend>
           <div className="grid gap-3 md:grid-cols-4">
             {laDau && (
               <label className="block">
-                <Nhan>Lưu huỳnh (% m/m)</Nhan>
+                <Nhan>{t("consumables.luuHuynh")}</Nhan>
                 <input
                   name="sulphur"
                   type="number"
@@ -217,7 +229,7 @@ export function ConsumableReceiptForm({
               </label>
             )}
             <label className="block">
-              <Nhan>Khối lượng riêng @15°C (kg/m³)</Nhan>
+              <Nhan>{t("consumables.khoiLuongRieng")}</Nhan>
               <input
                 name="density"
                 type="number"
@@ -227,7 +239,7 @@ export function ConsumableReceiptForm({
               />
             </label>
             <label className="block">
-              <Nhan>Độ nhớt (cSt)</Nhan>
+              <Nhan>{t("consumables.doNhot")}</Nhan>
               <input
                 name="viscosity"
                 type="number"
@@ -239,7 +251,7 @@ export function ConsumableReceiptForm({
             {laDau && (
               <>
                 <label className="block">
-                  <Nhan>Nước (% v/v)</Nhan>
+                  <Nhan>{t("consumables.nuoc")}</Nhan>
                   <input
                     name="waterContent"
                     type="number"
@@ -249,7 +261,7 @@ export function ConsumableReceiptForm({
                   />
                 </label>
                 <label className="block">
-                  <Nhan>Điểm chớp cháy (°C)</Nhan>
+                  <Nhan>{t("consumables.diemChopChay")}</Nhan>
                   <input
                     name="flashPoint"
                     type="number"
@@ -262,7 +274,7 @@ export function ConsumableReceiptForm({
             )}
             {laNhon && (
               <label className="block">
-                <Nhan>TBN (mgKOH/g)</Nhan>
+                <Nhan>{t("consumables.tbn")}</Nhan>
                 <input
                   name="bnValue"
                   type="number"
@@ -284,25 +296,29 @@ export function ConsumableReceiptForm({
                     : "bg-emerald-50 text-emerald-800"
               }`}
             >
-              {canhBao.loi}
+              {/* Câu chữ lấy theo MỨC, không lấy chuỗi tiếng Việt dựng sẵn
+                  trong lib/consumables.ts — file đó dùng chung cả hai phía. */}
+              {tTuDo(`consumables.luuHuynh_${canhBao.muc}`, {
+                s: Number(sulphur),
+              })}
             </p>
           )}
 
           {laDau && (
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <label className="block">
-                <Nhan>Số niêm mẫu (sample seal no.)</Nhan>
+                <Nhan>{t("consumables.soNiemMau")}</Nhan>
                 <input
                   name="sampleSealNo"
-                  placeholder="Số niêm trên chai mẫu đại diện"
+                  placeholder={t("consumables.soNiemPlaceholder")}
                   defaultValue={dx?.sampleSealNo ?? ""}
                   className={oDoc("sampleSealNo")}
                 />
               </label>
               <p className="self-end text-xs text-slate-600">
-                Mẫu đại diện phải giữ trên tàu tới khi dùng hết lô và ít nhất{" "}
-                <b>12 tháng</b> kể từ ngày giao (MARPOL Annex VI Reg 18.8.1).
-                Hệ thống tự tính mốc này khi lưu.
+                {t("consumables.mauGiuTruoc")}{" "}
+                <b>{t("consumables.mauGiu12Thang")}</b>{" "}
+                {t("consumables.mauGiuSau")}
               </p>
             </div>
           )}
@@ -312,7 +328,7 @@ export function ConsumableReceiptForm({
       {laHoaChat && (
         <div className="grid gap-3 md:grid-cols-3">
           <label className="block">
-            <Nhan>Hạn dùng của lô</Nhan>
+            <Nhan>{t("consumables.hanDungCuaLo")}</Nhan>
             <input
               type="date"
               name="expiryDate"
@@ -322,15 +338,15 @@ export function ConsumableReceiptForm({
           </label>
           <p className="text-xs text-slate-600 md:col-span-2 md:self-end">
             {chon?.shelfLifeMonths
-              ? `Bỏ trống thì tự tính = ngày nhận + ${chon.shelfLifeMonths} tháng theo hạn dùng khai ở danh mục.`
-              : "Mặt hàng này chưa khai hạn dùng ở danh mục — nhập tay nếu lô có hạn."}
+              ? t("consumables.tuTinhHanDung", { n: chon.shelfLifeMonths })
+              : t("consumables.chuaKhaiHanDung")}
           </p>
         </div>
       )}
 
       <div className="grid gap-3 md:grid-cols-4">
         <label className="block">
-          <Nhan>Đơn giá</Nhan>
+          <Nhan>{t("consumables.donGia")}</Nhan>
           <input
             name="unitPrice"
             type="number"
@@ -340,7 +356,7 @@ export function ConsumableReceiptForm({
           />
         </label>
         <label className="block">
-          <Nhan>Tiền tệ</Nhan>
+          <Nhan>{t("consumables.tienTe")}</Nhan>
           <input
             name="currency"
             placeholder="USD"
@@ -349,13 +365,13 @@ export function ConsumableReceiptForm({
           />
         </label>
         <label className="block md:col-span-2">
-          <Nhan>Ghi chú</Nhan>
+          <Nhan>{t("chung.ghiChu")}</Nhan>
           <input name="note" className="w-full rounded border p-2" />
         </label>
       </div>
 
       <label className="block">
-        <Nhan>Đính kèm bản gốc (PDF) — nếu chưa đọc từ file ở trên</Nhan>
+        <Nhan>{t("consumables.dinhKemBanGoc")}</Nhan>
         <input
           type="file"
           name="attach"
@@ -364,8 +380,7 @@ export function ConsumableReceiptForm({
         />
         {doc?.tepTam && (
           <span className="mt-1 block text-xs text-emerald-700">
-            Đã có bản gốc từ bước đọc file: {doc.tenTep}. Chọn file ở đây sẽ
-            thay bằng file mới.
+            {t("consumables.daCoBanGoc", { ten: doc.tenTep ?? "" })}
           </span>
         )}
       </label>
@@ -374,7 +389,9 @@ export function ConsumableReceiptForm({
         disabled={pending}
         className="rounded bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
       >
-        {pending ? "Đang ghi..." : "Ghi phiếu nhận"}
+        {pending
+          ? t("consumables.dangGhi")
+          : t("consumables.nutGhiPhieuNhan")}
       </button>
       <ThongBao state={state} />
       </form>
@@ -390,6 +407,7 @@ export function ConsumableMoveForm({
   vesselId: number;
   products: ProductOption[];
 }) {
+  const { t, tTuDo } = useNgonNgu();
   const [state, action, pending] = useActionState(createConsumableMove, {
     message: "",
   });
@@ -402,9 +420,9 @@ export function ConsumableMoveForm({
       <input type="hidden" name="vesselId" value={vesselId} />
       <div className="grid gap-3 md:grid-cols-5">
         <label className="block md:col-span-2">
-          <Nhan>Mặt hàng *</Nhan>
+          <Nhan>{t("consumables.matHang")} *</Nhan>
           <select name="productId" required className="w-full rounded border p-2">
-            <option value="">— Chọn mặt hàng —</option>
+            <option value="">{t("consumables.chonMatHang")}</option>
             {products.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.label}
@@ -413,34 +431,36 @@ export function ConsumableMoveForm({
           </select>
         </label>
         <label className="block">
-          <Nhan>Loại ghi *</Nhan>
+          <Nhan>{t("consumables.loaiGhi")} *</Nhan>
           <select
             name="type"
             value={type}
             onChange={(e) => setType(e.target.value)}
             className="w-full rounded border p-2"
           >
-            <option value="CONSUME">{TRANSACTION_LABEL.CONSUME}</option>
-            <option value="OUT">{TRANSACTION_LABEL.OUT}</option>
-            <option value="IN">{TRANSACTION_LABEL.IN}</option>
+            <option value="CONSUME">
+              {t("consumables.giaoDich_CONSUME")}
+            </option>
+            <option value="OUT">{t("consumables.giaoDich_OUT")}</option>
+            <option value="IN">{t("consumables.giaoDich_IN")}</option>
           </select>
         </label>
         {/* Nơi tiêu thụ chỉ hiện với CONSUME — ghi vào nhận/xuất là dữ liệu vô
             nghĩa làm báo cáo cộng nhầm. */}
         {type === "CONSUME" && (
           <label className="block">
-            <Nhan>Nơi tiêu thụ *</Nhan>
+            <Nhan>{t("consumables.noiTieuThu")} *</Nhan>
             <select name="consumer" className="w-full rounded border p-2">
               {CONSUMERS.map((c) => (
                 <option key={c.value} value={c.value}>
-                  {c.label}
+                  {tTuDo(`consumables.noiTieuThu_${c.value}`)}
                 </option>
               ))}
             </select>
           </label>
         )}
         <label className="block">
-          <Nhan>Số lượng *</Nhan>
+          <Nhan>{t("chung.soLuong")} *</Nhan>
           <input
             name="quantity"
             type="number"
@@ -451,7 +471,7 @@ export function ConsumableMoveForm({
           />
         </label>
         <label className="block">
-          <Nhan>Thời điểm (trống = bây giờ)</Nhan>
+          <Nhan>{t("consumables.thoiDiemTrong")}</Nhan>
           <input
             type="datetime-local"
             name="occurredAt"
@@ -459,10 +479,10 @@ export function ConsumableMoveForm({
           />
         </label>
         <label className="block md:col-span-3">
-          <Nhan>Ghi chú</Nhan>
+          <Nhan>{t("chung.ghiChu")}</Nhan>
           <input
             name="note"
-            placeholder="Số hành trình, lý do xuất..."
+            placeholder={t("consumables.ghiChuPlaceholder")}
             className="w-full rounded border p-2"
           />
         </label>
@@ -471,7 +491,9 @@ export function ConsumableMoveForm({
         disabled={pending}
         className="rounded bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
       >
-        {pending ? "Đang ghi..." : "Ghi giao dịch"}
+        {pending
+          ? t("consumables.dangGhi")
+          : t("consumables.nutGhiGiaoDich")}
       </button>
       <ThongBao state={state} />
     </form>
@@ -487,6 +509,7 @@ export function ConsumableMinForm({
   productId: number;
   minQty: number;
 }) {
+  const { t } = useNgonNgu();
   const [state, action, pending] = useActionState(saveConsumableMin, {
     message: "",
   });
@@ -504,10 +527,10 @@ export function ConsumableMinForm({
       />
       <button
         disabled={pending}
-        title="Lưu định mức tối thiểu"
+        title={t("consumables.luuDinhMuc")}
         className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700 hover:bg-slate-200 disabled:opacity-50"
       >
-        {pending ? "..." : "Lưu"}
+        {pending ? "..." : t("chung.luu")}
       </button>
       {state.message && !state.success && (
         <span className="text-xs text-red-600">{state.message}</span>

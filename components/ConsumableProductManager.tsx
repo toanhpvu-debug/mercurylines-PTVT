@@ -11,6 +11,7 @@ import {
   GRADES,
   UOM_GOI_Y,
 } from "@/lib/consumables";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export type ProductRow = {
   id: number;
@@ -42,6 +43,7 @@ function Nhan({ children }: { children: React.ReactNode }) {
  * qua rồi bỏ trống.
  */
 export function ConsumableProductForm({ row }: { row?: ProductRow }) {
+  const { t, tTuDo } = useNgonNgu();
   const [state, action, pending] = useActionState(saveConsumableProduct, {
     message: "",
   });
@@ -55,7 +57,7 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
       {row && <input type="hidden" name="id" value={row.id} />}
       <div className="grid gap-3 md:grid-cols-4">
         <label className="block">
-          <Nhan>Nhóm *</Nhan>
+          <Nhan>{t("chung.nhom")} *</Nhan>
           <select
             name="category"
             value={category}
@@ -64,13 +66,13 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
           >
             {CONSUMABLE_CATEGORIES.map((c) => (
               <option key={c.value} value={c.value}>
-                {c.icon} {c.label}
+                {c.icon} {tTuDo(`consumables.nhom_${c.value}`)}
               </option>
             ))}
           </select>
         </label>
         <label className="block">
-          <Nhan>Chủng loại *</Nhan>
+          <Nhan>{t("consumables.chungLoai")} *</Nhan>
           <select
             name="grade"
             defaultValue={row?.grade}
@@ -79,13 +81,13 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
           >
             {GRADES[category].map((g) => (
               <option key={g.value} value={g.value}>
-                {g.label}
+                {tTuDo(`consumables.loai_${g.value}`)}
               </option>
             ))}
           </select>
         </label>
         <label className="block md:col-span-2">
-          <Nhan>Tên mặt hàng *</Nhan>
+          <Nhan>{t("consumables.tenMatHang")} *</Nhan>
           <input
             name="name"
             required
@@ -94,7 +96,7 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
           />
         </label>
         <label className="block">
-          <Nhan>Mã (trống = tự sinh)</Nhan>
+          <Nhan>{t("consumables.maTuSinh")}</Nhan>
           <input
             name="code"
             defaultValue={row?.code}
@@ -103,7 +105,7 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
           />
         </label>
         <label className="block">
-          <Nhan>Hãng SX</Nhan>
+          <Nhan>{t("consumables.hangSx")}</Nhan>
           <input
             name="maker"
             defaultValue={row?.maker ?? ""}
@@ -111,7 +113,7 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
           />
         </label>
         <label className="block">
-          <Nhan>Đơn vị tính *</Nhan>
+          <Nhan>{t("consumables.donViTinh")} *</Nhan>
           <input
             name="uom"
             list="uom-goi-y"
@@ -125,7 +127,7 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
           </datalist>
         </label>
         <label className="block">
-          <Nhan>Dung tích 1 thùng/can (L)</Nhan>
+          <Nhan>{t("consumables.dungTichThung")}</Nhan>
           <input
             name="packSize"
             type="number"
@@ -139,16 +141,15 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
       {(laDau || laNhon) && (
         <fieldset className="rounded border border-slate-200 p-3">
           <legend className="px-1 text-sm font-medium text-slate-700">
-            Đặc tính danh nghĩa
+            {t("consumables.dacTinhDanhNghia")}
           </legend>
           <p className="mb-2 text-xs text-slate-500">
-            Đây là đặc tính của MẶT HÀNG. Đặc tính thực của từng lô ghi ở phiếu
-            nhận — hai lô cùng mặt hàng có thể khác nhau.
+            {t("consumables.ghiChuDacTinh")}
           </p>
           <div className="grid gap-3 md:grid-cols-4">
             {laDau && (
               <label className="block">
-                <Nhan>Lưu huỳnh tối đa (% m/m)</Nhan>
+                <Nhan>{t("consumables.luuHuynhToiDa")}</Nhan>
                 <input
                   name="sulphurMax"
                   type="number"
@@ -159,7 +160,7 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
               </label>
             )}
             <label className="block">
-              <Nhan>Độ nhớt (cSt)</Nhan>
+              <Nhan>{t("consumables.doNhot")}</Nhan>
               <input
                 name="viscosity"
                 type="number"
@@ -169,7 +170,7 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
               />
             </label>
             <label className="block">
-              <Nhan>Khối lượng riêng @15°C</Nhan>
+              <Nhan>{t("consumables.khoiLuongRiengNgan")}</Nhan>
               <input
                 name="density"
                 type="number"
@@ -180,7 +181,7 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
             </label>
             {laNhon && (
               <label className="block">
-                <Nhan>TBN (mgKOH/g)</Nhan>
+                <Nhan>{t("consumables.tbn")}</Nhan>
                 <input
                   name="bnValue"
                   type="number"
@@ -197,20 +198,20 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
       {laHoaChat && (
         <fieldset className="rounded border border-slate-200 p-3">
           <legend className="px-1 text-sm font-medium text-slate-700">
-            An toàn &amp; hạn dùng
+            {t("consumables.anToanHanDung")}
           </legend>
           <div className="grid gap-3 md:grid-cols-3">
             <label className="block">
-              <Nhan>Phân loại nguy hiểm (IMDG/GHS)</Nhan>
+              <Nhan>{t("consumables.phanLoaiNguyHiemGhs")}</Nhan>
               <input
                 name="hazardClass"
                 defaultValue={row?.hazardClass ?? ""}
-                placeholder="VD: Class 8 — ăn mòn"
+                placeholder={t("consumables.viDuNguyHiem")}
                 className="w-full rounded border p-2"
               />
             </label>
             <label className="block">
-              <Nhan>Hạn dùng (tháng)</Nhan>
+              <Nhan>{t("consumables.hanDungThang")}</Nhan>
               <input
                 name="shelfLifeMonths"
                 type="number"
@@ -220,11 +221,11 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
                 className="w-full rounded border p-2"
               />
               <span className="mt-1 block text-xs text-slate-500">
-                Khai ở đây thì mỗi lô nhận tự tính hạn dùng.
+                {t("consumables.goiYHanDung")}
               </span>
             </label>
             <label className="block">
-              <Nhan>Ghi chú an toàn / nơi lưu MSDS</Nhan>
+              <Nhan>{t("consumables.ghiChuAnToan")}</Nhan>
               <input name="msdsNote" className="w-full rounded border p-2" />
             </label>
           </div>
@@ -232,7 +233,7 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
       )}
 
       <label className="block">
-        <Nhan>Ghi chú</Nhan>
+        <Nhan>{t("chung.ghiChu")}</Nhan>
         <input name="notes" className="w-full rounded border p-2" />
       </label>
 
@@ -240,7 +241,11 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
         disabled={pending}
         className="rounded bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
       >
-        {pending ? "Đang lưu..." : row ? "Lưu thay đổi" : "Thêm mặt hàng"}
+        {pending
+          ? t("chung.dangLuu")
+          : row
+            ? t("consumables.luuThayDoi")
+            : t("consumables.themMatHang")}
       </button>
       {state.message && (
         <p
@@ -256,6 +261,7 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
 }
 
 export function ConsumableProductActions({ row }: { row: ProductRow }) {
+  const { t } = useNgonNgu();
   const [tState, tAction, tPending] = useActionState(toggleConsumableProduct, {
     message: "",
   });
@@ -271,13 +277,19 @@ export function ConsumableProductActions({ row }: { row: ProductRow }) {
             disabled={tPending}
             className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700 hover:bg-slate-200 disabled:opacity-50"
           >
-            {row.isActive ? "Ngừng dùng" : "Dùng lại"}
+            {row.isActive
+              ? t("consumables.nutNgungDung")
+              : t("consumables.nutDungLai")}
           </button>
         </form>
         <form
           action={dAction}
           onSubmit={(e) => {
-            if (!confirm(`Xóa hẳn "${row.name}" khỏi danh mục?`)) {
+            if (
+              !confirm(
+                t("consumables.xacNhanXoaMatHang", { ten: row.name })
+              )
+            ) {
               e.preventDefault();
             }
           }}
@@ -287,7 +299,7 @@ export function ConsumableProductActions({ row }: { row: ProductRow }) {
             disabled={dPending}
             className="rounded bg-red-50 px-2 py-1 text-xs text-red-700 hover:bg-red-100 disabled:opacity-50"
           >
-            Xóa
+            {t("chung.xoa")}
           </button>
         </form>
       </div>

@@ -7,7 +7,6 @@ import {
   vesselScopeDayDu,
 } from "@/lib/auth";
 import {
-  ROLE_LABEL,
   XIN_CAP_NHIEN_LIEU,
   boPhanCuaChucDanh,
   danhTinhHieuLuc,
@@ -18,17 +17,15 @@ import {
 } from "@/lib/roles";
 import {
   CATEGORY_ICON,
-  CATEGORY_LABEL,
   CATEGORY_VALUES,
   CONSUMABLE_CATEGORIES,
-  CONSUMER_LABEL,
   GIOI_HAN_LUU_HUYNH,
-  GRADE_LABEL,
   NGUONG_CANH_BAO_HAN_DUNG,
-  TRANSACTION_LABEL,
   kiemTraLuuHuynh,
   soNgayToi,
 } from "@/lib/consumables";
+import { layT } from "@/lib/i18n/server";
+import type { HamDichTuDo } from "@/lib/i18n";
 import {
   ConsumableMinForm,
   ConsumableMoveForm,
@@ -45,26 +42,19 @@ const SO_LO_HIEN_TREN_BANG_TIN = 10;
 
 export const dynamic = "force-dynamic";
 
-function nhanMatHang(p: {
-  name: string;
-  maker: string | null;
-  grade: string;
-}) {
+function nhanMatHang(
+  p: {
+    name: string;
+    maker: string | null;
+    grade: string;
+  },
+  tTuDo: HamDichTuDo
+) {
   const bits = [p.name];
   if (p.maker) bits.push(p.maker);
-  bits.push(GRADE_LABEL[p.grade] ?? p.grade);
+  bits.push(tTuDo(`consumables.loai_${p.grade}`));
   return bits.join(" · ");
 }
-
-const ngay = (d: Date) => d.toLocaleDateString("vi-VN");
-const gio = (d: Date) =>
-  d.toLocaleString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 
 export default async function ConsumableVesselPage({
   params,
@@ -74,6 +64,7 @@ export default async function ConsumableVesselPage({
   searchParams: Promise<{ nhom?: string }>;
 }) {
   const user = await requireScopedUser();
+  const { t, tTuDo, ngay, ngayGio } = await layT();
   const scope = vesselScopeDayDu(user);
   const { id } = await params;
   const vesselId = Number(id);
@@ -223,7 +214,7 @@ export default async function ConsumableVesselPage({
     .filter((p) => nhomGhiDuoc.includes(p.category) && hopNhom(p.category))
     .map((p) => ({
       id: p.id,
-      label: `${CATEGORY_ICON[p.category] ?? ""} ${nhanMatHang(p)}`,
+      label: `${CATEGORY_ICON[p.category] ?? ""} ${nhanMatHang(p, tTuDo)}`,
       uom: p.uom,
       category: p.category,
       shelfLifeMonths: p.shelfLifeMonths,
@@ -238,7 +229,7 @@ export default async function ConsumableVesselPage({
       const st = stocks.find((x) => x.productId === p.id);
       return {
         productId: p.id,
-        label: nhanMatHang(p),
+        label: nhanMatHang(p, tTuDo),
         uom: p.uom,
         category: p.category,
         ton: st?.quantity ?? 0,
@@ -250,9 +241,9 @@ export default async function ConsumableVesselPage({
   // không còn ai trên mình nên đi thẳng lên công ty.
   const nguoiDuyetCuaToi = trinhThangLenCongTy(user.role)
     ? null
-    : (ROLE_LABEL[
-        nguoiDuyetCapTau(boPhanCuaChucDanh(user.role) ?? "ENGINE")
-      ] ?? null);
+    : tTuDo(
+        `labels.role_${nguoiDuyetCapTau(boPhanCuaChucDanh(user.role) ?? "ENGINE")}`
+      );
 
   // Cảnh báo gom một chỗ: dưới định mức, lô sắp/đã hết hạn, mẫu dầu hết hạn giữ.
   // Cảnh báo phải theo ĐÚNG TAB đang xem: đứng ở tab Dầu nhờn mà vẫn hiện hạn
@@ -362,18 +353,16 @@ export default async function ConsumableVesselPage({
             href="/consumables"
             className="text-sm text-blue-700 hover:underline"
           >
-            ← Quay lại tổng quan
+            ← {t("consumables.quayLaiTongQuan")}
           </Link>
           <h2 className="text-2xl font-bold text-blue-950">
             {vessel.code} — {vessel.name}
           </h2>
-          <p className="text-slate-600">
-            Dầu đốt · Dầu nhờn · Hóa chất — tồn, phiếu nhận và tiêu thụ
-          </p>
+          <p className="text-slate-600">{t("consumables.moTaTau")}</p>
         </div>
         {!coTheGhi && (
           <p className="rounded border border-slate-200 bg-slate-50 p-2 text-sm text-slate-600">
-            Bạn xem được số liệu nhưng không ghi được giao dịch nhóm nào ở tàu này.
+            {t("consumables.chiXemKhongGhi")}
           </p>
         )}
       </div>
@@ -397,7 +386,7 @@ export default async function ConsumableVesselPage({
               : "bg-slate-100 text-slate-700 hover:bg-slate-200"
           }`}
         >
-          Tất cả
+          {t("chung.tatCa")}
         </Link>
         {CONSUMABLE_CATEGORIES.map((c) => {
           const ghiDuoc = nhomGhiDuoc.includes(c.value);
@@ -411,9 +400,11 @@ export default async function ConsumableVesselPage({
                   : "bg-slate-100 text-slate-700 hover:bg-slate-200"
               }`}
             >
-              {c.icon} {c.label}
+              {c.icon} {tTuDo(`consumables.nhom_${c.value}`)}
               {!ghiDuoc && (
-                <span className="ml-1 text-xs opacity-70">(chỉ xem)</span>
+                <span className="ml-1 text-xs opacity-70">
+                  {t("consumables.chiXemNgoac")}
+                </span>
               )}
             </Link>
           );
@@ -428,7 +419,11 @@ export default async function ConsumableVesselPage({
         <div className="space-y-2">
           {duoiDinhMuc.length > 0 && (
             <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-              <b>{duoiDinhMuc.length} mặt hàng dưới định mức:</b>{" "}
+              <b>
+                {t("consumables.canhBaoDuoiDinhMuc", {
+                  n: duoiDinhMuc.length,
+                })}
+              </b>{" "}
               {duoiDinhMuc
                 .map(
                   (s) =>
@@ -439,37 +434,56 @@ export default async function ConsumableVesselPage({
           )}
           {sapHetTheoTocDo.length > 0 && (
             <div className="rounded-lg border border-orange-300 bg-orange-50 p-3 text-sm text-orange-900">
-              <b>Sắp hết theo tốc độ tiêu thụ 30 ngày qua:</b>{" "}
+              <b>{t("consumables.canhBaoSapHet")}</b>{" "}
               {sapHetTheoTocDo
-                .map(
-                  ({ s, ngay }) =>
-                    `${s.product.name} còn ${ngay} ngày (${s.quantity} ${s.product.uom})`
+                .map(({ s, ngay: conNgay }) =>
+                  t("consumables.dongSapHet", {
+                    ten: s.product.name,
+                    n: conNgay ?? 0,
+                    sl: s.quantity,
+                    dv: s.product.uom,
+                  })
                 )
                 .join(" · ")}
             </div>
           )}
           {loHetHan.length > 0 && (
             <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900">
-              <b>Hạn dùng:</b>{" "}
+              <b>{t("consumables.nhanHanDung")}</b>{" "}
               {loHetHan
                 .slice(0, SO_LO_HIEN_TREN_BANG_TIN)
-                .map(
-                  ({ r, con }) =>
-                    `${r.product.name} (lô ${r.docNo}) ${
-                      con < 0 ? `QUÁ HẠN ${-con} ngày` : `còn ${con} ngày`
-                    }`
+                .map(({ r, con }) =>
+                  t("consumables.dongLoHetHan", {
+                    ten: r.product.name,
+                    so: r.docNo,
+                    tinhTrang:
+                      con < 0
+                        ? t("consumables.quaHanNNgay", { n: -con })
+                        : t("consumables.conNNgay", { n: con }),
+                  })
                 )
                 .join(" · ")}
               {loHetHan.length > SO_LO_HIEN_TREN_BANG_TIN &&
-                ` · và ${loHetHan.length - SO_LO_HIEN_TREN_BANG_TIN} lô khác`}
+                ` · ${t("consumables.vaNLoKhac", {
+                  n: loHetHan.length - SO_LO_HIEN_TREN_BANG_TIN,
+                })}`}
             </div>
           )}
           {mauHetHanGiu.length > 0 && (
             <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 text-sm text-slate-700">
-              <b>Mẫu dầu đã qua mốc giữ 12 tháng</b> (MARPOL VI 18.8.1) — bỏ được
-              nếu lô đã dùng hết:{" "}
+              <b>{t("consumables.mauQuaMocDam")}</b>{" "}
+              {t("consumables.mauQuaMocSau")}{" "}
               {mauHetHanGiu
-                .map((r) => `${r.docNo}${r.sampleSealNo ? ` (niêm ${r.sampleSealNo})` : ""}`)
+                .map(
+                  (r) =>
+                    `${r.docNo}${
+                      r.sampleSealNo
+                        ? ` (${t("consumables.niemSo", {
+                            so: r.sampleSealNo,
+                          })})`
+                        : ""
+                    }`
+                )
                 .join(" · ")}
             </div>
           )}
@@ -484,24 +498,27 @@ export default async function ConsumableVesselPage({
         return (
           <section key={`tt-${c.value}`} className="space-y-3">
             <h3 className="text-xl font-semibold text-blue-950">
-              {c.icon} {c.label} — tổng hợp
+              {c.icon} {tTuDo(`consumables.nhom_${c.value}`)} —{" "}
+              {t("consumables.tongHop")}
             </h3>
             <div className="grid gap-3 lg:grid-cols-2">
               <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
                 <h4 className="mb-2 text-sm font-semibold text-slate-700">
-                  Tồn theo chủng loại
+                  {t("consumables.tonTheoChungLoai")}
                 </h4>
                 {ton.length === 0 ? (
-                  <p className="text-sm text-slate-500">Chưa có tồn.</p>
+                  <p className="text-sm text-slate-500">
+                    {t("consumables.chuaCoTon")}
+                  </p>
                 ) : (
                   <ul className="space-y-1 text-sm">
                     {ton.map(([grade, v]) => (
                       <li key={grade} className="flex justify-between gap-3">
                         <span className="text-slate-700">
-                          {GRADE_LABEL[grade] ?? grade}
+                          {tTuDo(`consumables.loai_${grade}`)}
                           <span className="text-slate-400">
                             {" "}
-                            · {v.soMat} mặt hàng
+                            · {t("consumables.nMatHang", { n: v.soMat })}
                           </span>
                         </span>
                         <span className="font-semibold text-blue-950">
@@ -522,33 +539,35 @@ export default async function ConsumableVesselPage({
                     return (
                       <div className="mt-3 border-t pt-3 text-sm">
                         <p className="mb-1 font-semibold text-slate-700">
-                          Theo giới hạn lưu huỳnh (MARPOL VI Reg 14)
+                          {t("consumables.theoGioiHanLuuHuynh")}
                         </p>
                         <p className="text-emerald-700">
-                          Dùng được trong ECA (≤{GIOI_HAN_LUU_HUYNH.ECA}%):{" "}
+                          {t("consumables.dungTrongEca", {
+                            s: GIOI_HAN_LUU_HUYNH.ECA,
+                          })}{" "}
                           <b>
                             {Math.round(lh.dungEca * 1000) / 1000} {lh.uom}
                           </b>
                         </p>
                         <p className="text-amber-800">
-                          Chỉ ngoài ECA (&gt;{GIOI_HAN_LUU_HUYNH.ECA}%):{" "}
+                          {t("consumables.chiNgoaiEca", {
+                            s: GIOI_HAN_LUU_HUYNH.ECA,
+                          })}{" "}
                           <b>
                             {Math.round(lh.ngoaiEca * 1000) / 1000} {lh.uom}
                           </b>
                         </p>
                         {lh.chuaKhai > 0 && (
                           <p className="text-slate-500">
-                            Chưa khai lưu huỳnh ở danh mục:{" "}
+                            {t("consumables.chuaKhaiLuuHuynh")}{" "}
                             <b>
                               {Math.round(lh.chuaKhai * 1000) / 1000} {lh.uom}
                             </b>{" "}
-                            — chưa xếp được vào nhóm nào.
+                            {t("consumables.chuaXepNhom")}
                           </p>
                         )}
                         <p className="mt-1 text-xs text-slate-500">
-                          Tính theo lưu huỳnh danh nghĩa khai ở danh mục, không
-                          theo từng lô: nhiều lô nằm chung két nên không quy tồn
-                          về đúng lô được.
+                          {t("consumables.ghiChuLuuHuynhDanhNghia")}
                         </p>
                       </div>
                     );
@@ -557,18 +576,18 @@ export default async function ConsumableVesselPage({
 
               <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
                 <h4 className="mb-2 text-sm font-semibold text-slate-700">
-                  Tiêu thụ 30 ngày gần nhất — theo nơi tiêu thụ
+                  {t("consumables.tieuThu30Ngay")}
                 </h4>
                 {tt.length === 0 ? (
                   <p className="text-sm text-slate-500">
-                    Chưa ghi tiêu thụ nào trong 30 ngày.
+                    {t("consumables.chuaCoTieuThu30")}
                   </p>
                 ) : (
                   <ul className="space-y-1 text-sm">
                     {tt.map(([noi, v]) => (
                       <li key={noi} className="flex justify-between gap-3">
                         <span className="text-slate-700">
-                          {CONSUMER_LABEL[noi] ?? noi}
+                          {tTuDo(`consumables.noiTieuThu_${noi}`)}
                         </span>
                         <span className="font-semibold text-blue-950">
                           {Math.round(v.tong * 1000) / 1000} {v.uom}
@@ -576,7 +595,9 @@ export default async function ConsumableVesselPage({
                       </li>
                     ))}
                     <li className="flex justify-between gap-3 border-t pt-1">
-                      <span className="font-medium text-slate-700">Tổng</span>
+                      <span className="font-medium text-slate-700">
+                        {t("consumables.tong")}
+                      </span>
                       <span className="font-bold text-blue-950">
                         {Math.round(
                           tt.reduce((a, [, v]) => a + v.tong, 0) * 1000
@@ -594,10 +615,12 @@ export default async function ConsumableVesselPage({
 
       {/* ── Tồn theo nhóm ────────────────────────────────────────────── */}
       <section className="space-y-3">
-        <h3 className="text-xl font-semibold text-blue-950">Tồn trên tàu</h3>
+        <h3 className="text-xl font-semibold text-blue-950">
+          {t("consumables.tonTrenTau")}
+        </h3>
         {theoNhom.length === 0 ? (
           <p className="rounded-xl bg-white p-6 text-sm text-slate-500 shadow-sm ring-1 ring-blue-100">
-            Chưa có số liệu. Ghi phiếu nhận đầu tiên ở phần bên dưới.
+            {t("consumables.chuaCoSoLieu")}
           </p>
         ) : (
           theoNhom.map((nhom) => (
@@ -606,19 +629,25 @@ export default async function ConsumableVesselPage({
               className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100"
             >
               <h4 className="mb-2 font-semibold text-blue-950">
-                {nhom.icon} {nhom.label}
+                {nhom.icon} {tTuDo(`consumables.nhom_${nhom.value}`)}
               </h4>
               <div className="overflow-x-auto">
                 <table className="w-full border text-sm">
                   <thead>
                     <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                      <th className="p-2">Mã</th>
-                      <th className="p-2">Mặt hàng</th>
-                      <th className="p-2">Chủng loại</th>
-                      <th className="p-2 text-right">Tồn</th>
-                      <th className="p-2 text-right">Dùng/ngày</th>
-                      <th className="p-2 text-right">Còn dùng được</th>
-                      <th className="p-2 text-right">Định mức</th>
+                      <th className="p-2">{t("chung.ma")}</th>
+                      <th className="p-2">{t("consumables.matHang")}</th>
+                      <th className="p-2">{t("consumables.chungLoai")}</th>
+                      <th className="p-2 text-right">{t("consumables.ton")}</th>
+                      <th className="p-2 text-right">
+                        {t("consumables.dungMoiNgay")}
+                      </th>
+                      <th className="p-2 text-right">
+                        {t("consumables.conDungDuoc")}
+                      </th>
+                      <th className="p-2 text-right">
+                        {t("consumables.dinhMuc")}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -639,12 +668,12 @@ export default async function ConsumableVesselPage({
                             )}
                             {thieu && (
                               <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
-                                THIẾU
+                                {t("consumables.badgeThieu")}
                               </span>
                             )}
                           </td>
                           <td className="p-2 text-slate-600">
-                            {GRADE_LABEL[s.product.grade] ?? s.product.grade}
+                            {tTuDo(`consumables.loai_${s.product.grade}`)}
                           </td>
                           <td className="p-2 text-right font-semibold">
                             {s.quantity} {s.product.uom}
@@ -661,7 +690,7 @@ export default async function ConsumableVesselPage({
                               if (ng === null)
                                 return (
                                   <span className="text-slate-400">
-                                    chưa có tiêu thụ
+                                    {t("consumables.chuaCoTieuThu")}
                                   </span>
                                 );
                               return (
@@ -672,7 +701,7 @@ export default async function ConsumableVesselPage({
                                       : "text-slate-700"
                                   }
                                 >
-                                  {ng} ngày
+                                  {t("consumables.nNgay", { n: ng })}
                                 </span>
                               );
                             })()}
@@ -705,7 +734,7 @@ export default async function ConsumableVesselPage({
       {coTheGhi && (
         <section className="space-y-3">
           <h3 className="text-xl font-semibold text-blue-950">
-            Ghi phiếu nhận (BDN / phiếu giao hàng)
+            {t("consumables.tieuDeGhiPhieu")}
           </h3>
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
             <ConsumableReceiptForm
@@ -720,7 +749,7 @@ export default async function ConsumableVesselPage({
       {coTheGhi && (
         <section className="space-y-3">
           <h3 className="text-xl font-semibold text-blue-950">
-            Ghi tiêu thụ / xuất
+            {t("consumables.tieuDeGhiTieuThu")}
           </h3>
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
             <ConsumableMoveForm vesselId={vesselId} products={optionsChoNhom} />
@@ -732,7 +761,7 @@ export default async function ConsumableVesselPage({
       {coTheXinCap && (
         <section className="space-y-3">
           <h3 className="text-xl font-semibold text-blue-950">
-            Yêu cầu cấp — gửi lên phê duyệt
+            {t("consumables.tieuDeXinCap")}
           </h3>
           <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
             <ConsumableRequestForm
@@ -748,23 +777,21 @@ export default async function ConsumableVesselPage({
       {hopNhom("FUEL") && mauDangGiu.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-xl font-semibold text-blue-950">
-            Mẫu dầu đang giữ trên tàu
+            {t("consumables.tieuDeMauDau")}
           </h3>
           <div className="overflow-x-auto rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
             <p className="mb-2 text-sm text-slate-600">
-              MARPOL Annex VI Reg 18.8.1 — mẫu đại diện phải giữ tới khi dùng hết
-              lô và ít nhất 12 tháng kể từ ngày giao. Kiểm tra của cảng (PSC) hỏi
-              là phải đưa ra được ngay.
+              {t("consumables.moTaMauDau")}
             </p>
             <table className="w-full border text-sm">
               <thead>
                 <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">Số BDN</th>
-                  <th className="p-2">Ngày giao</th>
-                  <th className="p-2">Mặt hàng</th>
-                  <th className="p-2">Số niêm</th>
-                  <th className="p-2">Giữ tới</th>
-                  <th className="p-2 text-right">Còn</th>
+                  <th className="p-2">{t("consumables.soBdn")}</th>
+                  <th className="p-2">{t("consumables.cotNgayGiao")}</th>
+                  <th className="p-2">{t("consumables.matHang")}</th>
+                  <th className="p-2">{t("consumables.cotSoNiem")}</th>
+                  <th className="p-2">{t("consumables.cotGiuToi")}</th>
+                  <th className="p-2 text-right">{t("consumables.cotCon")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -779,14 +806,16 @@ export default async function ConsumableVesselPage({
                       <td className="p-2">{r.product.name}</td>
                       <td className="p-2 font-mono text-xs">
                         {r.sampleSealNo ?? (
-                          <span className="text-amber-700">chưa ghi số niêm</span>
+                          <span className="text-amber-700">
+                            {t("consumables.chuaGhiSoNiem")}
+                          </span>
                         )}
                       </td>
                       <td className="p-2 whitespace-nowrap">
                         {ngay(r.sampleKeepUntil!)}
                       </td>
                       <td className="p-2 text-right whitespace-nowrap text-slate-600">
-                        {con} ngày
+                        {t("consumables.nNgay", { n: con })}
                       </td>
                     </tr>
                   );
@@ -801,17 +830,19 @@ export default async function ConsumableVesselPage({
       {hopNhom("CHEMICAL") && hoaChatNguyHiem.length > 0 && (
         <section className="space-y-3">
           <h3 className="text-xl font-semibold text-blue-950">
-            An toàn hóa chất
+            {t("consumables.tieuDeAnToanHoaChat")}
           </h3>
           <div className="overflow-x-auto rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
             <table className="w-full border text-sm">
               <thead>
                 <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">Mã</th>
-                  <th className="p-2">Hóa chất</th>
-                  <th className="p-2">Phân loại nguy hiểm</th>
-                  <th className="p-2">Hạn dùng</th>
-                  <th className="p-2">Ghi chú an toàn / nơi lưu MSDS</th>
+                  <th className="p-2">{t("chung.ma")}</th>
+                  <th className="p-2">{t("consumables.cotHoaChat")}</th>
+                  <th className="p-2">
+                    {t("consumables.cotPhanLoaiNguyHiem")}
+                  </th>
+                  <th className="p-2">{t("consumables.cotHanDung")}</th>
+                  <th className="p-2">{t("consumables.ghiChuAnToan")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -830,7 +861,9 @@ export default async function ConsumableVesselPage({
                     </td>
                     <td className="p-2 text-slate-600">
                       {p.shelfLifeMonths
-                        ? `${p.shelfLifeMonths} tháng kể từ ngày nhận`
+                        ? t("consumables.nThangTuNgayNhan", {
+                            n: p.shelfLifeMonths,
+                          })
                         : "—"}
                     </td>
                     <td className="p-2 text-slate-600">{p.msdsNote ?? "—"}</td>
@@ -845,23 +878,25 @@ export default async function ConsumableVesselPage({
       {/* ── Lịch sử phiếu nhận ───────────────────────────────────────── */}
       <section className="space-y-3">
         <h3 className="text-xl font-semibold text-blue-950">
-          Phiếu nhận gần đây
+          {t("consumables.tieuDePhieuGanDay")}
         </h3>
         <div className="overflow-x-auto rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
           {receipts.length === 0 ? (
-            <p className="text-sm text-slate-500">Chưa có phiếu nào.</p>
+            <p className="text-sm text-slate-500">
+              {t("consumables.chuaCoPhieu")}
+            </p>
           ) : (
             <table className="w-full border text-sm">
               <thead>
                 <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">Số chứng từ</th>
-                  <th className="p-2">Ngày</th>
-                  <th className="p-2">Mặt hàng</th>
-                  <th className="p-2 text-right">Số lượng</th>
-                  <th className="p-2">Cảng / NCC</th>
-                  <th className="p-2">Đặc tính</th>
-                  <th className="p-2">Mẫu · hạn dùng</th>
-                  <th className="p-2">Bản gốc</th>
+                  <th className="p-2">{t("consumables.cotSoChungTu")}</th>
+                  <th className="p-2">{t("chung.ngay")}</th>
+                  <th className="p-2">{t("consumables.matHang")}</th>
+                  <th className="p-2 text-right">{t("chung.soLuong")}</th>
+                  <th className="p-2">{t("consumables.cotCangNcc")}</th>
+                  <th className="p-2">{t("consumables.cotDacTinh")}</th>
+                  <th className="p-2">{t("consumables.cotMauHanDung")}</th>
+                  <th className="p-2">{t("consumables.cotBanGoc")}</th>
                   <th className="p-2"></th>
                 </tr>
               </thead>
@@ -910,8 +945,14 @@ export default async function ConsumableVesselPage({
                       <td className="p-2 text-xs text-slate-600">
                         {r.sampleKeepUntil && (
                           <>
-                            Mẫu tới {ngay(r.sampleKeepUntil)}
-                            {r.sampleSealNo ? ` · niêm ${r.sampleSealNo}` : ""}
+                            {t("consumables.mauToi", {
+                              ngay: ngay(r.sampleKeepUntil),
+                            })}
+                            {r.sampleSealNo
+                              ? ` · ${t("consumables.niemSo", {
+                                  so: r.sampleSealNo,
+                                })}`
+                              : ""}
                           </>
                         )}
                         {r.expiryDate && (
@@ -923,7 +964,9 @@ export default async function ConsumableVesselPage({
                             }
                           >
                             {r.sampleKeepUntil ? <br /> : null}
-                            HD {ngay(r.expiryDate)}
+                            {t("consumables.hanDungNgan", {
+                              ngay: ngay(r.expiryDate),
+                            })}
                           </span>
                         )}
                         {!r.sampleKeepUntil && !r.expiryDate && "—"}
@@ -937,7 +980,7 @@ export default async function ConsumableVesselPage({
                             className="text-blue-700 hover:underline"
                             title={r.attachName ?? ""}
                           >
-                            📎 Xem bản gốc
+                            {t("consumables.xemBanGoc")}
                           </a>
                         ) : (
                           <span className="text-slate-400">—</span>
@@ -963,51 +1006,61 @@ export default async function ConsumableVesselPage({
       {/* ── Nhật ký giao dịch ────────────────────────────────────────── */}
       <section className="space-y-3">
         <h3 className="text-xl font-semibold text-blue-950">
-          Nhật ký giao dịch gần đây
+          {t("consumables.tieuDeNhatKy")}
         </h3>
         <div className="overflow-x-auto rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
           {transactions.length === 0 ? (
-            <p className="text-sm text-slate-500">Chưa có giao dịch nào.</p>
+            <p className="text-sm text-slate-500">
+              {t("consumables.chuaCoGiaoDich")}
+            </p>
           ) : (
             <table className="w-full border text-sm">
               <thead>
                 <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">Thời điểm</th>
-                  <th className="p-2">Loại</th>
-                  <th className="p-2">Mặt hàng</th>
-                  <th className="p-2">Nơi tiêu thụ</th>
-                  <th className="p-2 text-right">Số lượng</th>
-                  <th className="p-2">Người ghi</th>
-                  <th className="p-2">Ghi chú</th>
+                  <th className="p-2">{t("consumables.cotThoiDiem")}</th>
+                  <th className="p-2">{t("consumables.cotLoai")}</th>
+                  <th className="p-2">{t("consumables.matHang")}</th>
+                  <th className="p-2">{t("consumables.noiTieuThu")}</th>
+                  <th className="p-2 text-right">{t("chung.soLuong")}</th>
+                  <th className="p-2">{t("consumables.cotNguoiGhi")}</th>
+                  <th className="p-2">{t("chung.ghiChu")}</th>
                 </tr>
               </thead>
               <tbody>
-                {transactions.filter((t) => hopNhom(t.product.category)).map((t) => (
-                  <tr key={t.id} className="border-b">
-                    <td className="p-2 whitespace-nowrap">{gio(t.occurredAt)}</td>
+                {transactions
+                  .filter((tx) => hopNhom(tx.product.category))
+                  .map((tx) => (
+                  <tr key={tx.id} className="border-b">
+                    <td className="p-2 whitespace-nowrap">
+                      {ngayGio(tx.occurredAt)}
+                    </td>
                     <td className="p-2">
                       <span
                         className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                          t.type === "IN"
+                          tx.type === "IN"
                             ? "bg-emerald-100 text-emerald-800"
-                            : t.type === "CONSUME"
+                            : tx.type === "CONSUME"
                               ? "bg-blue-100 text-blue-800"
                               : "bg-slate-100 text-slate-700"
                         }`}
                       >
-                        {TRANSACTION_LABEL[t.type] ?? t.type}
+                        {tTuDo(`consumables.giaoDich_${tx.type}`)}
                       </span>
                     </td>
-                    <td className="p-2">{t.product.name}</td>
+                    <td className="p-2">{tx.product.name}</td>
                     <td className="p-2 text-slate-600">
-                      {t.consumer ? (CONSUMER_LABEL[t.consumer] ?? t.consumer) : "—"}
+                      {tx.consumer
+                        ? tTuDo(`consumables.noiTieuThu_${tx.consumer}`)
+                        : "—"}
                     </td>
                     <td className="p-2 text-right whitespace-nowrap">
-                      {t.type === "IN" ? "+" : "−"}
-                      {t.quantity} {t.product.uom}
+                      {tx.type === "IN" ? "+" : "−"}
+                      {tx.quantity} {tx.product.uom}
                     </td>
-                    <td className="p-2 text-slate-600">{t.performedBy ?? "—"}</td>
-                    <td className="p-2 text-slate-600">{t.note ?? "—"}</td>
+                    <td className="p-2 text-slate-600">
+                      {tx.performedBy ?? "—"}
+                    </td>
+                    <td className="p-2 text-slate-600">{tx.note ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1017,14 +1070,20 @@ export default async function ConsumableVesselPage({
       </section>
 
       <p className="text-xs text-slate-500">
-        Trên tàu này bạn <b>ghi nghiệp vụ</b> được:{" "}
+        {t("consumables.quyenTrenTauTruoc")}{" "}
+        <b>{t("consumables.quyenGhiDam")}</b> {t("consumables.quyenGhiSau")}{" "}
         {nhomGhiDuoc.length
-          ? nhomGhiDuoc.map((c) => CATEGORY_LABEL[c]).join(" · ")
-          : "không nhóm nào"}
-        . <b>Xin cấp</b> được:{" "}
+          ? nhomGhiDuoc
+              .map((c) => tTuDo(`consumables.nhom_${c}`))
+              .join(" · ")
+          : t("consumables.khongNhomNao")}
+        . <b>{t("consumables.quyenXinDam")}</b>{" "}
+        {t("consumables.quyenXinSau")}{" "}
         {nhomXinDuoc.length
-          ? nhomXinDuoc.map((c) => CATEGORY_LABEL[c]).join(" · ")
-          : "không nhóm nào"}
+          ? nhomXinDuoc
+              .map((c) => tTuDo(`consumables.nhom_${c}`))
+              .join(" · ")
+          : t("consumables.khongNhomNao")}
         .
       </p>
     </div>

@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { paintStockMove, savePaintStockMin } from "@/app/paint-actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 import { PAINT_TYPE_LABEL } from "@/lib/paintTypes";
 
 export type StockProductOption = { id: number; label: string; uom: string };
@@ -13,6 +14,7 @@ export function PaintStockMoveForm({
   vesselId: number;
   products: StockProductOption[];
 }) {
+  const { t, tTuDo } = useNgonNgu();
   const [state, action, pending] = useActionState(paintStockMove, {
     message: "",
   });
@@ -36,7 +38,7 @@ export function PaintStockMoveForm({
             !laMoi ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-700"
           }`}
         >
-          Chọn từ danh mục
+          {t("paint.chonTuDanhMuc")}
         </button>
         <button
           type="button"
@@ -50,11 +52,11 @@ export function PaintStockMoveForm({
             laMoi ? "bg-blue-700 text-white" : "bg-slate-100 text-slate-700"
           }`}
         >
-          Loại sơn mới
+          {t("paint.loaiSonMoi")}
         </button>
         {products.length === 0 && (
           <span className="self-center text-xs text-slate-500">
-            Danh mục chưa có loại nào — khai loại mới ngay ở đây.
+            {t("paint.danhMucRong")}
           </span>
         )}
       </div>
@@ -63,17 +65,19 @@ export function PaintStockMoveForm({
         <div className="grid grid-cols-1 gap-3 rounded border border-blue-200 bg-blue-50 p-3 md:grid-cols-5">
           <label className="block md:col-span-2">
             <span className="mb-1 block text-sm text-slate-600">
-              Tên sơn mới *
+              {t("paint.tenSonMoi")} *
             </span>
             <input
               name="newName"
               required={laMoi}
-              placeholder="VD: Marathon 500"
+              placeholder={t("paint.phVdMarathon")}
               className="w-full rounded border p-2"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">Hãng SX</span>
+            <span className="mb-1 block text-sm text-slate-600">
+              {t("paint.hangSanXuat")}
+            </span>
             <input
               name="newMaker"
               placeholder="Jotun, Chugoku..."
@@ -81,25 +85,31 @@ export function PaintStockMoveForm({
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">Hệ sơn</span>
+            <span className="mb-1 block text-sm text-slate-600">
+              {t("paint.heSon")}
+            </span>
             <select name="newPaintType" className="w-full rounded border p-2">
-              {Object.entries(PAINT_TYPE_LABEL).map(([v, l]) => (
+              {Object.keys(PAINT_TYPE_LABEL).map((v) => (
                 <option key={v} value={v}>
-                  {l}
+                  {tTuDo(`paint.loaiSon_${v}`)}
                 </option>
               ))}
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">Màu</span>
+            <span className="mb-1 block text-sm text-slate-600">
+              {t("paint.cotMau")}
+            </span>
             <input
               name="newColorName"
-              placeholder="Đỏ, xám..."
+              placeholder={t("paint.phMau")}
               className="w-full rounded border p-2"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">ĐVT</span>
+            <span className="mb-1 block text-sm text-slate-600">
+              {t("chung.donVi")}
+            </span>
             <input
               name="newUom"
               defaultValue="L"
@@ -108,7 +118,7 @@ export function PaintStockMoveForm({
           </label>
           <label className="block">
             <span className="mb-1 block text-sm text-slate-600">
-              Dung tích 1 lon/thùng (L)
+              {t("paint.dungTichLonThung")}
             </span>
             <input
               name="newPackSize"
@@ -119,8 +129,7 @@ export function PaintStockMoveForm({
             />
           </label>
           <p className="text-xs text-slate-600 md:col-span-4 md:self-end">
-            Loại mới sẽ được thêm vào danh mục sơn khi ghi. Gõ trùng tên một
-            loại đang có thì dùng lại loại đó, không tạo bản trùng.
+            {t("paint.loaiMoiGhiChu")}
           </p>
         </div>
       )}
@@ -128,13 +137,15 @@ export function PaintStockMoveForm({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
         {!laMoi && (
           <label className="block md:col-span-2">
-            <span className="mb-1 block text-sm text-slate-600">Loại sơn *</span>
+            <span className="mb-1 block text-sm text-slate-600">
+              {t("paint.loaiSon")} *
+            </span>
             <select
               name="productId"
               required={!laMoi}
               className="w-full rounded border p-2"
             >
-              <option value="">— Chọn sơn —</option>
+              <option value="">{t("paint.chonSon")}</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.label}
@@ -144,21 +155,27 @@ export function PaintStockMoveForm({
           </label>
         )}
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">Thao tác *</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("chung.thaoTac")} *
+          </span>
           <select
             name="type"
             value={type}
             onChange={(e) => setType(e.target.value)}
             className="w-full rounded border p-2"
           >
-            <option value="IN">Nhận sơn lên tàu</option>
+            <option value="IN">{t("paint.optNhanSon")}</option>
             {/* Loại mới thì chưa có tồn để xuất — bỏ hẳn lựa chọn thay vì để
                 người dùng chọn rồi mới bị server báo lỗi. */}
-            {!laMoi && <option value="OUT">Xuất / hao hụt</option>}
+            {!laMoi && (
+              <option value="OUT">{t("paint.optXuatHaoHut")}</option>
+            )}
           </select>
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">Số lượng *</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("chung.soLuong")} *
+          </span>
           <input
             name="quantity"
             type="number"
@@ -170,7 +187,7 @@ export function PaintStockMoveForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Thời điểm (để trống = bây giờ)
+            {t("paint.thoiDiemGoiY")}
           </span>
           <input
             name="occurredAt"
@@ -179,10 +196,12 @@ export function PaintStockMoveForm({
           />
         </label>
         <label className="block md:col-span-5">
-          <span className="mb-1 block text-sm text-slate-600">Ghi chú</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("chung.ghiChu")}
+          </span>
           <input
             name="note"
-            placeholder="Số lô, cảng nhận, lý do xuất..."
+            placeholder={t("paint.phGhiChuGiaoDich")}
             className="w-full rounded border p-2"
           />
         </label>
@@ -192,7 +211,7 @@ export function PaintStockMoveForm({
           disabled={pending}
           className="rounded bg-blue-700 px-5 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
         >
-          {pending ? "Đang ghi..." : "Ghi giao dịch"}
+          {pending ? t("paint.dangGhi") : t("paint.nutGhiGiaoDich")}
         </button>
         {state.message && (
           <span
@@ -217,6 +236,7 @@ export function PaintStockMinForm({
   productId: number;
   minQty: number;
 }) {
+  const { t } = useNgonNgu();
   const [state, action, pending] = useActionState(savePaintStockMin, {
     message: "",
   });
@@ -235,9 +255,9 @@ export function PaintStockMinForm({
       <button
         disabled={pending}
         className="text-xs text-blue-700 hover:underline disabled:opacity-50"
-        title={state.message || "Lưu định mức tối thiểu"}
+        title={state.message || t("paint.luuDinhMucToiThieu")}
       >
-        Lưu
+        {t("chung.luu")}
       </button>
     </form>
   );

@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useState } from "react";
 import { importPaintProducts } from "@/app/paint-actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 type VesselOption = { id: number; label: string };
 
@@ -10,6 +11,7 @@ export default function PaintImportForm({
 }: {
   vessels: VesselOption[];
 }) {
+  const { t } = useNgonNgu();
   const [state, action, pending] = useActionState(importPaintProducts, {
     message: "",
   });
@@ -29,10 +31,10 @@ export default function PaintImportForm({
     >
       <label className="block max-w-md">
         <span className="mb-1 block text-sm text-slate-600">
-          Ghi tồn cho tàu — tùy chọn
+          {t("paint.ghiTonChoTau")}
         </span>
         <select name="vesselId" className="w-full rounded border p-2">
-          <option value="">— Chỉ nạp danh mục, không ghi tồn —</option>
+          <option value="">{t("paint.chiNapDanhMuc")}</option>
           {vessels.map((v) => (
             <option key={v.id} value={v.id}>
               {v.label}
@@ -40,8 +42,7 @@ export default function PaintImportForm({
           ))}
         </select>
         <span className="mt-1 block text-xs text-slate-500">
-          Chọn tàu thì cột số lượng / tồn trong file sẽ được ghi thành tồn sơn
-          của tàu đó.
+          {t("paint.goiYGhiTon")}
         </span>
       </label>
 
@@ -55,7 +56,7 @@ export default function PaintImportForm({
               : "border border-blue-200 bg-white text-blue-800 hover:bg-blue-50"
           }`}
         >
-          Từ file Excel
+          {t("paint.tuFileExcel")}
         </button>
         <button
           type="button"
@@ -66,7 +67,7 @@ export default function PaintImportForm({
               : "border border-blue-200 bg-white text-blue-800 hover:bg-blue-50"
           }`}
         >
-          Dán từ PDF
+          {t("paint.danTuPdf")}
         </button>
       </div>
 
@@ -76,11 +77,8 @@ export default function PaintImportForm({
             File Excel (.xls / .xlsx)
           </p>
           <p className="mb-3 text-xs text-slate-600">
-            App tự dò cột theo tiêu đề, đọc mọi sheet. Nhận các tên cột thường
-            gặp: <b>Tên sơn</b> (bắt buộc) · Hãng · Loại · Mã màu · Tên màu ·
-            Đơn vị · Dung tích · Độ phủ (m²/L) · DFT · Dung môi · Tồn/Số lượng.
-            Tiếng Anh cũng nhận: Product, Maker, Type, Colour, Unit, Coverage,
-            Thinner, Q&apos;ty.
+            {t("paint.nhapExcelHint1")} <b>{t("paint.nhapExcelCotTenSon")}</b>{" "}
+            {t("paint.nhapExcelHint2")}
           </p>
           <input
             type="file"
@@ -91,21 +89,20 @@ export default function PaintImportForm({
         </div>
       ) : (
         <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4">
-          <p className="mb-1 font-semibold text-blue-950">Dán nội dung từ PDF</p>
+          <p className="mb-1 font-semibold text-blue-950">
+            {t("paint.danNoiDungPdf")}
+          </p>
           <p className="mb-2 text-xs text-slate-600">
-            Mở file PDF → bôi đen bảng danh mục (<b>Ctrl+A</b>) → copy (
-            <b>Ctrl+C</b>) → dán vào ô dưới. App tách cột theo Tab, dấu | hoặc
-            khoảng trắng liền nhau. Không có dòng tiêu đề thì mỗi dòng được coi
-            là một tên sơn.
+            {t("paint.danHint1")}
+            <b>Ctrl+A</b>
+            {t("paint.danHint2")}
+            <b>Ctrl+C</b>
+            {t("paint.danHint3")}
           </p>
           <textarea
             name="pasted"
             rows={10}
-            placeholder={
-              "Tên sơn\tHãng\tLoại\tĐơn vị\tĐộ phủ\n" +
-              "Marathon 500\tJotun\tAnti-corrosive\tL\t7.5\n" +
-              "SeaQuantum X200\tJotun\tAnti-fouling\tL\t5.6"
-            }
+            placeholder={t("paint.phDanBang")}
             className="w-full rounded border p-2 font-mono text-xs"
           />
         </div>
@@ -116,7 +113,7 @@ export default function PaintImportForm({
           disabled={pending}
           className="rounded bg-blue-700 px-6 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
         >
-          {pending ? "Đang đọc..." : "Nhập vào danh mục sơn"}
+          {pending ? t("paint.dangDoc") : t("paint.nutNhapVaoDanhMuc")}
         </button>
         {state.message && (
           <span

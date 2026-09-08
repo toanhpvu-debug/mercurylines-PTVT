@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { nhapXuatSonHangLoat } from "@/app/paint-actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 /**
  * Nhập / xuất sơn hàng loạt từ file Excel hoặc bảng dán từ PDF.
@@ -15,6 +16,7 @@ export default function PaintStockBulkForm({
 }: {
   vesselId: number;
 }) {
+  const { t } = useNgonNgu();
   const [state, action, pending] = useActionState(nhapXuatSonHangLoat, {
     message: "",
   });
@@ -27,19 +29,23 @@ export default function PaintStockBulkForm({
 
       <div className="grid gap-3 md:grid-cols-3">
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">Loại phiếu *</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("paint.loaiPhieu")} *
+          </span>
           <select
             name="type"
             value={type}
             onChange={(e) => setType(e.target.value)}
             className="w-full rounded border p-2"
           >
-            <option value="IN">Nhập sơn lên tàu</option>
-            <option value="OUT">Xuất sơn ra dùng</option>
+            <option value="IN">{t("paint.optNhapSon")}</option>
+            <option value="OUT">{t("paint.optXuatSon")}</option>
           </select>
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">Thời điểm</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("paint.thoiDiem")}
+          </span>
           <input
             type="datetime-local"
             name="occurredAt"
@@ -48,25 +54,25 @@ export default function PaintStockBulkForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Ghi chú (số phiếu, cảng…)
+            {t("paint.ghiChuPhieu")}
           </span>
           <input
             name="note"
-            placeholder="VD: Phiếu giao hàng 1234, cảng Hải Phòng"
+            placeholder={t("paint.phGhiChuPhieu")}
             className="w-full rounded border p-2"
           />
         </label>
       </div>
 
       <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-        Cột số lượng trong file là <b>số cộng thêm / trừ đi</b> theo phiếu này,
-        không phải tồn chốt lại. Muốn <i>đặt</i> tồn bằng đúng số trong file
-        (dựng dữ liệu ban đầu, kiểm kê) thì dùng trang{" "}
-        <b>Nhập danh mục sơn từ file</b>.
+        {t("paint.luuY1")} <b>{t("paint.luuYDam1")}</b> {t("paint.luuY2")}{" "}
+        <i>{t("paint.luuYDam2")}</i> {t("paint.luuY3")}{" "}
+        <b>{t("paint.nhapDanhMucTieuDe")}</b>.
         {type === "OUT" && (
           <>
             {" "}
-            Nếu có dòng thiếu tồn thì <b>dừng cả lô</b>, không ghi dòng nào.
+            {t("paint.luuYXuat1")} <b>{t("paint.luuYXuatDam")}</b>
+            {t("paint.luuYXuat2")}
           </>
         )}
       </div>
@@ -81,7 +87,7 @@ export default function PaintStockBulkForm({
               : "bg-slate-100 text-slate-700"
           }`}
         >
-          Từ file Excel
+          {t("paint.tuFileExcel")}
         </button>
         <button
           type="button"
@@ -92,7 +98,7 @@ export default function PaintStockBulkForm({
               : "bg-slate-100 text-slate-700"
           }`}
         >
-          Dán bảng (từ PDF)
+          {t("paint.danBangPdf")}
         </button>
       </div>
 
@@ -108,20 +114,20 @@ export default function PaintStockBulkForm({
             className="w-full rounded border p-2"
           />
           <span className="mt-1 block text-xs text-slate-500">
-            Bảng cần cột <b>tên sơn</b> và cột <b>số lượng</b> (Tồn / Số lượng /
-            Qty). Các cột hãng, loại, màu, ĐVT, dung tích, độ phủ nếu có sẽ được
-            đọc kèm. Loại sơn chưa có trong danh mục sẽ được thêm tự động.
+            {t("paint.bangCanCot1")} <b>{t("paint.bangCanCotTen")}</b>{" "}
+            {t("paint.bangCanCot2")} <b>{t("paint.bangCanCotSL")}</b>{" "}
+            {t("paint.bangCanCot3")}
           </span>
         </label>
       ) : (
         <label className="block">
           <span className="mb-1 block text-sm text-slate-600">
-            Dán bảng từ PDF
+            {t("paint.danBangTuPdf")}
           </span>
           <textarea
             name="pasted"
             rows={6}
-            placeholder="Mở PDF, bôi đen bảng (Ctrl+A), copy (Ctrl+C) rồi dán vào đây"
+            placeholder={t("paint.phDanBangPdf")}
             className="w-full rounded border p-2 font-mono text-xs"
           />
         </label>
@@ -132,10 +138,10 @@ export default function PaintStockBulkForm({
         className="rounded bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
       >
         {pending
-          ? "Đang xử lý..."
+          ? t("chung.dangXuLy")
           : type === "IN"
-            ? "Nhập hàng loạt"
-            : "Xuất hàng loạt"}
+            ? t("paint.nutNhapHangLoat")
+            : t("paint.nutXuatHangLoat")}
       </button>
 
       {state.message && (

@@ -2,6 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { taoYeuCauSon } from "@/app/paint-actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export type PaintRequestLine = {
   productId: number;
@@ -27,6 +28,7 @@ export default function PaintRequestForm({
   vesselId: number;
   lines: PaintRequestLine[];
 }) {
+  const { t } = useNgonNgu();
   const [state, action, pending] = useActionState(taoYeuCauSon, {
     message: "",
   });
@@ -52,8 +54,9 @@ export default function PaintRequestForm({
   if (lines.length === 0) {
     return (
       <p className="text-sm text-slate-500">
-        Chưa có loại sơn nào đang dùng. Thêm ở trang{" "}
-        <span className="font-medium">Danh mục sơn</span> trước.
+        {t("paint.chuaCoLoaiTruoc")}{" "}
+        <span className="font-medium">{t("paint.danhMucSon")}</span>{" "}
+        {t("paint.chuaCoLoaiSau")}
       </p>
     );
   }
@@ -64,9 +67,8 @@ export default function PaintRequestForm({
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-slate-600">
-          Nhập số lượng cần cấp rồi gửi. Yêu cầu đi theo đúng đường duyệt của
-          vật tư: <b>thuyền trưởng duyệt cấp tàu</b> rồi{" "}
-          <b>quản lý kỹ thuật công ty duyệt</b>.
+          {t("paint.xinCap1")} <b>{t("paint.xinCapDam1")}</b>{" "}
+          {t("paint.xinCap2")} <b>{t("paint.xinCapDam2")}</b>.
         </p>
         <label className="flex items-center gap-2 text-sm text-slate-600">
           <input
@@ -74,25 +76,24 @@ export default function PaintRequestForm({
             checked={chiThieu}
             onChange={(e) => setChiThieu(e.target.checked)}
           />
-          Chỉ hiện loại đang dưới định mức
+          {t("paint.chiHienDuoiDinhMuc")}
         </label>
       </div>
 
       {hienThi.length === 0 ? (
         <p className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-          Không có loại sơn nào dưới định mức. Bỏ dấu tick ở trên để xin cấp
-          loại khác.
+          {t("paint.khongCoLoaiDuoiDinhMuc")}
         </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full border text-sm">
             <thead>
               <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                <th className="p-2">Loại sơn</th>
-                <th className="p-2">ĐVT</th>
-                <th className="p-2">Tồn</th>
-                <th className="p-2">Định mức</th>
-                <th className="p-2">Số lượng xin cấp</th>
+                <th className="p-2">{t("paint.loaiSon")}</th>
+                <th className="p-2">{t("chung.donVi")}</th>
+                <th className="p-2">{t("paint.cotTon")}</th>
+                <th className="p-2">{t("paint.cotDinhMuc")}</th>
+                <th className="p-2">{t("paint.cotSoLuongXin")}</th>
               </tr>
             </thead>
             <tbody>
@@ -134,21 +135,23 @@ export default function PaintRequestForm({
       <div className="grid gap-3 md:grid-cols-3">
         <label className="block md:col-span-2">
           <span className="mb-1 block text-sm text-slate-600">
-            Lý do / mục đích
+            {t("paint.lyDoMucDich")}
           </span>
           <input
             name="purpose"
-            placeholder="VD: Sơn lại boong mũi trong chuyến tới"
+            placeholder={t("paint.phLyDo")}
             className="w-full rounded border p-2"
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">Mức ưu tiên</span>
+          <span className="mb-1 block text-sm text-slate-600">
+            {t("paint.mucUuTien")}
+          </span>
           <select name="priority" className="w-full rounded border p-2">
-            <option value="NORMAL">Bình thường</option>
-            <option value="HIGH">Cao</option>
-            <option value="URGENT">Khẩn</option>
-            <option value="LOW">Thấp</option>
+            <option value="NORMAL">{t("labels.priority_NORMAL")}</option>
+            <option value="HIGH">{t("labels.priority_HIGH")}</option>
+            <option value="URGENT">{t("labels.priority_URGENT")}</option>
+            <option value="LOW">{t("labels.priority_LOW")}</option>
           </select>
         </label>
       </div>
@@ -157,7 +160,7 @@ export default function PaintRequestForm({
         disabled={pending || hienThi.length === 0}
         className="rounded bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
       >
-        {pending ? "Đang gửi..." : "Gửi yêu cầu phê duyệt"}
+        {pending ? t("paint.dangGui") : t("paint.nutGuiYeuCau")}
       </button>
 
       {state.message && (

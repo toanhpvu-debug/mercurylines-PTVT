@@ -7,6 +7,7 @@ import {
   setSupplierActive,
   updateSupplier,
 } from "@/app/actions";
+import { useNgonNgu } from "@/lib/i18n/client";
 
 export type SupplierData = {
   id: number;
@@ -19,6 +20,7 @@ export type SupplierData = {
 };
 
 export function SupplierForm() {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(createSupplier, {
     message: "",
   });
@@ -28,14 +30,14 @@ export function SupplierForm() {
       <div className="grid grid-cols-2 gap-3">
         <input
           name="code"
-          placeholder="Mã NCC"
+          placeholder={t("purchasing.phMaNcc")}
           className="rounded border p-2"
           defaultValue={v.code ?? ""}
           required
         />
         <input
           name="name"
-          placeholder="Tên nhà cung cấp"
+          placeholder={t("purchasing.tenNcc")}
           className="rounded border p-2"
           defaultValue={v.name ?? ""}
           required
@@ -43,7 +45,7 @@ export function SupplierForm() {
       </div>
       <input
         name="contact"
-        placeholder="Người liên hệ"
+        placeholder={t("purchasing.nguoiLienHe")}
         className="w-full rounded border p-2"
         defaultValue={v.contact ?? ""}
       />
@@ -57,14 +59,14 @@ export function SupplierForm() {
         />
         <input
           name="phone"
-          placeholder="Điện thoại"
+          placeholder={t("purchasing.dienThoai")}
           className="rounded border p-2"
           defaultValue={v.phone ?? ""}
         />
       </div>
       <input
         name="address"
-        placeholder="Địa chỉ"
+        placeholder={t("purchasing.diaChi")}
         className="w-full rounded border p-2"
         defaultValue={v.address ?? ""}
       />
@@ -72,7 +74,7 @@ export function SupplierForm() {
         disabled={pending}
         className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
       >
-        {pending ? "Đang lưu..." : "Thêm nhà cung cấp"}
+        {pending ? t("chung.dangLuu") : t("purchasing.themNcc")}
       </button>
       {state.message && (
         <p
@@ -89,6 +91,7 @@ export function SupplierForm() {
 
 // Form sửa thông tin nhà cung cấp (ADMIN).
 export function SupplierEditForm({ supplier }: { supplier: SupplierData }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(updateSupplier, {
     message: "",
   });
@@ -101,7 +104,9 @@ export function SupplierEditForm({ supplier }: { supplier: SupplierData }) {
       <input type="hidden" name="id" value={supplier.id} />
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className="mb-1 block text-xs text-slate-600">Mã NCC</span>
+          <span className="mb-1 block text-xs text-slate-600">
+            {t("purchasing.phMaNcc")}
+          </span>
           <input
             name="code"
             className="w-full rounded border p-2"
@@ -111,7 +116,7 @@ export function SupplierEditForm({ supplier }: { supplier: SupplierData }) {
         </label>
         <label className="block">
           <span className="mb-1 block text-xs text-slate-600">
-            Tên nhà cung cấp
+            {t("purchasing.tenNcc")}
           </span>
           <input
             name="name"
@@ -124,7 +129,7 @@ export function SupplierEditForm({ supplier }: { supplier: SupplierData }) {
       <div className="grid grid-cols-3 gap-3">
         <label className="block">
           <span className="mb-1 block text-xs text-slate-600">
-            Người liên hệ
+            {t("purchasing.nguoiLienHe")}
           </span>
           <input
             name="contact"
@@ -142,7 +147,9 @@ export function SupplierEditForm({ supplier }: { supplier: SupplierData }) {
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-xs text-slate-600">Điện thoại</span>
+          <span className="mb-1 block text-xs text-slate-600">
+            {t("purchasing.dienThoai")}
+          </span>
           <input
             name="phone"
             className="w-full rounded border p-2"
@@ -151,7 +158,9 @@ export function SupplierEditForm({ supplier }: { supplier: SupplierData }) {
         </label>
       </div>
       <label className="block">
-        <span className="mb-1 block text-xs text-slate-600">Địa chỉ</span>
+        <span className="mb-1 block text-xs text-slate-600">
+          {t("purchasing.diaChi")}
+        </span>
         <input
           name="address"
           className="w-full rounded border p-2"
@@ -163,7 +172,7 @@ export function SupplierEditForm({ supplier }: { supplier: SupplierData }) {
           disabled={pending}
           className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
         >
-          {pending ? "Đang lưu..." : "Lưu thay đổi"}
+          {pending ? t("chung.dangLuu") : t("purchasing.luuThayDoi")}
         </button>
         {state.message && (
           <p
@@ -180,6 +189,7 @@ export function SupplierEditForm({ supplier }: { supplier: SupplierData }) {
 }
 
 export function SupplierDeleteButton({ id }: { id: number }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(deleteSupplier, {
     message: "",
   });
@@ -187,7 +197,7 @@ export function SupplierDeleteButton({ id }: { id: number }) {
     <form
       action={formAction}
       onSubmit={(e) => {
-        if (!window.confirm("Xóa vĩnh viễn nhà cung cấp này?")) {
+        if (!window.confirm(t("purchasing.xacNhanXoaNcc"))) {
           e.preventDefault();
         }
       }}
@@ -197,7 +207,7 @@ export function SupplierDeleteButton({ id }: { id: number }) {
         disabled={pending}
         className="rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
       >
-        {pending ? "..." : "Xóa"}
+        {pending ? "..." : t("chung.xoa")}
       </button>
       {state.message && (
         <p className="mt-1 max-w-52 text-xs text-red-600">{state.message}</p>
@@ -213,6 +223,7 @@ export function SupplierActiveToggle({
   id: number;
   isActive: boolean;
 }) {
+  const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(setSupplierActive, {
     message: "",
   });
@@ -228,7 +239,11 @@ export function SupplierActiveToggle({
             : "bg-green-100 text-green-700 hover:bg-green-200"
         }`}
       >
-        {pending ? "..." : isActive ? "Ngừng dùng" : "Dùng lại"}
+        {pending
+          ? "..."
+          : isActive
+            ? t("purchasing.nutNgungDung")
+            : t("purchasing.nutDungLai")}
       </button>
       {state.message && (
         <p className="mt-1 text-xs text-red-600">{state.message}</p>

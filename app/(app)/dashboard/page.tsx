@@ -1,4 +1,15 @@
 import Link from "next/link";
+import {
+  AlertTriangle,
+  Anchor,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Boxes,
+  ClipboardList,
+  Paintbrush,
+  ShoppingCart,
+  Wrench,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { CHUC_DANH, chucDanhCuaNguoiDung } from "@/lib/maVatTu";
 import {
@@ -9,33 +20,20 @@ import {
 } from "@/lib/auth";
 import { MA_LOCALE } from "@/lib/i18n/ngonNgu";
 import { layT } from "@/lib/i18n/server";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  Meter,
+  PageHeader,
+  Stat,
+  TONE_DON_MUA,
+  TONE_YEU_CAU,
+  buttonClass,
+  type Tone,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
-
-// Màu của từng trạng thái; NHÃN lấy từ từ điển (labels.reqStatus_* / poStatus_*)
-// để đổi theo ngôn ngữ — bảng này chỉ còn phần trang trí.
-const REQ_STATUS: Record<string, { badge: string; bar: string }> = {
-  DRAFT: { badge: "bg-slate-100 text-slate-600", bar: "bg-slate-400" },
-  PENDING_MASTER: { badge: "bg-amber-100 text-amber-700", bar: "bg-amber-400" },
-  PENDING_OFFICE: { badge: "bg-orange-100 text-orange-700", bar: "bg-orange-400" },
-  APPROVED: { badge: "bg-green-100 text-green-700", bar: "bg-green-500" },
-  REJECTED: { badge: "bg-red-100 text-red-700", bar: "bg-red-400" },
-  IN_PROCUREMENT: { badge: "bg-blue-100 text-blue-700", bar: "bg-blue-500" },
-  PARTIALLY_DELIVERED: { badge: "bg-indigo-100 text-indigo-700", bar: "bg-indigo-500" },
-  FULLY_DELIVERED: { badge: "bg-emerald-100 text-emerald-700", bar: "bg-emerald-500" },
-  CLOSED: { badge: "bg-slate-100 text-slate-500", bar: "bg-slate-300" },
-  CANCELLED: { badge: "bg-slate-100 text-slate-400", bar: "bg-slate-300" },
-};
-
-const PO_STATUS: Record<string, { bar: string }> = {
-  DRAFT: { bar: "bg-slate-400" },
-  SENT: { bar: "bg-blue-500" },
-  CONFIRMED: { bar: "bg-indigo-500" },
-  PARTIALLY_RECEIVED: { bar: "bg-amber-400" },
-  RECEIVED: { bar: "bg-emerald-500" },
-  CLOSED: { bar: "bg-slate-300" },
-  CANCELLED: { bar: "bg-slate-300" },
-};
 
 const REQ_OPEN = [
   "DRAFT",
@@ -47,44 +45,35 @@ const REQ_OPEN = [
 ];
 const PO_OPEN = ["DRAFT", "SENT", "CONFIRMED", "PARTIALLY_RECEIVED", "RECEIVED"];
 
-function KpiCard({
-  href,
-  icon,
-  iconBg,
-  label,
-  value,
-  valueClass,
-}: {
-  href: string;
-  icon: string;
-  iconBg: string;
-  label: string;
-  value: number;
-  valueClass?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-blue-300"
-    >
-      <div className="flex items-center gap-3">
-        <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${iconBg}`}
-        >
-          {icon}
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            {label}
-          </p>
-          <p className={`text-2xl font-bold ${valueClass ?? "text-blue-950"}`}>
-            {value}
-          </p>
-        </div>
-      </div>
-    </Link>
-  );
+/** Thứ tự vẽ các thanh "theo trạng thái" — theo vòng đời, không theo bảng chữ cái. */
+const REQ_THU_TU = [
+  "DRAFT",
+  "PENDING_MASTER",
+  "PENDING_OFFICE",
+  "APPROVED",
+  "REJECTED",
+  "IN_PROCUREMENT",
+  "PARTIALLY_DELIVERED",
+  "FULLY_DELIVERED",
+  "CLOSED",
+  "CANCELLED",
+];
+const PO_THU_TU = [
+  "DRAFT",
+  "SENT",
+  "CONFIRMED",
+  "PARTIALLY_RECEIVED",
+  "RECEIVED",
+  "CLOSED",
+  "CANCELLED",
+];
+
+/** Màu thanh tồn thấp theo mức thiếu: càng thiếu càng đỏ. */
+function toneThieu(pct: number): Tone {
+  return pct < 40 ? "danger" : pct < 75 ? "warning" : "info";
 }
+
+const LINK = "text-sm text-brand-700 hover:underline dark:text-brand-300";
 
 export default async function DashboardPage() {
   const user = await requireScopedUser();
@@ -111,10 +100,6 @@ export default async function DashboardPage() {
     spareLinks,
     paintStocks,
   ] = await Promise.all([
-    // Đếm "vật tư tôi quản lý" gộp vào batch song song này thay vì chạy riêng
-    // trước nó: phép đếm không phụ thuộc truy vấn nào khác, tách ra chỉ thêm
-    // một vòng chờ database nối tiếp trên đúng trang mở đầu mỗi phiên. Chưa có
-    // chức danh thì khỏi hỏi, trả thẳng 0.
     chucDanhCuaToi
       ? prisma.material.count({
           where: {
@@ -155,8 +140,7 @@ export default async function DashboardPage() {
       _sum: { quantity: true },
     }),
     // Chỉ lấy 4 cột thật sự dùng tới (tra tên + mã + mức tối thiểu cho phần tồn
-    // thấp và nhật ký kho gần đây), không kéo cả 15 cột của 600+ dòng mỗi lần
-    // mở dashboard.
+    // thấp và nhật ký kho gần đây), không kéo cả 15 cột của 600+ dòng.
     prisma.material.findMany({
       select: { id: true, code: true, nameVn: true, minStock: true },
     }),
@@ -188,7 +172,7 @@ export default async function DashboardPage() {
     prisma.paintStock.findMany({
       where: vesselWhere(scope),
       select: { quantity: true, minQty: true },
-    })
+    }),
   ]);
 
   const materialById = new Map(materials.map((m) => [m.id, m]));
@@ -265,59 +249,53 @@ export default async function DashboardPage() {
   ).length;
 
   return (
-    <div className="space-y-6">
-      {/* Tiêu đề + thao tác nhanh */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold text-blue-950">{t("dashboard.tieuDe")}</h2>
-          <p className="text-slate-600">
+    <div className="space-y-5">
+      <PageHeader
+        title={t("dashboard.tieuDe")}
+        subtitle={
+          <>
             {scope.all
               ? t("dashboard.tongQuanDoi")
               : t("dashboard.tongQuanTau", {
                   tau: vessels[0]?.name ?? t("dashboard.tauCuaBan"),
                 })}
-            <span className="text-slate-400"> · {today}</span>
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            href="/requests"
-            className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800"
-          >
-            {t("dashboard.taoYeuCau")}
-          </Link>
-          <Link
-            href="/inventory"
-            className="rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm text-blue-950 hover:bg-blue-50"
-          >
-            {t("dashboard.nhapXuatKho")}
-          </Link>
-          <Link
-            href="/purchasing"
-            className="rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm text-blue-950 hover:bg-blue-50"
-          >
-            {t("dashboard.muaSam")}
-          </Link>
-        </div>
-      </div>
+            <span className="text-[var(--text-muted)]"> · {today}</span>
+          </>
+        }
+        action={
+          <>
+            <Link href="/requests" className={buttonClass("primary")}>
+              <ClipboardList className="size-4" />
+              {t("dashboard.taoYeuCau")}
+            </Link>
+            <Link href="/inventory" className={buttonClass("secondary")}>
+              {t("dashboard.nhapXuatKho")}
+            </Link>
+            <Link href="/purchasing" className={buttonClass("secondary")}>
+              {t("dashboard.muaSam")}
+            </Link>
+          </>
+        }
+      />
 
       {chucDanhCuaToi && (
         <Link
           href="/materials?rank=toi"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50/70 px-5 py-4 transition hover:border-blue-300 hover:bg-blue-50"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-500/30 bg-brand-500/8 px-5 py-4 transition hover:bg-brand-500/12"
         >
           <div>
-            <p className="text-sm text-slate-600">
-              {t("dashboard.banLa")} <b>{tenChucDanh(chucDanhCuaToi)}</b> ·{" "}
+            <p className="text-sm text-[var(--text-secondary)]">
+              {t("dashboard.banLa")}{" "}
+              <b className="text-[var(--text-primary)]">{tenChucDanh(chucDanhCuaToi)}</b> ·{" "}
               {tenBoPhan(CHUC_DANH[chucDanhCuaToi].boPhan)}
             </p>
-            <p className="text-lg font-semibold text-blue-950">
+            <p className="text-lg font-semibold text-[var(--text-primary)]">
               {soVatTuCuaToi > 0
                 ? t("dashboard.matHangBanQuanLy", { n: soVatTuCuaToi })
                 : t("dashboard.chuaCoMatHang")}
             </p>
           </div>
-          <span className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white">
+          <span className={buttonClass("primary", "sm")}>
             {soVatTuCuaToi > 0
               ? t("dashboard.xemVatTuCuaToi")
               : t("dashboard.moDanhMuc")}
@@ -326,402 +304,336 @@ export default async function DashboardPage() {
       )}
 
       {scope.unassigned && (
-        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
+        <div className="rounded-lg bg-[var(--tone-warning-bg)] px-4 py-3 text-sm text-[var(--tone-warning-text)]">
           {t("dashboard.chuaGanTau")}
         </div>
       )}
 
       {/* KPI */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-        <KpiCard
+        <Stat
           href="/vessels"
-          icon="⚓"
-          iconBg="bg-blue-100"
+          icon={<Anchor className="size-4" />}
           label={t("dashboard.kpiDoiTau")}
           value={vesselCount}
+          tone="brand"
         />
-        <KpiCard
+        <Stat
           href="/materials"
-          icon="🧰"
-          iconBg="bg-sky-100"
+          icon={<Boxes className="size-4" />}
           label={t("dashboard.kpiVatTu")}
           value={materialCount}
         />
-        <KpiCard
+        <Stat
           href="/requests"
-          icon="📝"
-          iconBg="bg-indigo-100"
+          icon={<ClipboardList className="size-4" />}
           label={t("dashboard.kpiYeuCau")}
           value={openRequests}
+          tone="info"
         />
-        <KpiCard
+        <Stat
           href="/purchasing"
-          icon="🛒"
-          iconBg="bg-violet-100"
+          icon={<ShoppingCart className="size-4" />}
           label={t("dashboard.kpiDonMua")}
           value={openPOs}
+          tone="info"
         />
-        <KpiCard
+        <Stat
           href="/inventory"
-          icon="⚠️"
-          iconBg="bg-red-100"
+          icon={<AlertTriangle className="size-4" />}
           label={t("dashboard.kpiCanhBao")}
           value={allLowStock.length}
-          valueClass={allLowStock.length > 0 ? "text-red-600" : "text-blue-950"}
+          tone={allLowStock.length > 0 ? "danger" : "success"}
         />
-        <KpiCard
+        <Stat
           href="/paint"
-          icon="🎨"
-          iconBg="bg-amber-100"
+          icon={<Paintbrush className="size-4" />}
           label={t("dashboard.kpiSon")}
           value={lowPaintCount}
-          valueClass={lowPaintCount > 0 ? "text-amber-700" : "text-blue-950"}
+          tone={lowPaintCount > 0 ? "warning" : "success"}
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* Cột trái (2/3) */}
-        <div className="space-y-6 lg:col-span-2">
-          {/* Kiểm soát nhanh phụ tùng thiết yếu */}
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              {/* Đỏ thay vì xanh như các tiêu đề khác: đây là mục quan trọng
-                  nhất trên Dashboard (phụ tùng thiết yếu thiếu là tàu có thể
-                  không chạy được), cùng tông với nhãn "Critical" ở danh mục. */}
-              <h3 className="text-lg font-bold text-red-700">
-                {t("dashboard.kiemSoatPhuTung")}
-              </h3>
-              <div className="flex items-center gap-2">
-                {spareShortages.length > 0 ? (
-                  <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
-                    {t("dashboard.thieuTheoDoi", {
-                      thieu: spareShortages.length,
-                      tong: spareStatus.length,
-                    })}
-                  </span>
-                ) : spareStatus.length > 0 ? (
-                  <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
-                    {t("dashboard.duTatCa", { tong: spareStatus.length })}
-                  </span>
-                ) : null}
-                <Link
-                  href="/materials?type=SPARE"
-                  className="text-sm text-blue-700 hover:underline"
-                >
-                  {t("dashboard.danhMuc")}
-                </Link>
-              </div>
-            </div>
+        <div className="space-y-5 lg:col-span-2">
+          {/* Kiểm soát nhanh phụ tùng thiết yếu — mục quan trọng nhất trên
+              Dashboard (thiếu là tàu có thể không chạy được): tiêu đề tô đỏ. */}
+          <Card>
+            <CardHeader
+              icon={<Wrench className="size-4" />}
+              title={
+                <span className="text-rose-600 dark:text-rose-400">
+                  {t("dashboard.kiemSoatPhuTung")}
+                </span>
+              }
+              action={
+                <div className="flex items-center gap-2">
+                  {spareShortages.length > 0 ? (
+                    <Badge tone="danger" dot>
+                      {t("dashboard.thieuTheoDoi", {
+                        thieu: spareShortages.length,
+                        tong: spareStatus.length,
+                      })}
+                    </Badge>
+                  ) : spareStatus.length > 0 ? (
+                    <Badge tone="success" dot>
+                      {t("dashboard.duTatCa", { tong: spareStatus.length })}
+                    </Badge>
+                  ) : null}
+                  <Link href="/materials?type=SPARE" className={LINK}>
+                    {t("dashboard.danhMuc")}
+                  </Link>
+                </div>
+              }
+            />
             {spareStatus.length === 0 ? (
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-[var(--text-secondary)]">
                 {t("dashboard.chuaCoPhuTung")}{" "}
-                <Link
-                  href="/materials/import"
-                  className="text-blue-700 hover:underline"
-                >
+                <Link href="/materials/import" className={LINK}>
                   {t("dashboard.nhapTuFile")}
                 </Link>
               </p>
             ) : spareShortages.length === 0 ? (
-              <p className="text-sm text-slate-600">{t("dashboard.phuTungDuHet")}</p>
+              <p className="text-sm text-[var(--text-secondary)]">
+                {t("dashboard.phuTungDuHet")}
+              </p>
             ) : (
               <div className="space-y-3">
                 {spareTopRows.map((row, index) => {
-                  const pct = Math.max(
-                    0,
-                    Math.min(100, Math.round(row.pct * 100))
-                  );
-                  const barColor =
-                    pct < 40
-                      ? "bg-red-500"
-                      : pct < 75
-                        ? "bg-amber-500"
-                        : "bg-yellow-400";
+                  const pct = Math.max(0, Math.min(100, Math.round(row.pct * 100)));
                   return (
                     <div key={index} className="flex items-center gap-3">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm">
-                          <span className="font-medium text-blue-950">
+                          <span className="font-medium text-[var(--text-primary)]">
                             {row.name}
                           </span>
                           {row.equipment && (
-                            <span className="text-xs text-slate-400">
+                            <span className="text-xs text-[var(--text-muted)]">
                               {" "}
                               · {row.equipment}
                             </span>
                           )}
                         </p>
-                        <p className="text-xs text-slate-500">
-                          <Link
-                            href={`/vessels/${row.vesselId}`}
-                            className="text-blue-700 hover:underline"
-                          >
+                        <p className="text-xs">
+                          <Link href={`/vessels/${row.vesselId}`} className={LINK}>
                             {row.vesselName}
                           </Link>
                         </p>
                       </div>
                       <div className="w-36 shrink-0">
-                        <div className="mb-1 flex justify-between text-xs">
-                          <span className="font-semibold text-red-600">
+                        <div className="tabular mb-1 flex justify-between text-xs">
+                          <span className="font-semibold text-[var(--text-danger)]">
                             {row.current}
                           </span>
-                          <span className="text-slate-400">
+                          <span className="text-[var(--text-muted)]">
                             / {row.minStock} {row.uom}
                           </span>
                         </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className={`h-full rounded-full ${barColor}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
+                        <Meter value={pct} tone={toneThieu(pct)} className="h-2" />
                       </div>
                     </div>
                   );
                 })}
                 {spareShortages.length > spareTopRows.length && (
-                  <Link
-                    href="/materials?type=SPARE"
-                    className="block pt-1 text-sm text-blue-700 hover:underline"
-                  >
+                  <Link href="/materials?type=SPARE" className={`block pt-1 ${LINK}`}>
                     {t("dashboard.xemTatCaThieu", { n: spareShortages.length })}
                   </Link>
                 )}
               </div>
             )}
-          </div>
+          </Card>
 
           {/* Cảnh báo tồn kho */}
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-blue-950">
-                {t("dashboard.canhBaoTonThap")}
-              </h3>
-              {allLowStock.length > 0 && (
-                <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
-                  {t("dashboard.nCanhBao", { n: allLowStock.length })}
-                </span>
-              )}
-            </div>
+          <Card>
+            <CardHeader
+              icon={<AlertTriangle className="size-4" />}
+              title={t("dashboard.canhBaoTonThap")}
+              action={
+                allLowStock.length > 0 ? (
+                  <Badge tone="danger" dot>
+                    {t("dashboard.nCanhBao", { n: allLowStock.length })}
+                  </Badge>
+                ) : undefined
+              }
+            />
             {lowStockRows.length === 0 ? (
-              <p className="text-slate-600">{t("dashboard.khongDuoiTon")}</p>
+              <p className="text-sm text-[var(--text-secondary)]">
+                {t("dashboard.khongDuoiTon")}
+              </p>
             ) : (
               <div className="space-y-3">
                 {lowStockRows.map((row, index) => {
                   const pct = Math.max(0, Math.min(100, Math.round(row.pct * 100)));
-                  const barColor =
-                    pct < 40
-                      ? "bg-red-500"
-                      : pct < 75
-                        ? "bg-amber-500"
-                        : "bg-yellow-400";
                   return (
                     <div key={index} className="flex items-center gap-3">
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm">
-                          <span className="font-medium text-blue-950">
+                          <span className="font-medium text-[var(--text-primary)]">
                             {row.materialName}
                           </span>{" "}
-                          <span className="text-xs text-slate-400">
+                          <span className="font-display text-[10px] tracking-wide text-[var(--text-muted)]">
                             {row.materialCode}
                           </span>
                         </p>
-                        <p className="text-xs text-slate-500">
-                          <Link
-                            href={`/vessels/${row.vesselId}`}
-                            className="text-blue-700 hover:underline"
-                          >
+                        <p className="text-xs">
+                          <Link href={`/vessels/${row.vesselId}`} className={LINK}>
                             {row.vesselName}
                           </Link>
                         </p>
                       </div>
                       <div className="w-36 shrink-0">
-                        <div className="mb-1 flex justify-between text-xs">
-                          <span className="font-semibold text-red-600">
+                        <div className="tabular mb-1 flex justify-between text-xs">
+                          <span className="font-semibold text-[var(--text-danger)]">
                             {row.total}
                           </span>
-                          <span className="text-slate-400">
-                            / {row.minStock}
-                          </span>
+                          <span className="text-[var(--text-muted)]">/ {row.minStock}</span>
                         </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className={`h-full rounded-full ${barColor}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
+                        <Meter value={pct} tone={toneThieu(pct)} className="h-2" />
                       </div>
                     </div>
                   );
                 })}
                 {allLowStock.length > lowStockRows.length && (
-                  <Link
-                    href="/inventory"
-                    className="block pt-1 text-sm text-blue-700 hover:underline"
-                  >
+                  <Link href="/inventory" className={`block pt-1 ${LINK}`}>
                     {t("dashboard.xemTatCaCanhBao", { n: allLowStock.length })}
                   </Link>
                 )}
               </div>
             )}
-          </div>
+          </Card>
 
           {/* Yêu cầu gần đây */}
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-blue-950">
-                {t("dashboard.yeuCauGanDay")}
-              </h3>
-              <Link
-                href="/requests"
-                className="text-sm text-blue-700 hover:underline"
-              >
-                {t("dashboard.xemTatCa")}
-              </Link>
-            </div>
+          <Card>
+            <CardHeader
+              icon={<ClipboardList className="size-4" />}
+              title={t("dashboard.yeuCauGanDay")}
+              action={
+                <Link href="/requests" className={LINK}>
+                  {t("dashboard.xemTatCa")}
+                </Link>
+              }
+            />
             {recentRequests.length === 0 ? (
-              <p className="text-slate-600">{t("dashboard.chuaCoYeuCauVatTu")}</p>
+              <p className="text-sm text-[var(--text-secondary)]">
+                {t("dashboard.chuaCoYeuCauVatTu")}
+              </p>
             ) : (
-              <div className="divide-y divide-blue-50">
-                {recentRequests.map((request) => {
-                  const st = REQ_STATUS[request.status] ?? {
-                    badge: "bg-slate-100 text-slate-600",
-                    bar: "bg-slate-300",
-                  };
-                  return (
-                    <div
-                      key={request.id}
-                      className="flex flex-wrap items-center justify-between gap-2 py-2.5"
-                    >
-                      <div className="min-w-0">
-                        <Link
-                          href={`/requests/${request.id}`}
-                          className="text-sm font-medium text-blue-700 hover:underline"
-                        >
-                          {request.requestNo}
-                        </Link>
-                        <p className="text-xs text-slate-500">
-                          {request.vessel.name} ·{" "}
-                          {tTuDo(`labels.type_${request.kind === "SPARE" ? "SPARE" : "STORE"}`)} ·{" "}
-                          {ngay(request.createdAt)}
-                        </p>
-                      </div>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${st.badge}`}
+              <div className="divide-y divide-[var(--border-subtle)]">
+                {recentRequests.map((request) => (
+                  <div
+                    key={request.id}
+                    className="flex flex-wrap items-center justify-between gap-2 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <Link
+                        href={`/requests/${request.id}`}
+                        className="font-display text-xs tracking-wide text-brand-700 hover:underline dark:text-brand-300"
                       >
-                        {tTuDo(`labels.reqStatus_${request.status}`)}
-                      </span>
+                        {request.requestNo}
+                      </Link>
+                      <p className="text-xs text-[var(--text-secondary)]">
+                        {request.vessel.name} ·{" "}
+                        {tTuDo(
+                          `labels.type_${request.kind === "SPARE" ? "SPARE" : "STORE"}`
+                        )}{" "}
+                        · {ngay(request.createdAt)}
+                      </p>
+                    </div>
+                    <Badge tone={TONE_YEU_CAU[request.status] ?? "neutral"} dot>
+                      {tTuDo(`labels.reqStatus_${request.status}`)}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+
+        {/* Cột phải (1/3) */}
+        <div className="space-y-5">
+          {/* Yêu cầu theo trạng thái */}
+          <Card>
+            <CardHeader title={t("dashboard.yeuCauTheoTrangThai")} />
+            {totalRequests === 0 ? (
+              <p className="text-sm text-[var(--text-secondary)]">
+                {t("dashboard.chuaCoYeuCau")}
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {REQ_THU_TU.filter((status) => reqCount(status) > 0).map((status) => {
+                  const count = reqCount(status);
+                  return (
+                    <div key={status}>
+                      <div className="mb-1 flex justify-between text-xs">
+                        <span className="text-[var(--text-secondary)]">
+                          {tTuDo(`labels.reqStatus_${status}`)}
+                        </span>
+                        <span className="tabular font-semibold text-[var(--text-primary)]">
+                          {count}
+                        </span>
+                      </div>
+                      <Meter value={count} max={maxReq} tone={TONE_YEU_CAU[status] ?? "neutral"} />
                     </div>
                   );
                 })}
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Cột phải (1/3) */}
-        <div className="space-y-6">
-          {/* Yêu cầu theo trạng thái */}
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <h3 className="mb-4 text-lg font-semibold text-blue-950">
-              {t("dashboard.yeuCauTheoTrangThai")}
-            </h3>
-            {totalRequests === 0 ? (
-              <p className="text-sm text-slate-600">{t("dashboard.chuaCoYeuCau")}</p>
-            ) : (
-              <div className="space-y-2.5">
-                {Object.entries(REQ_STATUS)
-                  .filter(([status]) => reqCount(status) > 0)
-                  .map(([status, meta]) => {
-                    const count = reqCount(status);
-                    return (
-                      <div key={status}>
-                        <div className="mb-1 flex justify-between text-xs">
-                          <span className="text-slate-600">
-                            {tTuDo(`labels.reqStatus_${status}`)}
-                          </span>
-                          <span className="font-semibold text-blue-950">
-                            {count}
-                          </span>
-                        </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className={`h-full rounded-full ${meta.bar}`}
-                            style={{
-                              width: `${Math.round((count / maxReq) * 100)}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-          </div>
+          </Card>
 
           {/* Đơn mua hàng */}
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-blue-950">
-                {t("dashboard.donMuaHang")}
-              </h3>
-              <Link
-                href="/purchasing"
-                className="text-sm text-blue-700 hover:underline"
-              >
-                {t("dashboard.muaSamLink")}
-              </Link>
-            </div>
+          <Card>
+            <CardHeader
+              title={t("dashboard.donMuaHang")}
+              action={
+                <Link href="/purchasing" className={LINK}>
+                  {t("dashboard.muaSamLink")}
+                </Link>
+              }
+            />
             {totalPOs === 0 ? (
-              <p className="text-sm text-slate-600">{t("dashboard.chuaCoDonMua")}</p>
+              <p className="text-sm text-[var(--text-secondary)]">
+                {t("dashboard.chuaCoDonMua")}
+              </p>
             ) : (
               <div className="space-y-2.5">
-                {Object.entries(PO_STATUS)
-                  .filter(([status]) => poCount(status) > 0)
-                  .map(([status, meta]) => {
-                    const count = poCount(status);
-                    return (
-                      <div key={status}>
-                        <div className="mb-1 flex justify-between text-xs">
-                          <span className="text-slate-600">
-                            {tTuDo(`labels.poStatus_${status}`)}
-                          </span>
-                          <span className="font-semibold text-blue-950">
-                            {count}
-                          </span>
-                        </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className={`h-full rounded-full ${meta.bar}`}
-                            style={{
-                              width: `${Math.round((count / maxPo) * 100)}%`,
-                            }}
-                          />
-                        </div>
+                {PO_THU_TU.filter((status) => poCount(status) > 0).map((status) => {
+                  const count = poCount(status);
+                  return (
+                    <div key={status}>
+                      <div className="mb-1 flex justify-between text-xs">
+                        <span className="text-[var(--text-secondary)]">
+                          {tTuDo(`labels.poStatus_${status}`)}
+                        </span>
+                        <span className="tabular font-semibold text-[var(--text-primary)]">
+                          {count}
+                        </span>
                       </div>
-                    );
-                  })}
+                      <Meter value={count} max={maxPo} tone={TONE_DON_MUA[status] ?? "neutral"} />
+                    </div>
+                  );
+                })}
               </div>
             )}
-          </div>
+          </Card>
 
           {/* Hoạt động kho gần đây */}
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-blue-950">
-                {t("dashboard.hoatDongKho")}
-              </h3>
-              <Link
-                href="/inventory"
-                className="text-sm text-blue-700 hover:underline"
-              >
-                {t("dashboard.tonKhoLink")}
-              </Link>
-            </div>
+          <Card>
+            <CardHeader
+              title={t("dashboard.hoatDongKho")}
+              action={
+                <Link href="/inventory" className={LINK}>
+                  {t("dashboard.tonKhoLink")}
+                </Link>
+              }
+            />
             {recentTx.length === 0 ? (
-              <p className="text-sm text-slate-600">{t("dashboard.chuaCoGiaoDich")}</p>
+              <p className="text-sm text-[var(--text-secondary)]">
+                {t("dashboard.chuaCoGiaoDich")}
+              </p>
             ) : (
-              <div className="divide-y divide-blue-50">
+              <div className="divide-y divide-[var(--border-subtle)]">
                 {recentTx.map((tx) => {
                   const material = materialById.get(tx.materialId);
                   const vessel = vesselById.get(tx.vesselId);
@@ -729,20 +641,24 @@ export default async function DashboardPage() {
                   return (
                     <div key={tx.id} className="flex items-center gap-3 py-2.5">
                       <span
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                        className={`grid size-8 shrink-0 place-items-center rounded-full ${
                           isIn
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-amber-100 text-amber-700"
+                            ? "bg-[var(--tone-success-bg)] text-[var(--tone-success-text)]"
+                            : "bg-[var(--tone-warning-bg)] text-[var(--tone-warning-text)]"
                         }`}
                       >
-                        {isIn ? "↓" : "↑"}
+                        {isIn ? (
+                          <ArrowDownToLine className="size-4" />
+                        ) : (
+                          <ArrowUpFromLine className="size-4" />
+                        )}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm text-blue-950">
+                        <p className="truncate text-sm text-[var(--text-primary)]">
                           {material?.nameVn ??
                             t("dashboard.vatTuSo", { id: tx.materialId })}
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-[var(--text-secondary)]">
                           {vessel?.name ?? "—"} · {ngay(tx.occurredAt)}{" "}
                           {tx.occurredAt.toLocaleTimeString(MA_LOCALE[locale], {
                             hour: "2-digit",
@@ -752,8 +668,8 @@ export default async function DashboardPage() {
                         </p>
                       </div>
                       <span
-                        className={`text-sm font-semibold ${
-                          isIn ? "text-emerald-600" : "text-amber-600"
+                        className={`tabular text-sm font-semibold ${
+                          isIn ? "text-[var(--text-success)]" : "text-[var(--text-warning)]"
                         }`}
                       >
                         {isIn ? "+" : "−"}
@@ -764,7 +680,7 @@ export default async function DashboardPage() {
                 })}
               </div>
             )}
-          </div>
+          </Card>
         </div>
       </div>
     </div>

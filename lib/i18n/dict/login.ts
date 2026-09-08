@@ -8,6 +8,7 @@ export const login = tuDien(
     hienMatKhau: "Hiện mật khẩu",
     anMatKhau: "Ẩn mật khẩu",
     dangNhap: "Đăng nhập",
+    moTaDangNhap: "Dùng tài khoản được cấp để vào hệ thống.",
     dangDangNhap: "Đang đăng nhập...",
     biKhoaTieuDe: "Tài khoản đang bị khóa",
     biKhoaNoiDung:
@@ -24,6 +25,7 @@ export const login = tuDien(
     hienMatKhau: "Show password",
     anMatKhau: "Hide password",
     dangNhap: "Sign in",
+    moTaDangNhap: "Sign in with the account you were given.",
     dangDangNhap: "Signing in...",
     biKhoaTieuDe: "Account locked",
     biKhoaNoiDung:

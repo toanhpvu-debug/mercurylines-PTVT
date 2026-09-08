@@ -1,12 +1,288 @@
 @import "tailwindcss";
 
+/*
+ * Giao diện theo bộ nhận diện Mercury Lines — cùng bảng màu, font và thành
+ * phần với app Quản lý thuyền viên (apps/web), để hai hệ thống của cùng một
+ * công ty nhìn là một.
+ *
+ * Tailwind 4 mặc định gắn biến thể `dark:` vào prefers-color-scheme của hệ
+ * điều hành. App này tự bật/tắt bằng class `.dark` trên <html> (server gắn sẵn
+ * theo cookie `theme`, xem lib/chuDe.ts), nên phải khai báo lại — nếu không,
+ * mọi lớp `dark:` trong mã nguồn đều không có tác dụng.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Font của bộ nhận diện, TỰ HOST trong public/fonts.
+ *
+ * Không gọi fonts.googleapis.com: app chạy trên tàu, có thể không có mạng. Nếu
+ * trỏ tới Google thì lúc đó chữ sẽ rơi về font hệ thống, khác hẳn giao diện
+ * bình thường.
+ *
+ * Manrope là font biến thiên (một tệp phủ cả dải 400–800), ba tệp dưới đây là
+ * ba BỘ KÝ TỰ chứ không phải ba độ đậm. unicode-range để trình duyệt chỉ tải
+ * bộ ký tự thật sự cần.
+ */
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/manrope-vietnamese.woff2") format("woff2");
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/manrope-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Manrope";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/manrope-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Michroma";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/michroma-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Michroma";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/michroma-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@theme {
+  /* Manrope có bộ ký tự tiếng Việt đầy đủ, kể cả dấu ₫. */
+  --font-sans: "Manrope", system-ui, "Segoe UI", Roboto, sans-serif;
+
+  /*
+   * Michroma là font tiêu đề của hãng. CẢNH BÁO: nó KHÔNG có ký tự tiếng Việt
+   * (thiếu Đ đ Ư ư Ơ ơ ă và cả khối U+1EA0-1EF9), nên chỉ dùng cho chuỗi chắc
+   * chắn thuần Latin — tên tàu, mã vật tư, số IMO, chữ số. Không gán cho tiêu
+   * đề trang: mọi tiêu đề trong app đều có dấu.
+   */
+  --font-display: "Michroma", "Manrope", system-ui, sans-serif;
+
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+  /*
+   * Bảng màu đo từ ảnh hero của mercurylines.com.vn: #0b1117 (navy gần đen) là
+   * màu chủ đạo; các lớp trung gian ở hue 258–269 (xanh ngả tím), KHÔNG phải xám
+   * trung tính; #0296c7 là màu nhấn, trùng nút Contact trên trang chủ.
+   */
+  --color-brand-50: #eafaff;
+  --color-brand-100: #d3f3ff;
+  --color-brand-200: #afe5ff;
+  --color-brand-300: #81d3fb;
+  --color-brand-400: #50bae9;
+  --color-brand-500: #2ca8da;
+  --color-brand-600: #0296c7; /* màu nhấn của hãng, khóa cứng */
+  --color-brand-700: #006f9e; /* bậc dùng làm chữ trên nền sáng */
+  --color-brand-800: #00608a;
+  --color-brand-900: #004d71;
+  --color-brand-950: #00304d;
+
+  /* Indigo neo ở #455584 — màu thân container trong ảnh hero */
+  --color-indigo-300: #a5b6e5;
+  --color-indigo-400: #8396cc;
+  --color-indigo-500: #5f72a9;
+  --color-indigo-600: #455584;
+  --color-indigo-700: #303e6a;
+  --color-indigo-800: #222e54;
+  --color-indigo-900: #151e3d;
+}
+
+/*
+ * Chế độ SÁNG. Các mặt nền ngả nhẹ về hue 258 để là "họ hàng" của chế độ tối
+ * chứ không phải một bảng xám rời rạc.
+ */
+:root {
+  --surface: #f2f6fb;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e4eaf3;
+  --surface-overlay: #ffffff;
+  --border-subtle: #d6deea;
+  --text-primary: #0b1117;
+  --text-secondary: #4e596a;
+  --text-muted: #5f6977;
+  --avatar-bg: 0.9 0.055;
+  --avatar-fg: 0.4 0.115;
+  --motif-color: #8ea3c4;
+  --motif-opacity: 0;
+
+  /* Nhãn trạng thái: nền ĐẶC, không phải màng bán trong suốt — để tỷ lệ tương
+     phản không đổi theo thứ nằm dưới nhãn (thẻ trắng hay hàng kẻ sọc). */
+  --tone-neutral-bg: #ecf8ff;
+  --tone-neutral-text: #66717c;
+  --tone-brand-bg: #d5fdff;
+  --tone-brand-text: #24779b;
+  --tone-success-bg: #d8ffeb;
+  --tone-success-text: #2d7d5b;
+  --tone-warning-bg: #fff4d4;
+  --tone-warning-text: #936619;
+  --tone-danger-bg: #ffecee;
+  --tone-danger-text: #a9515a;
+  --tone-info-bg: #eaf8ff;
+  --tone-info-text: #576dae;
+  --tone-muted-bg: #eef7ff;
+  --tone-muted-text: #69707c;
+
+  --chart-series: #006f9e;
+
+  /* Chữ trạng thái inline trong bảng (không có nền riêng). */
+  --text-success: #1d7653;
+  --text-warning: #8d5e00;
+  --text-danger: #a64b56;
+  --text-info: #5065a5;
+}
+
+/* Chế độ TỐI — mặc định, khớp ảnh hero của hãng */
+:root.dark {
+  --surface: #0b1117;
+  --surface-raised: #141e30;
+  --surface-sunken: #060a13;
+  --surface-overlay: #1f2c45;
+  --border-subtle: #31405c;
+  --text-primary: #e6edf7;
+  --text-secondary: #aab4c6;
+  --text-muted: #8591a5;
+  --avatar-bg: 0.32 0.045;
+  --avatar-fg: 0.84 0.085;
+  --motif-color: #31405c;
+  --motif-opacity: 0.3;
+
+  --tone-neutral-bg: #212a33;
+  --tone-neutral-text: #88939f;
+  --tone-brand-bg: #002e41;
+  --tone-brand-text: #4c9bc0;
+  --tone-success-bg: #023220;
+  --tone-success-text: #54a27e;
+  --tone-warning-bg: #3a2400;
+  --tone-warning-text: #b78841;
+  --tone-danger-bg: #421b1f;
+  --tone-danger-text: #d1757d;
+  --tone-info-bg: #1d2746;
+  --tone-info-text: #778ed2;
+  --tone-muted-bg: #232933;
+  --tone-muted-text: #8a929e;
+
+  --chart-series: #2ca8da;
+
+  --text-success: #429671;
+  --text-warning: #af7e32;
+  --text-danger: #c96a73;
+  --text-info: #6e85c8;
+}
+
+html,
 body {
-  font-family: Arial, Helvetica, sans-serif;
-  background-color: #f2f6fb;
-  background-image:
-    radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.06) 0, transparent 45%),
-    radial-gradient(at 0% 100%, rgba(14, 116, 144, 0.05) 0, transparent 45%);
-  background-attachment: fixed;
+  height: 100%;
+}
+
+body {
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+html {
+  scroll-behavior: smooth;
+  text-rendering: optimizeLegibility;
+}
+
+/* Thanh cuộn mỏng, hợp với bảng dữ liệu dài */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--text-muted) 40%, transparent);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--text-muted) 65%, transparent);
+  background-clip: content-box;
+}
+
+/* Mặt thẻ: nền nổi + màu viền theo chế độ. Dùng kèm `border` của Tailwind. */
+@utility surface {
+  background: var(--surface-raised);
+  border-color: var(--border-subtle);
+}
+
+/* Lớp nổi lên trên mặt thẻ: hộp thoại, menu thả xuống */
+@utility surface-overlay {
+  background: var(--surface-overlay);
+  border-color: var(--border-subtle);
+}
+
+/* Ô nhập / ô chọn — cùng một dáng ở mọi form (xem components/ui.tsx). */
+@utility field {
+  background: var(--surface-raised);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+/*
+ * Họa tiết vòng cung của nhận diện Mercury Lines (public/motif-ring.svg, SVG
+ * thuần 8 KB). Dùng mask-image chứ không dùng background-image để màu vẫn lấy
+ * từ biến theo chế độ. position: fixed — họa tiết đứng yên khi cuộn. Chế độ
+ * sáng đặt độ mờ 0, chế độ tối 0,30 (đã đo: chữ mờ trên nền vẫn đạt 5,19:1).
+ */
+@utility app-motif {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: var(--motif-opacity);
+  background-color: var(--motif-color);
+  mask-image: url("/motif-ring.svg");
+  mask-repeat: no-repeat;
+  mask-position: right -430px top -400px;
+  mask-size: 1200px 1200px;
+  -webkit-mask-image: url("/motif-ring.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: right -430px top -400px;
+  -webkit-mask-size: 1200px 1200px;
+}
+
+/* Số liệu trong bảng cần thẳng cột → chữ số cố định bề rộng */
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.16s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Băng màu / nền trên chứng từ phải giữ màu khi in */
@@ -15,9 +291,29 @@ body {
   -webkit-print-color-adjust: exact;
 }
 
+/*
+ * IN GIẤY: chứng từ luôn đen trên trắng, bất kể người dùng đang để chế độ tối.
+ * Ép lại bộ biến sáng ngay trong @media print — mọi thẻ, bảng, chữ dùng biến
+ * đều theo, không phải sửa từng trang. Thanh bên, thanh trên và họa tiết nền
+ * không thuộc chứng từ nên ẩn hẳn.
+ */
 @media print {
+  :root,
+  :root.dark {
+    --surface: #ffffff;
+    --surface-raised: #ffffff;
+    --surface-sunken: #f2f4f7;
+    --surface-overlay: #ffffff;
+    --border-subtle: #cbd5e1;
+    --text-primary: #000000;
+    --text-secondary: #334155;
+    --text-muted: #475569;
+    --motif-opacity: 0;
+  }
   .no-print,
-  aside {
+  .app-motif,
+  aside,
+  header.app-header {
     display: none !important;
   }
   main {
@@ -25,6 +321,7 @@ body {
   }
   body {
     background: white !important;
+    color: black !important;
   }
   .print-area {
     box-shadow: none !important;

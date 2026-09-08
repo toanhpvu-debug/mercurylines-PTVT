@@ -22,6 +22,11 @@
 // boong. Nếu chỉ cho đúng một người duyệt mỗi bộ phận thì máy trưởng đi bờ là
 // yêu cầu buồng máy nằm kẹt.
 
+// Chỉ lấy KIỂU của khóa từ điển (xem khoaViSaoKhongDuyet ở cuối file). Import
+// dạng `type` bị xóa lúc biên dịch nên file này vẫn là mã thuần — script gọi
+// được, và không kéo theo từ điển lúc chạy.
+import type { KhoaDich } from "@/lib/i18n/tuDien";
+
 export const ROLES = [
   "ADMIN",
   "TECH_MANAGER",
@@ -67,22 +72,9 @@ export const ROLE_LABEL_EN: Record<string, string> = {
   ADMIN: "Administrator",
 };
 
-export const ROLE_DESC: Record<string, string> = {
-  ADMIN: "Toàn quyền trên toàn đội tàu, kể cả quản lý tài khoản.",
-  TECH_MANAGER:
-    "Văn phòng: duyệt cấp công ty các yêu cầu tàu đã duyệt, xem toàn đội.",
-  MASTER: "Trên tàu: duyệt cấp tàu MỌI bộ phận, nhập xuất kho, danh mục tàu.",
-  CHIEF_ENGINEER:
-    "Trên tàu: duyệt cấp tàu bộ phận Máy/Điện, nhập xuất kho, danh mục tàu.",
-  CHIEF_OFFICER:
-    "Sĩ quan boong: lập và trình yêu cầu vật tư; quản lý sơn của tàu (nhập/xuất sơn, sơ đồ sơn, nhật ký thi công) và gửi yêu cầu cấp sơn. Không duyệt.",
-  SECOND_OFFICER: "Sĩ quan boong: lập và trình yêu cầu vật tư. Không duyệt.",
-  THIRD_OFFICER: "Sĩ quan boong: lập và trình yêu cầu vật tư. Không duyệt.",
-  SECOND_ENGINEER: "Sĩ quan máy: lập và trình yêu cầu vật tư. Không duyệt.",
-  THIRD_ENGINEER: "Sĩ quan máy: lập và trình yêu cầu vật tư. Không duyệt.",
-  FOURTH_ENGINEER: "Sĩ quan máy: lập và trình yêu cầu vật tư. Không duyệt.",
-  CREW: "Lập và trình yêu cầu vật tư của tàu mình. Không duyệt.",
-};
+// Mô tả quyền của từng vai trò (hiện ở trang Người dùng) nay nằm trong từ điển
+// — khóa `vessels.roleDesc_<VAI_TRÒ>` — để đổi theo ngôn ngữ. Giữ thêm một bản
+// tiếng Việt ở đây là để hai nơi mô tả cùng một quyền, sớm muộn nói khác nhau.
 
 /**
  * Sĩ quan dưới quyền thuyền trưởng / máy trưởng.
@@ -102,11 +94,16 @@ export const SI_QUAN: readonly string[] = [
   "CREW",
 ];
 
-/** Thứ tự hiển thị trong ô chọn chức danh — theo cấp bậc thật trên tàu. */
-export const NHOM_CHUC_DANH: { nhom: string; vaiTro: string[] }[] = [
-  { nhom: "Boong", vaiTro: ["MASTER", "CHIEF_OFFICER", "SECOND_OFFICER", "THIRD_OFFICER"] },
+/**
+ * Thứ tự hiển thị trong ô chọn chức danh — theo cấp bậc thật trên tàu.
+ *
+ * Chỉ có THỨ TỰ và cách gom nhóm; tên nhóm nằm ở từ điển, khóa
+ * `vessels.nhomChucDanh_<vai trò đứng đầu nhóm>`. Giữ thêm một cột tên tiếng
+ * Việt ở đây thì màn hình tiếng Anh vẫn hiện chữ Việt — đúng lỗi vừa sửa.
+ */
+export const NHOM_CHUC_DANH: { vaiTro: string[] }[] = [
+  { vaiTro: ["MASTER", "CHIEF_OFFICER", "SECOND_OFFICER", "THIRD_OFFICER"] },
   {
-    nhom: "Máy",
     vaiTro: [
       "CHIEF_ENGINEER",
       "SECOND_ENGINEER",
@@ -114,8 +111,8 @@ export const NHOM_CHUC_DANH: { nhom: string; vaiTro: string[] }[] = [
       "FOURTH_ENGINEER",
     ],
   },
-  { nhom: "Khác trên tàu", vaiTro: ["CREW"] },
-  { nhom: "Văn phòng", vaiTro: ["TECH_MANAGER", "ADMIN"] },
+  { vaiTro: ["CREW"] },
+  { vaiTro: ["TECH_MANAGER", "ADMIN"] },
 ];
 
 /**
@@ -268,18 +265,20 @@ export function coDuyetCongTy(role: string): boolean {
 /**
  * Lý do bị từ chối quyền duyệt cấp tàu, để báo cho đúng chỗ thay vì
  * "Bạn không có quyền" chung chung.
+ *
+ * Trả về KHÓA từ điển chứ không phải câu chữ: cùng một lý do hiện ở hai nơi
+ * (trang chi tiết yêu cầu và thông báo của server action), và cả hai phải đổi
+ * theo ngôn ngữ người đang xem. Việc PHÂN NHÁNH thì chỉ nên có một bản — đây
+ * là bản đó; trước kia mỗi nơi tự chép lại bốn nhánh này.
+ *
+ * Kiểu `KhoaDich` chỉ là type nên bị xóa lúc biên dịch: file này vẫn là mã
+ * thuần, script gọi được, không kéo theo từ điển lúc chạy.
  */
-export function viSaoKhongDuyetDuoc(role: string): string {
-  if (SI_QUAN.includes(role)) {
-    return "Yêu cầu phải do thuyền trưởng hoặc máy trưởng duyệt.";
-  }
-  if (role === "CHIEF_ENGINEER") {
-    return "Máy trưởng chỉ duyệt yêu cầu bộ phận Máy/Điện. Yêu cầu này thuộc bộ phận khác nên thuyền trưởng duyệt.";
-  }
-  if (role === "TECH_MANAGER") {
-    return "Quản lý kỹ thuật duyệt ở bước công ty, sau khi tàu đã duyệt.";
-  }
-  return "Bạn không có quyền thực hiện thao tác này.";
+export function khoaViSaoKhongDuyet(role: string): KhoaDich {
+  if (SI_QUAN.includes(role)) return "requests.viSaoSiQuan";
+  if (role === "CHIEF_ENGINEER") return "requests.viSaoMayTruong";
+  if (role === "TECH_MANAGER") return "requests.viSaoQuanLyKyThuat";
+  return "chung.khongCoQuyen";
 }
 
 export type VesselScope = {

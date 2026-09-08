@@ -3,6 +3,8 @@ import { tuDien } from "./_kieu";
 /** Danh mục vật tư (/materials, /materials/import) và các form của nó. */
 export const materials = tuDien(
   {
+    /** Thay chỗ khi phụ tùng không nói được nó lắp ở đâu — xem THIET_BI_CHUA_RO. */
+    chuaRoThietBi: "Chưa rõ thiết bị",
     // Trang danh mục
     tieuDe: "Danh mục vật tư & phụ tùng",
     danhMucRiengCua: "Danh mục riêng của {tau}",
@@ -158,6 +160,7 @@ export const materials = tuDien(
     chuaKhai: "Chưa khai",
   },
   {
+    chuaRoThietBi: "Equipment not specified",
     tieuDe: "Stores & spare parts catalogue",
     danhMucRiengCua: "Catalogue of {tau}",
     danhMucGocMoTa: "Fleet master catalogue (shared definitions)",

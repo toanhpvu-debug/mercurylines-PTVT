@@ -45,8 +45,8 @@ import {
   DUYET_CONG_TY,
   LAP_YEU_CAU,
   ROLE_LABEL,
-  SI_QUAN,
   VAN_HANH_TAU,
+  khoaViSaoKhongDuyet,
   trinhThangLenCongTy,
 } from "@/lib/roles";
 import {
@@ -56,23 +56,10 @@ import {
   fileExtension,
   getUploadDir,
 } from "@/lib/uploads";
-import type { HamDich, KhoaDich } from "@/lib/i18n";
+import type { HamDich } from "@/lib/i18n";
 import { layT } from "@/lib/i18n/server";
 
 class ActionError extends Error {}
-
-/**
- * Vì sao người này không được duyệt — cùng phân nhánh với viSaoKhongDuyetDuoc()
- * ở lib/roles, nhưng trả về KHÓA từ điển để câu giải thích đổi theo ngôn ngữ
- * đang chọn. lib/roles là mã dùng chung (script cũng gọi) nên không nhận hàm
- * dịch; bản tiếng Việt ở đó vẫn giữ nguyên, chỗ này mới là chỗ hiện ra màn hình.
- */
-function khoaViSaoKhongDuyet(role: string): KhoaDich {
-  if (SI_QUAN.includes(role)) return "requests.viSaoSiQuan";
-  if (role === "CHIEF_ENGINEER") return "requests.viSaoMayTruong";
-  if (role === "TECH_MANAGER") return "requests.viSaoQuanLyKyThuat";
-  return "chung.khongCoQuyen";
-}
 
 /**
  * Hạn mức dành cho những giao dịch có xin khóa tư vấn bên trong.

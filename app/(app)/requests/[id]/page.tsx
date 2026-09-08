@@ -13,10 +13,9 @@ import {
   LAP_YEU_CAU,
   ROLE_LABEL,
   ROLE_LABEL_EN,
-  SI_QUAN,
+  khoaViSaoKhongDuyet,
   nguoiDuyetCapTau,
 } from "@/lib/roles";
-import type { KhoaDich } from "@/lib/i18n";
 import { layT } from "@/lib/i18n/server";
 import PrintButton from "@/components/PrintButton";
 import RequestStatusForm from "@/components/RequestStatusForm";
@@ -33,18 +32,6 @@ const deptLabels: Record<string, string> = {
   ELECTRICAL: "Điện (Electrical)",
   GENERAL: "Phục vụ / Chung",
 };
-
-/**
- * Vì sao người đang xem không được duyệt — cùng phân nhánh với
- * viSaoKhongDuyetDuoc() ở lib/roles, nhưng trả về KHÓA từ điển để câu giải
- * thích đổi theo ngôn ngữ đang chọn.
- */
-function khoaViSaoKhongDuyet(role: string): KhoaDich {
-  if (SI_QUAN.includes(role)) return "requests.viSaoSiQuan";
-  if (role === "CHIEF_ENGINEER") return "requests.viSaoMayTruong";
-  if (role === "TECH_MANAGER") return "requests.viSaoQuanLyKyThuat";
-  return "chung.khongCoQuyen";
-}
 
 export default async function RequestDetailPage({
   params,

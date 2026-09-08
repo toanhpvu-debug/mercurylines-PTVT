@@ -11,6 +11,7 @@ import {
 import {
   sortWithinDepartment,
   DEPARTMENTS,
+  THIET_BI_CHUA_RO,
   departmentOfMaterial,
   equipmentOf,
 } from "@/lib/departments";
@@ -636,7 +637,10 @@ export default async function MaterialsPage({
                                       colSpan={colCount}
                                       className="py-1.5 pl-8 text-xs font-medium uppercase tracking-wide text-slate-500"
                                     >
-                                      🔧 {equip}
+                                      🔧{" "}
+                                      {equip === THIET_BI_CHUA_RO
+                                        ? t("materials.chuaRoThietBi")
+                                        : equip}
                                     </td>
                                   </tr>
                                 )}

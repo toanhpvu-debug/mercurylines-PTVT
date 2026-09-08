@@ -4,19 +4,22 @@
 // Dùng chung cho trang Tồn kho và trang Danh mục vật tư — trước đây logic này
 // nằm lọt trong trang Tồn kho nên trang Danh mục không có cách phân nhóm nào.
 
+/**
+ * Tên hiển thị của bộ phận nằm ở từ điển (`labels.dept_<KEY>`), không ở đây:
+ * nơi nào hiện ra màn hình thì tra theo `key` để đổi được theo ngôn ngữ. File
+ * này chỉ giữ phần LUẬT — mã bộ phận, biểu tượng và cách đoán từ mô tả.
+ */
 export type Department = {
   key: string;
-  label: string;
   icon: string;
 };
 
 type DepartmentRule = Department & { re: RegExp };
 
 const RULES: readonly DepartmentRule[] = [
-  { key: "DECK", label: "Boong (Deck)", icon: "🛳", re: /boong|deck/i },
+  { key: "DECK", icon: "🛳", re: /boong|deck/i },
   {
     key: "ENGINE",
-    label: "Máy (Engine)",
     icon: "⚙️",
     // Kèm tên thiết bị buồng máy hay gặp trong file kiểm kê thật: bơm, máy nén,
     // máy phân ly, nồi hơi, xử lý nước dằn/nước thải, tuabin, xuồng cứu sinh...
@@ -24,7 +27,6 @@ const RULES: readonly DepartmentRule[] = [
   },
   {
     key: "ELEC",
-    label: "Điện (Electric)",
     icon: "⚡",
     // Kèm đèn/light/lamp: đèn hàng hải là thiết bị điện, nhưng nhóm của nó
     // ("Hệ thống đèn hàng hải") không chứa chữ "điện" nên trước đây bị xếp nhầm.
@@ -32,13 +34,11 @@ const RULES: readonly DepartmentRule[] = [
   },
   {
     key: "SERVICE",
-    label: "Phục vụ / Tiêu hao (Service)",
     icon: "🧺",
     re: /tiêu hao|tieu hao|phục vụ|phuc vu|service|steward|consum|store|catering|galley|bếp|bep/i,
   },
   {
     key: "SAFETY",
-    label: "An toàn (Safety)",
     icon: "🦺",
     re: /an toàn|an toan|safety|bảo hộ|bao ho/i,
   },
@@ -46,13 +46,12 @@ const RULES: readonly DepartmentRule[] = [
 
 export const OTHER_DEPARTMENT: Department = {
   key: "OTHER",
-  label: "Khác",
   icon: "📦",
 };
 
 /** Danh sách bộ phận theo đúng thứ tự hiển thị, có mục "Khác" ở cuối. */
 export const DEPARTMENTS: readonly Department[] = [
-  ...RULES.map(({ key, label, icon }) => ({ key, label, icon })),
+  ...RULES.map(({ key, icon }) => ({ key, icon })),
   OTHER_DEPARTMENT,
 ];
 
@@ -129,8 +128,19 @@ export function equipmentOf(m: MaterialLike): string | null {
   if (fromField) return fromField;
   const fromCategory = (m.categoryName ?? "").trim();
   if (fromCategory) return fromCategory;
-  return "Chưa rõ thiết bị";
+  return THIET_BI_CHUA_RO;
 }
+
+/**
+ * Giá trị thay chỗ khi phụ tùng không nói được nó lắp ở đâu.
+ *
+ * Là một GIÁ TRỊ chứ không phải null: nhóm "chưa rõ thiết bị" vẫn phải gom
+ * được thành một cụm và xếp thứ tự như mọi thiết bị khác. Nhưng nó là thứ
+ * duy nhất ở đây lọt ra màn hình, nên nơi hiển thị phải so với hằng số này
+ * rồi thay bằng chữ trong từ điển (`materials.chuaRoThietBi`) — tên thiết bị
+ * thật thì giữ nguyên vì đó là dữ liệu người dùng nhập.
+ */
+export const THIET_BI_CHUA_RO = "Chưa rõ thiết bị";
 
 // Một bộ đối chiếu dùng chung. `String.localeCompare(x, "vi")` dựng một
 // Intl.Collator MỚI cho mỗi lần gọi — đặt trong hàm so sánh thì với 600 dòng

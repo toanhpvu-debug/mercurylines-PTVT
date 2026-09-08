@@ -51,12 +51,6 @@ export const GRADES: Record<string, { value: string; label: string }[]> = {
   ],
 };
 
-export const GRADE_LABEL: Record<string, string> = Object.fromEntries(
-  Object.values(GRADES)
-    .flat()
-    .map((g) => [g.value, g.label])
-);
-
 /** Nơi tiêu thụ — báo cáo dầu của tàu tách theo đúng các mục này. */
 export const CONSUMERS = [
   { value: "ME", label: "Máy chính (M/E)" },
@@ -67,15 +61,11 @@ export const CONSUMERS = [
 ] as const;
 
 export const CONSUMER_VALUES: string[] = CONSUMERS.map((c) => c.value);
-export const CONSUMER_LABEL: Record<string, string> = Object.fromEntries(
-  CONSUMERS.map((c) => [c.value, c.label])
-);
 
-export const TRANSACTION_LABEL: Record<string, string> = {
-  IN: "Nhận lên tàu",
-  OUT: "Xuất / trả / hao hụt",
-  CONSUME: "Tiêu thụ",
-};
+// Tên hiển thị của loại dầu, nơi tiêu thụ và loại giao dịch nay nằm trong từ
+// điển (`consumables.loai_*`, `consumables.noiTieuThu_*`, `consumables.giaoDich_*`)
+// để đổi theo ngôn ngữ. Cột `label` trong các mảng trên chỉ còn là chú thích
+// cho người đọc mã — không nơi nào hiển thị nó nữa.
 
 /**
  * Giới hạn lưu huỳnh MARPOL Annex VI Reg 14.

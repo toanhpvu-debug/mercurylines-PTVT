@@ -45,7 +45,7 @@ export function UserRoleForm({
               điển theo chức danh đứng đầu nhóm. */}
           {NHOM_CHUC_DANH.map((g) => (
             <optgroup
-              key={g.nhom}
+              key={g.vaiTro[0]}
               label={tTuDo(`vessels.nhomChucDanh_${g.vaiTro[0]}`)}
             >
               {g.vaiTro.map((r) => (

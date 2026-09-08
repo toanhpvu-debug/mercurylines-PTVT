@@ -1,3 +1,4 @@
+import Form from "next/form";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
@@ -111,7 +112,10 @@ export default async function RequestsPage({
           <h3 className="text-lg font-semibold">
             Danh sách yêu cầu ({requests.length})
           </h3>
-          <form method="get" className="flex flex-wrap items-center gap-2">
+          {/* next/form: bấm "Lọc" chỉ tải phần nội dung (chuyển trang phía
+              client, hiện khung chờ ngay) thay vì tải lại cả trang như
+              <form method="get"> thường. */}
+          <Form action="/requests" className="flex flex-wrap items-center gap-2">
             {chonDuocTau(scope) && (
               <select
                 name="vessel"
@@ -149,7 +153,7 @@ export default async function RequestsPage({
                 Bỏ lọc
               </Link>
             )}
-          </form>
+          </Form>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full border text-sm">

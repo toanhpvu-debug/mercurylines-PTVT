@@ -24,28 +24,28 @@ export default async function PaintOverviewPage() {
     );
   }
 
-  const vessels = await prisma.vessel.findMany({
-    where: vesselIdWhere(scope),
-    orderBy: { code: "asc" },
-    select: {
-      id: true,
-      code: true,
-      name: true,
-      _count: { select: { paintAreas: true, paintJobs: true } },
-      paintStocks: {
-        select: { quantity: true, minQty: true, product: { select: { uom: true } } },
+  // Hai truy vấn độc lập — chạy song song thay vì nối đuôi (bớt một vòng chờ DB).
+  const [vessels, productCount] = await Promise.all([
+    prisma.vessel.findMany({
+      where: vesselIdWhere(scope),
+      orderBy: { code: "asc" },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        _count: { select: { paintAreas: true, paintJobs: true } },
+        paintStocks: {
+          select: { quantity: true, minQty: true, product: { select: { uom: true } } },
+        },
+        paintJobs: {
+          orderBy: { jobDate: "desc" },
+          take: 1,
+          select: { jobDate: true, paintedM2: true },
+        },
       },
-      paintJobs: {
-        orderBy: { jobDate: "desc" },
-        take: 1,
-        select: { jobDate: true, paintedM2: true },
-      },
-    },
-  });
-
-  const productCount = await prisma.paintProduct.count({
-    where: { isActive: true },
-  });
+    }),
+    prisma.paintProduct.count({ where: { isActive: true } }),
+  ]);
 
   const fleetLow = vessels.reduce(
     (n, v) =>

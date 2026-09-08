@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import Form from "next/form";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
@@ -73,12 +74,16 @@ export default async function MaterialsPage({
   const filterType =
     type === "SPARE" ? "SPARE" : type === "STORE" ? "STORE" : "ALL";
 
-  // Danh sách tàu người dùng được xem (để chọn).
-  const vessels = await prisma.vessel.findMany({
-    where: vesselIdWhere(scope),
-    orderBy: { code: "asc" },
-    select: { id: true, code: true, name: true },
-  });
+  // Danh sách tàu người dùng được xem (để chọn) và bảng nhóm — hai truy vấn
+  // độc lập nên chạy song song; trước đây nối đuôi nhau thành hai vòng chờ DB.
+  const [vessels, categories] = await Promise.all([
+    prisma.vessel.findMany({
+      where: vesselIdWhere(scope),
+      orderBy: { code: "asc" },
+      select: { id: true, code: true, name: true },
+    }),
+    prisma.category.findMany({ orderBy: { code: "asc" } }),
+  ]);
 
   // Xác định tàu đang chọn.
   // - Người dùng bị giới hạn theo tàu (CREW/MASTER có tàu): khóa vào tàu của họ.
@@ -97,10 +102,6 @@ export default async function MaterialsPage({
     ? (vessels.find((v) => v.id === selectedVesselId) ?? null)
     : null;
   const isVesselMode = selectedVesselId !== null;
-
-  const categories = await prisma.category.findMany({
-    orderBy: { code: "asc" },
-  });
 
   const typeWhere = filterType === "ALL" ? {} : { materialType: filterType };
   const isSpareView = filterType === "SPARE";
@@ -151,31 +152,36 @@ export default async function MaterialsPage({
     isVesselMode && canManageVesselCatalog(user, selectedVesselId!);
 
   if (isVesselMode) {
-    const links = await prisma.vesselMaterial.findMany({
-      where: { vesselId: selectedVesselId!, material: typeWhere },
-      include: { material: { include: { category: true } } },
-      orderBy: { material: { code: "asc" } },
-    });
-    assignedMaterials = links.map((l) => ({ id: l.id, material: l.material }));
-    if (canEditVessel) {
-      const assignedIds = new Set(
-        (
-          await prisma.vesselMaterial.findMany({
+    // Ba truy vấn không phụ thuộc nhau → chạy song song. Người sửa được danh
+    // mục tàu (thuyền trưởng / quản trị) từng phải chờ ba vòng DB nối đuôi.
+    const [links, daGan, allActive] = await Promise.all([
+      prisma.vesselMaterial.findMany({
+        where: { vesselId: selectedVesselId!, material: typeWhere },
+        include: { material: { include: { category: true } } },
+        orderBy: { material: { code: "asc" } },
+      }),
+      canEditVessel
+        ? prisma.vesselMaterial.findMany({
             where: { vesselId: selectedVesselId! },
             select: { materialId: true },
           })
-        ).map((x) => x.materialId)
-      );
-      const allActive = await prisma.material.findMany({
-        where: { isActive: true },
-        orderBy: [{ materialType: "asc" }, { code: "asc" }],
-        select: {
-          id: true,
-          code: true,
-          nameVn: true,
-          materialType: true,
-        },
-      });
+        : null,
+      canEditVessel
+        ? prisma.material.findMany({
+            where: { isActive: true },
+            orderBy: [{ materialType: "asc" }, { code: "asc" }],
+            select: {
+              id: true,
+              code: true,
+              nameVn: true,
+              materialType: true,
+            },
+          })
+        : null,
+    ]);
+    assignedMaterials = links.map((l) => ({ id: l.id, material: l.material }));
+    if (daGan && allActive) {
+      const assignedIds = new Set(daGan.map((x) => x.materialId));
       availableToAdd = allActive.filter((m) => !assignedIds.has(m.id));
     }
   } else {
@@ -345,7 +351,10 @@ export default async function MaterialsPage({
           </Link>
         )}
         {scope.all ? (
-          <form method="get" className="flex items-center gap-2">
+          // next/form: đổi tàu / lọc / tìm chỉ tải phần nội dung (chuyển trang
+          // phía client, khung chờ hiện ngay) thay vì tải lại cả trang như
+          // <form method="get"> thường. Áp dụng cho cả ô tìm kiếm bên dưới.
+          <Form action="/materials" className="flex items-center gap-2">
             {filterType !== "ALL" && (
               <input type="hidden" name="type" value={filterType} />
             )}
@@ -364,7 +373,7 @@ export default async function MaterialsPage({
             <button className="rounded border px-3 py-1 text-sm hover:bg-blue-50">
               Chọn tàu
             </button>
-          </form>
+          </Form>
         ) : (
           <span className="rounded bg-blue-700 px-3 py-1 text-sm text-white">
             {selectedVessel
@@ -421,7 +430,7 @@ export default async function MaterialsPage({
             </Link>
           ))}
         </div>
-        <form method="get" className="ml-auto flex items-center gap-2">
+        <Form action="/materials" className="ml-auto flex items-center gap-2">
           {filterType !== "ALL" && (
             <input type="hidden" name="type" value={filterType} />
           )}
@@ -469,7 +478,7 @@ export default async function MaterialsPage({
               Xóa tìm
             </Link>
           )}
-        </form>
+        </Form>
       </div>
       </div>
 

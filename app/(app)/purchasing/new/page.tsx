@@ -1,3 +1,4 @@
+import Form from "next/form";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -59,7 +60,9 @@ export default async function NewPurchaseOrderPage({
         </Link>
         <h2 className="text-2xl font-bold text-blue-950">Tạo đơn mua — chọn tàu</h2>
         <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-          <form method="get" className="flex items-center gap-2">
+          {/* next/form: chọn tàu xong chuyển trang phía client (không tải lại
+              cả trang); `required` vẫn chặn gửi khi chưa chọn. */}
+          <Form action="/purchasing/new" className="flex items-center gap-2">
             <select
               name="vessel"
               className="rounded border p-2"
@@ -76,7 +79,7 @@ export default async function NewPurchaseOrderPage({
             <button className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800">
               Tiếp tục
             </button>
-          </form>
+          </Form>
         </div>
       </div>
     );

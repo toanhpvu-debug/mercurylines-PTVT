@@ -1,4 +1,5 @@
 import React from "react";
+import Form from "next/form";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
@@ -236,7 +237,9 @@ export default async function InventoryPage({
 
       {/* 2. Bộ lọc — thanh mỏng một hàng */}
       <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-blue-100">
-        <form method="get" className="flex flex-wrap items-center gap-2 text-sm">
+        {/* next/form: bấm "Lọc" chỉ tải phần nội dung (chuyển trang phía client,
+            khung chờ hiện ngay) thay vì tải lại cả trang như <form method="get">. */}
+        <Form action="/inventory" className="flex flex-wrap items-center gap-2 text-sm">
           {chonDuocTau(scope) && (
             <select
               name="vessel"
@@ -299,7 +302,7 @@ export default async function InventoryPage({
           >
             Xóa lọc
           </Link>
-        </form>
+        </Form>
       </div>
 
       {/* 3. Tồn kho nhóm theo tàu */}

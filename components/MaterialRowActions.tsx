@@ -1,12 +1,15 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Pencil, Power, PowerOff, Save, Trash2 } from "lucide-react";
 import {
   deleteMaterial,
   setMaterialActive,
   updateMaterial,
 } from "@/app/actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Button, Field, Input, Notice, Select } from "@/components/ui";
+import { Modal } from "@/components/ui-client";
 
 export type EditableMaterial = {
   id: number;
@@ -57,13 +60,16 @@ export default function MaterialRowActions({
 
   return (
     <div className="space-y-1">
-      <div className="flex flex-wrap items-center gap-2">
-        <button
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
           onClick={() => setEditing(true)}
-          className="rounded bg-blue-100 px-2 py-1 text-xs text-blue-800 hover:bg-blue-200"
+          icon={<Pencil className="size-4" />}
         >
           {t("chung.sua")}
-        </button>
+        </Button>
         {!onlyEdit && (
         <form action={toggleAction}>
           <input type="hidden" name="id" value={material.id} />
@@ -72,20 +78,23 @@ export default function MaterialRowActions({
             name="active"
             value={material.isActive ? "false" : "true"}
           />
-          <button
-            disabled={togglePending}
-            className={`rounded px-2 py-1 text-xs disabled:opacity-50 ${
-              material.isActive
-                ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
-                : "bg-green-100 text-green-700 hover:bg-green-200"
-            }`}
+          <Button
+            type="submit"
+            size="sm"
+            variant="ghost"
+            loading={togglePending}
+            icon={
+              material.isActive ? (
+                <PowerOff className="size-4" />
+              ) : (
+                <Power className="size-4" />
+              )
+            }
           >
-            {togglePending
-              ? "..."
-              : material.isActive
-                ? t("materials.nutNgungDung")
-                : t("materials.nutDungLai")}
-          </button>
+            {material.isActive
+              ? t("materials.nutNgungDung")
+              : t("materials.nutDungLai")}
+          </Button>
         </form>
         )}
         {!onlyEdit && (
@@ -99,25 +108,30 @@ export default function MaterialRowActions({
           }}
         >
           <input type="hidden" name="id" value={material.id} />
-          <button
-            disabled={deletePending}
-            className="rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
+          <Button
+            type="submit"
+            size="sm"
+            variant="danger"
+            loading={deletePending}
+            icon={<Trash2 className="size-4" />}
           >
-            {deletePending ? "..." : t("chung.xoa")}
-          </button>
+            {t("chung.xoa")}
+          </Button>
         </form>
         )}
       </div>
 
       {(toggleState.message || deleteState.message) && (
-        <p className="text-xs text-red-600">
+        <p className="text-xs text-[var(--text-danger)]">
           {toggleState.message || deleteState.message}
         </p>
       )}
       {saveState.message && !editing && (
         <p
           className={`text-xs ${
-            saveState.success ? "text-green-700" : "text-red-600"
+            saveState.success
+              ? "text-[var(--text-success)]"
+              : "text-[var(--text-danger)]"
           }`}
         >
           {saveState.message}
@@ -140,7 +154,8 @@ export default function MaterialRowActions({
 }
 
 // Form sửa mở dạng hộp thoại phủ màn hình — bảng danh mục có tới 11 cột nên
-// nhồi form vào trong ô thao tác sẽ vỡ bố cục.
+// nhồi form vào trong ô thao tác sẽ vỡ bố cục. Chỉ gắn vào cây khi đang mở
+// (xem `editing &&` ở trên) để ô "Loại" lấy lại giá trị của dòng mỗi lần mở.
 function EditDialog({
   material,
   categories,
@@ -162,177 +177,113 @@ function EditDialog({
   const [type, setType] = useState(material.materialType);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-auto bg-black/40 p-4">
-      <form
-        action={action}
-        className="mx-auto my-8 w-full max-w-3xl space-y-3 rounded-xl bg-white p-5 text-left shadow-xl"
-      >
+    <Modal
+      open
+      onClose={onClose}
+      width="max-w-3xl"
+      title={
+        <span className="inline-flex flex-wrap items-baseline gap-2">
+          {t("materials.suaVatTu")}
+          <span className="font-display text-xs tracking-wide text-[var(--text-muted)]">
+            {material.code}
+          </span>
+        </span>
+      }
+    >
+      <form action={action} className="space-y-4 text-left">
         <input type="hidden" name="id" value={material.id} />
 
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-semibold text-blue-950">
-              {t("materials.suaVatTu")}
-            </h3>
-            <p className="font-mono text-sm text-slate-500">{material.code}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={t("chung.dong")}
-            className="rounded px-2 py-1 text-slate-500 hover:bg-slate-100"
-          >
-            ✕
-          </button>
-        </div>
-
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">
-              {t("chung.ma")} *
-            </span>
-            <input
-              name="code"
-              defaultValue={material.code}
-              required
-              className="w-full rounded border p-2"
-            />
-          </label>
-          <label className="block md:col-span-2">
-            <span className="mb-1 block text-sm text-slate-600">
-              {t("materials.tenTiengViet")} *
-            </span>
-            <input
-              name="nameVn"
-              defaultValue={material.nameVn}
-              required
-              className="w-full rounded border p-2"
-            />
-          </label>
-          <label className="block md:col-span-3">
-            <span className="mb-1 block text-sm text-slate-600">
-              {t("materials.tenTiengAnh")}
-            </span>
-            <input
-              name="nameEn"
-              defaultValue={material.nameEn ?? ""}
-              className="w-full rounded border p-2"
-            />
-          </label>
+          <Field label={`${t("chung.ma")} *`}>
+            <Input name="code" defaultValue={material.code} required />
+          </Field>
+          <Field label={`${t("materials.tenTiengViet")} *`} className="md:col-span-2">
+            <Input name="nameVn" defaultValue={material.nameVn} required />
+          </Field>
+          <Field label={t("materials.tenTiengAnh")} className="md:col-span-3">
+            <Input name="nameEn" defaultValue={material.nameEn ?? ""} />
+          </Field>
 
-          <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">
-              {t("materials.loai")}
-            </span>
-            <select
+          <Field label={t("materials.loai")}>
+            <Select
               name="materialType"
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="w-full rounded border p-2"
             >
               <option value="STORE">{tTuDo("labels.typeLong_STORE")}</option>
               <option value="SPARE">{tTuDo("labels.typeLong_SPARE")}</option>
-            </select>
-          </label>
-          <label className="block md:col-span-2">
-            <span className="mb-1 block text-sm text-slate-600">
-              {t("chung.thietBi")}
-              {type !== "SPARE" ? ` ${t("materials.chiDungChoPhuTung")}` : ""}
-            </span>
-            <input
+            </Select>
+          </Field>
+          <Field
+            className="md:col-span-2"
+            label={
+              <>
+                {t("chung.thietBi")}
+                {type !== "SPARE" ? ` ${t("materials.chiDungChoPhuTung")}` : ""}
+              </>
+            }
+          >
+            <Input
               name="equipment"
               defaultValue={material.equipment ?? ""}
               disabled={type !== "SPARE"}
               placeholder="Main Engine, Air Compressor..."
-              className="w-full rounded border p-2 disabled:bg-slate-100 disabled:text-slate-400"
             />
-          </label>
+          </Field>
 
-          <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">
-              {t("materials.impaSauChuSo")}
-            </span>
-            <input
+          <Field label={t("materials.impaSauChuSo")}>
+            <Input
               name="impa"
               defaultValue={material.impa ?? ""}
               placeholder="190115"
-              className="w-full rounded border p-2"
             />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">
-              {t("materials.partNoMaNhaSanXuat")}
-            </span>
-            <input
+          </Field>
+          <Field label={t("materials.partNoMaNhaSanXuat")}>
+            <Input
               name="partNumber"
               defaultValue={material.partNumber ?? ""}
               placeholder="VLH-53.06.01"
-              className="w-full rounded border p-2"
             />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">Maker</span>
-            <input
+          </Field>
+          <Field label="Maker">
+            <Input
               name="manufacturer"
               defaultValue={material.manufacturer ?? ""}
-              className="w-full rounded border p-2"
             />
-          </label>
+          </Field>
 
-          <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">
-              {t("chung.nhom")}
-            </span>
-            <select
-              name="categoryId"
-              defaultValue={material.categoryId ?? ""}
-              className="w-full rounded border p-2"
-            >
+          <Field label={t("chung.nhom")}>
+            <Select name="categoryId" defaultValue={material.categoryId ?? ""}>
               <option value="">{t("materials.optKhongThuocNhom")}</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm text-slate-600">
-              {t("chung.donVi")}
-            </span>
-            <input
-              name="uom"
-              defaultValue={material.uom}
-              className="w-full rounded border p-2"
-            />
-          </label>
+            </Select>
+          </Field>
+          <Field label={t("chung.donVi")}>
+            <Input name="uom" defaultValue={material.uom} />
+          </Field>
           <div className="flex gap-3">
-            <label className="block flex-1">
-              <span className="mb-1 block text-sm text-slate-600">
-                {t("materials.tonToiThieu")}
-              </span>
-              <input
+            <Field label={t("materials.tonToiThieu")} className="flex-1">
+              <Input
                 name="minStock"
                 type="number"
                 min="0"
                 step="0.01"
                 defaultValue={material.minStock}
-                className="w-full rounded border p-2"
               />
-            </label>
-            <label className="block flex-1">
-              <span className="mb-1 block text-sm text-slate-600">
-                {t("materials.tonToiDa")}
-              </span>
-              <input
+            </Field>
+            <Field label={t("materials.tonToiDa")} className="flex-1">
+              <Input
                 name="maxStock"
                 type="number"
                 min="0"
                 step="0.01"
                 defaultValue={material.maxStock}
-                className="w-full rounded border p-2"
               />
-            </label>
+            </Field>
           </div>
 
           <label className="flex items-center gap-2 md:col-span-3">
@@ -340,39 +291,33 @@ function EditDialog({
               type="checkbox"
               name="isCritical"
               defaultChecked={material.isCritical}
-              className="h-4 w-4"
+              className="size-4 accent-brand-600"
             />
-            <span className="text-sm text-slate-700">
+            <span className="text-sm text-[var(--text-primary)]">
               {t("materials.phuTungThietYeu")}
             </span>
           </label>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 border-t pt-3">
-          <button
-            disabled={pending}
-            className="rounded bg-blue-700 px-6 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
+        <div className="flex flex-wrap items-center gap-3 border-t border-[var(--border-subtle)] pt-4">
+          <Button
+            type="submit"
+            variant="primary"
+            loading={pending}
+            icon={<Save className="size-4" />}
           >
             {pending ? t("chung.dangLuu") : t("materials.luuThayDoi")}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-sm text-slate-600 hover:underline"
-          >
+          </Button>
+          <Button type="button" variant="ghost" onClick={onClose}>
             {t("chung.huy")}
-          </button>
+          </Button>
           {message && (
-            <span
-              className={`text-sm ${
-                success ? "text-green-700" : "text-red-600"
-              }`}
-            >
+            <Notice tone={success ? "success" : "danger"} className="basis-full">
               {message}
-            </span>
+            </Notice>
           )}
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

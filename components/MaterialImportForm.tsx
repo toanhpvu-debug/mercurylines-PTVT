@@ -1,8 +1,10 @@
 "use client";
 
 import { startTransition, useActionState, useState } from "react";
+import { FileSpreadsheet, Upload } from "lucide-react";
 import { importMaterials } from "@/app/actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Button, Field, Notice, Select } from "@/components/ui";
 
 type VesselOption = { id: number; label: string };
 type WarehouseOption = { id: number; vesselId: number; label: string };
@@ -36,11 +38,8 @@ export default function MaterialImportForm({
       className="space-y-4"
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("chung.tau")} *
-          </span>
-          <select
+        <Field label={`${t("chung.tau")} *`}>
+          <Select
             name="vesselId"
             value={vesselId}
             onChange={(e) => {
@@ -49,7 +48,6 @@ export default function MaterialImportForm({
               // theo sheet; muốn chỉ nạp danh mục thì chọn lại trong ô bên cạnh.
               setWarehouseId(e.target.value ? "AUTO" : "");
             }}
-            className="w-full rounded border p-2"
             required
           >
             <option value="">— {t("chung.chonTau")} —</option>
@@ -58,42 +56,32 @@ export default function MaterialImportForm({
                 {v.label}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("materials.loaiDuPhong")}
-          </span>
-          <select
+          </Select>
+        </Field>
+        <Field label={t("materials.loaiDuPhong")}>
+          <Select
             name="kind"
             value={kind}
             onChange={(e) => setKind(e.target.value)}
-            className="w-full rounded border p-2"
           >
             <option value="STORE">{tTuDo("labels.typeLong_STORE")}</option>
             <option value="SPARE">{tTuDo("labels.typeLong_SPARE")}</option>
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("materials.ghiTonVaoKho")}
-          </span>
+          </Select>
+        </Field>
+        <Field label={t("materials.ghiTonVaoKho")}>
           {/* Danh sách kho phụ thuộc tàu. Trước đây ô này bị khóa im lặng và chỉ
               hiện "— Không ghi tồn —" nên trông như hỏng; nay nói rõ phải chọn tàu. */}
-          <select
+          <Select
             name="warehouseId"
             value={warehouseId}
             onChange={(e) => setWarehouseId(e.target.value)}
-            className="w-full rounded border p-2 disabled:bg-slate-100 disabled:text-slate-500"
             disabled={!vesselId}
           >
             {!vesselId ? (
-              <option value="">← {t("materials.chonTauTruoc")}</option>
+              <option value="">{t("materials.chonTauTruoc")}</option>
             ) : (
               <>
-                <option value="AUTO">
-                  ⭑ {t("materials.tuDongTheoSheet")}
-                </option>
+                <option value="AUTO">{t("materials.tuDongTheoSheet")}</option>
                 {vesselWarehouses.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.label}
@@ -102,35 +90,40 @@ export default function MaterialImportForm({
                 <option value="">{t("materials.khongGhiTon")}</option>
               </>
             )}
-          </select>
-        </label>
+          </Select>
+        </Field>
       </div>
 
       {vesselId && vesselWarehouses.length === 0 && (
-        <p className="rounded border border-yellow-300 bg-yellow-50 p-2 text-sm text-yellow-800">
+        <Notice tone="warning">
           {t("materials.tauChuaCoKho")}{" "}
           <b>{t("materials.duongDanTaoKho")}</b>{" "}
           {t("materials.taoKhoTruoc")}
-        </p>
+        </Notice>
       )}
       {warehouseId === "AUTO" && (
-        <p className="rounded border border-blue-200 bg-blue-50 p-2 text-sm text-blue-900">
+        <Notice tone="info">
           {t("materials.robTruoc")} <b>{t("materials.robTenCot")}</b>{" "}
           {t("materials.robSau")}
-        </p>
+        </Notice>
       )}
 
-      <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4">
-        <p className="mb-1 font-semibold text-blue-950">
+      <div className="rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-4">
+        <p className="mb-1 inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+          <FileSpreadsheet className="size-4 text-[var(--text-muted)]" />
           {t("materials.fileDanhMuc")}
         </p>
-        <p className="mb-3 text-xs text-slate-600">
-          {t("materials.nhanFormCongTy")} <b>MLS-11-06</b>{" "}
-          {t("materials.moTaMLS1106")} <b>MLS-11-04</b>{" "}
+        <p className="mb-3 text-xs text-[var(--text-secondary)]">
+          {t("materials.nhanFormCongTy")}{" "}
+          <b className="text-[var(--text-primary)]">MLS-11-06</b>{" "}
+          {t("materials.moTaMLS1106")}{" "}
+          <b className="text-[var(--text-primary)]">MLS-11-04</b>{" "}
           {t("materials.moTaMLS1104")}
         </p>
-        <p className="mb-3 rounded border border-blue-200 bg-white/70 p-2 text-xs text-slate-700">
-          <b>{t("materials.docToanBoSheet")}</b>{" "}
+        <p className="mb-3 text-xs text-[var(--text-secondary)]">
+          <b className="text-[var(--text-primary)]">
+            {t("materials.docToanBoSheet")}
+          </b>{" "}
           {t("materials.docSheetTheoTen")}
         </p>
         <input
@@ -138,28 +131,26 @@ export default function MaterialImportForm({
           name="file"
           accept=".xls,.xlsx,.doc,.docx"
           required
-          className="text-sm"
+          className="block w-full text-sm text-[var(--text-secondary)] file:mr-3 file:rounded-lg file:border-0 file:bg-brand-700 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-brand-600"
         />
       </div>
 
       <div className="flex items-center gap-3">
-        <button
-          disabled={pending}
-          className="rounded bg-blue-700 px-6 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
+        <Button
+          type="submit"
+          variant="primary"
+          loading={pending}
+          icon={<Upload className="size-4" />}
         >
           {pending
             ? t("materials.dangNhapDuLieu")
             : t("materials.nutNhapVaoDanhMuc")}
-        </button>
+        </Button>
       </div>
       {state.message && (
-        <p
-          className={`text-sm ${
-            state.success ? "text-green-700" : "text-red-600"
-          }`}
-        >
+        <Notice tone={state.success ? "success" : "danger"}>
           {state.message}
-        </p>
+        </Notice>
       )}
     </form>
   );

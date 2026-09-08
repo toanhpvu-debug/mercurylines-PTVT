@@ -1,7 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import {
+  ArrowLeft,
+  Check,
+  ChevronRight,
+  ClipboardCheck,
+  History,
+  ListChecks,
+  Send,
+  ShoppingCart,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { REQUEST_STATUS_BADGE } from "@/lib/requestStatus";
 import {
   canDeleteRequest,
   capDuyetChoPhep,
@@ -17,11 +26,21 @@ import {
   nguoiDuyetCapTau,
 } from "@/lib/roles";
 import { layT } from "@/lib/i18n/server";
+import { cn } from "@/lib/cn";
 import PrintButton from "@/components/PrintButton";
 import RequestStatusForm from "@/components/RequestStatusForm";
 import RequestApprovalForm from "@/components/RequestApprovalForm";
 import RequestDeleteButton from "@/components/RequestDeleteButton";
 import RequestRejectForm from "@/components/RequestRejectForm";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  EmptyState,
+  Notice,
+  PageHeader,
+  TONE_YEU_CAU,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -106,33 +125,80 @@ export default async function RequestDetailPage({
   const canSubmit =
     (request.status === "DRAFT" || request.status === "REJECTED") &&
     LAP_YEU_CAU.includes(user.role);
+  // Bước đang chờ trong dải tiến độ: nháp → chờ trình; chờ tàu → bước tàu; chờ
+  // công ty → bước công ty. Đã duyệt xong / bị từ chối thì không tô bước nào.
+  const buocHienTai =
+    request.status === "DRAFT"
+      ? 0
+      : request.status === "PENDING_MASTER"
+        ? 1
+        : request.status === "PENDING_OFFICE"
+          ? 2
+          : -1;
+  const cacBuoc = [
+    {
+      ten: t("requests.buocTrinh"),
+      ai: request.submittedBy,
+      luc: request.submittedAt,
+      vaiTro: null as string | null,
+      xong: !!request.submittedAt,
+    },
+    {
+      ten: t("requests.buocTauDuyet"),
+      ai: request.shipApprovedBy,
+      luc: request.shipApprovedAt,
+      vaiTro: request.shipApprovedRole as string | null,
+      xong: !!request.shipApprovedAt,
+    },
+    {
+      ten: t("requests.buocCongTyDuyet"),
+      ai: request.approvedBy,
+      luc: request.approvedAt,
+      vaiTro: null as string | null,
+      xong: !!request.approvedAt,
+    },
+  ];
 
   return (
-    <div className="space-y-4">
-      <div className="no-print flex flex-wrap items-center justify-between gap-2">
-        <Link href="/requests" className="text-sm text-blue-700 hover:underline">
+    <div className="space-y-5">
+      <div className="no-print">
+        <Link
+          href="/requests"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-brand-700 hover:underline dark:text-brand-300"
+        >
+          <ArrowLeft className="size-4" />
           {t("requests.quayLaiDanhSach")}
         </Link>
-        <div className="flex items-center gap-2">
-          <span
-            className={`rounded px-2 py-1 text-sm font-medium ${
-              REQUEST_STATUS_BADGE[request.status] ?? "bg-slate-100 text-slate-700"
-            }`}
-          >
-            {tTuDo(`labels.reqStatus_${request.status}`)}
-          </span>
-          {canDeleteRequest(user, request) && (
-            <RequestDeleteButton
-              id={request.id}
-              requestNo={request.requestNo}
-              returnTo="/requests"
-            />
-          )}
-          <PrintButton label={`${t("chung.in")} ${formCode}`} />
-        </div>
+        <PageHeader
+          title={
+            <span className="font-display tracking-wide">{request.requestNo}</span>
+          }
+          subtitle={
+            <>
+              {request.vessel.name} ·{" "}
+              {tTuDo(`labels.type_${isSpare ? "SPARE" : "STORE"}`)} ·{" "}
+              <span className="font-display text-xs tracking-wide">{formCode}</span>
+            </>
+          }
+          action={
+            <>
+              <Badge tone={TONE_YEU_CAU[request.status] ?? "neutral"} dot>
+                {tTuDo(`labels.reqStatus_${request.status}`)}
+              </Badge>
+              {canDeleteRequest(user, request) && (
+                <RequestDeleteButton
+                  id={request.id}
+                  requestNo={request.requestNo}
+                  returnTo="/requests"
+                />
+              )}
+              <PrintButton label={`${t("chung.in")} ${formCode}`} />
+            </>
+          }
+        />
       </div>
 
-      <div className="print-area rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 print:rounded-none print:p-0 print:shadow-none">
+      <div className="print-area surface rounded-xl border p-6 shadow-sm print:rounded-none print:p-0 print:shadow-none print:border-0">
         <table className="w-full border-2 border-black text-sm">
           <tbody>
             <tr>
@@ -378,116 +444,118 @@ export default async function RequestDetailPage({
       </div>
 
       {/* Đường đi phê duyệt — nhìn là biết đang ở đâu và còn ai phải ký */}
-      <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <h3 className="mb-3 text-lg font-semibold text-blue-950">
-          {t("requests.tienDoDuyet")}
-        </h3>
-        <ol className="grid gap-3 sm:grid-cols-3">
-          {[
-            {
-              ten: t("requests.buocTrinh"),
-              ai: request.submittedBy,
-              luc: request.submittedAt,
-              vaiTro: null as string | null,
-              xong: !!request.submittedAt,
-            },
-            {
-              ten: t("requests.buocTauDuyet"),
-              ai: request.shipApprovedBy,
-              luc: request.shipApprovedAt,
-              vaiTro: request.shipApprovedRole as string | null,
-              xong: !!request.shipApprovedAt,
-            },
-            {
-              ten: t("requests.buocCongTyDuyet"),
-              ai: request.approvedBy,
-              luc: request.approvedAt,
-              vaiTro: null as string | null,
-              xong: !!request.approvedAt,
-            },
-          ].map((buoc, i) => (
-            <li
-              key={buoc.ten}
-              className={`rounded-lg border p-3 text-sm ` + (
-                buoc.xong
-                  ? "border-emerald-200 bg-emerald-50"
-                  : "border-slate-200 bg-slate-50"
-              )}
-            >
-              <p className="flex items-center gap-2 font-medium text-slate-800">
-                <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs text-white ` + (
-                    buoc.xong ? "bg-emerald-600" : "bg-slate-400"
+      <Card className="no-print">
+        <CardHeader
+          icon={<ListChecks className="size-4" />}
+          title={t("requests.tienDoDuyet")}
+        />
+        <ol className="flex flex-wrap items-center gap-2">
+          {cacBuoc.map((buoc, i) => {
+            const hienTai = i === buocHienTai;
+            return (
+              <li key={buoc.ten} className="flex items-center gap-2">
+                {i > 0 && (
+                  <ChevronRight className="hidden size-4 shrink-0 text-[var(--text-muted)] sm:block" />
+                )}
+                <div
+                  aria-current={hienTai ? "step" : undefined}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm",
+                    hienTai
+                      ? "bg-brand-700 text-white"
+                      : "bg-[var(--surface-sunken)] text-[var(--text-primary)]"
                   )}
                 >
-                  {buoc.xong ? "✓" : i + 1}
-                </span>
-                {buoc.ten}
-              </p>
-              <p className="mt-1 text-slate-600">
-                {buoc.xong ? (
-                  <>
-                    {buoc.ai}
-                    {buoc.vaiTro
-                      ? ` · ${tTuDo(`labels.role_${buoc.vaiTro}`)}`
-                      : ""}
-                    <br />
-                    <span className="text-xs text-slate-500">
-                      {buoc.luc ? ngayGio(buoc.luc) : ""}
+                  {buoc.xong ? (
+                    <Badge tone="success" dot>
+                      <Check className="size-3" />
+                    </Badge>
+                  ) : (
+                    <span
+                      className={cn(
+                        "tabular grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold",
+                        hienTai
+                          ? "bg-brand-900 text-white"
+                          : "bg-[var(--surface-raised)] text-[var(--text-muted)]"
+                      )}
+                    >
+                      {i + 1}
                     </span>
-                  </>
-                ) : (
-                  <span className="text-slate-400">{t("requests.chuaXong")}</span>
-                )}
-              </p>
-            </li>
-          ))}
+                  )}
+                  <div>
+                    <p className="font-medium">{buoc.ten}</p>
+                    <p
+                      className={cn(
+                        "text-xs",
+                        hienTai ? "text-white/80" : "text-[var(--text-secondary)]"
+                      )}
+                    >
+                      {buoc.xong ? (
+                        <>
+                          {buoc.ai}
+                          {buoc.vaiTro
+                            ? ` · ${tTuDo(`labels.role_${buoc.vaiTro}`)}`
+                            : ""}
+                          {buoc.luc ? ` · ${ngayGio(buoc.luc)}` : ""}
+                        </>
+                      ) : (
+                        t("requests.chuaXong")
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
         </ol>
         {dangChoDuyet && (
-          <p className="mt-3 text-sm text-slate-600">
+          <Notice tone="info" className="mt-4">
             {t("requests.dangChoDuyetBoi")} <b>{nguoiPhaiDuyet}</b>.
             {!capDuyet && (
-              <span className="ml-1 text-slate-500">
+              <span className="ml-1 opacity-80">
                 {t(khoaViSaoKhongDuyet(user.role))}
               </span>
             )}
-          </p>
+          </Notice>
         )}
-      </div>
+      </Card>
 
       {canSubmit && (
-        <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-          <h3 className="mb-1 text-lg font-semibold text-blue-950">
-            {request.status === "REJECTED"
-              ? t("requests.nutTrinhLai")
-              : t("requests.nutTrinh")}
-          </h3>
-          <p className="mb-3 text-sm text-slate-600">
-            {request.status === "REJECTED" ? (
-              <>
-                {t("requests.trinhLaiMoTa")}{" "}
-                <b>
-                  {tTuDo(
-                    `labels.role_${nguoiDuyetCapTau(request.department)}`
-                  )}
-                </b>
-                .
-              </>
-            ) : (
-              <>
-                {t("requests.nhapTruoc")} <b>{tTuDo("labels.reqStatus_DRAFT")}</b>{" "}
-                {t("requests.nhapGiua")}{" "}
-                <b>{tTuDo("labels.reqStatus_PENDING_MASTER")}</b>
-                {t("requests.nhapCuoi")}{" "}
-                <b>
-                  {tTuDo(
-                    `labels.role_${nguoiDuyetCapTau(request.department)}`
-                  )}
-                </b>
-                .
-              </>
-            )}
-          </p>
+        <Card className="no-print">
+          <CardHeader
+            icon={<Send className="size-4" />}
+            title={
+              request.status === "REJECTED"
+                ? t("requests.nutTrinhLai")
+                : t("requests.nutTrinh")
+            }
+            subtitle={
+              request.status === "REJECTED" ? (
+                <>
+                  {t("requests.trinhLaiMoTa")}{" "}
+                  <b>
+                    {tTuDo(
+                      `labels.role_${nguoiDuyetCapTau(request.department)}`
+                    )}
+                  </b>
+                  .
+                </>
+              ) : (
+                <>
+                  {t("requests.nhapTruoc")} <b>{tTuDo("labels.reqStatus_DRAFT")}</b>{" "}
+                  {t("requests.nhapGiua")}{" "}
+                  <b>{tTuDo("labels.reqStatus_PENDING_MASTER")}</b>
+                  {t("requests.nhapCuoi")}{" "}
+                  <b>
+                    {tTuDo(
+                      `labels.role_${nguoiDuyetCapTau(request.department)}`
+                    )}
+                  </b>
+                  .
+                </>
+              )
+            }
+          />
           <RequestStatusForm
             id={request.id}
             status="PENDING_MASTER"
@@ -496,37 +564,37 @@ export default async function RequestDetailPage({
                 ? t("requests.nutTrinhLai")
                 : t("requests.nutTrinh")
             }
-            className="rounded bg-amber-500 px-5 py-2 text-white hover:bg-amber-600 disabled:opacity-50"
+            variant="primary"
+            icon={<Send className="size-4" />}
             returnTo={`/requests/${request.id}`}
           />
-        </div>
+        </Card>
       )}
       {request.status === "REJECTED" && request.rejectionReason && (
-        <div className="no-print rounded-xl border border-red-200 bg-red-50 p-4">
-          <p className="font-semibold text-red-800">
-            {t("requests.yeuCauBiTuChoi")}
-          </p>
-          <p className="mt-1 text-sm text-red-700">
-            {request.rejectionReason}
-          </p>
-          <p className="mt-1 text-xs text-red-600">
+        <Notice tone="danger" className="no-print">
+          <p className="font-semibold">{t("requests.yeuCauBiTuChoi")}</p>
+          <p className="mt-1">{request.rejectionReason}</p>
+          <p className="mt-1 text-xs opacity-80">
             {request.rejectedBy} ·{" "}
             {request.rejectedAt ? ngayGio(request.rejectedAt) : ""}
           </p>
-        </div>
+        </Notice>
       )}
       {capDuyet && (
-        <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-          <h3 className="mb-1 text-lg font-semibold">
-            {capDuyet === "TAU"
-              ? t("requests.duyetCapTau")
-              : t("requests.duyetCapCongTy")}
-          </h3>
-          <p className="mb-4 text-sm text-slate-600">
-            {capDuyet === "TAU"
-              ? t("requests.duyetCapTauMoTa")
-              : t("requests.duyetCapCongTyMoTa")}
-          </p>
+        <Card className="no-print">
+          <CardHeader
+            icon={<ClipboardCheck className="size-4" />}
+            title={
+              capDuyet === "TAU"
+                ? t("requests.duyetCapTau")
+                : t("requests.duyetCapCongTy")
+            }
+            subtitle={
+              capDuyet === "TAU"
+                ? t("requests.duyetCapTauMoTa")
+                : t("requests.duyetCapCongTyMoTa")
+            }
+          />
           <RequestApprovalForm
             requestId={request.id}
             capDuyet={capDuyet}
@@ -539,67 +607,75 @@ export default async function RequestDetailPage({
               tauDuyet: item.approvedQuantity,
             }))}
           />
-          <div className="mt-4 border-t pt-4">
+          <div className="mt-4 border-t border-[var(--border-subtle)] pt-4">
             <RequestRejectForm
               id={request.id}
               returnTo={`/requests/${request.id}`}
             />
           </div>
-        </div>
+        </Card>
       )}
       {canModerate && request.status === "APPROVED" && (
-        <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-          <RequestStatusForm
-            id={request.id}
-            status="IN_PROCUREMENT"
-            label={t("requests.nutChuyenMuaSam")}
-            className="rounded bg-blue-100 px-3 py-1 text-blue-700 hover:bg-blue-200 disabled:opacity-50"
-            returnTo={`/requests/${request.id}`}
-          />
-        </div>
+        <Card className="no-print">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-[var(--text-secondary)]">
+              {t("requests.chuyenMuaSamMoTa")}
+            </p>
+            <RequestStatusForm
+              id={request.id}
+              status="IN_PROCUREMENT"
+              label={t("requests.nutChuyenMuaSam")}
+              variant="primary"
+              icon={<ShoppingCart className="size-4" />}
+              returnTo={`/requests/${request.id}`}
+            />
+          </div>
+        </Card>
       )}
 
       {/* Nhật ký phê duyệt — ai làm gì, lúc nào, vì sao */}
-      <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <h3 className="mb-3 text-lg font-semibold text-blue-950">
-          {t("requests.nhatKyDuyet")}
-        </h3>
+      <Card className="no-print">
+        <CardHeader
+          icon={<History className="size-4" />}
+          title={t("requests.nhatKyDuyet")}
+        />
         {request.events.length === 0 ? (
-          <p className="text-sm text-slate-500">{t("requests.chuaCoMoc")}</p>
+          <EmptyState
+            icon={<History className="size-5" />}
+            title={t("requests.chuaCoMocNgan")}
+            hint={t("requests.chuaCoMoc")}
+          />
         ) : (
           <ol className="space-y-3">
             {request.events.map((ev) => (
               <li key={ev.id} className="flex gap-3">
-                <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-blue-600" />
+                <div className="mt-1.5 size-2 shrink-0 rounded-full bg-brand-500" />
                 <div className="min-w-0">
-                  <p className="text-sm">
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                        REQUEST_STATUS_BADGE[ev.toStatus] ??
-                        "bg-slate-100 text-slate-700"
-                      }`}
-                    >
+                  <p className="flex flex-wrap items-center gap-2 text-sm">
+                    <Badge tone={TONE_YEU_CAU[ev.toStatus] ?? "neutral"} dot>
                       {tTuDo(`labels.reqStatus_${ev.toStatus}`)}
-                    </span>
+                    </Badge>
                     {ev.fromStatus && (
-                      <span className="ml-2 text-xs text-slate-500">
+                      <span className="text-xs text-[var(--text-muted)]">
                         ({t("requests.tuTrangThai")}{" "}
                         {tTuDo(`labels.reqStatus_${ev.fromStatus}`)})
                       </span>
                     )}
                   </p>
-                  <p className="text-xs text-slate-600">
+                  <p className="text-xs text-[var(--text-secondary)]">
                     {ev.actorName} · {ev.actorRole} · {ngayGio(ev.createdAt)}
                   </p>
                   {ev.note && (
-                    <p className="mt-0.5 text-sm text-slate-700">{ev.note}</p>
+                    <p className="mt-0.5 text-sm text-[var(--text-primary)]">
+                      {ev.note}
+                    </p>
                   )}
                 </div>
               </li>
             ))}
           </ol>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

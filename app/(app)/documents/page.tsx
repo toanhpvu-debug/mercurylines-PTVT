@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ExternalLink, FileText, Upload } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
@@ -9,6 +10,20 @@ import {
 import DocumentUploadForm from "@/components/DocumentUploadForm";
 import DocumentDeleteButton from "@/components/DocumentDeleteButton";
 import { layT } from "@/lib/i18n/server";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  EmptyState,
+  Notice,
+  PageHeader,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+  buttonClass,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -41,99 +56,104 @@ export default async function DocumentsPage() {
   ]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("inventory.taiLieuTieuDe")}
-        </h2>
-        <p className="text-slate-600">{t("inventory.taiLieuMoTa")}</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title={t("inventory.taiLieuTieuDe")}
+        subtitle={t("inventory.taiLieuMoTa")}
+      />
 
       {scope.unassigned ? (
-        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          {t("inventory.taiLieuChuaGanTau")}
-        </div>
+        <Notice tone="warning">{t("inventory.taiLieuChuaGanTau")}</Notice>
       ) : (
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <h3 className="mb-4 text-lg font-semibold">
-              {t("inventory.taiBaoCaoLen")}
-            </h3>
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+          <Card>
+            <CardHeader
+              icon={<Upload className="size-4" />}
+              title={t("inventory.taiBaoCaoLen")}
+            />
             <DocumentUploadForm vessels={vessels} />
-          </div>
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 xl:col-span-2">
-            <h3 className="mb-4 text-lg font-semibold">
-              {t("inventory.hoSoDaLuu", { n: documents.length })}
-            </h3>
+          </Card>
+          <Card className="xl:col-span-2">
+            <CardHeader
+              icon={<FileText className="size-4" />}
+              title={t("inventory.hoSoDaLuu", { n: documents.length })}
+            />
             {documents.length === 0 ? (
-              <p className="text-slate-600">{t("inventory.chuaCoBaoCao")}</p>
+              <EmptyState
+                icon={<FileText className="size-5" />}
+                title={t("inventory.chuaCoBaoCao")}
+              />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border text-sm">
+              <TableWrap>
+                <Table dense>
                   <thead>
-                    <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                      <th className="p-2">{t("inventory.cotNgayTai")}</th>
-                      <th className="p-2">{t("chung.tau")}</th>
-                      <th className="p-2">{t("inventory.loai")}</th>
-                      <th className="p-2">{t("inventory.cotKy")}</th>
-                      <th className="p-2">{t("inventory.cotTieuDeFile")}</th>
-                      <th className="p-2">{t("inventory.cotCo")}</th>
-                      <th className="p-2">{t("inventory.cotNguoiTai")}</th>
-                      <th className="p-2">SHA-256</th>
-                      <th className="p-2"></th>
+                    <tr>
+                      <Th>{t("inventory.cotNgayTai")}</Th>
+                      <Th>{t("chung.tau")}</Th>
+                      <Th>{t("inventory.loai")}</Th>
+                      <Th>{t("inventory.cotKy")}</Th>
+                      <Th>{t("inventory.cotTieuDeFile")}</Th>
+                      <Th>{t("inventory.cotCo")}</Th>
+                      <Th>{t("inventory.cotNguoiTai")}</Th>
+                      <Th>SHA-256</Th>
+                      <Th></Th>
                     </tr>
                   </thead>
                   <tbody>
                     {documents.map((doc) => (
-                      <tr key={doc.id} className="border-b align-top">
-                        <td className="p-2 whitespace-nowrap">
+                      <Tr
+                        key={doc.id}
+                        className="align-top transition-colors hover:bg-[var(--surface-sunken)]/50"
+                      >
+                        <Td className="whitespace-nowrap">
                           {ngay(doc.createdAt)}
-                        </td>
-                        <td className="p-2 whitespace-nowrap">
+                        </Td>
+                        <Td className="whitespace-nowrap">
                           <Link
                             href={`/vessels/${doc.vessel.id}`}
-                            className="text-blue-700 hover:underline"
+                            className="font-display text-xs tracking-wide text-brand-700 hover:underline dark:text-brand-300"
                           >
                             {doc.vessel.code}
                           </Link>
-                        </td>
-                        <td className="p-2 whitespace-nowrap">
-                          {doc.reportType}
-                        </td>
-                        <td className="p-2 whitespace-nowrap">{doc.period}</td>
-                        <td className="p-2">
+                        </Td>
+                        <Td className="whitespace-nowrap">
+                          <Badge tone="neutral">{doc.reportType}</Badge>
+                        </Td>
+                        <Td className="whitespace-nowrap">{doc.period}</Td>
+                        <Td>
                           <p className="font-medium">{doc.title}</p>
                           {doc.title !== doc.fileName && (
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-[var(--text-muted)]">
                               {doc.fileName}
                             </p>
                           )}
                           {doc.note && (
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-[var(--text-muted)]">
                               {t("chung.ghiChu")}: {doc.note}
                             </p>
                           )}
-                        </td>
-                        <td className="p-2 whitespace-nowrap">
+                        </Td>
+                        <Td className="tabular whitespace-nowrap">
                           {formatSize(doc.size)}
-                        </td>
-                        <td className="p-2">{doc.uploadedBy.name}</td>
-                        <td className="p-2">
+                        </Td>
+                        <Td>{doc.uploadedBy.name}</Td>
+                        <Td>
                           <span
-                            className="font-mono text-xs text-slate-500"
+                            className="font-mono text-xs text-[var(--text-muted)]"
                             title={doc.sha256}
                           >
                             {doc.sha256.slice(0, 12)}…
                           </span>
-                        </td>
-                        <td className="p-2">
+                        </Td>
+                        <Td>
                           <div className="flex items-center gap-2">
                             <a
                               href={`/api/documents/${doc.id}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200"
+                              className={buttonClass("secondary", "sm")}
                             >
+                              <ExternalLink className="size-4" />
                               {t("inventory.xemTai")}
                             </a>
                             {canDelete && (
@@ -143,17 +163,17 @@ export default async function DocumentsPage() {
                               />
                             )}
                           </div>
-                        </td>
-                      </tr>
+                        </Td>
+                      </Tr>
                     ))}
                   </tbody>
-                </table>
-              </div>
+                </Table>
+              </TableWrap>
             )}
-            <p className="mt-3 text-xs text-slate-500">
+            <Notice tone="info" className="mt-4">
               {t("inventory.luuYBatBien")}
-            </p>
-          </div>
+            </Notice>
+          </Card>
         </div>
       )}
     </div>

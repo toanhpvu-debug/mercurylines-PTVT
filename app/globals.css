@@ -285,8 +285,25 @@ html {
   animation: fadeIn 0.16s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Băng màu / nền trên chứng từ phải giữ màu khi in */
+/*
+ * Chứng từ (biểu mẫu MLS-11-05, MLS-11-01, MLS-11-13, PO/RFQ) là một TỜ GIẤY
+ * xem trước: luôn trắng, chữ đen, ở cả hai chế độ. Không theo chế độ tối vì
+ * bên trong là bản in cố định với viền đen và chữ đen — đặt lên nền navy thì
+ * viền biến mất và chữ không đọc được. Ghi đè bộ biến ngay tại đây để mọi thẻ
+ * con dùng biến (surface, text-*) cũng ra màu giấy, không phải sửa từng form.
+ * Băng màu / nền trên chứng từ phải giữ màu khi in.
+ */
 .print-area {
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f2f4f7;
+  --surface-overlay: #ffffff;
+  --border-subtle: #cbd5e1;
+  --text-primary: #000000;
+  --text-secondary: #334155;
+  --text-muted: #475569;
+  background: #ffffff;
+  color: #000000;
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
 }

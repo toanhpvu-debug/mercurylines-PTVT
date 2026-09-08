@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/auth";
 import MaterialImportForm from "@/components/MaterialImportForm";
 import { layT } from "@/lib/i18n/server";
+import { Card, PageHeader, buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -33,50 +35,59 @@ export default async function MaterialImportPage() {
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
         <Link
           href="/materials"
-          className="text-sm text-blue-700 hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-brand-700 hover:underline dark:text-brand-300"
         >
-          ← {t("materials.quayLaiDanhMuc")}
+          <ArrowLeft className="size-4" />
+          {t("materials.quayLaiDanhMuc")}
         </Link>
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("materials.nhapDanhMucTuFile")}
-        </h2>
-        <p className="text-slate-600">{t("materials.nhapMoTa")}</p>
+        <PageHeader
+          title={t("materials.nhapDanhMucTuFile")}
+          subtitle={t("materials.nhapMoTa")}
+        />
       </div>
 
       {/* Chưa có sẵn file danh mục thì phải có cái để phát cho tàu điền. Đặt
           TRƯỚC ô upload vì đó là bước đi trước: thu thập rồi mới nhập. */}
-      <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-6">
+      <div className="rounded-xl border border-brand-500/30 bg-brand-500/8 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-2xl">
-            <h3 className="text-lg font-semibold text-blue-950">
-              {t("materials.mauTieuDe")}
-            </h3>
-            <p className="mt-1 text-sm text-slate-700">
-              {t("materials.mauCoSheet")} <b>{t("chung.phuTung")}</b>
-              {t("materials.mauSheetKhac")}{" "}
-              <b>{t("materials.mauSheetHuongDan")}</b>{" "}
-              {t("materials.mauGiaiThichCot")}
-            </p>
-            <p className="mt-2 text-sm text-slate-600">
-              {t("materials.mauKhopSan")}{" "}
-              <b>{t("materials.mauDungDoiTen")}</b>{" "}
-              {t("materials.mauChiDienBenDuoi")}
-            </p>
+          <div className="flex max-w-2xl items-start gap-3">
+            <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-700 dark:text-brand-400">
+              <FileSpreadsheet className="size-4" />
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
+                {t("materials.mauTieuDe")}
+              </h2>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                {t("materials.mauCoSheet")}{" "}
+                <b className="text-[var(--text-primary)]">{t("chung.phuTung")}</b>
+                {t("materials.mauSheetKhac")}{" "}
+                <b className="text-[var(--text-primary)]">
+                  {t("materials.mauSheetHuongDan")}
+                </b>{" "}
+                {t("materials.mauGiaiThichCot")}
+              </p>
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                {t("materials.mauKhopSan")}{" "}
+                <b className="text-[var(--text-primary)]">
+                  {t("materials.mauDungDoiTen")}
+                </b>{" "}
+                {t("materials.mauChiDienBenDuoi")}
+              </p>
+            </div>
           </div>
-          <a
-            href="/api/materials/template"
-            className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-800"
-          >
-            ⬇ {t("materials.taiFileMau")}
+          <a href="/api/materials/template" className={buttonClass("primary")}>
+            <Download className="size-4" />
+            {t("materials.taiFileMau")}
           </a>
         </div>
       </div>
 
-      <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
+      <Card>
         <MaterialImportForm
           vessels={vessels.map((v) => ({
             id: v.id,
@@ -90,7 +101,7 @@ export default async function MaterialImportPage() {
               label: `${w.code} — ${w.name}`,
             }))}
         />
-      </div>
+      </Card>
     </div>
   );
 }

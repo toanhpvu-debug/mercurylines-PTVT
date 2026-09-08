@@ -2,6 +2,7 @@
 
 import { BO_PHAN, CHUC_DANH, chucDanhTuVaiTro, type BoPhan } from "@/lib/maVatTu";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Field, Select } from "@/components/ui";
 
 /**
  * Ô chọn CHỨC DANH GIỮ VẬT TƯ của một tài khoản.
@@ -29,40 +30,31 @@ export default function ChonChucDanhGiuVatTu({
 }) {
   const { t, tenChucDanh, tenBoPhan } = useNgonNgu();
   const suyRa = vaiTro ? chucDanhTuVaiTro(vaiTro) : null;
-  return (
-    <div className={gonGang ? "" : "space-y-1"}>
-      {!gonGang && (
-        <label className="block text-sm text-slate-600">
-          {t("materials.chucDanhGiuVatTu")}
-        </label>
-      )}
-      <select
-        name="rankCode"
-        defaultValue={giaTri}
-        disabled={disabled}
-        className={
-          gonGang
-            ? "max-w-44 rounded border p-1 text-sm disabled:bg-slate-100 disabled:text-slate-400"
-            : "w-full rounded border p-2"
-        }
-      >
-        <option value="">
-          {suyRa
-            ? `— ${t("materials.theoVaiTro", { ten: tenChucDanh(suyRa) })} —`
-            : `— ${t("materials.chuaKhai")} —`}
-        </option>
-        {(Object.keys(BO_PHAN) as BoPhan[]).map((bp) => (
-          <optgroup key={bp} label={tenBoPhan(bp)}>
-            {Object.entries(CHUC_DANH)
-              .filter(([, cd]) => cd.boPhan === bp)
-              .map(([ma]) => (
-                <option key={ma} value={ma}>
-                  {tenChucDanh(ma)} ({ma})
-                </option>
-              ))}
-          </optgroup>
-        ))}
-      </select>
-    </div>
+  const oChon = (
+    <Select
+      name="rankCode"
+      defaultValue={giaTri}
+      disabled={disabled}
+      className={gonGang ? "max-w-44" : undefined}
+    >
+      <option value="">
+        {suyRa
+          ? `— ${t("materials.theoVaiTro", { ten: tenChucDanh(suyRa) })} —`
+          : `— ${t("materials.chuaKhai")} —`}
+      </option>
+      {(Object.keys(BO_PHAN) as BoPhan[]).map((bp) => (
+        <optgroup key={bp} label={tenBoPhan(bp)}>
+          {Object.entries(CHUC_DANH)
+            .filter(([, cd]) => cd.boPhan === bp)
+            .map(([ma]) => (
+              <option key={ma} value={ma}>
+                {tenChucDanh(ma)} ({ma})
+              </option>
+            ))}
+        </optgroup>
+      ))}
+    </Select>
   );
+  if (gonGang) return oChon;
+  return <Field label={t("materials.chucDanhGiuVatTu")}>{oChon}</Field>;
 }

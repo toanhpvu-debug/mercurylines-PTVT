@@ -1,11 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
+import { Plus, Unlink } from "lucide-react";
 import {
   assignMaterialToVessel,
   unassignMaterialFromVessel,
 } from "@/app/actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Button, Notice, Select } from "@/components/ui";
 
 type MaterialOption = {
   id: number;
@@ -28,33 +30,35 @@ export function VesselMaterialAddForm({
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="vesselId" value={vesselId} />
-      <select
-        name="materialId"
-        className="min-w-64 rounded border p-2 text-sm"
-        defaultValue=""
-        required
+      <div className="min-w-64 flex-1 sm:max-w-lg">
+        <Select name="materialId" defaultValue="" required>
+          <option value="">{t("materials.optChonTuGoc")}</option>
+          {available.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.code} - {m.nameVn}
+              {m.materialType === "SPARE" ? ` (${t("chung.phuTung")})` : ""}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <Button
+        type="submit"
+        variant="primary"
+        loading={pending}
+        disabled={available.length === 0}
+        icon={<Plus className="size-4" />}
       >
-        <option value="">{t("materials.optChonTuGoc")}</option>
-        {available.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.code} - {m.nameVn}
-            {m.materialType === "SPARE" ? ` (${t("chung.phuTung")})` : ""}
-          </option>
-        ))}
-      </select>
-      <button
-        disabled={pending || available.length === 0}
-        className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
-      >
-        {pending ? "..." : t("materials.nutThemVaoTau")}
-      </button>
+        {t("materials.nutThemVaoTau")}
+      </Button>
       {available.length === 0 && (
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-[var(--text-muted)]">
           {t("materials.tauDaCoDu")}
         </span>
       )}
       {state.message && (
-        <span className="text-xs text-red-600">{state.message}</span>
+        <Notice tone="danger" className="basis-full">
+          {state.message}
+        </Notice>
       )}
     </form>
   );
@@ -85,14 +89,17 @@ export function VesselMaterialRemoveButton({
     >
       <input type="hidden" name="vesselId" value={vesselId} />
       <input type="hidden" name="materialId" value={materialId} />
-      <button
-        disabled={pending}
-        className="rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
+      <Button
+        type="submit"
+        size="sm"
+        variant="danger"
+        loading={pending}
+        icon={<Unlink className="size-4" />}
       >
-        {pending ? "..." : t("materials.nutGoKhoiTau")}
-      </button>
+        {t("materials.nutGoKhoiTau")}
+      </Button>
       {state.message && (
-        <p className="mt-1 text-xs text-red-600">{state.message}</p>
+        <p className="mt-1 text-xs text-[var(--text-danger)]">{state.message}</p>
       )}
     </form>
   );

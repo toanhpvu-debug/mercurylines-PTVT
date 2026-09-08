@@ -1,8 +1,10 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Plus } from "lucide-react";
 import { createMaterial } from "@/app/actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Button, Field, Input, Notice, Select } from "@/components/ui";
 
 type CategoryOption = {
   id: number;
@@ -23,126 +25,97 @@ export default function MaterialForm({
   const isSpare = materialType === "SPARE";
   return (
     <form action={formAction} className="space-y-3">
-      <div>
-        <label className="mb-1 block text-sm text-slate-600">
-          {t("materials.loai")}
-        </label>
-        <select
+      <Field label={t("materials.loai")}>
+        <Select
           name="materialType"
-          className="w-full rounded border p-2"
           value={materialType}
           onChange={(e) => setMaterialType(e.target.value)}
         >
           <option value="STORE">{t("materials.loaiStoreMLS")}</option>
           <option value="SPARE">{t("materials.loaiSpareMLS")}</option>
-        </select>
-      </div>
-      <input
-        name="code"
-        placeholder={t("materials.phMaVatTu")}
-        className="w-full rounded border p-2"
-        defaultValue={v.code ?? ""}
-        required
-      />
-      <input
-        name="nameVn"
-        placeholder={t("materials.phTenVi")}
-        className="w-full rounded border p-2"
-        defaultValue={v.nameVn ?? ""}
-        required
-      />
-      <input
-        name="nameEn"
-        placeholder={t("materials.phTenEn")}
-        className="w-full rounded border p-2"
-        defaultValue={v.nameEn ?? ""}
-      />
+        </Select>
+      </Field>
+      <Field label={t("materials.phMaVatTu")}>
+        <Input name="code" defaultValue={v.code ?? ""} required />
+      </Field>
+      <Field label={t("materials.phTenVi")}>
+        <Input name="nameVn" defaultValue={v.nameVn ?? ""} required />
+      </Field>
+      <Field label={t("materials.phTenEn")}>
+        <Input name="nameEn" defaultValue={v.nameEn ?? ""} />
+      </Field>
       {isSpare && (
-        <input
-          name="equipment"
-          placeholder={t("materials.phThietBi")}
-          className="w-full rounded border p-2"
-          defaultValue={v.equipment ?? ""}
-        />
+        <Field label={t("materials.phThietBi")}>
+          <Input name="equipment" defaultValue={v.equipment ?? ""} />
+        </Field>
       )}
       <div className="grid grid-cols-2 gap-3">
-        <input
-          name="impa"
-          placeholder={t("materials.phImpa")}
-          className="w-full rounded border p-2"
-          defaultValue={v.impa ?? ""}
-        />
-        <input
-          name="partNumber"
-          placeholder={t("materials.phPartNo")}
-          className="w-full rounded border p-2"
-          defaultValue={v.partNumber ?? ""}
-        />
+        <Field label={t("materials.phImpa")}>
+          <Input name="impa" defaultValue={v.impa ?? ""} />
+        </Field>
+        <Field label={t("materials.phPartNo")}>
+          <Input name="partNumber" defaultValue={v.partNumber ?? ""} />
+        </Field>
       </div>
-      <input
-        name="manufacturer"
-        placeholder={t("materials.phMaker")}
-        className="w-full rounded border p-2"
-        defaultValue={v.manufacturer ?? ""}
-      />
-      <select
-        name="categoryId"
-        className="w-full rounded border p-2"
-        defaultValue={v.categoryId ?? ""}
-      >
-        <option value="">{t("materials.optChonNhom")}</option>
-        {categories.map((category) => (
-          <option key={category.id} value={category.id}>
-            {category.name}
-          </option>
-        ))}
-      </select>
-      <input
-        name="uom"
-        placeholder={t("materials.phDonVi")}
-        className="w-full rounded border p-2"
-        defaultValue={v.uom ?? "PCS"}
-      />
+      <Field label={t("materials.phMaker")}>
+        <Input name="manufacturer" defaultValue={v.manufacturer ?? ""} />
+      </Field>
+      <Field label={t("chung.nhom")}>
+        <Select name="categoryId" defaultValue={v.categoryId ?? ""}>
+          <option value="">{t("materials.optChonNhom")}</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label={t("chung.donVi")}>
+        <Input
+          name="uom"
+          placeholder={t("materials.phDonVi")}
+          defaultValue={v.uom ?? "PCS"}
+        />
+      </Field>
       <div className="grid grid-cols-2 gap-3">
-        <input
-          name="minStock"
-          type="number"
-          step="0.01"
-          placeholder={t("materials.tonToiThieu")}
-          className="w-full rounded border p-2"
-          defaultValue={v.minStock ?? "0"}
-        />
-        <input
-          name="maxStock"
-          type="number"
-          step="0.01"
-          placeholder={t("materials.tonToiDa")}
-          className="w-full rounded border p-2"
-          defaultValue={v.maxStock ?? "0"}
-        />
+        <Field label={t("materials.tonToiThieu")}>
+          <Input
+            name="minStock"
+            type="number"
+            step="0.01"
+            defaultValue={v.minStock ?? "0"}
+          />
+        </Field>
+        <Field label={t("materials.tonToiDa")}>
+          <Input
+            name="maxStock"
+            type="number"
+            step="0.01"
+            defaultValue={v.maxStock ?? "0"}
+          />
+        </Field>
       </div>
-      <label className="flex items-center gap-2">
+      <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
         <input
           type="checkbox"
           name="isCritical"
           defaultChecked={v.isCritical === "on"}
+          className="size-4 accent-brand-600"
         />
         {t("materials.vatTuQuanTrong")}
       </label>
-      <button
-        disabled={pending}
-        className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
+      <Button
+        type="submit"
+        variant="primary"
+        loading={pending}
+        icon={<Plus className="size-4" />}
       >
         {pending ? t("chung.dangLuu") : t("materials.nutThemVatTu")}
-      </button>
+      </Button>
       {state.message && (
-        <p
-          className={`text-sm ${
-            state.success ? "text-green-700" : "text-red-600"
-          }`}
-        >
+        <Notice tone={state.success ? "success" : "danger"}>
           {state.message}
-        </p>
+        </Notice>
       )}
     </form>
   );

@@ -4,9 +4,19 @@ import {
   vesselIdWhere,
   vesselScopeDayDu,
 } from "@/lib/auth";
+import { FileText } from "lucide-react";
 import PrintButton from "@/components/PrintButton";
 import { layT } from "@/lib/i18n/server";
 import type { KhoaDich } from "@/lib/i18n/tuDien";
+import {
+  Button,
+  Card,
+  Field,
+  Input,
+  Notice,
+  PageHeader,
+  Select,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -55,13 +65,12 @@ export default async function ReportsPage({
 
   if (scope.unassigned || !selectedVessel) {
     return (
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("inventory.baoCaoTieuDe")}
-        </h2>
-        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          {t("chung.chuaGanTau")}
-        </div>
+      <div className="space-y-5">
+        <PageHeader
+          title={t("inventory.baoCaoTieuDe")}
+          subtitle={t("inventory.baoCaoMoTa")}
+        />
+        <Notice tone="warning">{t("chung.chuaGanTau")}</Notice>
       </div>
     );
   }
@@ -159,65 +168,53 @@ export default async function ReportsPage({
   const fmtDate = (d: Date | null) => (d ? ngay(d) : "");
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="no-print">
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("inventory.baoCaoTieuDe")}
-        </h2>
-        <p className="text-slate-600">{t("inventory.baoCaoMoTa")}</p>
+        <PageHeader
+          title={t("inventory.baoCaoTieuDe")}
+          subtitle={t("inventory.baoCaoMoTa")}
+        />
       </div>
 
-      <form className="no-print flex flex-wrap items-end gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-        {scope.all ? (
-          <div>
-            <label className="mb-1 block text-sm text-slate-600">
-              {t("chung.tau")}
-            </label>
-            <select
-              name="vessel"
-              defaultValue={selectedVessel.id}
-              className="rounded border p-2"
-            >
-              {vessels.map((vessel) => (
-                <option key={vessel.id} value={vessel.id}>
-                  {vessel.code} - {vessel.name}
+      <Card className="no-print">
+        <form className="flex flex-wrap items-end gap-3">
+          {scope.all ? (
+            <Field label={t("chung.tau")} className="w-64">
+              <Select name="vessel" defaultValue={selectedVessel.id}>
+                {vessels.map((vessel) => (
+                  <option key={vessel.id} value={vessel.id}>
+                    {vessel.code} - {vessel.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : (
+            <input type="hidden" name="vessel" value={selectedVessel.id} />
+          )}
+          <Field label={t("inventory.boPhan")} className="w-48">
+            <Select name="dept" defaultValue={deptKey}>
+              {Object.entries(DEPT_OPTIONS).map(([key, option]) => (
+                <option key={key} value={key}>
+                  {t(option.khoa)}
                 </option>
               ))}
-            </select>
-          </div>
-        ) : (
-          <input type="hidden" name="vessel" value={selectedVessel.id} />
-        )}
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("inventory.boPhan")}
-          </label>
-          <select name="dept" defaultValue={deptKey} className="rounded border p-2">
-            {Object.entries(DEPT_OPTIONS).map(([key, option]) => (
-              <option key={key} value={key}>
-                {t(option.khoa)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("inventory.thang")}
-          </label>
-          <input
-            name="month"
-            type="month"
-            defaultValue={monthStr}
-            className="rounded border p-2"
-          />
-        </div>
-        <button className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800">
-          {t("inventory.xemBaoCao")}
-        </button>
-        <PrintButton label={t("inventory.inBaoCaoMLS1101")} />
-      </form>
+            </Select>
+          </Field>
+          <Field label={t("inventory.thang")} className="w-44">
+            <Input name="month" type="month" defaultValue={monthStr} />
+          </Field>
+          <Button
+            type="submit"
+            variant="primary"
+            icon={<FileText className="size-4" />}
+          >
+            {t("inventory.xemBaoCao")}
+          </Button>
+          <PrintButton label={t("inventory.inBaoCaoMLS1101")} />
+        </form>
+      </Card>
 
-      <div className="print-area rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 print:rounded-none print:p-0 print:shadow-none">
+      <div className="print-area surface rounded-xl border p-6 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
         <table className="w-full border-2 border-black text-sm">
           <tbody>
             <tr>

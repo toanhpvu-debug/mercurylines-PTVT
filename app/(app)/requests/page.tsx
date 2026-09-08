@@ -1,10 +1,15 @@
 import Form from "next/form";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
 import {
-  REQUEST_STATUS_BADGE,
-  REQUEST_STATUS_LABEL,
-} from "@/lib/requestStatus";
+  Check,
+  ClipboardList,
+  Filter,
+  Printer,
+  Send,
+  ShoppingCart,
+} from "lucide-react";
+import { prisma } from "@/lib/prisma";
+import { REQUEST_STATUS_LABEL } from "@/lib/requestStatus";
 import RequestForm from "@/components/RequestForm";
 import RequestStatusForm from "@/components/RequestStatusForm";
 import RequestDeleteButton from "@/components/RequestDeleteButton";
@@ -20,9 +25,37 @@ import {
 } from "@/lib/auth";
 import { CHI_HUY_TAU, DUYET_CONG_TY, LAP_YEU_CAU } from "@/lib/roles";
 import { layT } from "@/lib/i18n/server";
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  EmptyState,
+  Field,
+  Notice,
+  PageHeader,
+  Select,
+  TONE_YEU_CAU,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+  buttonClass,
+  type Tone,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
+const LINK = "text-brand-700 hover:underline dark:text-brand-300";
+
+/** Mức ưu tiên → tone nhãn: khẩn đỏ, cao vàng, thường xám, thấp mờ. */
+const TONE_UU_TIEN: Record<string, Tone> = {
+  URGENT: "danger",
+  HIGH: "warning",
+  NORMAL: "neutral",
+  LOW: "muted",
+};
 
 export default async function RequestsPage({
   searchParams,
@@ -86,18 +119,15 @@ export default async function RequestsPage({
       },
     }),
   ]);
+  const dangLoc = Boolean(vesselFilter || statusFilter);
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-blue-950">{t("requests.tieuDe")}</h2>
-        <p className="text-slate-600">
-          {scope.all ? t("requests.moTaDoi") : t("requests.moTaTau")}
-        </p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title={t("requests.tieuDe")}
+        subtitle={scope.all ? t("requests.moTaDoi") : t("requests.moTaTau")}
+      />
       {scope.unassigned ? (
-        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          {t("requests.chuaGanTau")}
-        </div>
+        <Notice tone="warning">{t("requests.chuaGanTau")}</Notice>
       ) : (
         <RequestForm
           vessels={vessels}
@@ -106,200 +136,219 @@ export default async function RequestsPage({
           nguoiLap={{ name: user.name, role: user.role }}
         />
       )}
-      <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-lg font-semibold">
-            {t("requests.danhSach", { n: requests.length })}
-          </h3>
-          {/* next/form: bấm "Lọc" chỉ tải phần nội dung (chuyển trang phía
-              client, hiện khung chờ ngay) thay vì tải lại cả trang như
-              <form method="get"> thường. */}
-          <Form action="/requests" className="flex flex-wrap items-center gap-2">
-            {chonDuocTau(scope) && (
-              <select
-                name="vessel"
-                defaultValue={vesselFilter ? String(vesselFilter) : ""}
-                className="rounded border p-1.5 text-sm"
-              >
-                <option value="">{t("chung.tatCaTau")}</option>
-                {vessels.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.code} — {v.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <select
-              name="status"
-              defaultValue={statusFilter}
-              className="rounded border p-1.5 text-sm"
-            >
-              <option value="">{t("requests.moiTrangThai")}</option>
-              {Object.keys(REQUEST_STATUS_LABEL).map((value) => (
-                <option key={value} value={value}>
-                  {tTuDo(`labels.reqStatus_${value}`)}
-                </option>
-              ))}
-            </select>
-            <button className="rounded bg-blue-700 px-3 py-1.5 text-sm text-white hover:bg-blue-800">
-              {t("chung.loc")}
-            </button>
-            {(vesselFilter || statusFilter) && (
-              <Link
-                href="/requests"
-                className="text-sm text-slate-600 hover:underline"
-              >
-                {t("chung.boLoc")}
-              </Link>
-            )}
-          </Form>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full border text-sm">
-            <thead>
-              <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                <th className="p-2">{t("requests.cotSoYeuCau")}</th>
-                <th className="p-2">{t("requests.cotLoai")}</th>
-                <th className="p-2">{t("chung.tau")}</th>
-                <th className="p-2">{t("requests.nguoiYeuCau")}</th>
-                <th className="p-2">{t("requests.cotLapLuc")}</th>
-                <th className="p-2">{t("requests.cotBoPhan")}</th>
-                <th className="p-2">{t("requests.cotUuTien")}</th>
-                <th className="p-2">{t("requests.cotNoiDung")}</th>
-                <th className="p-2">{t("chung.trangThai")}</th>
-                <th className="p-2">{t("chung.thaoTac")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map((request) => (
-                <tr key={request.id} className="border-b align-top">
-                  <td className="p-2 font-medium">
-                    <Link
-                      href={`/requests/${request.id}`}
-                      className="text-blue-700 hover:underline"
-                    >
-                      {request.requestNo}
-                    </Link>
-                  </td>
-                  <td className="p-2">
-                    <span
-                      className={`rounded px-2 py-1 text-xs ${
-                        request.kind === "SPARE"
-                          ? "bg-indigo-100 text-indigo-700"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {tTuDo(
-                        `labels.type_${request.kind === "SPARE" ? "SPARE" : "STORE"}`
-                      )}
-                    </span>
-                  </td>
-                  <td className="p-2">
-                    <Link
-                      href={`/vessels/${request.vesselId}`}
-                      className="text-blue-700 hover:underline"
-                    >
-                      {request.vessel.name}
-                    </Link>
-                  </td>
-                  <td className="p-2">
-                    {request.requestedBy}
-                    {request.requestedByRole && (
-                      <span className="block text-xs text-slate-500">
-                        {tTuDo(`labels.role_${request.requestedByRole}`)}
-                      </span>
-                    )}
-                  </td>
-                  {/* Đến phút, không chỉ ngày: hai yêu cầu cùng ngày phải phân
-                      biệt được cái nào lập trước. */}
-                  <td className="p-2 whitespace-nowrap text-slate-600">
-                    {ngayGio(request.createdAt)}
-                  </td>
-                  <td className="p-2">
-                    {tTuDo(`labels.reqDept_${request.department}`)}
-                  </td>
-                  <td className="p-2">
-                    {tTuDo(`labels.priority_${request.priority}`)}
-                  </td>
-                  <td className="p-2">
-                    {request.items.map((item) => (
-                      <p key={item.id}>
-                        {item.material
-                          ? item.material.code
-                          : `${item.itemName ?? t("requests.moi")} ${t("requests.moi")}`}{" "}
-                        x {item.quantity}
-                      </p>
+      <Card>
+        <CardHeader
+          icon={<ClipboardList className="size-4" />}
+          title={t("requests.danhSach", { n: requests.length })}
+          action={
+            /* next/form: bấm "Lọc" chỉ tải phần nội dung (chuyển trang phía
+               client, hiện khung chờ ngay) thay vì tải lại cả trang như
+               <form method="get"> thường. */
+            <Form action="/requests" className="flex flex-wrap items-end gap-2">
+              {chonDuocTau(scope) && (
+                <Field label={t("chung.tau")} className="w-52">
+                  <Select
+                    name="vessel"
+                    defaultValue={vesselFilter ? String(vesselFilter) : ""}
+                  >
+                    <option value="">{t("chung.tatCaTau")}</option>
+                    {vessels.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.code} — {v.name}
+                      </option>
                     ))}
-                  </td>
-                  <td className="p-2">
-                    <span
-                      className={`rounded px-2 py-1 font-medium ${
-                        REQUEST_STATUS_BADGE[request.status] ??
-                        "bg-slate-100 text-slate-700"
-                      }`}
-                    >
-                      {tTuDo(`labels.reqStatus_${request.status}`)}
-                    </span>
-                  </td>
-                  <td className="p-2">
-                    <div className="flex flex-col gap-2">
-                      <Link
-                        href={`/requests/${request.id}`}
-                        className="rounded bg-slate-100 px-3 py-1 text-center text-slate-700 hover:bg-slate-200"
-                      >
-                        {t("requests.nutXemIn")}
+                  </Select>
+                </Field>
+              )}
+              <Field label={t("chung.trangThai")} className="w-48">
+                <Select name="status" defaultValue={statusFilter}>
+                  <option value="">{t("requests.moiTrangThai")}</option>
+                  {Object.keys(REQUEST_STATUS_LABEL).map((value) => (
+                    <option key={value} value={value}>
+                      {tTuDo(`labels.reqStatus_${value}`)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Button
+                type="submit"
+                variant="primary"
+                icon={<Filter className="size-4" />}
+              >
+                {t("chung.loc")}
+              </Button>
+              {dangLoc && (
+                <Link
+                  href="/requests"
+                  className="py-2 text-sm text-[var(--text-secondary)] hover:underline"
+                >
+                  {t("chung.boLoc")}
+                </Link>
+              )}
+            </Form>
+          }
+        />
+        {requests.length === 0 ? (
+          <EmptyState
+            icon={<ClipboardList className="size-5" />}
+            title={t("requests.chuaCoYeuCau")}
+            action={
+              dangLoc ? (
+                <Link href="/requests" className={buttonClass("secondary", "sm")}>
+                  {t("chung.boLoc")}
+                </Link>
+              ) : undefined
+            }
+          />
+        ) : (
+          <TableWrap>
+            <Table dense>
+              <thead>
+                <tr>
+                  <Th>{t("requests.cotSoYeuCau")}</Th>
+                  <Th>{t("requests.cotLoai")}</Th>
+                  <Th>{t("chung.tau")}</Th>
+                  <Th>{t("requests.nguoiYeuCau")}</Th>
+                  <Th>{t("requests.cotLapLuc")}</Th>
+                  <Th>{t("requests.cotBoPhan")}</Th>
+                  <Th>{t("requests.cotUuTien")}</Th>
+                  <Th>{t("requests.cotNoiDung")}</Th>
+                  <Th>{t("chung.trangThai")}</Th>
+                  <Th>{t("chung.thaoTac")}</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {requests.map((request) => (
+                  <Tr
+                    key={request.id}
+                    className="align-top transition-colors hover:bg-[var(--surface-sunken)]/50"
+                  >
+                    <Td className="font-display text-xs tracking-wide whitespace-nowrap">
+                      <Link href={`/requests/${request.id}`} className={LINK}>
+                        {request.requestNo}
                       </Link>
-                      {canSubmit &&
-                        (request.status === "DRAFT" ||
-                          request.status === "REJECTED") && (
-                          <RequestStatusForm
-                            id={request.id}
-                            status="PENDING_MASTER"
-                            label={
-                              request.status === "REJECTED"
-                                ? t("requests.nutTrinhLai")
-                                : t("requests.nutTrinh")
-                            }
-                            className="w-full rounded bg-amber-100 px-3 py-1 text-amber-800 hover:bg-amber-200 disabled:opacity-50"
-                          />
+                    </Td>
+                    <Td>
+                      <Badge tone={request.kind === "SPARE" ? "brand" : "neutral"}>
+                        {tTuDo(
+                          `labels.type_${request.kind === "SPARE" ? "SPARE" : "STORE"}`
                         )}
-                      {/* Chỉ hiện nút Duyệt cho người ĐANG GIỮ bước duyệt —
-                          máy trưởng không thấy nút trên yêu cầu boong, văn
-                          phòng không thấy trên yêu cầu tàu chưa duyệt. */}
-                      {capDuyetChoPhep(user, request) && (
+                      </Badge>
+                    </Td>
+                    <Td>
+                      <Link href={`/vessels/${request.vesselId}`} className={LINK}>
+                        {request.vessel.name}
+                      </Link>
+                    </Td>
+                    <Td>
+                      {request.requestedBy}
+                      {request.requestedByRole && (
+                        <span className="block text-xs text-[var(--text-muted)]">
+                          {tTuDo(`labels.role_${request.requestedByRole}`)}
+                        </span>
+                      )}
+                    </Td>
+                    {/* Đến phút, không chỉ ngày: hai yêu cầu cùng ngày phải phân
+                        biệt được cái nào lập trước. */}
+                    <Td className="tabular whitespace-nowrap text-[var(--text-secondary)]">
+                      {ngayGio(request.createdAt)}
+                    </Td>
+                    <Td>{tTuDo(`labels.reqDept_${request.department}`)}</Td>
+                    <Td>
+                      <Badge tone={TONE_UU_TIEN[request.priority] ?? "neutral"}>
+                        {tTuDo(`labels.priority_${request.priority}`)}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      {request.items.map((item) => (
+                        <p key={item.id} className="whitespace-nowrap">
+                          {item.material ? (
+                            <span className="font-display text-xs tracking-wide">
+                              {item.material.code}
+                            </span>
+                          ) : (
+                            `${item.itemName ?? t("requests.moi")} ${t("requests.moi")}`
+                          )}{" "}
+                          <span className="tabular text-[var(--text-secondary)]">
+                            x {item.quantity}
+                          </span>
+                        </p>
+                      ))}
+                    </Td>
+                    <Td>
+                      <Badge tone={TONE_YEU_CAU[request.status] ?? "neutral"} dot>
+                        {tTuDo(`labels.reqStatus_${request.status}`)}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      <div className="flex w-36 flex-col gap-1.5">
                         <Link
                           href={`/requests/${request.id}`}
-                          className="rounded bg-green-100 px-3 py-1 text-center text-green-700 hover:bg-green-200"
+                          className={buttonClass("secondary", "sm")}
                         >
-                          {capDuyetChoPhep(user, request) === "TAU"
-                            ? t("requests.nutTauDuyet")
-                            : t("requests.nutCongTyDuyet")}
+                          <Printer className="size-4" />
+                          {t("requests.nutXemIn")}
                         </Link>
-                      )}
-                      {canModerate && request.status === "APPROVED" && (
-                        <RequestStatusForm
-                          id={request.id}
-                          status="IN_PROCUREMENT"
-                          label={t("requests.nutChuyenMuaSam")}
-                          className="rounded bg-blue-100 px-3 py-1 text-blue-700 hover:bg-blue-200 disabled:opacity-50"
-                        />
-                      )}
-                      {canDeleteRequest(user, request) && (
-                        <RequestDeleteButton
-                          id={request.id}
-                          requestNo={request.requestNo}
-                          returnTo="/requests"
-                          className="rounded bg-red-100 px-3 py-1 text-center text-red-700 hover:bg-red-200 disabled:opacity-50"
-                        />
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                        {canSubmit &&
+                          (request.status === "DRAFT" ||
+                            request.status === "REJECTED") && (
+                            <RequestStatusForm
+                              id={request.id}
+                              status="PENDING_MASTER"
+                              label={
+                                request.status === "REJECTED"
+                                  ? t("requests.nutTrinhLai")
+                                  : t("requests.nutTrinh")
+                              }
+                              variant="primary"
+                              size="sm"
+                              icon={<Send className="size-4" />}
+                              className="w-full"
+                            />
+                          )}
+                        {/* Chỉ hiện nút Duyệt cho người ĐANG GIỮ bước duyệt —
+                            máy trưởng không thấy nút trên yêu cầu boong, văn
+                            phòng không thấy trên yêu cầu tàu chưa duyệt. */}
+                        {capDuyetChoPhep(user, request) && (
+                          <Link
+                            href={`/requests/${request.id}`}
+                            className={buttonClass("primary", "sm")}
+                          >
+                            <Check className="size-4" />
+                            {capDuyetChoPhep(user, request) === "TAU"
+                              ? t("requests.nutTauDuyet")
+                              : t("requests.nutCongTyDuyet")}
+                          </Link>
+                        )}
+                        {canModerate && request.status === "APPROVED" && (
+                          <RequestStatusForm
+                            id={request.id}
+                            status="IN_PROCUREMENT"
+                            label={t("requests.nutChuyenMuaSam")}
+                            variant="primary"
+                            size="sm"
+                            icon={<ShoppingCart className="size-4" />}
+                            className="w-full"
+                          />
+                        )}
+                        {canDeleteRequest(user, request) && (
+                          <RequestDeleteButton
+                            id={request.id}
+                            requestNo={request.requestNo}
+                            returnTo="/requests"
+                            size="sm"
+                            className="w-full"
+                          />
+                        )}
+                      </div>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </TableWrap>
+        )}
+      </Card>
     </div>
   );
 }

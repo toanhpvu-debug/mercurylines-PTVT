@@ -1,6 +1,24 @@
 import React from "react";
 import Form from "next/form";
 import Link from "next/link";
+import {
+  AlertTriangle,
+  Anchor,
+  ArrowLeftRight,
+  Boxes,
+  ChevronRight,
+  Cog,
+  Download,
+  Filter,
+  History,
+  LifeBuoy,
+  Package,
+  UtensilsCrossed,
+  Warehouse,
+  Wrench,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   sortWithinDepartment,
@@ -19,8 +37,52 @@ import {
 } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
 import { VAN_HANH_TAU } from "@/lib/roles";
+import { cn } from "@/lib/cn";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Input,
+  Meter,
+  Notice,
+  PageHeader,
+  Select,
+  Stat,
+  Table,
+  Td,
+  Th,
+  Tr,
+  TrNhom,
+  buttonClass,
+  type Tone,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Biểu tượng bộ phận theo `key` của lib/departments.ts — thay cho trường
+ * `icon` (emoji) ở đó, cùng bộ nét vẽ với trang Danh mục vật tư.
+ */
+const DEPT_ICON: Record<string, LucideIcon> = {
+  DECK: Anchor,
+  ENGINE: Cog,
+  ELEC: Zap,
+  SERVICE: UtensilsCrossed,
+  SAFETY: LifeBuoy,
+  OTHER: Package,
+};
+
+/** Màu thanh tồn thấp theo mức thiếu: càng thiếu càng đỏ (cùng Dashboard). */
+function toneThieu(pct: number): Tone {
+  return pct < 40 ? "danger" : pct < 75 ? "warning" : "info";
+}
+
+const LINK = "text-brand-700 hover:underline dark:text-brand-300";
+
+/** Tiêu đề khung gập: cùng một dáng cho mọi <details> trên trang. */
+const SUMMARY =
+  "flex cursor-pointer select-none list-none flex-wrap items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-sunken)] [&::-webkit-details-marker]:hidden";
 
 // Bố cục theo luồng làm việc: Tổng quan (KPI) → Bộ lọc → Tồn kho theo tàu
 // → Thao tác nhập/xuất (gập) → Nhật ký giao dịch (gập).
@@ -198,335 +260,388 @@ export default async function InventoryPage({
     }));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* 1. Tổng quan */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold text-blue-950">
-            {scope.all ? t("inventory.tieuDeDoi") : t("inventory.tieuDeTau")}
-          </h2>
-          <p className="text-sm text-slate-600">{t("inventory.moTa")}</p>
-        </div>
-        <div className="flex flex-wrap gap-2 text-sm">
-          <span className="rounded-lg bg-white px-3 py-1.5 shadow-sm ring-1 ring-blue-100">
-            <span className="text-slate-500">{t("inventory.chiSoDong")}:</span>{" "}
-            <b className="text-blue-950">{filtered.length}</b>
-          </span>
-          <span className="rounded-lg bg-white px-3 py-1.5 shadow-sm ring-1 ring-blue-100">
-            <span className="text-slate-500">
-              {t("inventory.chiSoDuoiToiThieu")}:
-            </span>{" "}
-            <b className={lowCount > 0 ? "text-red-600" : "text-green-700"}>
-              {lowCount}
-            </b>
-          </span>
-          <span className="rounded-lg bg-white px-3 py-1.5 shadow-sm ring-1 ring-blue-100">
-            <span className="text-slate-500">{t("chung.tau")}:</span>{" "}
-            <b className="text-blue-950">{groups.length}</b>
-          </span>
-        </div>
-      </div>
+      <PageHeader
+        title={scope.all ? t("inventory.tieuDeDoi") : t("inventory.tieuDeTau")}
+        subtitle={t("inventory.moTa")}
+      />
 
       {scope.unassigned && (
-        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          {t("inventory.chuaGanTauTonKho")}
-        </div>
+        <Notice tone="warning">{t("inventory.chuaGanTauTonKho")}</Notice>
       )}
 
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Stat
+          icon={<Boxes className="size-4" />}
+          label={t("inventory.chiSoDong")}
+          value={filtered.length}
+        />
+        <Stat
+          icon={<AlertTriangle className="size-4" />}
+          label={t("inventory.chiSoDuoiToiThieu")}
+          value={lowCount}
+          tone={lowCount > 0 ? "danger" : "success"}
+        />
+        <Stat
+          icon={<Anchor className="size-4" />}
+          label={t("chung.tau")}
+          value={groups.length}
+          tone="brand"
+        />
+      </div>
+
       {/* 2. Bộ lọc — thanh mỏng một hàng */}
-      <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-blue-100">
+      <Card padded={false}>
         {/* next/form: bấm "Lọc" chỉ tải phần nội dung (chuyển trang phía client,
             khung chờ hiện ngay) thay vì tải lại cả trang như <form method="get">. */}
-        <Form action="/inventory" className="flex flex-wrap items-center gap-2 text-sm">
+        <Form
+          action="/inventory"
+          className="flex flex-wrap items-center gap-2 px-4 py-3"
+        >
           {chonDuocTau(scope) && (
-            <select
-              name="vessel"
-              defaultValue={vesselFilter ?? ""}
-              className="rounded border p-1.5"
-              title={t("chung.tau")}
+            <div className="w-52">
+              <Select
+                name="vessel"
+                defaultValue={vesselFilter ?? ""}
+                title={t("chung.tau")}
+              >
+                <option value="">{t("chung.tatCaTau")}</option>
+                {vessels.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.code} — {v.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+          <div className="w-40">
+            <Select
+              name="wh"
+              defaultValue={whFilter ?? ""}
+              title={t("chung.kho")}
             >
-              <option value="">{t("chung.tatCaTau")}</option>
-              {vessels.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.code} — {v.name}
+              <option value="">{t("inventory.tatCaKho")}</option>
+              {filterWarehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.code}
                 </option>
               ))}
-            </select>
-          )}
-          <select
-            name="wh"
-            defaultValue={whFilter ?? ""}
-            className="rounded border p-1.5"
-            title={t("chung.kho")}
-          >
-            <option value="">{t("inventory.tatCaKho")}</option>
-            {filterWarehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.code}
-              </option>
-            ))}
-          </select>
-          <select
-            name="type"
-            defaultValue={typeFilter}
-            className="rounded border p-1.5"
-            title={t("inventory.loai")}
-          >
-            <option value="ALL">{t("inventory.loaiCaHai")}</option>
-            <option value="STORE">{t("labels.typeLong_STORE")}</option>
-            <option value="SPARE">{t("labels.typeLong_SPARE")}</option>
-          </select>
-          <input
-            name="q"
-            defaultValue={String(params.q ?? "")}
-            placeholder={t("inventory.timPlaceholder")}
-            className="min-w-40 flex-1 rounded border p-1.5"
-          />
-          <label className="flex items-center gap-1.5 whitespace-nowrap">
+            </Select>
+          </div>
+          <div className="w-40">
+            <Select
+              name="type"
+              defaultValue={typeFilter}
+              title={t("inventory.loai")}
+            >
+              <option value="ALL">{t("inventory.loaiCaHai")}</option>
+              <option value="STORE">{t("labels.typeLong_STORE")}</option>
+              <option value="SPARE">{t("labels.typeLong_SPARE")}</option>
+            </Select>
+          </div>
+          <div className="min-w-40 flex-1">
+            <Input
+              name="q"
+              defaultValue={String(params.q ?? "")}
+              placeholder={t("inventory.timPlaceholder")}
+            />
+          </div>
+          <label className="flex cursor-pointer items-center gap-1.5 text-sm whitespace-nowrap">
             <input
               type="checkbox"
               name="low"
               value="1"
               defaultChecked={lowOnly}
+              className="size-4 rounded accent-brand-600"
             />
-            <span className="text-slate-700">{t("inventory.chiThieu")}</span>
+            <span className="text-[var(--text-secondary)]">
+              {t("inventory.chiThieu")}
+            </span>
           </label>
-          <button className="rounded bg-blue-700 px-4 py-1.5 text-white hover:bg-blue-800">
-            {t("chung.loc")}
-          </button>
-          <Link
-            href="/inventory"
-            className="rounded border border-blue-200 px-3 py-1.5 text-blue-950 hover:bg-blue-50"
+          <Button
+            type="submit"
+            variant="primary"
+            icon={<Filter className="size-4" />}
           >
+            {t("chung.loc")}
+          </Button>
+          <Link href="/inventory" className={buttonClass("secondary")}>
             {t("chung.boLoc")}
           </Link>
         </Form>
-      </div>
+      </Card>
 
       {/* 3. Tồn kho nhóm theo tàu */}
       {groups.length === 0 ? (
-        <div className="rounded-xl bg-white p-6 text-slate-600 shadow-sm ring-1 ring-blue-100">
-          {t("inventory.khongCoDongKhop")}
-        </div>
+        <Card>
+          <EmptyState
+            icon={<Warehouse className="size-5" />}
+            title={t("inventory.khongCoDongKhop")}
+          />
+        </Card>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {groups.map(({ vessel, rows }) => {
             const groupLow = rows.filter(
               (inv) =>
                 inv.quantity - inv.reservedQuantity <= inv.material.minStock
             ).length;
             return (
-              <details
-                key={vessel.id}
-                open={singleVessel || groupLow > 0}
-                className="group rounded-xl bg-white shadow-sm ring-1 ring-blue-100"
-              >
-                <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 rounded-xl px-4 py-2.5 hover:bg-blue-50/50">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span
-                      aria-hidden="true"
-                      className="text-xs text-slate-400 transition-transform group-open:rotate-90"
-                    >
-                      ▶
-                    </span>
-                    <Link
-                      href={`/vessels/${vessel.id}`}
-                      className="text-sm font-semibold text-blue-950 hover:underline"
-                    >
-                      ⚓ {vessel.code} — {vessel.name}
-                    </Link>
-                    <span className="text-xs text-slate-500">
-                      {t("inventory.nDong", { n: rows.length })}
-                    </span>
-                    {groupLow > 0 ? (
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
-                        {t("inventory.nThieu", { n: groupLow })}
+              <Card key={vessel.id} padded={false}>
+                <details
+                  open={singleVessel || groupLow > 0}
+                  className="group"
+                >
+                  <summary className={cn(SUMMARY, "justify-between")}>
+                    <span className="flex flex-wrap items-center gap-2">
+                      <ChevronRight
+                        aria-hidden="true"
+                        className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
+                      />
+                      <Link
+                        href={`/vessels/${vessel.id}`}
+                        className="inline-flex items-center gap-1.5 hover:underline"
+                      >
+                        <Anchor className="size-4 text-[var(--text-muted)]" />
+                        <span className="font-display text-xs tracking-wide">
+                          {vessel.code}
+                        </span>
+                        <span>— {vessel.name}</span>
+                      </Link>
+                      <span className="text-xs font-normal text-[var(--text-muted)]">
+                        {t("inventory.nDong", { n: rows.length })}
                       </span>
-                    ) : (
-                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                        {t("inventory.du")}
-                      </span>
-                    )}
-                  </span>
-                  <a
-                    href={`/api/export/inventory?vessel=${vessel.id}${typeFilter !== "ALL" ? `&type=${typeFilter}` : ""}`}
-                    className="rounded border border-blue-200 px-2.5 py-1 text-xs text-blue-950 hover:bg-blue-50"
-                  >
-                    ⬇ MLS-11-06
-                  </a>
-                </summary>
-                {/* Bảng có thanh cuộn riêng + tiêu đề ghim để dò nhanh trong danh sách dài */}
-                <div className="mx-4 mb-3 max-h-80 overflow-auto rounded border border-blue-100">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 z-10">
-                      <tr className="border-b border-blue-200 bg-blue-50 text-left text-xs uppercase tracking-wide text-blue-950">
-                        <th className="p-1.5">{t("chung.kho")}</th>
-                        <th className="p-1.5">{t("chung.ma")}</th>
-                        <th className="p-1.5">{t("inventory.cotTenVatTu")}</th>
-                        <th className="p-1.5">{t("chung.donVi")}</th>
-                        <th className="p-1.5 text-right">
-                          {t("inventory.cotTon")}
-                        </th>
-                        <th className="p-1.5 text-right">
-                          {t("inventory.cotKhaDung")}
-                        </th>
-                        <th className="p-1.5 text-right">
-                          {t("inventory.cotToiThieu")}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {deptSections.map((dept) => {
-                        const deptRowsFull = sortDeptRows(
-                          rows.filter((inv) => deptKeyOf(inv) === dept.key)
-                        );
-                        if (!deptRowsFull.length) return null;
-                        // Cắt bớt để trang không phình theo số dòng tồn kho;
-                        // số ở tiêu đề vẫn là TỔNG THẬT, không phải số đang hiện.
-                        const deptRows = showAll
-                          ? deptRowsFull
-                          : deptRowsFull.slice(0, GIOI_HAN_MOI_BO_PHAN);
-                        const conLai = deptRowsFull.length - deptRows.length;
-                        const deptLow = deptRowsFull.filter(
-                          (inv) =>
-                            inv.quantity - inv.reservedQuantity <=
-                            inv.material.minStock
-                        ).length;
-                        let prevEquipment: string | null = null;
-                        return (
-                          <React.Fragment key={dept.key}>
-                            {/* Tiêu đề bộ phận */}
-                            <tr className="border-b border-blue-200 bg-blue-100/70">
-                              <td
-                                colSpan={7}
-                                className="p-1.5 text-xs font-bold uppercase tracking-wide text-blue-950"
-                              >
-                                {dept.icon} {tTuDo(`labels.dept_${dept.key}`)}
-                                <span className="ml-2 font-normal normal-case text-slate-500">
-                                  {t("inventory.nDong", {
-                                    n: deptRowsFull.length,
-                                  })}
-                                  {deptLow > 0
-                                    ? ` · ${t("inventory.nThieu", { n: deptLow })}`
-                                    : ""}
-                                </span>
-                              </td>
-                            </tr>
-                            {conLai > 0 && (
-                              <tr className="border-b bg-slate-50/60">
-                                <td colSpan={7} className="px-3 py-1.5 text-xs text-slate-500">
-                                  {t("inventory.dangHienNDongDau", {
-                                    n: deptRows.length,
-                                  })}{" "}
-                                  <b>{conLai}</b> {t("inventory.conLaiDongNua")}{" "}
-                                  <Link
-                                    href={`?${new URLSearchParams({
-                                      ...(params.vessel ? { vessel: params.vessel } : {}),
-                                      ...(params.wh ? { wh: params.wh } : {}),
-                                      ...(typeFilter !== "ALL" ? { type: typeFilter } : {}),
-                                      ...(q ? { q: params.q ?? "" } : {}),
-                                      ...(lowOnly ? { low: "1" } : {}),
-                                      full: "1",
-                                    }).toString()}`}
-                                    className="text-blue-700 hover:underline"
-                                  >
-                                    {t("chung.xemTatCa")}
-                                  </Link>
-                                </td>
-                              </tr>
-                            )}
-                            {deptRows.map((inventory) => {
-                              const available =
-                                inventory.quantity -
-                                inventory.reservedQuantity;
-                              const isLow =
-                                available <= inventory.material.minStock;
-                              const isSpare =
-                                inventory.material.materialType === "SPARE";
-                              // Tiêu đề nhóm thiết bị cho phụ tùng
-                              const equipment = isSpare
-                                ? (inventory.material.equipment ??
-                                  t("inventory.thietBiKhac"))
-                                : null;
-                              const showEquipmentHeader =
-                                equipment !== null &&
-                                equipment !== prevEquipment;
-                              if (equipment !== null) prevEquipment = equipment;
-                              return (
-                                <React.Fragment key={inventory.id}>
-                                  {showEquipmentHeader && (
-                                    <tr className="border-b bg-indigo-50/60">
-                                      <td
-                                        colSpan={7}
-                                        className="p-1 pl-4 text-[11px] font-semibold text-indigo-800"
-                                      >
-                                        {t("inventory.phuTungThietBi", {
-                                          ten: equipment ?? "",
-                                        })}
-                                      </td>
-                                    </tr>
+                      {groupLow > 0 ? (
+                        <Badge tone="danger" dot>
+                          {t("inventory.nThieu", { n: groupLow })}
+                        </Badge>
+                      ) : (
+                        <Badge tone="success" dot>
+                          {t("inventory.du")}
+                        </Badge>
+                      )}
+                    </span>
+                    <a
+                      href={`/api/export/inventory?vessel=${vessel.id}${typeFilter !== "ALL" ? `&type=${typeFilter}` : ""}`}
+                      className={buttonClass("secondary", "sm")}
+                    >
+                      <Download className="size-4" />
+                      MLS-11-06
+                    </a>
+                  </summary>
+                  {/* Bảng có thanh cuộn riêng + tiêu đề ghim để dò nhanh trong danh sách dài */}
+                  <div className="mx-4 mb-4 max-h-80 overflow-auto rounded-lg border border-[var(--border-subtle)]">
+                    <Table dense>
+                      <thead className="sticky top-0 z-10 bg-[var(--surface-raised)]">
+                        <tr>
+                          <Th>{t("chung.kho")}</Th>
+                          <Th>{t("chung.ma")}</Th>
+                          <Th>{t("inventory.cotTenVatTu")}</Th>
+                          <Th>{t("chung.donVi")}</Th>
+                          <Th align="right">{t("inventory.cotTon")}</Th>
+                          <Th align="right">{t("inventory.cotKhaDung")}</Th>
+                          <Th align="right">{t("inventory.cotToiThieu")}</Th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {deptSections.map((dept) => {
+                          const deptRowsFull = sortDeptRows(
+                            rows.filter((inv) => deptKeyOf(inv) === dept.key)
+                          );
+                          if (!deptRowsFull.length) return null;
+                          // Cắt bớt để trang không phình theo số dòng tồn kho;
+                          // số ở tiêu đề vẫn là TỔNG THẬT, không phải số đang hiện.
+                          const deptRows = showAll
+                            ? deptRowsFull
+                            : deptRowsFull.slice(0, GIOI_HAN_MOI_BO_PHAN);
+                          const conLai = deptRowsFull.length - deptRows.length;
+                          const deptLow = deptRowsFull.filter(
+                            (inv) =>
+                              inv.quantity - inv.reservedQuantity <=
+                              inv.material.minStock
+                          ).length;
+                          const DeptIcon = DEPT_ICON[dept.key] ?? Package;
+                          let prevEquipment: string | null = null;
+                          return (
+                            <React.Fragment key={dept.key}>
+                              {/* Tiêu đề bộ phận */}
+                              <TrNhom colSpan={7}>
+                                <span className="inline-flex flex-wrap items-center gap-2">
+                                  <DeptIcon className="size-4 text-[var(--text-muted)]" />
+                                  {tTuDo(`labels.dept_${dept.key}`)}
+                                  <span className="text-xs font-normal text-[var(--text-muted)]">
+                                    {t("inventory.nDong", {
+                                      n: deptRowsFull.length,
+                                    })}
+                                  </span>
+                                  {deptLow > 0 && (
+                                    <Badge tone="danger">
+                                      {t("inventory.nThieu", { n: deptLow })}
+                                    </Badge>
                                   )}
-                                  <tr
-                                    className={`border-b ${isLow ? "bg-red-50/60" : ""}`}
+                                </span>
+                              </TrNhom>
+                              {conLai > 0 && (
+                                <tr>
+                                  <Td
+                                    colSpan={7}
+                                    className="bg-[var(--surface-sunken)]/60 text-xs"
                                   >
-                                    <td className="p-1.5 text-xs text-slate-500">
-                                      {inventory.warehouse.code}
-                                    </td>
-                                    <td className="p-1.5 text-xs text-slate-500">
-                                      {inventory.material.code}
-                                    </td>
-                                    <td
-                                      className={`p-1.5 ${isSpare ? "pl-5" : ""}`}
+                                    <span className="text-[var(--text-muted)]">
+                                      {t("inventory.dangHienNDongDau", {
+                                        n: deptRows.length,
+                                      })}{" "}
+                                      <b className="text-[var(--text-primary)]">
+                                        {conLai}
+                                      </b>{" "}
+                                      {t("inventory.conLaiDongNua")}
+                                    </span>{" "}
+                                    <Link
+                                      href={`?${new URLSearchParams({
+                                        ...(params.vessel ? { vessel: params.vessel } : {}),
+                                        ...(params.wh ? { wh: params.wh } : {}),
+                                        ...(typeFilter !== "ALL" ? { type: typeFilter } : {}),
+                                        ...(q ? { q: params.q ?? "" } : {}),
+                                        ...(lowOnly ? { low: "1" } : {}),
+                                        full: "1",
+                                      }).toString()}`}
+                                      className={LINK}
                                     >
-                                      {inventory.material.nameVn}
-                                      {isSpare && (
-                                        <span className="ml-1.5 rounded bg-indigo-100 px-1 py-0.5 text-[10px] text-indigo-700">
-                                          {t("inventory.badgePhuTung")}
-                                        </span>
-                                      )}
-                                      {isLow && (
-                                        <span className="ml-1.5 rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-700">
-                                          {t("inventory.badgeThieu")}
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className="p-1.5 text-xs">
-                                      {inventory.material.uom}
-                                    </td>
-                                    <td className="p-1.5 text-right">
-                                      {inventory.quantity}
-                                      {inventory.reservedQuantity > 0 && (
-                                        <span className="text-xs text-slate-400">
-                                          {" "}
-                                          {t("inventory.dangGiu", {
-                                            n: inventory.reservedQuantity,
+                                      {t("chung.xemTatCa")}
+                                    </Link>
+                                  </Td>
+                                </tr>
+                              )}
+                              {deptRows.map((inventory) => {
+                                const available =
+                                  inventory.quantity -
+                                  inventory.reservedQuantity;
+                                const isLow =
+                                  available <= inventory.material.minStock;
+                                const isSpare =
+                                  inventory.material.materialType === "SPARE";
+                                // Tỷ lệ tồn / tối thiểu cho thanh mức thiếu (chỉ vẽ ở dòng thiếu).
+                                const pct =
+                                  inventory.material.minStock > 0
+                                    ? Math.max(
+                                        0,
+                                        Math.min(
+                                          100,
+                                          Math.round(
+                                            (available /
+                                              inventory.material.minStock) *
+                                              100
+                                          )
+                                        )
+                                      )
+                                    : 0;
+                                // Tiêu đề nhóm thiết bị cho phụ tùng
+                                const equipment = isSpare
+                                  ? (inventory.material.equipment ??
+                                    t("inventory.thietBiKhac"))
+                                  : null;
+                                const showEquipmentHeader =
+                                  equipment !== null &&
+                                  equipment !== prevEquipment;
+                                if (equipment !== null) prevEquipment = equipment;
+                                return (
+                                  <React.Fragment key={inventory.id}>
+                                    {showEquipmentHeader && (
+                                      <tr>
+                                        <td
+                                          colSpan={7}
+                                          className="border-b border-[var(--border-subtle)] bg-[var(--surface-sunken)]/60 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]"
+                                        >
+                                          <Wrench className="mr-1 inline size-3" />
+                                          {t("inventory.phuTungThietBi", {
+                                            ten: equipment ?? "",
                                           })}
+                                        </td>
+                                      </tr>
+                                    )}
+                                    <Tr className="transition-colors hover:bg-[var(--surface-sunken)]/50">
+                                      <Td className="whitespace-nowrap">
+                                        <span className="font-display text-xs tracking-wide text-[var(--text-muted)]">
+                                          {inventory.warehouse.code}
                                         </span>
-                                      )}
-                                    </td>
-                                    <td
-                                      className={`p-1.5 text-right font-semibold ${
-                                        isLow
-                                          ? "text-red-600"
-                                          : "text-green-700"
-                                      }`}
-                                    >
-                                      {available}
-                                    </td>
-                                    <td className="p-1.5 text-right text-slate-500">
-                                      {inventory.material.minStock}
-                                    </td>
-                                  </tr>
-                                </React.Fragment>
-                              );
-                            })}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </details>
+                                      </Td>
+                                      <Td className="font-display text-xs tracking-wide whitespace-nowrap">
+                                        {inventory.material.code}
+                                      </Td>
+                                      <Td>
+                                        <div
+                                          className={cn(
+                                            "flex flex-wrap items-center gap-1.5",
+                                            isSpare && "pl-3"
+                                          )}
+                                        >
+                                          <span>{inventory.material.nameVn}</span>
+                                          {isSpare && (
+                                            <Badge tone="brand">
+                                              {t("inventory.badgePhuTung")}
+                                            </Badge>
+                                          )}
+                                          {isLow && (
+                                            <Badge tone="danger">
+                                              {t("inventory.badgeThieu")}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </Td>
+                                      <Td>
+                                        <span className="text-xs text-[var(--text-secondary)]">
+                                          {inventory.material.uom}
+                                        </span>
+                                      </Td>
+                                      <Td align="right">
+                                        {inventory.quantity}
+                                        {inventory.reservedQuantity > 0 && (
+                                          <span className="text-xs text-[var(--text-muted)]">
+                                            {" "}
+                                            {t("inventory.dangGiu", {
+                                              n: inventory.reservedQuantity,
+                                            })}
+                                          </span>
+                                        )}
+                                      </Td>
+                                      <Td align="right">
+                                        <span
+                                          className={cn(
+                                            "font-semibold",
+                                            isLow
+                                              ? "text-[var(--text-danger)]"
+                                              : "text-[var(--text-success)]"
+                                          )}
+                                        >
+                                          {available}
+                                        </span>
+                                        {isLow && inventory.material.minStock > 0 && (
+                                          <div className="mt-1 ml-auto w-16">
+                                            <Meter
+                                              value={pct}
+                                              tone={toneThieu(pct)}
+                                            />
+                                          </div>
+                                        )}
+                                      </Td>
+                                      <Td align="right">
+                                        <span className="text-[var(--text-muted)]">
+                                          {inventory.material.minStock}
+                                        </span>
+                                      </Td>
+                                    </Tr>
+                                  </React.Fragment>
+                                );
+                              })}
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </Table>
+                  </div>
+                </details>
+              </Card>
             );
           })}
         </div>
@@ -534,129 +649,156 @@ export default async function InventoryPage({
 
       {/* 4. Thao tác nhập / xuất (gập) */}
       {canTransact && (
-        <details className="rounded-xl bg-white shadow-sm ring-1 ring-blue-100">
-          <summary className="cursor-pointer rounded-xl px-4 py-3 font-semibold text-blue-950 hover:bg-blue-50/50">
-            {t("inventory.nutNhapXuat")}
-          </summary>
-          <div className="px-4 pb-4">
-            <InventoryForm
-              materials={materials.map((material) => ({
-                id: material.id,
-                code: material.code,
-                nameVn: material.nameVn,
-              }))}
-              warehouses={warehouses.map((warehouse) => ({
-                id: warehouse.id,
-                code: warehouse.code,
-                name: warehouse.name,
-              }))}
-            />
-          </div>
-        </details>
+        <Card padded={false}>
+          <details className="group">
+            <summary className={SUMMARY}>
+              <ChevronRight
+                aria-hidden="true"
+                className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
+              />
+              <ArrowLeftRight className="size-4 text-[var(--text-muted)]" />
+              {t("inventory.nutNhapXuat")}
+            </summary>
+            <div className="border-t border-[var(--border-subtle)] px-4 py-4">
+              <InventoryForm
+                materials={materials.map((material) => ({
+                  id: material.id,
+                  code: material.code,
+                  nameVn: material.nameVn,
+                }))}
+                warehouses={warehouses.map((warehouse) => ({
+                  id: warehouse.id,
+                  code: warehouse.code,
+                  name: warehouse.name,
+                }))}
+              />
+            </div>
+          </details>
+        </Card>
       )}
 
       {/* 5. Nhật ký giao dịch (gập) */}
-      <details className="rounded-xl bg-white shadow-sm ring-1 ring-blue-100">
-        <summary className="cursor-pointer rounded-xl px-4 py-3 font-semibold text-blue-950 hover:bg-blue-50/50">
-          {t("inventory.lichSuGanDay")}{" "}
-          <span className="text-sm font-normal text-slate-500">
-            ({t("inventory.nGiaoDichMoiNhat", { n: recentTx.length })})
-          </span>
-        </summary>
-        <div className="px-4 pb-4">
-          {recentTx.length === 0 ? (
-            <p className="text-slate-600">{t("inventory.chuaCoGiaoDich")}</p>
-          ) : (
-            <div className="max-h-80 overflow-auto rounded border border-blue-100">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 z-10">
-                  <tr className="border-b border-blue-200 bg-blue-50 text-left text-xs uppercase tracking-wide text-blue-950">
-                    <th className="p-1.5">{t("inventory.cotThoiDiem")}</th>
-                    <th className="p-1.5">{t("inventory.loai")}</th>
-                    <th className="p-1.5">{t("chung.vatTu")}</th>
-                    <th className="p-1.5">{t("chung.kho")}</th>
-                    <th className="p-1.5 text-right">
-                      {t("inventory.cotSoLuongNgan")}
-                    </th>
-                    <th className="p-1.5">{t("chung.nguoiThucHien")}</th>
-                    <th className="p-1.5">{t("chung.ghiChu")}</th>
-                    <th className="p-1.5">{t("inventory.cotGhiSoLuc")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentTx.map((tx) => {
-                    const material = materialById.get(tx.materialId);
-                    const warehouse = warehouseById.get(tx.warehouseId);
-                    const backdated =
-                      Math.abs(
-                        tx.createdAt.getTime() - tx.occurredAt.getTime()
-                      ) >
-                      60 * 1000;
-                    return (
-                      <tr key={tx.id} className="border-b">
-                        <td className="p-1.5 font-medium text-blue-950">
-                          {ngayGio(tx.occurredAt)}
-                        </td>
-                        <td className="p-1.5">
-                          <span
-                            className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                              tx.type === "IN"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-amber-100 text-amber-700"
-                            }`}
-                          >
-                            {tTuDo(`labels.tx_${tx.type}`)}
-                          </span>
-                        </td>
-                        <td className="p-1.5">
-                          {material ? (
-                            <>
-                              {material.code} — {material.nameVn}
-                              {/* Có tên rồi vẫn phải nói rõ hàng đã ngừng dùng:
-                                  người xem lịch sử dễ đi tìm mặt hàng này trong
-                                  danh mục hiện hành rồi tưởng dữ liệu sai. */}
-                              {idNgungDung.has(tx.materialId) && (
-                                <span className="ml-1 rounded bg-slate-200 px-1 py-0.5 text-[10px] font-medium text-slate-600">
-                                  {t("inventory.daNgungDung")}
-                                </span>
-                              )}
-                            </>
-                          ) : (
-                            // Chỉ còn rơi vào đây khi bản ghi vật tư bị xóa hẳn
-                            // khỏi database, không phải khi ngừng dùng.
-                            `#${tx.materialId}`
-                          )}
-                        </td>
-                        <td className="p-1.5 text-xs text-slate-500">
-                          {warehouse ? warehouse.code : `#${tx.warehouseId}`}
-                        </td>
-                        <td
-                          className={`p-1.5 text-right font-semibold ${
-                            tx.type === "IN"
-                              ? "text-emerald-600"
-                              : "text-amber-600"
-                          }`}
+      <Card padded={false}>
+        <details className="group">
+          <summary className={SUMMARY}>
+            <ChevronRight
+              aria-hidden="true"
+              className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
+            />
+            <History className="size-4 text-[var(--text-muted)]" />
+            {t("inventory.lichSuGanDay")}
+            <span className="text-xs font-normal text-[var(--text-muted)]">
+              ({t("inventory.nGiaoDichMoiNhat", { n: recentTx.length })})
+            </span>
+          </summary>
+          <div className="border-t border-[var(--border-subtle)] px-4 py-4">
+            {recentTx.length === 0 ? (
+              <EmptyState
+                icon={<History className="size-5" />}
+                title={t("inventory.chuaCoGiaoDich")}
+              />
+            ) : (
+              <div className="max-h-80 overflow-auto rounded-lg border border-[var(--border-subtle)]">
+                <Table dense>
+                  <thead className="sticky top-0 z-10 bg-[var(--surface-raised)]">
+                    <tr>
+                      <Th>{t("inventory.cotThoiDiem")}</Th>
+                      <Th>{t("inventory.loai")}</Th>
+                      <Th>{t("chung.vatTu")}</Th>
+                      <Th>{t("chung.kho")}</Th>
+                      <Th align="right">{t("inventory.cotSoLuongNgan")}</Th>
+                      <Th>{t("chung.nguoiThucHien")}</Th>
+                      <Th>{t("chung.ghiChu")}</Th>
+                      <Th>{t("inventory.cotGhiSoLuc")}</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentTx.map((tx) => {
+                      const material = materialById.get(tx.materialId);
+                      const warehouse = warehouseById.get(tx.warehouseId);
+                      const backdated =
+                        Math.abs(
+                          tx.createdAt.getTime() - tx.occurredAt.getTime()
+                        ) >
+                        60 * 1000;
+                      const isIn = tx.type === "IN";
+                      return (
+                        <Tr
+                          key={tx.id}
+                          className="transition-colors hover:bg-[var(--surface-sunken)]/50"
                         >
-                          {tx.type === "IN" ? "+" : "−"}
-                          {tx.quantity}
-                        </td>
-                        <td className="p-1.5">{tx.performedBy ?? "—"}</td>
-                        <td className="p-1.5 text-slate-500">{tx.note}</td>
-                        <td className="p-1.5 text-xs text-slate-400">
-                          {backdated ? ngayGio(tx.createdAt) : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <p className="mt-2 text-xs text-slate-500">
-            {t("inventory.ghiChuGhiSoLuc")}
-          </p>
-        </div>
-      </details>
+                          <Td className="font-medium whitespace-nowrap">
+                            {ngayGio(tx.occurredAt)}
+                          </Td>
+                          <Td>
+                            <Badge tone={isIn ? "success" : "warning"}>
+                              {tTuDo(`labels.tx_${tx.type}`)}
+                            </Badge>
+                          </Td>
+                          <Td>
+                            {material ? (
+                              <span className="inline-flex flex-wrap items-center gap-1.5">
+                                <span className="font-display text-xs tracking-wide">
+                                  {material.code}
+                                </span>
+                                <span>— {material.nameVn}</span>
+                                {/* Có tên rồi vẫn phải nói rõ hàng đã ngừng dùng:
+                                    người xem lịch sử dễ đi tìm mặt hàng này trong
+                                    danh mục hiện hành rồi tưởng dữ liệu sai. */}
+                                {idNgungDung.has(tx.materialId) && (
+                                  <Badge tone="muted">
+                                    {t("inventory.daNgungDung")}
+                                  </Badge>
+                                )}
+                              </span>
+                            ) : (
+                              // Chỉ còn rơi vào đây khi bản ghi vật tư bị xóa hẳn
+                              // khỏi database, không phải khi ngừng dùng.
+                              `#${tx.materialId}`
+                            )}
+                          </Td>
+                          <Td className="whitespace-nowrap">
+                            <span className="font-display text-xs tracking-wide text-[var(--text-muted)]">
+                              {warehouse ? warehouse.code : `#${tx.warehouseId}`}
+                            </span>
+                          </Td>
+                          <Td align="right">
+                            <span
+                              className={cn(
+                                "font-semibold",
+                                isIn
+                                  ? "text-[var(--text-success)]"
+                                  : "text-[var(--text-warning)]"
+                              )}
+                            >
+                              {isIn ? "+" : "−"}
+                              {tx.quantity}
+                            </span>
+                          </Td>
+                          <Td>{tx.performedBy ?? "—"}</Td>
+                          <Td>
+                            <span className="text-[var(--text-secondary)]">
+                              {tx.note}
+                            </span>
+                          </Td>
+                          <Td>
+                            <span className="text-xs text-[var(--text-muted)]">
+                              {backdated ? ngayGio(tx.createdAt) : "—"}
+                            </span>
+                          </Td>
+                        </Tr>
+                      );
+                    })}
+                  </tbody>
+                </Table>
+              </div>
+            )}
+            <p className="mt-3 text-xs text-[var(--text-muted)]">
+              {t("inventory.ghiChuGhiSoLuc")}
+            </p>
+          </div>
+        </details>
+      </Card>
     </div>
   );
 }

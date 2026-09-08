@@ -1,11 +1,13 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Plus } from "lucide-react";
 import { khaiVatTuMoiChoTau } from "@/app/actions";
 import { BO_PHAN, CHUC_DANH, type BoPhan } from "@/lib/maVatTu";
 import { chucDanhTheoNhomThietBi } from "@/lib/chucDanhChiuTrachNhiem";
 import { boPhanCuaChucDanh } from "@/lib/vatTuMoiChoTau";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Button, Field, Input, Notice, Select } from "@/components/ui";
 
 type NhomOption = { id: number; name: string; code: string };
 
@@ -61,31 +63,30 @@ export default function VatTuMoiChoTauForm({
   const lechGoiY = goiY && rank && goiY !== rank;
   const khuonMa = `${boPhan || "?"}-${laPhuTung ? "SPR" : "IMPA"}-####`;
 
-  const o = "w-full rounded border border-slate-300 p-2 text-sm";
-  const nhan = "mb-1 block text-xs font-medium text-slate-600";
-
   // Mục gập, mặc định đóng: đa số lần vào trang chỉ chọn từ danh mục gốc.
   // Không cần tự mở khi có thông báo — form nằm trong mục nên chỉ gửi được
   // khi mục đang mở, và thông báo hiện ngay tại chỗ vừa bấm.
   return (
-    <details className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50/60">
-      <summary className="cursor-pointer select-none px-4 py-2.5 text-sm font-medium text-blue-800 hover:text-blue-950">
-        ＋ {t("materials.khaiMoiTieuDe", { tau: vesselName })}
+    <details className="surface mt-4 overflow-hidden rounded-xl border">
+      <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-brand-700 hover:bg-[var(--surface-sunken)] dark:text-brand-300">
+        <span className="inline-flex items-center gap-2">
+          <Plus className="size-4" />
+          {t("materials.khaiMoiTieuDe", { tau: vesselName })}
+        </span>
       </summary>
-      <form action={formAction} className="space-y-3 border-t border-slate-200 p-4">
+      <form
+        action={formAction}
+        className="space-y-4 border-t border-[var(--border-subtle)] p-4"
+      >
         <input type="hidden" name="vesselId" value={vesselId} />
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div>
-            <label className={nhan}>
-              {t("materials.chucDanhGiuKiemKe")} *
-            </label>
-            <select
+          <Field label={`${t("materials.chucDanhGiuKiemKe")} *`}>
+            <Select
               name="rankCode"
               value={rank}
               onChange={(e) => doiChucDanh(e.target.value)}
               required
-              className={o}
             >
               <option value="">{t("materials.optChonChucDanh")}</option>
               {(Object.keys(BO_PHAN) as BoPhan[]).map((bp) => (
@@ -99,16 +100,14 @@ export default function VatTuMoiChoTauForm({
                     ))}
                 </optgroup>
               ))}
-            </select>
-          </div>
-          <div>
-            <label className={nhan}>{t("materials.boPhanTheoChucDanh")}</label>
-            <select
+            </Select>
+          </Field>
+          <Field label={t("materials.boPhanTheoChucDanh")}>
+            <Select
               name="boPhan"
               value={boPhan}
               onChange={(e) => setBoPhan(e.target.value)}
               disabled={boPhanChoPhep.length <= 1}
-              className={`${o} disabled:bg-slate-100 disabled:text-slate-500`}
             >
               {boPhanChoPhep.length === 0 && <option value="">—</option>}
               {boPhanChoPhep.map((bp, i) => (
@@ -117,101 +116,102 @@ export default function VatTuMoiChoTauForm({
                   {i > 0 ? ` — ${t("materials.kiemNhiem")}` : ""}
                 </option>
               ))}
-            </select>
-          </div>
-          <div>
-            <label className={nhan}>{t("materials.loai")}</label>
-            <select
+            </Select>
+          </Field>
+          <Field label={t("materials.loai")}>
+            <Select
               name="materialType"
               value={loai}
               onChange={(e) => setLoai(e.target.value)}
-              className={o}
             >
               <option value="STORE">{t("materials.loaiStoreImpa")}</option>
               <option value="SPARE">{t("materials.loaiSpareSpr")}</option>
-            </select>
-          </div>
+            </Select>
+          </Field>
         </div>
 
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-[var(--text-muted)]">
           {t("materials.maTuDongTheoKhuon")}{" "}
-          <span className="font-mono font-medium text-slate-700">{khuonMa}</span>
+          <span className="font-display text-xs tracking-wide text-[var(--text-primary)]">
+            {khuonMa}
+          </span>
           {t("materials.maTuDongSoThuTu")}
         </p>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div>
-            <label className={nhan}>{t("materials.tenMatHangVi")} *</label>
-            <input
+          <Field label={`${t("materials.tenMatHangVi")} *`}>
+            <Input
               name="nameVn"
               defaultValue={v.nameVn ?? ""}
               required
-              className={o}
               placeholder={
                 laPhuTung
                   ? t("materials.vdVoiPhun")
                   : t("materials.vdGangTay")
               }
             />
-          </div>
-          <div>
-            <label className={nhan}>{t("materials.tenTiengAnh")}</label>
-            <input
+          </Field>
+          <Field label={t("materials.tenTiengAnh")}>
+            <Input
               name="nameEn"
               defaultValue={v.nameEn ?? ""}
-              className={o}
               placeholder={laPhuTung ? "Fuel injector nozzle" : "Welding leather gloves"}
             />
-          </div>
+          </Field>
         </div>
 
         {laPhuTung ? (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div>
-              <label className={nhan}>{t("materials.thietBiMay")} *</label>
-              <input
+            <Field label={`${t("materials.thietBiMay")} *`}>
+              <Input
                 name="equipment"
                 defaultValue={v.equipment ?? ""}
                 required
-                className={o}
                 placeholder={t("materials.vdMayDen")}
               />
-            </div>
-            <div>
-              <label className={nhan}>Part No.</label>
-              <input name="partNumber" defaultValue={v.partNumber ?? ""} className={o} />
-            </div>
-            <div>
-              <label className={nhan}>Maker</label>
-              <input name="manufacturer" defaultValue={v.manufacturer ?? ""} className={o} />
-            </div>
+            </Field>
+            <Field label="Part No.">
+              <Input name="partNumber" defaultValue={v.partNumber ?? ""} />
+            </Field>
+            <Field label="Maker">
+              <Input name="manufacturer" defaultValue={v.manufacturer ?? ""} />
+            </Field>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div>
-              <label className={nhan}>{t("materials.maImpaNeuCo")}</label>
-              <input
+            <Field label={t("materials.maImpaNeuCo")}>
+              <Input
                 name="impa"
                 defaultValue={v.impa ?? ""}
-                className={o}
                 placeholder={t("materials.phSauChuSo")}
               />
-            </div>
-            <div>
-              <label className={nhan}>{t("materials.makerHang")}</label>
-              <input name="manufacturer" defaultValue={v.manufacturer ?? ""} className={o} />
-            </div>
+            </Field>
+            <Field label={t("materials.makerHang")}>
+              <Input name="manufacturer" defaultValue={v.manufacturer ?? ""} />
+            </Field>
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="col-span-2">
-            <label className={nhan}>{t("materials.nhomThietBi")}</label>
-            <select
+          <Field
+            className="col-span-2"
+            label={t("materials.nhomThietBi")}
+            hint={
+              lechGoiY ? (
+                <span className="text-[var(--text-warning)]">
+                  {t("materials.nhomThuongDo")}{" "}
+                  <b>
+                    {tenChucDanh(goiY)} ({goiY})
+                  </b>{" "}
+                  {t("materials.nhomThuongDoDuoi", { ten: tenChucDanh(rank) })}
+                </span>
+              ) : undefined
+            }
+          >
+            <Select
               name="categoryId"
               value={nhom}
               onChange={(e) => setNhom(e.target.value)}
-              className={o}
             >
               <option value="">{t("materials.optChuaXepNhom")}</option>
               {categories.map((c) => (
@@ -219,61 +219,47 @@ export default function VatTuMoiChoTauForm({
                   {c.name}
                 </option>
               ))}
-            </select>
-            {lechGoiY && (
-              <p className="mt-1 text-xs text-amber-700">
-                {t("materials.nhomThuongDo")}{" "}
-                <b>
-                  {tenChucDanh(goiY)} ({goiY})
-                </b>{" "}
-                {t("materials.nhomThuongDoDuoi", { ten: tenChucDanh(rank) })}
-              </p>
-            )}
-          </div>
-          <div>
-            <label className={nhan}>{t("chung.donVi")}</label>
-            <input name="uom" defaultValue={v.uom ?? "PCS"} className={o} />
-          </div>
-          <div>
-            <label className={nhan}>{t("materials.tonToiThieu")}</label>
-            <input
+            </Select>
+          </Field>
+          <Field label={t("chung.donVi")}>
+            <Input name="uom" defaultValue={v.uom ?? "PCS"} />
+          </Field>
+          <Field label={t("materials.tonToiThieu")}>
+            <Input
               name="minStock"
               type="number"
               step="0.01"
               min="0"
               defaultValue={v.minStock ?? "0"}
-              className={o}
             />
-          </div>
+          </Field>
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
             <input
               type="checkbox"
               name="isCritical"
               defaultChecked={v.isCritical === "on"}
+              className="size-4 accent-brand-600"
             />
             {t("materials.thietYeuCritical")}
           </label>
-          <button
-            disabled={pending || !rank}
-            className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
+          <Button
+            type="submit"
+            variant="primary"
+            loading={pending}
+            disabled={!rank}
+            icon={<Plus className="size-4" />}
           >
             {pending ? t("chung.dangLuu") : t("materials.nutKhaiMoi")}
-          </button>
+          </Button>
         </div>
 
         {state.message && (
-          <p
-            className={`rounded px-3 py-2 text-sm ${
-              state.success
-                ? "bg-green-50 text-green-800"
-                : "bg-red-50 text-red-700"
-            }`}
-          >
+          <Notice tone={state.success ? "success" : "danger"}>
             {state.message}
-          </p>
+          </Notice>
         )}
       </form>
     </details>

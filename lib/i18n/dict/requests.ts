@@ -26,6 +26,7 @@ export const requests = tuDien(
     nutTauDuyet: "Tàu duyệt",
     nutCongTyDuyet: "Công ty duyệt",
     nutChuyenMuaSam: "Chuyển mua sắm",
+    chuaCoYeuCau: "Chưa có yêu cầu nào",
 
     // Trang chi tiết (phần ngoài biểu mẫu in)
     quayLaiDanhSach: "Quay lại danh sách yêu cầu",
@@ -54,9 +55,12 @@ export const requests = tuDien(
     duyetCapCongTyMoTa:
       "Đây là bước duyệt cuối. Duyệt xong yêu cầu sẵn sàng chuyển sang mua sắm.",
     nhatKyDuyet: "Nhật ký phê duyệt",
+    chuaCoMocNgan: "Chưa có mốc nào",
     chuaCoMoc:
       "Chưa có mốc nào được ghi. Các yêu cầu lập trước khi bật nhật ký sẽ không có lịch sử.",
     tuTrangThai: "từ",
+    chuyenMuaSamMoTa:
+      "Yêu cầu đã được duyệt đủ hai cấp. Chuyển sang mua sắm để phòng vật tư lập đơn mua.",
 
     // Form tạo yêu cầu
     taoYeuCauVatTu: "Tạo yêu cầu vật tư (MLS-11-05B)",
@@ -137,6 +141,7 @@ export const requests = tuDien(
     nutTauDuyet: "Vessel approval",
     nutCongTyDuyet: "Office approval",
     nutChuyenMuaSam: "Move to purchasing",
+    chuaCoYeuCau: "No requisitions yet",
 
     quayLaiDanhSach: "Back to requisitions",
     tienDoDuyet: "Approval progress",
@@ -166,9 +171,12 @@ export const requests = tuDien(
     duyetCapCongTyMoTa:
       "This is the final approval step. Once approved, the requisition is ready to move to purchasing.",
     nhatKyDuyet: "Approval log",
+    chuaCoMocNgan: "No milestones yet",
     chuaCoMoc:
       "No milestones recorded yet. Requisitions raised before the log was switched on have no history.",
     tuTrangThai: "from",
+    chuyenMuaSamMoTa:
+      "Approved at both levels. Move it to purchasing so the supply department can raise a purchase order.",
 
     taoYeuCauVatTu: "New stores requisition (MLS-11-05B)",
     taoYeuCauPhuTung: "New spare parts requisition (MLS-11-05A)",

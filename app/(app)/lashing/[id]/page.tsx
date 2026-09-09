@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/auth";
 import PrintButton from "@/components/PrintButton";
 import { layT } from "@/lib/i18n/server";
+import { Notice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -52,15 +54,19 @@ export default async function LashingReportPage({
   const dateStr = report.reportDate.toLocaleDateString("vi-VN");
 
   return (
-    <div className="space-y-4">
-      <div className="no-print flex items-center justify-between">
-        <Link href="/lashing" className="text-sm text-blue-700 hover:underline">
-          ← {t("vessels.quayLaiDsBaoCao")}
+    <div className="space-y-5">
+      <div className="no-print flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href="/lashing"
+          className="inline-flex items-center gap-1.5 text-sm text-brand-700 hover:underline dark:text-brand-300"
+        >
+          <ArrowLeft className="size-4" />
+          {t("vessels.quayLaiDsBaoCao")}
         </Link>
         <PrintButton label={t("vessels.inBaoCaoMLS1113")} />
       </div>
 
-      <div className="print-area rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 print:rounded-none print:p-0 print:shadow-none">
+      <div className="print-area surface rounded-xl border p-6 shadow-sm print:rounded-none print:p-0 print:shadow-none print:border-0">
         <table className="w-full border-2 border-black text-sm">
           <tbody>
             <tr>
@@ -233,11 +239,12 @@ export default async function LashingReportPage({
       </div>
 
       {needOrder.length > 0 && (
-        <div className="no-print rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="mb-2 font-semibold text-red-700">
+        <Notice tone="danger" className="no-print">
+          <p className="mb-2 flex items-center gap-2 font-semibold">
+            <AlertTriangle className="size-4 shrink-0" />
             {t("vessels.canDatMuaBoSung", { n: needOrder.length })}
           </p>
-          <ul className="list-inside list-disc text-sm text-red-700">
+          <ul className="list-inside list-disc">
             {needOrder.map((row) => (
               <li key={row.line.id}>
                 {row.line.gearName} ({row.line.partNo}):{" "}
@@ -245,14 +252,14 @@ export default async function LashingReportPage({
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-sm text-red-700">
+          <p className="mt-2">
             {t("vessels.dungTrangTruoc")}{" "}
-            <Link href="/requests" className="underline">
+            <Link href="/requests" className="font-medium underline">
               {t("vessels.trangYeuCauVatTu")}
             </Link>{" "}
             {t("vessels.dungTrangSau")}
           </p>
-        </div>
+        </Notice>
       )}
     </div>
   );

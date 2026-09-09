@@ -1,8 +1,22 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import {
+  ClipboardPaste,
+  FileSpreadsheet,
+  PackageMinus,
+  PackagePlus,
+} from "lucide-react";
 import { nhapXuatSonHangLoat } from "@/app/paint-actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import {
+  Button,
+  Field,
+  Input,
+  Notice,
+  Select,
+  Textarea,
+} from "@/components/ui";
 
 /**
  * Nhập / xuất sơn hàng loạt từ file Excel hoặc bảng dán từ PDF.
@@ -28,43 +42,25 @@ export default function PaintStockBulkForm({
       <input type="hidden" name="vesselId" value={vesselId} />
 
       <div className="grid gap-3 md:grid-cols-3">
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.loaiPhieu")} *
-          </span>
-          <select
+        <Field label={`${t("paint.loaiPhieu")} *`}>
+          <Select
             name="type"
             value={type}
             onChange={(e) => setType(e.target.value)}
-            className="w-full rounded border p-2"
           >
             <option value="IN">{t("paint.optNhapSon")}</option>
             <option value="OUT">{t("paint.optXuatSon")}</option>
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.thoiDiem")}
-          </span>
-          <input
-            type="datetime-local"
-            name="occurredAt"
-            className="w-full rounded border p-2"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.ghiChuPhieu")}
-          </span>
-          <input
-            name="note"
-            placeholder={t("paint.phGhiChuPhieu")}
-            className="w-full rounded border p-2"
-          />
-        </label>
+          </Select>
+        </Field>
+        <Field label={t("paint.thoiDiem")}>
+          <Input type="datetime-local" name="occurredAt" />
+        </Field>
+        <Field label={t("paint.ghiChuPhieu")}>
+          <Input name="note" placeholder={t("paint.phGhiChuPhieu")} />
+        </Field>
       </div>
 
-      <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+      <Notice tone="warning">
         {t("paint.luuY1")} <b>{t("paint.luuYDam1")}</b> {t("paint.luuY2")}{" "}
         <i>{t("paint.luuYDam2")}</i> {t("paint.luuY3")}{" "}
         <b>{t("paint.nhapDanhMucTieuDe")}</b>.
@@ -75,83 +71,86 @@ export default function PaintStockBulkForm({
             {t("paint.luuYXuat2")}
           </>
         )}
-      </div>
+      </Notice>
 
-      <div className="flex gap-2 text-sm">
-        <button
+      <div className="flex flex-wrap gap-2">
+        <Button
           type="button"
+          size="sm"
+          variant={nguon === "file" ? "primary" : "secondary"}
           onClick={() => setNguon("file")}
-          className={`rounded px-3 py-1 ${
-            nguon === "file"
-              ? "bg-blue-700 text-white"
-              : "bg-slate-100 text-slate-700"
-          }`}
+          icon={<FileSpreadsheet className="size-4" />}
         >
           {t("paint.tuFileExcel")}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          size="sm"
+          variant={nguon === "dan" ? "primary" : "secondary"}
           onClick={() => setNguon("dan")}
-          className={`rounded px-3 py-1 ${
-            nguon === "dan"
-              ? "bg-blue-700 text-white"
-              : "bg-slate-100 text-slate-700"
-          }`}
+          icon={<ClipboardPaste className="size-4" />}
         >
           {t("paint.danBangPdf")}
-        </button>
+        </Button>
       </div>
 
       {nguon === "file" ? (
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            File Excel (.xls / .xlsx)
-          </span>
+        <Field
+          label="File Excel (.xls / .xlsx)"
+          hint={
+            <>
+              {t("paint.bangCanCot1")}{" "}
+              <b className="text-[var(--text-secondary)]">
+                {t("paint.bangCanCotTen")}
+              </b>{" "}
+              {t("paint.bangCanCot2")}{" "}
+              <b className="text-[var(--text-secondary)]">
+                {t("paint.bangCanCotSL")}
+              </b>{" "}
+              {t("paint.bangCanCot3")}
+            </>
+          }
+        >
           <input
             type="file"
             name="file"
             accept=".xls,.xlsx"
-            className="w-full rounded border p-2"
+            className="block w-full text-sm text-[var(--text-secondary)] file:mr-3 file:rounded-lg file:border-0 file:bg-brand-700 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-brand-600"
           />
-          <span className="mt-1 block text-xs text-slate-500">
-            {t("paint.bangCanCot1")} <b>{t("paint.bangCanCotTen")}</b>{" "}
-            {t("paint.bangCanCot2")} <b>{t("paint.bangCanCotSL")}</b>{" "}
-            {t("paint.bangCanCot3")}
-          </span>
-        </label>
+        </Field>
       ) : (
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.danBangTuPdf")}
-          </span>
-          <textarea
+        <Field label={t("paint.danBangTuPdf")}>
+          <Textarea
             name="pasted"
             rows={6}
             placeholder={t("paint.phDanBangPdf")}
-            className="w-full rounded border p-2 font-mono text-xs"
+            className="font-mono text-xs"
           />
-        </label>
+        </Field>
       )}
 
-      <button
-        disabled={pending}
-        className="rounded bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
+      <Button
+        variant="primary"
+        loading={pending}
+        icon={
+          type === "IN" ? (
+            <PackagePlus className="size-4" />
+          ) : (
+            <PackageMinus className="size-4" />
+          )
+        }
       >
         {pending
           ? t("chung.dangXuLy")
           : type === "IN"
             ? t("paint.nutNhapHangLoat")
             : t("paint.nutXuatHangLoat")}
-      </button>
+      </Button>
 
       {state.message && (
-        <p
-          className={`text-sm ${
-            state.success ? "text-emerald-700" : "text-red-600"
-          }`}
-        >
+        <Notice tone={state.success ? "success" : "danger"}>
           {state.message}
-        </p>
+        </Notice>
       )}
     </form>
   );

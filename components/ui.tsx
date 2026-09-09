@@ -314,18 +314,37 @@ export const FIELD =
   "placeholder:text-[var(--text-muted)] focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none " +
   "disabled:cursor-not-allowed disabled:opacity-60";
 
+/** Có truyền bề rộng riêng không (w-64, w-24…) — `w-full` không tính. */
+const CO_BE_RONG = /(^|\s)w-(?!full(\s|$))/;
+
+/**
+ * Ghép lớp cho ô nhập, BỎ `w-full` mặc định khi nơi gọi đã truyền bề rộng riêng.
+ *
+ * `cn` chỉ nối chuỗi chứ không gộp lớp Tailwind cùng nhóm, mà giữa hai lớp cùng
+ * nhóm thì lớp nào thắng là do THỨ TỰ TRONG TỆP CSS quyết định, không phải thứ
+ * tự trong `class=""`. Nên `cn(FIELD, "w-64")` vẫn ra ô rộng hết dòng — đúng lỗi
+ * làm sổ trang bị chằng buộc xếp thành một cột dọc thay vì một hàng ngang. Gỡ
+ * `w-full` đi thì không còn hai lớp tranh nhau, khỏi phải dùng `!important`.
+ *
+ * `max-w-` / `min-w-` không tranh với `w-full` nên vẫn giữ nguyên.
+ */
+function lopO(className?: string) {
+  const co = className ? CO_BE_RONG.test(className) : false;
+  return cn(co ? FIELD.replace("w-full ", "") : FIELD, className);
+}
+
 export function Input({
   className,
   ...rest
 }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(FIELD, className)} {...rest} />;
+  return <input className={lopO(className)} {...rest} />;
 }
 
 export function Textarea({
   className,
   ...rest
 }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={cn(FIELD, className)} {...rest} />;
+  return <textarea className={lopO(className)} {...rest} />;
 }
 
 export function Select({
@@ -334,7 +353,7 @@ export function Select({
   ...rest
 }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select className={cn(FIELD, "cursor-pointer pr-8", className)} {...rest}>
+    <select className={lopO(cn("cursor-pointer pr-8", className))} {...rest}>
       {children}
     </select>
   );

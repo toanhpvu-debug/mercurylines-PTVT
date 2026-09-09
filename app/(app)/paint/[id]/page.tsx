@@ -1,5 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowLeftRight,
+  ChevronRight,
+  ClipboardList,
+  Droplets,
+  History,
+  Layers,
+  Paintbrush,
+  Plus,
+  Ruler,
+  Send,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   coQuanLySon,
@@ -11,6 +25,7 @@ import {
 import { LAP_YEU_CAU, nguoiDuyetCapTau, boPhanCuaChucDanh } from "@/lib/roles";
 import { layT } from "@/lib/i18n/server";
 import { PAINT_TYPE_LABEL } from "@/lib/paintTypes";
+import { cn } from "@/lib/cn";
 import {
   PaintAreaAddForm,
   PaintAreaCard,
@@ -22,10 +37,35 @@ import PaintRequestForm from "@/components/PaintRequestForm";
 import PaintStockBulkForm from "@/components/PaintStockBulkForm";
 import PrintButton from "@/components/PrintButton";
 import VesselSwitcher from "@/components/VesselSwitcher";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  EmptyState,
+  Meter,
+  Notice,
+  PageHeader,
+  Stat,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+  type Tone,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 const TYPE_LABEL = PAINT_TYPE_LABEL;
+
+/** Tiêu đề khung gập: cùng một dáng cho mọi <details> trên trang. */
+const SUMMARY =
+  "flex cursor-pointer select-none list-none flex-wrap items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-sunken)] [&::-webkit-details-marker]:hidden";
+
+/** Màu thanh tồn thấp theo mức thiếu: càng thiếu càng đỏ (cùng Tồn kho). */
+function toneThieu(pct: number): Tone {
+  return pct < 40 ? "danger" : pct < 75 ? "warning" : "info";
+}
 
 function productLabel(
   p: {
@@ -218,28 +258,35 @@ export default async function PaintVesselPage({
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
-        <div>
-          <Link href="/paint" className="text-sm text-blue-700 hover:underline">
-            ← {t("paint.quayLaiQuanLySon")}
-          </Link>
-          <h2 className="text-2xl font-bold text-blue-950">
-            {t("paint.tieuDeSonTau", { ten: vessel.name })}
-          </h2>
-          <p className="text-slate-600">
-            {vessel.code}
-            {vessel.imo ? ` · IMO ${vessel.imo}` : ""} ·{" "}
-            {t("paint.nKhuVuc", { n: areas.length })} ·{" "}
-            {t("paint.nLanThiCongGanDay", { n: jobs.length })}
-          </p>
-        </div>
-        <PrintButton />
+    <div className="space-y-5">
+      <div className="print:hidden">
+        <Link
+          href="/paint"
+          className="inline-flex items-center gap-1 text-sm text-brand-700 hover:underline dark:text-brand-300"
+        >
+          <ArrowLeft className="size-4" />
+          {t("paint.quayLaiQuanLySon")}
+        </Link>
+        <PageHeader
+          title={t("paint.tieuDeSonTau", { ten: vessel.name })}
+          subtitle={
+            <>
+              <span className="font-display text-xs tracking-wide">
+                {vessel.code}
+              </span>
+              {vessel.imo ? ` · IMO ${vessel.imo}` : ""} ·{" "}
+              {t("paint.nKhuVuc", { n: areas.length })} ·{" "}
+              {t("paint.nLanThiCongGanDay", { n: jobs.length })}
+            </>
+          }
+          action={<PrintButton />}
+        />
       </div>
 
       {lowStocks.length > 0 && (
-        <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">
-          <p className="font-semibold">
+        <Notice tone="danger">
+          <p className="flex items-center gap-2 font-semibold">
+            <AlertTriangle className="size-4 shrink-0" />
             {t("paint.nLoaiDuoiToiThieu", { n: lowStocks.length })}
           </p>
           <ul className="mt-1 list-inside list-disc text-sm">
@@ -254,7 +301,7 @@ export default async function PaintVesselPage({
               </li>
             ))}
           </ul>
-        </div>
+        </Notice>
       )}
 
       <div className="no-print">
@@ -264,14 +311,46 @@ export default async function PaintVesselPage({
         />
       </div>
 
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Stat
+          icon={<Layers className="size-4" />}
+          label={t("paint.cotKhuVuc")}
+          value={areas.length}
+          tone="brand"
+        />
+        <Stat
+          icon={<Droplets className="size-4" />}
+          label={t("paint.cotLoaiCoTon")}
+          value={stocks.filter((s) => s.quantity > 0).length}
+        />
+        <Stat
+          icon={<AlertTriangle className="size-4" />}
+          label={t("paint.sonDuoiDinhMuc")}
+          value={duoiDinhMuc}
+          tone={duoiDinhMuc > 0 ? "danger" : "success"}
+        />
+        <Stat
+          icon={<Paintbrush className="size-4" />}
+          label={t("paint.cotLanThiCong")}
+          value={jobs.length}
+          sub={
+            totalPaintedM2 > 0
+              ? t("paint.nM2", { n: so(totalPaintedM2) })
+              : undefined
+          }
+        />
+      </div>
+
       {/* ── Sơ đồ sơn ─────────────────────────────────────────────────── */}
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-xl font-semibold text-blue-950">
-            {t("paint.soDoSon")}
-          </h3>
+      <section className="space-y-4">
+        <Card>
+          <CardHeader
+            icon={<Layers className="size-4" />}
+            title={t("paint.soDoSon")}
+            subtitle={t("paint.nKhuVuc", { n: areas.length })}
+          />
           {canEdit && (
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-start gap-3 print:hidden">
               {canCopyScheme && (
                 <PaintSchemeCopyForm
                   vesselId={vesselId}
@@ -285,12 +364,15 @@ export default async function PaintVesselPage({
               <PaintAreaAddForm vesselId={vesselId} />
             </div>
           )}
-        </div>
+        </Card>
         {areas.length === 0 ? (
-          <div className="rounded-xl bg-white p-6 text-center text-slate-500 shadow-sm ring-1 ring-blue-100">
-            {t("paint.chuaCoKhuVuc")}
-            {canEdit && ` ${t("paint.goiYThemKhuVuc")}`}
-          </div>
+          <Card>
+            <EmptyState
+              icon={<Layers className="size-5" />}
+              title={t("paint.chuaCoKhuVuc")}
+              hint={canEdit ? t("paint.goiYThemKhuVuc") : undefined}
+            />
+          </Card>
         ) : (
           areas.map((a) => (
             <PaintAreaCard
@@ -323,126 +405,164 @@ export default async function PaintVesselPage({
 
       {/* ── Dự trù sơn ────────────────────────────────────────────────── */}
       {plan.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-xl font-semibold text-blue-950">
-              {t("paint.duTruSon")}
-            </h3>
-            {shortfallCount > 0 && (
-              <span className="rounded bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800">
-                {t("paint.nLoaiCanMuaThem", { n: shortfallCount })}
-              </span>
-            )}
-          </div>
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-            <p className="mb-3 text-sm text-slate-600">
-              {t("paint.duTruMoTa")}
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-sm">
-                <thead className="bg-blue-900 text-left text-white">
-                  <tr>
-                    <th className="p-2">{t("paint.son")}</th>
-                    <th className="p-2">{t("paint.cotDungChoKhuVuc")}</th>
-                    <th className="p-2 text-right">{t("paint.cotCan")}</th>
-                    <th className="p-2 text-right">{t("paint.cotDangCo")}</th>
-                    <th className="p-2 text-right">
-                      {t("paint.cotCanMuaThem")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-blue-50">
-                  {plan.map((p) => (
-                    <tr
-                      key={p.productId}
-                      className={p.shortfall > 0 ? "bg-amber-50" : ""}
-                    >
-                      <td className="p-2">{p.name}</td>
-                      <td className="p-2 text-slate-600">
+        <Card>
+          <CardHeader
+            icon={<Ruler className="size-4" />}
+            title={t("paint.duTruSon")}
+            subtitle={t("paint.duTruMoTa")}
+            action={
+              shortfallCount > 0 && (
+                <Badge tone="warning">
+                  {t("paint.nLoaiCanMuaThem", { n: shortfallCount })}
+                </Badge>
+              )
+            }
+          />
+          <TableWrap>
+            <Table dense>
+              <thead>
+                <tr>
+                  <Th>{t("paint.son")}</Th>
+                  <Th>{t("paint.cotDungChoKhuVuc")}</Th>
+                  <Th align="right">{t("paint.cotCan")}</Th>
+                  <Th align="right">{t("paint.cotDangCo")}</Th>
+                  <Th align="right">{t("paint.cotCanMuaThem")}</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {plan.map((p) => (
+                  <Tr
+                    key={p.productId}
+                    className={
+                      p.shortfall > 0
+                        ? "bg-[var(--surface-sunken)]/60"
+                        : undefined
+                    }
+                  >
+                    <Td>{p.name}</Td>
+                    <Td>
+                      <span className="text-[var(--text-secondary)]">
                         {p.areas.join("; ")}
-                      </td>
-                      <td className="p-2 text-right">
-                        {so(p.required)} {p.uom}
-                      </td>
-                      <td className="p-2 text-right">
-                        {so(p.onHand)} {p.uom}
-                      </td>
-                      <td className="p-2 text-right font-semibold">
-                        {p.shortfall > 0 ? (
-                          <span className="text-amber-800">
-                            {so(p.shortfall)} {p.uom}
-                          </span>
-                        ) : (
-                          <span className="text-emerald-700">
-                            {t("paint.du")}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {unmeasurable > 0 && (
-              <p className="mt-2 text-sm text-amber-700">
-                ⚠ {t("paint.nLopChuaTinhDuoc", { n: unmeasurable })}
-              </p>
-            )}
-          </div>
-        </section>
+                      </span>
+                    </Td>
+                    <Td align="right">
+                      {so(p.required)} {p.uom}
+                    </Td>
+                    <Td align="right">
+                      {so(p.onHand)} {p.uom}
+                    </Td>
+                    <Td align="right" className="font-semibold">
+                      {p.shortfall > 0 ? (
+                        <span className="text-[var(--text-warning)]">
+                          {so(p.shortfall)} {p.uom}
+                        </span>
+                      ) : (
+                        <span className="text-[var(--text-success)]">
+                          {t("paint.du")}
+                        </span>
+                      )}
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </TableWrap>
+          {unmeasurable > 0 && (
+            <Notice tone="warning" className="mt-3 flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <span>{t("paint.nLopChuaTinhDuoc", { n: unmeasurable })}</span>
+            </Notice>
+          )}
+        </Card>
       )}
 
       {/* ── Tồn sơn ───────────────────────────────────────────────────── */}
-      <section className="space-y-3">
-        <h3 className="text-xl font-semibold text-blue-950">
-          {t("paint.tonSonTrenTau")}
-        </h3>
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
+      <section className="space-y-4">
+        <Card>
+          <CardHeader
+            icon={<Droplets className="size-4" />}
+            title={t("paint.tonSonTrenTau")}
+          />
           {stocks.length === 0 ? (
-            <p className="text-sm text-slate-500">{t("paint.chuaCoSon")}</p>
+            <EmptyState
+              icon={<Droplets className="size-5" />}
+              title={t("paint.chuaCoSon")}
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead className="bg-blue-900 text-left text-white">
+            <TableWrap>
+              <Table dense>
+                <thead>
                   <tr>
-                    <th className="p-2">{t("paint.son")}</th>
-                    <th className="p-2">{t("paint.cotLoai")}</th>
-                    <th className="p-2">{t("paint.cotMau")}</th>
-                    <th className="p-2 text-right">{t("paint.cotConLai")}</th>
-                    <th className="p-2 text-right">{t("paint.cotToiThieu")}</th>
+                    <Th>{t("paint.son")}</Th>
+                    <Th>{t("paint.cotLoai")}</Th>
+                    <Th>{t("paint.cotMau")}</Th>
+                    <Th align="right">{t("paint.cotConLai")}</Th>
+                    <Th align="right">{t("paint.cotToiThieu")}</Th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-blue-50">
+                <tbody>
                   {stocks.map((s) => {
                     const low = s.minQty > 0 && s.quantity < s.minQty;
+                    const pct =
+                      s.minQty > 0
+                        ? Math.max(
+                            0,
+                            Math.min(
+                              100,
+                              Math.round((s.quantity / s.minQty) * 100)
+                            )
+                          )
+                        : 0;
                     return (
-                      <tr key={s.id} className={low ? "bg-red-50" : ""}>
-                        <td className="p-2">
-                          {s.product.name}
-                          {s.product.maker ? (
-                            <span className="text-slate-500">
-                              {" "}
-                              · {s.product.maker}
-                            </span>
-                          ) : null}
-                          {low && (
-                            <span className="ml-2 rounded bg-red-600 px-1.5 py-0.5 text-xs font-semibold text-white">
-                              {t("paint.badgeThieu")}
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-2">
-                          {tenLoaiSon(s.product.paintType)}
-                        </td>
-                        <td className="p-2">
+                      <Tr
+                        key={s.id}
+                        className={
+                          low ? "bg-[var(--surface-sunken)]/60" : undefined
+                        }
+                      >
+                        <Td>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span>{s.product.name}</span>
+                            {s.product.maker && (
+                              <span className="text-[var(--text-muted)]">
+                                · {s.product.maker}
+                              </span>
+                            )}
+                            {low && (
+                              <Badge tone="danger">
+                                {t("paint.badgeThieu")}
+                              </Badge>
+                            )}
+                          </div>
+                        </Td>
+                        <Td>
+                          <Badge tone="neutral">
+                            {tenLoaiSon(s.product.paintType)}
+                          </Badge>
+                        </Td>
+                        <Td>
                           {[s.product.colorName, s.product.colorCode]
                             .filter(Boolean)
                             .join(" · ") || "—"}
-                        </td>
-                        <td className="p-2 text-right font-semibold">
-                          {s.quantity} {s.product.uom}
-                        </td>
-                        <td className="p-2 text-right">
+                        </Td>
+                        <Td align="right">
+                          <span
+                            className={cn(
+                              "font-semibold",
+                              low
+                                ? "text-[var(--text-danger)]"
+                                : "text-[var(--text-primary)]"
+                            )}
+                          >
+                            {s.quantity} {s.product.uom}
+                          </span>
+                          {low && (
+                            <div className="mt-1 ml-auto w-16">
+                              <Meter value={pct} tone={toneThieu(pct)} />
+                            </div>
+                          )}
+                        </Td>
+                        <Td align="right">
                           {canEdit ? (
                             <div className="flex justify-end print:hidden">
                               <PaintStockMinForm
@@ -452,153 +572,173 @@ export default async function PaintVesselPage({
                               />
                             </div>
                           ) : (
-                            s.minQty || "—"
+                            <span className="text-[var(--text-muted)]">
+                              {s.minQty || "—"}
+                            </span>
                           )}
-                        </td>
-                      </tr>
+                        </Td>
+                      </Tr>
                     );
                   })}
                 </tbody>
-              </table>
-            </div>
+              </Table>
+            </TableWrap>
           )}
-        </div>
+        </Card>
 
         {/* Mở sẵn: nhập/xuất sơn là việc làm hằng ngày, gập lại thì phải bấm
             thêm một lần mỗi lần dùng và dễ tưởng là không có chức năng. */}
         {canEdit && (
-          <details
-            open
-            className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100 print:hidden"
-          >
-            <summary className="cursor-pointer font-semibold text-blue-950">
-              {t("paint.nhapXuatSon")}
-            </summary>
-            <div className="mt-3 space-y-6">
-              <div>
-                <h4 className="mb-2 text-sm font-semibold text-slate-700">
-                  {t("paint.tungDong")}
-                </h4>
-                <PaintStockMoveForm
-                  vesselId={vesselId}
-                  products={productOptions.map((p) => ({
-                    id: p.id,
-                    label: p.label,
-                    uom: p.uom,
-                  }))}
+          <Card padded={false} className="print:hidden">
+            <details open className="group">
+              <summary className={SUMMARY}>
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
                 />
+                <ArrowLeftRight className="size-4 text-[var(--text-muted)]" />
+                {t("paint.nhapXuatSon")}
+              </summary>
+              <div className="space-y-6 border-t border-[var(--border-subtle)] px-4 py-4">
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">
+                    {t("paint.tungDong")}
+                  </h3>
+                  <PaintStockMoveForm
+                    vesselId={vesselId}
+                    products={productOptions.map((p) => ({
+                      id: p.id,
+                      label: p.label,
+                      uom: p.uom,
+                    }))}
+                  />
+                </div>
+                <div className="border-t border-[var(--border-subtle)] pt-4">
+                  <h3 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">
+                    {t("paint.hangLoatExcel")}
+                  </h3>
+                  <PaintStockBulkForm vesselId={vesselId} />
+                </div>
               </div>
-              <div className="border-t pt-4">
-                <h4 className="mb-2 text-sm font-semibold text-slate-700">
-                  {t("paint.hangLoatExcel")}
-                </h4>
-                <PaintStockBulkForm vesselId={vesselId} />
-              </div>
-            </div>
-          </details>
+            </details>
+          </Card>
         )}
 
         {canRequest && (
-          <details className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100 print:hidden">
-            <summary className="cursor-pointer font-semibold text-blue-950">
-              {t("paint.yeuCauCapSon")}
-              {duoiDinhMuc > 0 && (
-                <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                  {t("paint.nLoaiDuoiDinhMuc", { n: duoiDinhMuc })}
-                </span>
-              )}
-            </summary>
-            <div className="mt-3 space-y-3">
-              <p className="rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
-                {t("paint.luongDuyetTruoc")}{" "}
-                <b>{tTuDo(`labels.role_${user.role}`)}</b>{" "}
-                {t("paint.luongDuyetBoPhan", {
-                  bp:
-                    boPhanCuaChucDanh(user.role) === "ENGINE"
-                      ? t("labels.reqDept_ENGINE")
-                      : t("labels.reqDept_DECK"),
-                })}{" "}
-                {t("paint.luongDuyetGiua")}{" "}
-                <b>
-                  {tTuDo(
-                    `labels.role_${nguoiDuyetCapTau(
-                      boPhanCuaChucDanh(user.role) ?? "DECK"
-                    )}`
-                  )}
-                </b>{" "}
-                {t("paint.luongDuyetCapTau")}{" "}
-                <b>{t("labels.role_TECH_MANAGER")}</b>{" "}
-                {t("paint.luongDuyetCapCongTy")}
-              </p>
-              <PaintRequestForm
-                vesselId={vesselId}
-                lines={yeuCauLines}
-              />
-            </div>
-          </details>
+          <Card padded={false} className="print:hidden">
+            <details className="group">
+              <summary className={SUMMARY}>
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
+                />
+                <Send className="size-4 text-[var(--text-muted)]" />
+                {t("paint.yeuCauCapSon")}
+                {duoiDinhMuc > 0 && (
+                  <Badge tone="warning">
+                    {t("paint.nLoaiDuoiDinhMuc", { n: duoiDinhMuc })}
+                  </Badge>
+                )}
+              </summary>
+              <div className="space-y-3 border-t border-[var(--border-subtle)] px-4 py-4">
+                <Notice tone="info">
+                  {t("paint.luongDuyetTruoc")}{" "}
+                  <b>{tTuDo(`labels.role_${user.role}`)}</b>{" "}
+                  {t("paint.luongDuyetBoPhan", {
+                    bp:
+                      boPhanCuaChucDanh(user.role) === "ENGINE"
+                        ? t("labels.reqDept_ENGINE")
+                        : t("labels.reqDept_DECK"),
+                  })}{" "}
+                  {t("paint.luongDuyetGiua")}{" "}
+                  <b>
+                    {tTuDo(
+                      `labels.role_${nguoiDuyetCapTau(
+                        boPhanCuaChucDanh(user.role) ?? "DECK"
+                      )}`
+                    )}
+                  </b>{" "}
+                  {t("paint.luongDuyetCapTau")}{" "}
+                  <b>{t("labels.role_TECH_MANAGER")}</b>{" "}
+                  {t("paint.luongDuyetCapCongTy")}
+                </Notice>
+                <PaintRequestForm vesselId={vesselId} lines={yeuCauLines} />
+              </div>
+            </details>
+          </Card>
         )}
       </section>
 
       {/* ── Nhật ký thi công ──────────────────────────────────────────── */}
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-xl font-semibold text-blue-950">
-            {t("paint.nhatKyThiCong")}
-          </h3>
-          {totalPaintedM2 > 0 && (
-            <p className="text-sm text-slate-600">
-              {t("paint.tongDaSon")}{" "}
-              <b>{t("paint.nM2", { n: so(totalPaintedM2) })}</b>
-            </p>
-          )}
-        </div>
-
+      <section className="space-y-4">
         {canEdit && (
-          <details className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100 print:hidden">
-            <summary className="cursor-pointer font-semibold text-blue-950">
-              + {t("paint.ghiLanThiCong")}
-            </summary>
-            <div className="mt-3">
-              <PaintJobForm
-                vesselId={vesselId}
-                defaultDate={defaultDate}
-                areas={areas.map((a) => ({ id: a.id, label: a.name }))}
-                products={stockOptions}
-              />
-            </div>
-          </details>
+          <Card padded={false} className="print:hidden">
+            <details className="group">
+              <summary className={SUMMARY}>
+                <ChevronRight
+                  aria-hidden="true"
+                  className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
+                />
+                <Plus className="size-4 text-[var(--text-muted)]" />
+                {t("paint.ghiLanThiCong")}
+              </summary>
+              <div className="border-t border-[var(--border-subtle)] px-4 py-4">
+                <PaintJobForm
+                  vesselId={vesselId}
+                  defaultDate={defaultDate}
+                  areas={areas.map((a) => ({ id: a.id, label: a.name }))}
+                  products={stockOptions}
+                />
+              </div>
+            </details>
+          </Card>
         )}
 
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
+        <Card>
+          <CardHeader
+            icon={<Paintbrush className="size-4" />}
+            title={t("paint.nhatKyThiCong")}
+            subtitle={
+              totalPaintedM2 > 0 ? (
+                <>
+                  {t("paint.tongDaSon")}{" "}
+                  <b className="text-[var(--text-primary)]">
+                    {t("paint.nM2", { n: so(totalPaintedM2) })}
+                  </b>
+                </>
+              ) : undefined
+            }
+          />
           {jobs.length === 0 ? (
-            <p className="text-sm text-slate-500">
-              {t("paint.chuaCoThiCong")}
-            </p>
+            <EmptyState
+              icon={<Paintbrush className="size-5" />}
+              title={t("paint.chuaCoThiCong")}
+            />
           ) : (
-            <div className="max-h-[28rem] overflow-auto">
-              <table className="w-full min-w-[900px] text-sm">
-                <thead className="sticky top-0 bg-blue-900 text-left text-white">
+            <div className="max-h-[28rem] overflow-auto rounded-xl border border-[var(--border-subtle)]">
+              <Table dense>
+                <thead className="sticky top-0 z-10 bg-[var(--surface-raised)]">
                   <tr>
-                    <th className="p-2">{t("chung.ngay")}</th>
-                    <th className="p-2">{t("paint.khuVuc")}</th>
-                    <th className="p-2 text-right">m²</th>
-                    <th className="p-2 text-right">{t("paint.cotSoLopNgan")}</th>
-                    <th className="p-2">{t("paint.cotSonDaDung")}</th>
-                    <th className="p-2">{t("paint.cotDieuKien")}</th>
-                    <th className="p-2">{t("chung.nguoiThucHien")}</th>
-                    {canEdit && <th className="p-2 print:hidden"></th>}
+                    <Th>{t("chung.ngay")}</Th>
+                    <Th>{t("paint.khuVuc")}</Th>
+                    <Th align="right">m²</Th>
+                    <Th align="right">{t("paint.cotSoLopNgan")}</Th>
+                    <Th>{t("paint.cotSonDaDung")}</Th>
+                    <Th>{t("paint.cotDieuKien")}</Th>
+                    <Th>{t("chung.nguoiThucHien")}</Th>
+                    {canEdit && <Th className="print:hidden"></Th>}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-blue-50">
+                <tbody>
                   {jobs.map((j) => (
-                    <tr key={j.id}>
-                      <td className="p-2 whitespace-nowrap">
-                        {ngay(j.jobDate)}
-                      </td>
-                      <td className="p-2">{j.area?.name ?? "—"}</td>
-                      <td className="p-2 text-right">{j.paintedM2 || "—"}</td>
-                      <td className="p-2 text-right">{j.coats}</td>
-                      <td className="p-2">
+                    <Tr key={j.id}>
+                      <Td className="whitespace-nowrap">{ngay(j.jobDate)}</Td>
+                      <Td>{j.area?.name ?? "—"}</Td>
+                      <Td align="right">{j.paintedM2 || "—"}</Td>
+                      <Td align="right">
+                        <Badge tone="muted">{j.coats}</Badge>
+                      </Td>
+                      <Td>
                         {j.lines.length === 0
                           ? "—"
                           : j.lines
@@ -607,132 +747,131 @@ export default async function PaintVesselPage({
                                   `${l.product.name} ${l.quantity}${l.product.uom}`
                               )
                               .join("; ")}
-                      </td>
-                      <td className="p-2 text-slate-600">
-                        {[
-                          j.weather,
-                          j.airTemp !== null
-                            ? t("paint.dkKhongKhi", { n: j.airTemp })
-                            : null,
-                          j.humidity !== null
-                            ? t("paint.dkDoAm", { n: j.humidity })
-                            : null,
-                          j.surfaceTemp !== null
-                            ? t("paint.dkBeMat", { n: j.surfaceTemp })
-                            : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ") || "—"}
-                      </td>
-                      <td className="p-2">{j.performedBy ?? "—"}</td>
+                      </Td>
+                      <Td>
+                        <span className="text-[var(--text-secondary)]">
+                          {[
+                            j.weather,
+                            j.airTemp !== null
+                              ? t("paint.dkKhongKhi", { n: j.airTemp })
+                              : null,
+                            j.humidity !== null
+                              ? t("paint.dkDoAm", { n: j.humidity })
+                              : null,
+                            j.surfaceTemp !== null
+                              ? t("paint.dkBeMat", { n: j.surfaceTemp })
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "—"}
+                        </span>
+                      </Td>
+                      <Td>{j.performedBy ?? "—"}</Td>
                       {canEdit && (
-                        <td className="p-2 text-right print:hidden">
-                          <PaintJobDeleteButton
-                            vesselId={vesselId}
-                            jobId={j.id}
-                          />
-                        </td>
+                        <Td align="right" className="print:hidden">
+                          <div className="flex justify-end">
+                            <PaintJobDeleteButton
+                              vesselId={vesselId}
+                              jobId={j.id}
+                            />
+                          </div>
+                        </Td>
                       )}
-                    </tr>
+                    </Tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             </div>
           )}
-        </div>
+        </Card>
       </section>
 
       {/* ── Tiêu thụ 12 tháng ─────────────────────────────────────────── */}
       {consumptionRows.length > 0 && (
-        <section className="space-y-3">
-          <h3 className="text-xl font-semibold text-blue-950">
-            {t("paint.tieuThu12Thang")}
-          </h3>
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[420px] text-sm">
-                <thead className="bg-blue-50 text-left text-blue-900">
-                  <tr>
-                    <th className="p-2">{t("paint.son")}</th>
-                    <th className="p-2 text-right">{t("paint.cotDaDung")}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-blue-50">
-                  {consumptionRows.map((c) => (
-                    <tr key={c.name}>
-                      <td className="p-2">{c.name}</td>
-                      <td className="p-2 text-right font-semibold">
-                        {so(c.qty)} {c.uom}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-2 text-xs text-slate-500">
-              {t("paint.ghiChuTieuThu")}
-            </p>
-          </div>
-        </section>
+        <Card>
+          <CardHeader
+            icon={<ClipboardList className="size-4" />}
+            title={t("paint.tieuThu12Thang")}
+            subtitle={t("paint.ghiChuTieuThu")}
+          />
+          <TableWrap>
+            <Table dense>
+              <thead>
+                <tr>
+                  <Th>{t("paint.son")}</Th>
+                  <Th align="right">{t("paint.cotDaDung")}</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {consumptionRows.map((c) => (
+                  <Tr key={c.name}>
+                    <Td>{c.name}</Td>
+                    <Td align="right" className="font-semibold">
+                      {so(c.qty)} {c.uom}
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </TableWrap>
+        </Card>
       )}
 
       {/* ── Lịch sử nhập xuất ─────────────────────────────────────────── */}
-      <section className="space-y-3 print:hidden">
-        <h3 className="text-xl font-semibold text-blue-950">
-          {t("paint.lichSuNhapXuat")}
-        </h3>
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-          {transactions.length === 0 ? (
-            <p className="text-sm text-slate-500">
-              {t("paint.chuaCoGiaoDich")}
-            </p>
-          ) : (
-            <div className="max-h-80 overflow-auto">
-              <table className="w-full min-w-[700px] text-sm">
-                <thead className="sticky top-0 bg-blue-50 text-left text-blue-900">
-                  <tr>
-                    <th className="p-2">{t("paint.thoiDiem")}</th>
-                    <th className="p-2">{t("paint.cotLoai")}</th>
-                    <th className="p-2">{t("paint.son")}</th>
-                    <th className="p-2 text-right">{t("paint.cotSL")}</th>
-                    <th className="p-2">{t("chung.nguoiThucHien")}</th>
-                    <th className="p-2">{t("chung.ghiChu")}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-blue-50">
-                  {transactions.map((tx) => (
-                    <tr key={tx.id}>
-                      <td className="p-2 whitespace-nowrap">
-                        {ngayGio(tx.occurredAt)}
-                      </td>
-                      <td className="p-2">
-                        <span
-                          className={
-                            tx.type === "IN"
-                              ? "text-emerald-700"
-                              : "text-amber-700"
-                          }
-                        >
-                          {tx.type === "IN"
-                            ? t("paint.giaoDichNhan")
-                            : t("paint.giaoDichXuat")}
-                        </span>
-                      </td>
-                      <td className="p-2">{tx.product.name}</td>
-                      <td className="p-2 text-right">
-                        {tx.type === "IN" ? "+" : "−"}
-                        {tx.quantity} {tx.product.uom}
-                      </td>
-                      <td className="p-2">{tx.performedBy ?? "—"}</td>
-                      <td className="p-2 text-slate-600">{tx.note ?? ""}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </section>
+      <Card className="print:hidden">
+        <CardHeader
+          icon={<History className="size-4" />}
+          title={t("paint.lichSuNhapXuat")}
+        />
+        {transactions.length === 0 ? (
+          <EmptyState
+            icon={<History className="size-5" />}
+            title={t("paint.chuaCoGiaoDich")}
+          />
+        ) : (
+          <div className="max-h-80 overflow-auto rounded-xl border border-[var(--border-subtle)]">
+            <Table dense>
+              <thead className="sticky top-0 z-10 bg-[var(--surface-raised)]">
+                <tr>
+                  <Th>{t("paint.thoiDiem")}</Th>
+                  <Th>{t("paint.cotLoai")}</Th>
+                  <Th>{t("paint.son")}</Th>
+                  <Th align="right">{t("paint.cotSL")}</Th>
+                  <Th>{t("chung.nguoiThucHien")}</Th>
+                  <Th>{t("chung.ghiChu")}</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((tx) => (
+                  <Tr key={tx.id}>
+                    <Td className="whitespace-nowrap">
+                      {ngayGio(tx.occurredAt)}
+                    </Td>
+                    <Td>
+                      <Badge tone={tx.type === "IN" ? "success" : "warning"}>
+                        {tx.type === "IN"
+                          ? t("paint.giaoDichNhan")
+                          : t("paint.giaoDichXuat")}
+                      </Badge>
+                    </Td>
+                    <Td>{tx.product.name}</Td>
+                    <Td align="right">
+                      {tx.type === "IN" ? "+" : "−"}
+                      {tx.quantity} {tx.product.uom}
+                    </Td>
+                    <Td>{tx.performedBy ?? "—"}</Td>
+                    <Td>
+                      <span className="text-[var(--text-secondary)]">
+                        {tx.note ?? ""}
+                      </span>
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Save, ShieldCheck, ShieldOff } from "lucide-react";
 
 import {
   capNhatPhanCongDoiTau,
@@ -9,6 +10,7 @@ import {
 } from "@/app/quyen-actions";
 import { type TrangThaiUyQuyen } from "@/lib/roles";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Badge, Button, Field, Input, Notice, Select } from "@/components/ui";
 
 type VesselOption = { id: number; label: string };
 type NguoiDung = { id: number; name: string; email: string; role: string };
@@ -34,30 +36,36 @@ export function PhanCongDoiTau({
     message: "",
   });
   return (
-    <form action={formAction} className="space-y-2">
+    <form action={formAction} className="space-y-3">
       <input type="hidden" name="userId" value={user.id} />
       <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
         {vessels.map((v) => (
-          <label key={v.id} className="flex items-center gap-2 text-sm">
+          <label
+            key={v.id}
+            className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm text-[var(--text-primary)] transition hover:bg-[var(--surface-sunken)]"
+          >
             <input
               type="checkbox"
               name="vesselIds"
               value={v.id}
               defaultChecked={daChon.includes(v.id)}
-              className="rounded border-slate-300"
+              className="size-4 rounded accent-brand-600"
             />
             <span>{v.label}</span>
           </label>
         ))}
       </div>
-      <div className="flex items-center gap-3">
-        <button
-          disabled={pending}
-          className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="submit"
+          size="sm"
+          variant="primary"
+          loading={pending}
+          icon={<Save className="size-4" />}
         >
           {pending ? t("chung.dangLuu") : t("vessels.luuPhanCong")}
-        </button>
-        <span className="text-xs text-slate-500">
+        </Button>
+        <span className="text-xs text-[var(--text-muted)]">
           {daChon.length
             ? t("vessels.dangPhuTrachNTau", { n: daChon.length })
             : t("vessels.chuaPhanCongTau")}
@@ -65,7 +73,11 @@ export function PhanCongDoiTau({
       </div>
       {state.message && (
         <p
-          className={`text-xs ${state.success ? "text-green-700" : "text-red-600"}`}
+          className={`text-xs ${
+            state.success
+              ? "text-[var(--text-success)]"
+              : "text-[var(--text-danger)]"
+          }`}
         >
           {state.message}
         </p>
@@ -96,10 +108,9 @@ export function LapUyQuyen({
   const homNay = new Date().toISOString().slice(0, 10);
   return (
     <form action={formAction} className="space-y-3">
-      <div>
-        <label className="mb-1 block text-sm font-medium">
-          {t("vessels.cotNguoiGiaoQuyen")} {laAdmin ? "*" : ""}
-        </label>
+      <Field
+        label={`${t("vessels.cotNguoiGiaoQuyen")}${laAdmin ? " *" : ""}`}
+      >
         {laAdmin ? (
           // KHÔNG chọn sẵn chính người đang mở trang.
           //
@@ -113,12 +124,7 @@ export function LapUyQuyen({
           // Dùng hằng "" làm defaultValue chứ không phải một prop: defaultValue
           // chỉ có tác dụng ở lần dựng đầu, nên giá trị lấy từ prop sẽ lệch khi
           // prop đổi mà ô đã dựng xong.
-          <select
-            name="delegatorId"
-            required
-            defaultValue=""
-            className="w-full rounded border p-2 text-sm"
-          >
+          <Select name="delegatorId" required defaultValue="">
             <option value="" disabled>
               {t("vessels.chonNguoiGiaoQuyen")}
             </option>
@@ -127,23 +133,15 @@ export function LapUyQuyen({
                 {u.name} — {tTuDo(`labels.role_${u.role}`)}
               </option>
             ))}
-          </select>
+          </Select>
         ) : (
-          <p className="rounded bg-slate-50 p-2 text-sm text-slate-600">
+          <span className="block rounded-lg bg-[var(--surface-sunken)] px-3 py-2 text-sm text-[var(--text-secondary)]">
             {t("vessels.tuGiaoQuyen")}
-          </p>
+          </span>
         )}
-      </div>
-      <div>
-        <label className="mb-1 block text-sm font-medium">
-          {t("vessels.cotNguoiNhan")} *
-        </label>
-        <select
-          name="delegateId"
-          required
-          defaultValue=""
-          className="w-full rounded border p-2 text-sm"
-        >
+      </Field>
+      <Field label={`${t("vessels.cotNguoiNhan")} *`}>
+        <Select name="delegateId" required defaultValue="">
           <option value="" disabled>
             {t("vessels.chonNguoiNhan")}
           </option>
@@ -152,55 +150,31 @@ export function LapUyQuyen({
               {u.name} — {tTuDo(`labels.role_${u.role}`)}
             </option>
           ))}
-        </select>
-      </div>
+        </Select>
+      </Field>
       <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            {t("vessels.tuNgay")} *
-          </label>
-          <input
-            type="date"
-            name="startAt"
-            required
-            defaultValue={homNay}
-            className="w-full rounded border p-2 text-sm"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            {t("vessels.denHetNgay")} *
-          </label>
-          <input
-            type="date"
-            name="endAt"
-            required
-            className="w-full rounded border p-2 text-sm"
-          />
-        </div>
+        <Field label={`${t("vessels.tuNgay")} *`}>
+          <Input type="date" name="startAt" required defaultValue={homNay} />
+        </Field>
+        <Field label={`${t("vessels.denHetNgay")} *`}>
+          <Input type="date" name="endAt" required />
+        </Field>
       </div>
-      <div>
-        <label className="mb-1 block text-sm font-medium">
-          {t("vessels.cotLyDo")}
-        </label>
-        <input
-          name="reason"
-          placeholder={t("vessels.phLyDo")}
-          className="w-full rounded border p-2 text-sm"
-        />
-      </div>
-      <button
-        disabled={pending}
-        className="rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+      <Field label={t("vessels.cotLyDo")}>
+        <Input name="reason" placeholder={t("vessels.phLyDo")} />
+      </Field>
+      <Button
+        type="submit"
+        variant="primary"
+        loading={pending}
+        icon={<ShieldCheck className="size-4" />}
       >
         {pending ? t("chung.dangLuu") : t("vessels.lapUyQuyen")}
-      </button>
+      </Button>
       {state.message && (
-        <p
-          className={`text-xs ${state.success ? "text-green-700" : "text-red-600"}`}
-        >
+        <Notice tone={state.success ? "success" : "danger"}>
           {state.message}
-        </p>
+        </Notice>
       )}
     </form>
   );
@@ -214,14 +188,19 @@ export function ThuHoiUyQuyen({ id }: { id: number }) {
   return (
     <form action={formAction} className="inline">
       <input type="hidden" name="id" value={id} />
-      <button
-        disabled={pending}
-        className="rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200 disabled:opacity-50"
+      <Button
+        type="submit"
+        size="sm"
+        variant="danger"
+        loading={pending}
+        icon={<ShieldOff className="size-4" />}
       >
-        {pending ? "..." : t("vessels.thuHoi")}
-      </button>
+        {t("vessels.thuHoi")}
+      </Button>
       {state.message && !state.success && (
-        <span className="ml-2 text-xs text-red-600">{state.message}</span>
+        <span className="ml-2 text-xs text-[var(--text-danger)]">
+          {state.message}
+        </span>
       )}
     </form>
   );
@@ -244,7 +223,7 @@ export function NhanTrangThaiUyQuyen({
   const { t, ngay } = useNgonNgu();
   if (trangThai === "DA_THU_HOI") {
     return (
-      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+      <Badge tone="muted">
         {t("vessels.daThuHoi")}
         {revokedAt
           ? ` ${ngay(revokedAt, {
@@ -253,26 +232,18 @@ export function NhanTrangThaiUyQuyen({
               year: "numeric",
             })}`
           : ""}
-      </span>
+      </Badge>
     );
   }
   if (trangThai === "HET_HAN") {
-    return (
-      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-        {t("vessels.hetHan")}
-      </span>
-    );
+    return <Badge tone="muted">{t("vessels.hetHan")}</Badge>;
   }
   if (trangThai === "CHUA_TOI") {
-    return (
-      <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-        {t("vessels.chuaToiHan")}
-      </span>
-    );
+    return <Badge tone="warning">{t("vessels.chuaToiHan")}</Badge>;
   }
   return (
-    <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">
+    <Badge tone="success" dot>
       {t("vessels.dangHieuLuc")}
-    </span>
+    </Badge>
   );
 }

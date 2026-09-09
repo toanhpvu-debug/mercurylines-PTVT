@@ -1,12 +1,14 @@
 "use client";
 
 import { useActionState } from "react";
+import { Plus, Save, Trash2 } from "lucide-react";
 import {
   createLashingGear,
   deleteLashingGear,
   updateLashingGear,
 } from "@/app/actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Button, Input } from "@/components/ui";
 
 type Gear = {
   id: number;
@@ -26,50 +28,55 @@ export function LashingGearRow({ gear }: { gear: Gear }) {
   });
   const v = uState.values ?? {};
   return (
-    <div className="border-b py-2">
+    <div className="border-b border-[var(--border-subtle)] py-2 last:border-b-0">
       <div className="flex flex-wrap items-center gap-2">
         <form action={uAction} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="id" value={gear.id} />
-          <input
+          <Input
             name="name"
             defaultValue={v.name ?? gear.name}
-            className="w-64 rounded border p-1 text-sm"
+            className="w-64"
             required
           />
-          <input
+          <Input
             name="partNo"
             defaultValue={v.partNo ?? gear.partNo ?? ""}
             placeholder="Part No."
-            className="w-40 rounded border p-1 text-sm"
+            className="w-40 font-display text-xs tracking-wide"
           />
-          <input
+          <Input
             name="minQty"
             type="number"
             step="1"
             min="0"
             defaultValue={v.minQty ?? gear.minQty}
-            className="w-24 rounded border p-1 text-sm"
+            className="tabular w-24"
             title={t("vessels.slToiThieuFullLoad")}
           />
-          <input
+          <Input
             name="standardQty"
             type="number"
             step="1"
             min="0"
             defaultValue={v.standardQty ?? gear.standardQty}
-            className="w-24 rounded border p-1 text-sm"
+            className="tabular w-24"
             title={t("vessels.trangBiChuan")}
           />
-          <button
-            disabled={uPending}
-            className="rounded border px-2 py-1 text-sm hover:bg-blue-50 disabled:opacity-50"
+          <Button
+            type="submit"
+            size="sm"
+            variant="secondary"
+            loading={uPending}
+            icon={<Save className="size-4" />}
           >
-            {uPending ? "..." : t("chung.luu")}
-          </button>
+            {t("chung.luu")}
+          </Button>
           {uState.message && (
             <span
               className={`text-xs ${
-                uState.success ? "text-green-700" : "text-red-600"
+                uState.success
+                  ? "text-[var(--text-success)]"
+                  : "text-[var(--text-danger)]"
               }`}
             >
               {uState.message}
@@ -89,16 +96,19 @@ export function LashingGearRow({ gear }: { gear: Gear }) {
           }}
         >
           <input type="hidden" name="id" value={gear.id} />
-          <button
-            disabled={dPending}
-            className="rounded bg-red-100 px-2 py-1 text-sm text-red-700 hover:bg-red-200 disabled:opacity-50"
+          <Button
+            type="submit"
+            size="sm"
+            variant="danger"
+            loading={dPending}
+            icon={<Trash2 className="size-4" />}
           >
             {t("chung.xoa")}
-          </button>
+          </Button>
         </form>
       </div>
       {dState.message && (
-        <p className="mt-1 text-xs text-red-600">
+        <p className="mt-1 text-xs text-[var(--text-danger)]">
           {t("chung.xoa")}: {dState.message}
         </p>
       )}
@@ -115,47 +125,52 @@ export function LashingGearAddForm({ vesselId }: { vesselId: number }) {
   return (
     <form action={formAction} className="mt-3 flex flex-wrap items-center gap-2">
       <input type="hidden" name="vesselId" value={vesselId} />
-      <input
+      <Input
         name="name"
         placeholder={t("vessels.phTenDungCuMoi")}
         defaultValue={v.name ?? ""}
-        className="w-64 rounded border p-1 text-sm"
+        className="w-64"
         required
       />
-      <input
+      <Input
         name="partNo"
         placeholder="Part No."
         defaultValue={v.partNo ?? ""}
-        className="w-40 rounded border p-1 text-sm"
+        className="w-40 font-display text-xs tracking-wide"
       />
-      <input
+      <Input
         name="minQty"
         type="number"
         step="1"
         min="0"
         placeholder={t("vessels.slToiThieu")}
-        className="w-24 rounded border p-1 text-sm"
+        className="tabular w-24"
         defaultValue={v.minQty ?? 0}
       />
-      <input
+      <Input
         name="standardQty"
         type="number"
         step="1"
         min="0"
         placeholder={t("vessels.chuan")}
-        className="w-24 rounded border p-1 text-sm"
+        className="tabular w-24"
         defaultValue={v.standardQty ?? 0}
       />
-      <button
-        disabled={pending}
-        className="rounded bg-blue-700 px-3 py-1 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
+      <Button
+        type="submit"
+        variant="primary"
+        size="sm"
+        loading={pending}
+        icon={<Plus className="size-4" />}
       >
-        {pending ? "..." : t("vessels.themDungCu")}
-      </button>
+        {t("vessels.themDungCu")}
+      </Button>
       {state.message && (
         <p
           className={`text-xs ${
-            state.success ? "text-green-700" : "text-red-600"
+            state.success
+              ? "text-[var(--text-success)]"
+              : "text-[var(--text-danger)]"
           }`}
         >
           {state.message}

@@ -1,8 +1,16 @@
 "use client";
 
 import { startTransition, useActionState, useState } from "react";
+import { Plus, Save, Trash2 } from "lucide-react";
 import { createPaintJob, deletePaintJob } from "@/app/paint-actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import {
+  Button,
+  Field,
+  Input,
+  Notice,
+  Select,
+} from "@/components/ui";
 
 type Option = { id: number; label: string };
 type StockOption = { id: number; label: string; uom: string; onHand: number };
@@ -28,9 +36,11 @@ export function PaintJobForm({
 
   if (products.length === 0) {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-[var(--text-secondary)]">
         {t("paint.chuaCoSonTruoc")}{" "}
-        <span className="font-medium">{t("paint.tonSon")}</span>{" "}
+        <span className="font-medium text-[var(--text-primary)]">
+          {t("paint.tonSon")}
+        </span>{" "}
         {t("paint.chuaCoSonSau")}
       </p>
     );
@@ -40,130 +50,90 @@ export function PaintJobForm({
     <form action={action} className="space-y-4">
       <input type="hidden" name="vesselId" value={vesselId} />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.ngayThiCong")} *
-          </span>
-          <input
+        <Field label={`${t("paint.ngayThiCong")} *`}>
+          <Input
             name="jobDate"
             type="date"
             defaultValue={defaultDate}
             required
-            className="w-full rounded border p-2"
           />
-        </label>
-        <label className="block md:col-span-2">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.khuVuc")}
-          </span>
-          <select name="areaId" className="w-full rounded border p-2">
+        </Field>
+        <Field label={t("paint.khuVuc")} className="md:col-span-2">
+          <Select name="areaId">
             <option value="">{t("paint.khongGanKhuVuc")}</option>
             {areas.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.label}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.dienTichSon")}
-          </span>
-          <input
+          </Select>
+        </Field>
+        <Field label={t("paint.dienTichSon")}>
+          <Input
             name="paintedM2"
             type="number"
             step="0.1"
             min="0"
-            className="w-full rounded border p-2"
+            className="tabular"
           />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.soLopPhu")}
-          </span>
-          <input
+        </Field>
+        <Field label={t("paint.soLopPhu")}>
+          <Input
             name="coats"
             type="number"
             min="1"
             step="1"
             defaultValue={1}
-            className="w-full rounded border p-2"
+            className="tabular"
           />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.thoiTiet")}
-          </span>
-          <input
-            name="weather"
-            placeholder={t("paint.phThoiTiet")}
-            className="w-full rounded border p-2"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.nhietDoKhongKhi")}
-          </span>
-          <input
-            name="airTemp"
-            type="number"
-            step="0.1"
-            className="w-full rounded border p-2"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.doAm")}
-          </span>
-          <input
+        </Field>
+        <Field label={t("paint.thoiTiet")}>
+          <Input name="weather" placeholder={t("paint.phThoiTiet")} />
+        </Field>
+        <Field label={t("paint.nhietDoKhongKhi")}>
+          <Input name="airTemp" type="number" step="0.1" className="tabular" />
+        </Field>
+        <Field label={t("paint.doAm")}>
+          <Input
             name="humidity"
             type="number"
             step="1"
             min="0"
             max="100"
-            className="w-full rounded border p-2"
+            className="tabular"
           />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.nhietDoBeMat")}
-          </span>
-          <input
+        </Field>
+        <Field label={t("paint.nhietDoBeMat")}>
+          <Input
             name="surfaceTemp"
             type="number"
             step="0.1"
-            className="w-full rounded border p-2"
+            className="tabular"
           />
-        </label>
-        <label className="block md:col-span-3">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.nguoiThucHienGoiY")}
-          </span>
-          <input name="performedBy" className="w-full rounded border p-2" />
-        </label>
-        <label className="block md:col-span-4">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("chung.ghiChu")}
-          </span>
-          <input name="notes" className="w-full rounded border p-2" />
-        </label>
+        </Field>
+        <Field
+          label={t("paint.nguoiThucHienGoiY")}
+          className="md:col-span-3"
+        >
+          <Input name="performedBy" />
+        </Field>
+        <Field label={t("chung.ghiChu")} className="md:col-span-4">
+          <Input name="notes" />
+        </Field>
       </div>
 
-      <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3">
-        <p className="mb-2 text-sm font-semibold text-blue-950">
+      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-3">
+        <p className="mb-2 text-sm font-semibold text-[var(--text-primary)]">
           {t("paint.sonDaDungTuTru")}
         </p>
         <div className="space-y-2">
           {lines.map((key) => (
             <div key={key} className="flex flex-wrap items-end gap-2">
-              <label className="block flex-1 min-w-[220px]">
-                <span className="mb-1 block text-xs text-slate-600">
-                  {t("paint.loaiSon")}
-                </span>
-                <select
-                  name="lineProductId"
-                  className="w-full rounded border p-2"
-                >
+              <Field
+                label={t("paint.loaiSon")}
+                className="min-w-[220px] flex-1"
+              >
+                <Select name="lineProductId">
                   <option value="">{t("paint.chonSon")}</option>
                   {products.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -171,58 +141,57 @@ export function PaintJobForm({
                       {t("paint.conLaiN", { n: p.onHand, dv: p.uom })}
                     </option>
                   ))}
-                </select>
-              </label>
-              <label className="block w-32">
-                <span className="mb-1 block text-xs text-slate-600">
-                  {t("chung.soLuong")}
-                </span>
-                <input
+                </Select>
+              </Field>
+              <Field label={t("chung.soLuong")} className="w-32">
+                <Input
                   name="lineQuantity"
                   type="number"
                   step="0.01"
                   min="0"
-                  className="w-full rounded border p-2"
+                  className="tabular"
                 />
-              </label>
+              </Field>
               {lines.length > 1 && (
-                <button
+                <Button
                   type="button"
+                  size="sm"
+                  variant="ghost"
                   onClick={() => setLines((ls) => ls.filter((k) => k !== key))}
-                  className="pb-2 text-sm text-red-600 hover:underline"
+                  icon={<Trash2 className="size-4" />}
                 >
                   {t("paint.xoaDong")}
-                </button>
+                </Button>
               )}
             </div>
           ))}
         </div>
-        <button
+        <Button
           type="button"
+          size="sm"
+          variant="secondary"
+          className="mt-2"
           onClick={() => setLines((ls) => [...ls, lineKey++])}
-          className="mt-2 text-sm text-blue-700 hover:underline"
+          icon={<Plus className="size-4" />}
         >
-          + {t("paint.themDong")}
-        </button>
+          {t("paint.themDong")}
+        </Button>
       </div>
 
       <div className="flex items-center gap-3">
-        <button
-          disabled={pending}
-          className="rounded bg-blue-700 px-6 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
+        <Button
+          variant="primary"
+          loading={pending}
+          icon={<Save className="size-4" />}
         >
           {pending ? t("paint.dangGhi") : t("paint.nutGhiNhatKy")}
-        </button>
-        {state.message && (
-          <span
-            className={`text-sm ${
-              state.success ? "text-green-700" : "text-red-600"
-            }`}
-          >
-            {state.message}
-          </span>
-        )}
+        </Button>
       </div>
+      {state.message && (
+        <Notice tone={state.success ? "success" : "danger"}>
+          {state.message}
+        </Notice>
+      )}
     </form>
   );
 }
@@ -249,13 +218,15 @@ export function PaintJobDeleteButton({
     >
       <input type="hidden" name="vesselId" value={vesselId} />
       <input type="hidden" name="id" value={jobId} />
-      <button
-        disabled={pending}
-        className="text-xs text-red-600 hover:underline disabled:opacity-50"
+      <Button
+        size="sm"
+        variant="ghost"
+        loading={pending}
+        icon={<Trash2 className="size-4" />}
         title={state.message || undefined}
       >
         {t("chung.xoa")}
-      </button>
+      </Button>
     </form>
   );
 }

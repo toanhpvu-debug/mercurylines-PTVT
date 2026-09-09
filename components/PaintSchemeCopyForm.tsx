@@ -1,8 +1,10 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Copy } from "lucide-react";
 import { copyPaintScheme } from "@/app/paint-actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Button, Field, Notice, Select } from "@/components/ui";
 
 export default function PaintSchemeCopyForm({
   vesselId,
@@ -22,67 +24,62 @@ export default function PaintSchemeCopyForm({
 
   if (!open) {
     return (
-      <button
+      <Button
+        type="button"
         onClick={() => setOpen(true)}
-        className="rounded border border-blue-300 bg-white px-4 py-2 text-sm text-blue-800 hover:bg-blue-50"
+        icon={<Copy className="size-4" />}
       >
         {t("paint.saoChepTuTauKhac")}
-      </button>
+      </Button>
     );
   }
 
   return (
-    <form
-      action={action}
-      className="w-full space-y-3 rounded-lg border border-blue-200 bg-blue-50/40 p-4"
-    >
-      <input type="hidden" name="vesselId" value={vesselId} />
-      <p className="font-semibold text-blue-950">{t("paint.saoChepSoDo")}</p>
-      <p className="text-sm text-slate-600">
-        {t("paint.saoChepMoTa1")} <b>{t("paint.saoChepMoTaDam")}</b>
-        {t("paint.saoChepMoTa2")}
+    <div className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-4">
+      <p className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+        <Copy className="size-4 text-[var(--text-muted)]" />
+        {t("paint.saoChepSoDo")}
       </p>
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="block min-w-[260px] flex-1">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.tauNguon")} *
-          </span>
-          <select
-            name="fromVesselId"
-            required
-            className="w-full rounded border p-2"
-          >
-            <option value="">{t("paint.chonTauOption")}</option>
-            {usable.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label} ({t("paint.nKhuVuc", { n: s.areaCount })})
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          disabled={pending}
-          className="rounded bg-blue-700 px-5 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
-        >
-          {pending ? t("paint.dangChep") : t("paint.nutSaoChep")}
-        </button>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="pb-2 text-sm text-slate-600 hover:underline"
-        >
-          {t("chung.dong")}
-        </button>
-      </div>
-      {state.message && (
-        <p
-          className={`text-sm ${
-            state.success ? "text-green-700" : "text-red-600"
-          }`}
-        >
-          {state.message}
+      <form action={action} className="space-y-3">
+        <input type="hidden" name="vesselId" value={vesselId} />
+        <p className="text-sm text-[var(--text-secondary)]">
+          {t("paint.saoChepMoTa1")}{" "}
+          <b className="text-[var(--text-primary)]">
+            {t("paint.saoChepMoTaDam")}
+          </b>
+          {t("paint.saoChepMoTa2")}
         </p>
-      )}
-    </form>
+        <div className="flex flex-wrap items-end gap-3">
+          <Field
+            label={`${t("paint.tauNguon")} *`}
+            className="min-w-[260px] flex-1"
+          >
+            <Select name="fromVesselId" required>
+              <option value="">{t("paint.chonTauOption")}</option>
+              {usable.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label} ({t("paint.nKhuVuc", { n: s.areaCount })})
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Button
+            variant="primary"
+            loading={pending}
+            icon={<Copy className="size-4" />}
+          >
+            {pending ? t("paint.dangChep") : t("paint.nutSaoChep")}
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+            {t("chung.dong")}
+          </Button>
+        </div>
+        {state.message && (
+          <Notice tone={state.success ? "success" : "danger"}>
+            {state.message}
+          </Notice>
+        )}
+      </form>
+    </div>
   );
 }

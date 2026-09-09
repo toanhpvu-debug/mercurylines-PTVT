@@ -1,8 +1,20 @@
 "use client";
 
 import { useActionState } from "react";
+import { Printer } from "lucide-react";
 import { createLashingReport } from "@/app/actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import {
+  Button,
+  Field,
+  Input,
+  Notice,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui";
 
 type GearInput = {
   id: number;
@@ -32,62 +44,52 @@ export default function LashingReportForm({
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="vesselId" value={vesselId} />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("vessels.ngayBaoCao")}
-          </label>
-          <input
+        <Field label={t("vessels.ngayBaoCao")}>
+          <Input
             name="reportDate"
             type="date"
             defaultValue={v.reportDate ?? defaultDate}
-            className="w-full rounded border p-2"
             required
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("vessels.soChuyen")}
-          </label>
-          <input
+        </Field>
+        <Field label={t("vessels.soChuyen")}>
+          <Input
             name="voyageNo"
             placeholder={t("vessels.phSoChuyen")}
             defaultValue={v.voyageNo ?? ""}
-            className="w-full rounded border p-2"
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("vessels.viTriBaoCao")}
-          </label>
-          <input
+        </Field>
+        <Field label={t("vessels.viTriBaoCao")}>
+          <Input
             name="position"
             placeholder={t("vessels.phViTri")}
             defaultValue={v.position ?? ""}
-            className="w-full rounded border p-2"
           />
-        </div>
+        </Field>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full border text-sm">
+      <TableWrap>
+        <Table dense>
           <thead>
-            <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-              <th className="p-2">{t("vessels.dungCuChangBuoc")}</th>
-              <th className="p-2">Part No.</th>
-              <th className="p-2">{t("vessels.slToiThieu")}</th>
-              <th className="p-2">{t("vessels.trangBiChuan")}</th>
-              <th className="p-2">{t("vessels.conDungDuoc")}</th>
-              <th className="p-2">{t("vessels.biHong")}</th>
+            <tr>
+              <Th>{t("vessels.dungCuChangBuoc")}</Th>
+              <Th>Part No.</Th>
+              <Th align="right">{t("vessels.slToiThieu")}</Th>
+              <Th align="right">{t("vessels.trangBiChuan")}</Th>
+              <Th>{t("vessels.conDungDuoc")}</Th>
+              <Th>{t("vessels.biHong")}</Th>
             </tr>
           </thead>
           <tbody>
             {gears.map((gear) => (
-              <tr key={gear.id} className="border-b">
-                <td className="p-2 font-medium">{gear.name}</td>
-                <td className="p-2">{gear.partNo}</td>
-                <td className="p-2">{gear.minQty}</td>
-                <td className="p-2">{gear.standardQty}</td>
-                <td className="p-2">
-                  <input
+              <Tr key={gear.id}>
+                <Td className="font-medium">{gear.name}</Td>
+                <Td className="font-display text-xs tracking-wide whitespace-nowrap text-[var(--text-secondary)]">
+                  {gear.partNo}
+                </Td>
+                <Td align="right">{gear.minQty}</Td>
+                <Td align="right">{gear.standardQty}</Td>
+                <Td>
+                  <Input
                     name={`inOrder_${gear.id}`}
                     type="number"
                     step="1"
@@ -95,12 +97,12 @@ export default function LashingReportForm({
                     defaultValue={
                       v[`inOrder_${gear.id}`] ?? gear.lastInOrder ?? 0
                     }
-                    className="w-28 rounded border p-1"
+                    className="tabular w-28"
                     required
                   />
-                </td>
-                <td className="p-2">
-                  <input
+                </Td>
+                <Td>
+                  <Input
                     name={`outOfOrder_${gear.id}`}
                     type="number"
                     step="1"
@@ -108,24 +110,24 @@ export default function LashingReportForm({
                     defaultValue={
                       v[`outOfOrder_${gear.id}`] ?? gear.lastOutOfOrder ?? 0
                     }
-                    className="w-28 rounded border p-1"
+                    className="tabular w-28"
                     required
                   />
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             ))}
           </tbody>
-        </table>
-      </div>
-      <button
-        disabled={pending}
-        className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
+        </Table>
+      </TableWrap>
+      <Button
+        type="submit"
+        variant="primary"
+        loading={pending}
+        icon={<Printer className="size-4" />}
       >
         {pending ? t("chung.dangLuu") : t("vessels.lapBaoCaoVaIn")}
-      </button>
-      {state.message && (
-        <p className="text-sm text-red-600">{state.message}</p>
-      )}
+      </Button>
+      {state.message && <Notice tone="danger">{state.message}</Notice>}
     </form>
   );
 }

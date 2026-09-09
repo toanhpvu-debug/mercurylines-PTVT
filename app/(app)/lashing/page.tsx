@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Anchor, ClipboardList, FileText, Printer, Ship } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   chonDuocTau,
@@ -12,6 +13,23 @@ import {
   LashingGearRow,
 } from "@/components/LashingGearManager";
 import { layT } from "@/lib/i18n/server";
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  EmptyState,
+  Field,
+  Notice,
+  PageHeader,
+  Select,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+  buttonClass,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -38,13 +56,12 @@ export default async function LashingPage({
 
   if (scope.unassigned || !selectedVessel) {
     return (
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("vessels.changBuocTieuDe")}
-        </h2>
-        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          {t("chung.chuaGanTau")}
-        </div>
+      <div className="space-y-5">
+        <PageHeader
+          title={t("vessels.changBuocTieuDe")}
+          subtitle={t("vessels.changBuocMoTa")}
+        />
+        <Notice tone="warning">{t("chung.chuaGanTau")}</Notice>
       </div>
     );
   }
@@ -72,42 +89,42 @@ export default async function LashingPage({
   const defaultDate = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("vessels.changBuocTieuDe")}
-        </h2>
-        <p className="text-slate-600">{t("vessels.changBuocMoTa")}</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title={t("vessels.changBuocTieuDe")}
+        subtitle={t("vessels.changBuocMoTa")}
+        action={
+          chonDuocTau(scope) ? (
+            <form className="flex flex-wrap items-end gap-2">
+              <Field label={t("chung.tau")} className="w-56">
+                <Select name="vessel" defaultValue={selectedVessel.id}>
+                  {vessels.map((vessel) => (
+                    <option key={vessel.id} value={vessel.id}>
+                      {vessel.code} - {vessel.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Button
+                type="submit"
+                variant="primary"
+                icon={<Ship className="size-4" />}
+              >
+                {t("vessels.xemTau")}
+              </Button>
+            </form>
+          ) : undefined
+        }
+      />
 
-      {chonDuocTau(scope) && (
-        <form className="flex items-center gap-2">
-          <select
-            name="vessel"
-            defaultValue={selectedVessel.id}
-            className="rounded border p-2"
-          >
-            {vessels.map((vessel) => (
-              <option key={vessel.id} value={vessel.id}>
-                {vessel.code} - {vessel.name}
-              </option>
-            ))}
-          </select>
-          <button className="rounded border px-4 py-2 hover:bg-blue-50">
-            {t("vessels.xemTau")}
-          </button>
-        </form>
-      )}
-
-      <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <h3 className="mb-2 text-lg font-semibold">
-          {t("vessels.danhMucTrangBi", { ten: selectedVessel.name })}
-        </h3>
+      <Card>
+        <CardHeader
+          icon={<Anchor className="size-4" />}
+          title={t("vessels.danhMucTrangBi", { ten: selectedVessel.name })}
+          subtitle={canManageGear ? t("vessels.goiYCotTrangBi") : undefined}
+        />
         {canManageGear ? (
           <>
-            <p className="mb-3 text-xs text-slate-500">
-              {t("vessels.goiYCotTrangBi")}
-            </p>
             <div>
               {gears.map((gear) => (
                 <LashingGearRow key={gear.id} gear={gear} />
@@ -115,37 +132,48 @@ export default async function LashingPage({
             </div>
             <LashingGearAddForm vesselId={selectedVessel.id} />
           </>
+        ) : gears.length === 0 ? (
+          <EmptyState
+            icon={<Anchor className="size-5" />}
+            title={t("vessels.chuaCoDungCu")}
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border text-sm">
+          <TableWrap>
+            <Table dense>
               <thead>
-                <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">{t("vessels.cotDungCu")}</th>
-                  <th className="p-2">Part No.</th>
-                  <th className="p-2">{t("vessels.slToiThieu")}</th>
-                  <th className="p-2">{t("vessels.trangBiChuan")}</th>
+                <tr>
+                  <Th>{t("vessels.cotDungCu")}</Th>
+                  <Th>Part No.</Th>
+                  <Th align="right">{t("vessels.slToiThieu")}</Th>
+                  <Th align="right">{t("vessels.trangBiChuan")}</Th>
                 </tr>
               </thead>
               <tbody>
                 {gears.map((gear) => (
-                  <tr key={gear.id} className="border-b">
-                    <td className="p-2 font-medium">{gear.name}</td>
-                    <td className="p-2">{gear.partNo}</td>
-                    <td className="p-2">{gear.minQty}</td>
-                    <td className="p-2">{gear.standardQty}</td>
-                  </tr>
+                  <Tr
+                    key={gear.id}
+                    className="transition-colors hover:bg-[var(--surface-sunken)]/50"
+                  >
+                    <Td className="font-medium">{gear.name}</Td>
+                    <Td className="font-display text-xs tracking-wide whitespace-nowrap text-[var(--text-secondary)]">
+                      {gear.partNo}
+                    </Td>
+                    <Td align="right">{gear.minQty}</Td>
+                    <Td align="right">{gear.standardQty}</Td>
+                  </Tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+            </Table>
+          </TableWrap>
         )}
-      </div>
+      </Card>
 
       {canReport && gears.length > 0 && (
-        <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-          <h3 className="mb-4 text-lg font-semibold">
-            {t("vessels.lapBaoCaoMoi")}
-          </h3>
+        <Card>
+          <CardHeader
+            icon={<ClipboardList className="size-4" />}
+            title={t("vessels.lapBaoCaoMoi")}
+          />
           <LashingReportForm
             vesselId={selectedVessel.id}
             defaultDate={defaultDate}
@@ -162,26 +190,30 @@ export default async function LashingPage({
               };
             })}
           />
-        </div>
+        </Card>
       )}
 
-      <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <h3 className="mb-4 text-lg font-semibold">
-          {t("vessels.baoCaoDaLap")}
-        </h3>
+      <Card>
+        <CardHeader
+          icon={<FileText className="size-4" />}
+          title={t("vessels.baoCaoDaLap")}
+        />
         {reports.length === 0 ? (
-          <p className="text-slate-600">{t("vessels.chuaCoBaoCao")}</p>
+          <EmptyState
+            icon={<FileText className="size-5" />}
+            title={t("vessels.chuaCoBaoCao")}
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border text-sm">
+          <TableWrap>
+            <Table dense>
               <thead>
-                <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">{t("chung.ngay")}</th>
-                  <th className="p-2">{t("vessels.cotChuyen")}</th>
-                  <th className="p-2">{t("vessels.cotViTri")}</th>
-                  <th className="p-2">{t("vessels.cotNguoiLap")}</th>
-                  <th className="p-2">{t("vessels.cotBiHongTong")}</th>
-                  <th className="p-2"></th>
+                <tr>
+                  <Th>{t("chung.ngay")}</Th>
+                  <Th>{t("vessels.cotChuyen")}</Th>
+                  <Th>{t("vessels.cotViTri")}</Th>
+                  <Th>{t("vessels.cotNguoiLap")}</Th>
+                  <Th align="right">{t("vessels.cotBiHongTong")}</Th>
+                  <Th></Th>
                 </tr>
               </thead>
               <tbody>
@@ -191,28 +223,44 @@ export default async function LashingPage({
                     0
                   );
                   return (
-                    <tr key={report.id} className="border-b">
-                      <td className="p-2">{ngay(report.reportDate)}</td>
-                      <td className="p-2">{report.voyageNo}</td>
-                      <td className="p-2">{report.position}</td>
-                      <td className="p-2">{report.createdBy}</td>
-                      <td className="p-2">{damaged}</td>
-                      <td className="p-2">
+                    <Tr
+                      key={report.id}
+                      className="transition-colors hover:bg-[var(--surface-sunken)]/50"
+                    >
+                      <Td className="tabular whitespace-nowrap">
+                        {ngay(report.reportDate)}
+                      </Td>
+                      <Td className="font-display text-xs tracking-wide whitespace-nowrap">
+                        {report.voyageNo}
+                      </Td>
+                      <Td className="text-[var(--text-secondary)]">
+                        {report.position}
+                      </Td>
+                      <Td>{report.createdBy}</Td>
+                      <Td align="right">
+                        {/* Còn nguyên vẹn hay đang hỏng là thứ người đọc dò
+                            trước tiên trong bảng — tô màu theo trạng thái. */}
+                        <Badge tone={damaged > 0 ? "danger" : "success"}>
+                          {damaged}
+                        </Badge>
+                      </Td>
+                      <Td>
                         <Link
                           href={`/lashing/${report.id}`}
-                          className="text-blue-700 hover:underline"
+                          className={buttonClass("secondary", "sm")}
                         >
+                          <Printer className="size-4" />
                           {t("vessels.xemIn")}
                         </Link>
-                      </td>
-                    </tr>
+                      </Td>
+                    </Tr>
                   );
                 })}
               </tbody>
-            </table>
-          </div>
+            </Table>
+          </TableWrap>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

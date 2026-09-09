@@ -1,9 +1,26 @@
 import { redirect } from "next/navigation";
+import { Filter, History } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
 import type { HamDich, HamDichTuDo } from "@/lib/i18n";
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  EmptyState,
+  Field,
+  Input,
+  PageHeader,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+  type Tone,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +42,13 @@ const KHOA_VIEC: Record<string, string> = {
   "doi-tai-khoan": "viecDoiTaiKhoan",
   "xoa-tai-khoan": "viecXoaTaiKhoan",
   "doi-ma-phu-tung": "viecDoiMaPhuTung",
+};
+
+/** Kết quả một dòng nhật ký → tone nhãn. */
+const TONE_KET_QUA: Record<string, Tone> = {
+  OK: "success",
+  TU_CHOI: "danger",
+  LOI: "warning",
 };
 
 function nhan(
@@ -76,118 +100,120 @@ export default async function AuditPage({
   const tenTheoId = new Map(nguoiDung.map((u) => [u.id, u.name]));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("vessels.auditTieuDe")}
-        </h2>
-        <p className="text-slate-600">{t("vessels.auditMoTa")}</p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title={t("vessels.auditTieuDe")}
+        subtitle={t("vessels.auditMoTa")}
+      />
 
-      <form className="flex flex-wrap items-end gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">
-            {t("vessels.nhanEmailNguoi")}
-          </label>
-          <input
-            name="nguoi"
-            defaultValue={nguoi}
-            placeholder={t("vessels.phEmailNguoi")}
-            className="rounded border p-2 text-sm"
+      <Card>
+        <CardHeader
+          icon={<History className="size-4" />}
+          title={t("vessels.nDongKhop", { n: so(tong) })}
+          subtitle={
+            tong > SO_DONG
+              ? t("vessels.dangHienMoiNhat", { n: SO_DONG })
+              : undefined
+          }
+          action={
+            <form className="flex flex-wrap items-end gap-2">
+              <Field label={t("vessels.nhanEmailNguoi")} className="w-48">
+                <Input
+                  name="nguoi"
+                  defaultValue={nguoi}
+                  placeholder={t("vessels.phEmailNguoi")}
+                />
+              </Field>
+              <Field label={t("vessels.nhanNghiepVu")} className="w-48">
+                <Input
+                  name="viec"
+                  defaultValue={viec}
+                  placeholder={t("vessels.phNghiepVu")}
+                />
+              </Field>
+              <Button
+                type="submit"
+                variant="primary"
+                icon={<Filter className="size-4" />}
+              >
+                {t("chung.loc")}
+              </Button>
+            </form>
+          }
+        />
+        {dong.length === 0 ? (
+          <EmptyState
+            icon={<History className="size-5" />}
+            title={t("vessels.chuaCoNhatKy")}
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-600">
-            {t("vessels.nhanNghiepVu")}
-          </label>
-          <input
-            name="viec"
-            defaultValue={viec}
-            placeholder={t("vessels.phNghiepVu")}
-            className="rounded border p-2 text-sm"
-          />
-        </div>
-        <button className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
-          {t("chung.loc")}
-        </button>
-        <span className="text-sm text-slate-500">
-          {t("vessels.nDongKhop", { n: so(tong) })}
-          {tong > SO_DONG
-            ? ` — ${t("vessels.dangHienMoiNhat", { n: SO_DONG })}`
-            : ""}
-        </span>
-      </form>
-
-      <div className="overflow-x-auto rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-        <table className="w-full border text-sm">
-          <thead>
-            <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-              <th className="p-2 whitespace-nowrap">
-                {t("vessels.cotThoiDiem")}
-              </th>
-              <th className="p-2">{t("vessels.cotNguoiThaoTac")}</th>
-              <th className="p-2">{t("vessels.cotViec")}</th>
-              <th className="p-2">{t("vessels.cotDuongDan")}</th>
-              <th className="p-2">{t("vessels.cotChiTiet")}</th>
-              <th className="p-2">{t("vessels.cotKetQua")}</th>
-              <th className="p-2">IP</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dong.length === 0 && (
-              <tr>
-                <td colSpan={7} className="p-4 text-center text-slate-500">
-                  {t("vessels.chuaCoNhatKy")}
-                </td>
-              </tr>
-            )}
-            {dong.map((d) => (
-              <tr key={d.id} className="border-b align-top">
-                <td className="p-2 whitespace-nowrap text-slate-600">
-                  {ngayGio(d.at)}
-                </td>
-                <td className="p-2">
-                  {d.email ?? "—"}
-                  {d.role && (
-                    <span className="block text-xs text-slate-500">
-                      {tTuDo(`labels.role_${d.role}`)}
-                    </span>
-                  )}
-                  {d.onBehalfOfId && (
-                    <span className="block text-xs text-amber-700">
-                      {t("vessels.kyThay", {
-                        ten:
-                          tenTheoId.get(d.onBehalfOfId) ?? `#${d.onBehalfOfId}`,
-                      })}
-                    </span>
-                  )}
-                </td>
-                <td className="p-2">{nhan(d.action, t, tTuDo)}</td>
-                <td className="p-2 font-mono text-xs text-slate-600">
-                  {d.method} {d.path}
-                </td>
-                <td className="p-2 text-slate-600">{d.detail ?? "—"}</td>
-                <td className="p-2">
-                  {d.ketQua === "OK" ? (
-                    <span className="rounded bg-green-100 px-2 py-0.5 text-xs text-green-800">
-                      OK
-                    </span>
-                  ) : (
-                    <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">
-                      {d.ketQua === "TU_CHOI"
-                        ? t("vessels.biTuChoi")
-                        : t("vessels.ketQuaLoi")}
-                    </span>
-                  )}
-                </td>
-                <td className="p-2 font-mono text-xs text-slate-500">
-                  {d.ip ?? "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        ) : (
+          <TableWrap>
+            <Table dense>
+              <thead>
+                <tr>
+                  <Th>{t("vessels.cotThoiDiem")}</Th>
+                  <Th>{t("vessels.cotNguoiThaoTac")}</Th>
+                  <Th>{t("vessels.cotViec")}</Th>
+                  <Th>{t("vessels.cotDuongDan")}</Th>
+                  <Th>{t("vessels.cotChiTiet")}</Th>
+                  <Th>{t("vessels.cotKetQua")}</Th>
+                  <Th>IP</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {dong.map((d) => (
+                  <Tr
+                    key={d.id}
+                    className="align-top transition-colors hover:bg-[var(--surface-sunken)]/50"
+                  >
+                    <Td className="tabular whitespace-nowrap text-[var(--text-secondary)]">
+                      {ngayGio(d.at)}
+                    </Td>
+                    <Td>
+                      {d.email ?? "—"}
+                      {d.role && (
+                        <span className="block text-xs text-[var(--text-muted)]">
+                          {tTuDo(`labels.role_${d.role}`)}
+                        </span>
+                      )}
+                      {d.onBehalfOfId && (
+                        <span className="block text-xs text-[var(--text-warning)]">
+                          {t("vessels.kyThay", {
+                            ten:
+                              tenTheoId.get(d.onBehalfOfId) ??
+                              `#${d.onBehalfOfId}`,
+                          })}
+                        </span>
+                      )}
+                    </Td>
+                    <Td>{nhan(d.action, t, tTuDo)}</Td>
+                    <Td className="font-mono text-xs text-[var(--text-secondary)]">
+                      {d.method} {d.path}
+                    </Td>
+                    <Td className="text-[var(--text-secondary)]">
+                      {d.detail ?? "—"}
+                    </Td>
+                    <Td>
+                      {/* Giá trị lạ vẫn phải nổi lên như một trục trặc — nhãn
+                          chữ của nó cũng là "Lỗi", nên tone mặc định là warning. */}
+                      <Badge tone={TONE_KET_QUA[d.ketQua] ?? "warning"}>
+                        {d.ketQua === "OK"
+                          ? "OK"
+                          : d.ketQua === "TU_CHOI"
+                            ? t("vessels.biTuChoi")
+                            : t("vessels.ketQuaLoi")}
+                      </Badge>
+                    </Td>
+                    <Td className="font-mono text-xs text-[var(--text-muted)]">
+                      {d.ip ?? "—"}
+                    </Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          </TableWrap>
+        )}
+      </Card>
     </div>
   );
 }

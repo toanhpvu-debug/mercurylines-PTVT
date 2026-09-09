@@ -1,6 +1,7 @@
 "use client";
 
 import { startTransition, useActionState, useState } from "react";
+import { Layers, Pencil, Plus, Ruler, Save, Trash2 } from "lucide-react";
 import {
   deletePaintArea,
   deletePaintSchemeLayer,
@@ -8,6 +9,21 @@ import {
   savePaintSchemeLayer,
 } from "@/app/paint-actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  Field,
+  Input,
+  Notice,
+  Select,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui";
 
 export type ProductOption = {
   id: number;
@@ -75,120 +91,104 @@ function SchemeLayerRow({
 
   if (editing && canEdit) {
     return (
-      <tr className="bg-blue-50/40">
-        <td colSpan={7} className="p-2">
-          <form action={action} className="space-y-2">
+      <Tr className="bg-[var(--surface-sunken)]">
+        <Td colSpan={7}>
+          <form action={action} className="space-y-3">
             <input type="hidden" name="vesselId" value={vesselId} />
             <input type="hidden" name="areaId" value={areaId} />
             <input type="hidden" name="id" value={layer.id} />
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
-              <label className="block md:col-span-2">
-                <span className="mb-1 block text-xs text-slate-600">
-                  {t("paint.son")}
-                </span>
-                <select
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+              <Field label={t("paint.son")} className="md:col-span-2">
+                <Select
                   name="productId"
                   defaultValue={layer.productId}
                   required
-                  className="w-full rounded border p-2"
                 >
                   {products.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.label}
                     </option>
                   ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs text-slate-600">
-                  {t("paint.lopThu")}
-                </span>
-                <input
+                </Select>
+              </Field>
+              <Field label={t("paint.lopThu")}>
+                <Input
                   name="layerNo"
                   type="number"
                   min="1"
                   step="1"
                   defaultValue={layer.layerNo}
-                  className="w-full rounded border p-2"
+                  className="tabular"
                 />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs text-slate-600">
-                  {t("paint.soLopPhu")}
-                </span>
-                <input
+              </Field>
+              <Field label={t("paint.soLopPhu")}>
+                <Input
                   name="coats"
                   type="number"
                   min="1"
                   step="1"
                   defaultValue={layer.coats}
-                  className="w-full rounded border p-2"
+                  className="tabular"
                 />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs text-slate-600">
-                  DFT (µm)
-                </span>
-                <input
+              </Field>
+              <Field label="DFT (µm)">
+                <Input
                   name="dft"
                   type="number"
                   min="0"
                   step="1"
                   defaultValue={layer.dft || ""}
-                  className="w-full rounded border p-2"
+                  className="tabular"
                 />
-              </label>
-              <label className="block md:col-span-5">
-                <span className="mb-1 block text-xs text-slate-600">
-                  {t("chung.ghiChu")}
-                </span>
-                <input
-                  name="notes"
-                  defaultValue={layer.notes ?? ""}
-                  className="w-full rounded border p-2"
-                />
-              </label>
+              </Field>
+              <Field label={t("chung.ghiChu")} className="md:col-span-5">
+                <Input name="notes" defaultValue={layer.notes ?? ""} />
+              </Field>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                disabled={pending}
-                className="rounded bg-blue-700 px-4 py-1.5 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="primary"
+                size="sm"
+                loading={pending}
+                icon={<Save className="size-4" />}
               >
                 {pending ? t("chung.dangLuu") : t("paint.luuLop")}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                size="sm"
+                variant="ghost"
                 onClick={() => setEditing(false)}
-                className="text-sm text-slate-600 hover:underline"
               >
                 {t("chung.huy")}
-              </button>
+              </Button>
               {state.message && (
-                <span
-                  className={`text-sm ${
-                    state.success ? "text-green-700" : "text-red-600"
-                  }`}
+                <Notice
+                  tone={state.success ? "success" : "danger"}
+                  className="basis-full"
                 >
                   {state.message}
-                </span>
+                </Notice>
               )}
             </div>
           </form>
-        </td>
-      </tr>
+        </Td>
+      </Tr>
     );
   }
 
   return (
-    <tr>
-      <td className="p-2 font-semibold text-blue-900">{layer.layerNo}</td>
-      <td className="p-2">{layer.productLabel}</td>
-      <td className="p-2 text-right">{layer.coats}</td>
-      <td className="p-2 text-right">{layer.dft || "—"}</td>
-      <td className="p-2 text-right">
+    <Tr>
+      <Td>
+        <Badge tone="muted">{layer.layerNo}</Badge>
+      </Td>
+      <Td>{layer.productLabel}</Td>
+      <Td align="right">{layer.coats}</Td>
+      <Td align="right">{layer.dft || "—"}</Td>
+      <Td align="right">
         {est === null ? (
           <span
-            className="text-slate-400"
+            className="text-[var(--text-muted)]"
             title={t("paint.goiYThieuDuLieuUocTinh")}
           >
             —
@@ -196,34 +196,46 @@ function SchemeLayerRow({
         ) : (
           `${so(est)} ${layer.uom}`
         )}
-      </td>
-      <td className="p-2 text-slate-600">{layer.notes ?? ""}</td>
+      </Td>
+      <Td>
+        <span className="text-[var(--text-secondary)]">
+          {layer.notes ?? ""}
+        </span>
+      </Td>
       {canEdit && (
-        <td className="p-2 text-right whitespace-nowrap print:hidden">
-          <button
-            onClick={() => setEditing(true)}
-            className="mr-3 text-xs text-blue-700 hover:underline"
-          >
-            {t("chung.sua")}
-          </button>
-          <form
-            className="inline"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!confirm(t("paint.xacNhanXoaLop"))) return;
-              const fd = new FormData(e.currentTarget);
-              startTransition(() => onDelete(fd));
-            }}
-          >
-            <input type="hidden" name="vesselId" value={vesselId} />
-            <input type="hidden" name="id" value={layer.id} />
-            <button className="text-xs text-red-600 hover:underline">
-              {t("chung.xoa")}
-            </button>
-          </form>
-        </td>
+        <Td align="right" className="whitespace-nowrap print:hidden">
+          <div className="flex items-center justify-end gap-1.5">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setEditing(true)}
+              icon={<Pencil className="size-4" />}
+            >
+              {t("chung.sua")}
+            </Button>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!confirm(t("paint.xacNhanXoaLop"))) return;
+                const fd = new FormData(e.currentTarget);
+                startTransition(() => onDelete(fd));
+              }}
+            >
+              <input type="hidden" name="vesselId" value={vesselId} />
+              <input type="hidden" name="id" value={layer.id} />
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<Trash2 className="size-4" />}
+              >
+                {t("chung.xoa")}
+              </Button>
+            </form>
+          </div>
+        </Td>
       )}
-    </tr>
+    </Tr>
   );
 }
 
@@ -235,89 +247,79 @@ export function PaintAreaAddForm({ vesselId }: { vesselId: number }) {
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
-      <button
+      <Button
+        type="button"
+        variant="primary"
         onClick={() => setOpen(true)}
-        className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800"
+        icon={<Plus className="size-4" />}
       >
-        + {t("paint.themKhuVuc")}
-      </button>
+        {t("paint.themKhuVuc")}
+      </Button>
     );
   }
   return (
-    <form
-      action={action}
-      className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/40 p-4"
-    >
-      <input type="hidden" name="vesselId" value={vesselId} />
-      <p className="font-semibold text-blue-950">{t("paint.themKhuVuc")}</p>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <label className="block md:col-span-2">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.tenKhuVuc")} *
-          </span>
-          <input
-            name="name"
-            required
-            placeholder={t("paint.phTenKhuVuc")}
-            className="w-full rounded border p-2"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.dienTich")}
-          </span>
-          <input
-            name="areaM2"
-            type="number"
-            step="0.1"
-            min="0"
-            className="w-full rounded border p-2"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.thuTu")}
-          </span>
-          <input
-            name="sortOrder"
-            type="number"
-            step="1"
-            defaultValue={0}
-            className="w-full rounded border p-2"
-          />
-        </label>
-        <label className="block md:col-span-4">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("chung.ghiChu")}
-          </span>
-          <input name="notes" className="w-full rounded border p-2" />
-        </label>
-      </div>
-      <div className="flex items-center gap-3">
-        <button
-          disabled={pending}
-          className="rounded bg-blue-700 px-5 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
-        >
-          {pending ? t("chung.dangLuu") : t("paint.luuKhuVuc")}
-        </button>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="text-sm text-slate-600 hover:underline"
-        >
-          {t("chung.dong")}
-        </button>
-        {state.message && (
-          <span
-            className={`text-sm ${
-              state.success ? "text-green-700" : "text-red-600"
-            }`}
+    <div className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-4">
+      <p className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+        <Ruler className="size-4 text-[var(--text-muted)]" />
+        {t("paint.themKhuVuc")}
+      </p>
+      <form action={action} className="space-y-3">
+        <input type="hidden" name="vesselId" value={vesselId} />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <Field
+            label={`${t("paint.tenKhuVuc")} *`}
+            className="md:col-span-2"
           >
-            {state.message}
-          </span>
-        )}
-      </div>
-    </form>
+            <Input
+              name="name"
+              required
+              placeholder={t("paint.phTenKhuVuc")}
+            />
+          </Field>
+          <Field label={t("paint.dienTich")}>
+            <Input
+              name="areaM2"
+              type="number"
+              step="0.1"
+              min="0"
+              className="tabular"
+            />
+          </Field>
+          <Field label={t("paint.thuTu")}>
+            <Input
+              name="sortOrder"
+              type="number"
+              step="1"
+              defaultValue={0}
+              className="tabular"
+            />
+          </Field>
+          <Field label={t("chung.ghiChu")} className="md:col-span-4">
+            <Input name="notes" />
+          </Field>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="primary"
+            loading={pending}
+            icon={<Save className="size-4" />}
+          >
+            {pending ? t("chung.dangLuu") : t("paint.luuKhuVuc")}
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+            {t("chung.dong")}
+          </Button>
+          {state.message && (
+            <Notice
+              tone={state.success ? "success" : "danger"}
+              className="basis-full"
+            >
+              {state.message}
+            </Notice>
+          )}
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -358,11 +360,12 @@ export function PaintAreaCard({
   }, 0);
 
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h4 className="text-lg font-semibold text-blue-950">{area.name}</h4>
-          <p className="text-sm text-slate-500">
+    <Card>
+      <CardHeader
+        icon={<Layers className="size-4" />}
+        title={area.name}
+        subtitle={
+          <>
             {area.areaM2
               ? t("paint.nM2", { n: so(area.areaM2) })
               : t("paint.chuaNhapDienTich")}
@@ -371,277 +374,257 @@ export function PaintAreaCard({
             {totalLitres > 0 && (
               <>
                 {" · "}
-                <span className="text-blue-800">
+                <span className="text-brand-700 dark:text-brand-300">
                   {t("paint.uocTinhTronSoDo", { n: so(totalLitres) })}
                 </span>
               </>
             )}
-          </p>
-          {area.notes && (
-            <p className="mt-1 text-sm text-slate-600">{area.notes}</p>
-          )}
-        </div>
-        {canEdit && (
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setEditing((v) => !v)}
-              className="text-sm text-blue-700 hover:underline"
-            >
-              {editing ? t("chung.dong") : t("paint.suaKhuVuc")}
-            </button>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (
-                  !confirm(t("paint.xacNhanXoaKhuVuc", { ten: area.name }))
-                )
-                  return;
-                const fd = new FormData(e.currentTarget);
-                startTransition(() => delAction(fd));
-              }}
-            >
-              <input type="hidden" name="vesselId" value={vesselId} />
-              <input type="hidden" name="id" value={area.id} />
-              <button
-                disabled={delPending}
-                className="text-sm text-red-600 hover:underline disabled:opacity-50"
+          </>
+        }
+        action={
+          canEdit && (
+            <div className="flex items-center gap-1.5 print:hidden">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => setEditing((v) => !v)}
+                icon={<Pencil className="size-4" />}
               >
-                {t("chung.xoa")}
-              </button>
-            </form>
-          </div>
-        )}
-      </div>
+                {editing ? t("chung.dong") : t("paint.suaKhuVuc")}
+              </Button>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (
+                    !confirm(t("paint.xacNhanXoaKhuVuc", { ten: area.name }))
+                  )
+                    return;
+                  const fd = new FormData(e.currentTarget);
+                  startTransition(() => delAction(fd));
+                }}
+              >
+                <input type="hidden" name="vesselId" value={vesselId} />
+                <input type="hidden" name="id" value={area.id} />
+                <Button
+                  size="sm"
+                  variant="danger"
+                  loading={delPending}
+                  icon={<Trash2 className="size-4" />}
+                >
+                  {t("chung.xoa")}
+                </Button>
+              </form>
+            </div>
+          )
+        }
+      />
+      {area.notes && (
+        <p className="-mt-2 mb-3 text-sm text-[var(--text-secondary)]">
+          {area.notes}
+        </p>
+      )}
       {delState.message && (
-        <p className="mt-2 text-sm text-red-600">{delState.message}</p>
+        <Notice tone="danger" className="mb-3">
+          {delState.message}
+        </Notice>
       )}
 
       {editing && canEdit && (
         <form
           action={areaAction}
-          className="mt-3 space-y-3 rounded border border-blue-200 bg-blue-50/40 p-3"
+          className="mb-3 space-y-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-3 print:hidden"
         >
           <input type="hidden" name="vesselId" value={vesselId} />
           <input type="hidden" name="id" value={area.id} />
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <label className="block md:col-span-2">
-              <span className="mb-1 block text-sm text-slate-600">
-                {t("chung.ten")}
-              </span>
-              <input
-                name="name"
-                defaultValue={area.name}
-                required
-                className="w-full rounded border p-2"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm text-slate-600">m²</span>
-              <input
+            <Field label={t("chung.ten")} className="md:col-span-2">
+              <Input name="name" defaultValue={area.name} required />
+            </Field>
+            <Field label="m²">
+              <Input
                 name="areaM2"
                 type="number"
                 step="0.1"
                 min="0"
                 defaultValue={area.areaM2 || ""}
-                className="w-full rounded border p-2"
+                className="tabular"
               />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-sm text-slate-600">
-                {t("paint.thuTu")}
-              </span>
-              <input
+            </Field>
+            <Field label={t("paint.thuTu")}>
+              <Input
                 name="sortOrder"
                 type="number"
                 step="1"
                 defaultValue={area.sortOrder}
-                className="w-full rounded border p-2"
+                className="tabular"
               />
-            </label>
-            <label className="block md:col-span-4">
-              <span className="mb-1 block text-sm text-slate-600">
-                {t("chung.ghiChu")}
-              </span>
-              <input
-                name="notes"
-                defaultValue={area.notes ?? ""}
-                className="w-full rounded border p-2"
-              />
-            </label>
+            </Field>
+            <Field label={t("chung.ghiChu")} className="md:col-span-4">
+              <Input name="notes" defaultValue={area.notes ?? ""} />
+            </Field>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              disabled={areaPending}
-              className="rounded bg-blue-700 px-5 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="primary"
+              loading={areaPending}
+              icon={<Save className="size-4" />}
             >
               {t("chung.luu")}
-            </button>
+            </Button>
             {areaState.message && (
-              <span
-                className={`text-sm ${
-                  areaState.success ? "text-green-700" : "text-red-600"
-                }`}
+              <Notice
+                tone={areaState.success ? "success" : "danger"}
+                className="basis-full"
               >
                 {areaState.message}
-              </span>
+              </Notice>
             )}
           </div>
         </form>
       )}
 
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[720px] text-sm">
-          <thead className="bg-blue-50 text-left text-blue-900">
+      <TableWrap>
+        <Table dense>
+          <thead>
             <tr>
-              <th className="p-2 w-16">{t("paint.cotLop")}</th>
-              <th className="p-2">{t("paint.son")}</th>
-              <th className="p-2 text-right">{t("paint.soLopPhu")}</th>
-              <th className="p-2 text-right">DFT (µm)</th>
-              <th className="p-2 text-right">{t("paint.cotUocTinhL")}</th>
-              <th className="p-2">{t("chung.ghiChu")}</th>
-              {canEdit && <th className="p-2"></th>}
+              <Th className="w-16">{t("paint.cotLop")}</Th>
+              <Th>{t("paint.son")}</Th>
+              <Th align="right">{t("paint.soLopPhu")}</Th>
+              <Th align="right">DFT (µm)</Th>
+              <Th align="right">{t("paint.cotUocTinhL")}</Th>
+              <Th>{t("chung.ghiChu")}</Th>
+              {canEdit && <Th className="print:hidden"></Th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-blue-50">
+          <tbody>
             {layers.length === 0 ? (
-              <tr>
-                <td
+              <Tr>
+                <Td
                   colSpan={canEdit ? 7 : 6}
-                  className="p-3 text-center text-slate-500"
+                  align="center"
+                  className="text-[var(--text-muted)]"
                 >
                   {t("paint.chuaCoLop")}
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             ) : (
-              layers.map((l) => {
-                return (
-                  <SchemeLayerRow
-                    key={l.id}
-                    vesselId={vesselId}
-                    areaId={area.id}
-                    areaM2={area.areaM2}
-                    layer={l}
-                    products={products}
-                    canEdit={canEdit}
-                    onDelete={layerDelAction}
-                  />
-                );
-              })
+              layers.map((l) => (
+                <SchemeLayerRow
+                  key={l.id}
+                  vesselId={vesselId}
+                  areaId={area.id}
+                  areaM2={area.areaM2}
+                  layer={l}
+                  products={products}
+                  canEdit={canEdit}
+                  onDelete={layerDelAction}
+                />
+              ))
             )}
           </tbody>
-        </table>
-      </div>
+        </Table>
+      </TableWrap>
       {layerDelState.message && (
-        <p className="mt-1 text-xs text-red-600">{layerDelState.message}</p>
+        <Notice tone="danger" className="mt-2">
+          {layerDelState.message}
+        </Notice>
       )}
 
       {canEdit && (
-        <div className="mt-3">
+        <div className="mt-3 print:hidden">
           {!adding ? (
-            <button
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
               onClick={() => setAdding(true)}
-              className="text-sm text-blue-700 hover:underline"
+              icon={<Plus className="size-4" />}
             >
-              + {t("paint.themLopVaoSoDo")}
-            </button>
+              {t("paint.themLopVaoSoDo")}
+            </Button>
           ) : (
             <form
               action={layerAction}
-              className="space-y-3 rounded border border-blue-200 bg-blue-50/40 p-3"
+              className="space-y-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-3"
             >
               <input type="hidden" name="vesselId" value={vesselId} />
               <input type="hidden" name="areaId" value={area.id} />
               <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-                <label className="block md:col-span-2">
-                  <span className="mb-1 block text-sm text-slate-600">
-                    {t("paint.loaiSon")} *
-                  </span>
-                  <select
-                    name="productId"
-                    required
-                    className="w-full rounded border p-2"
-                  >
+                <Field
+                  label={`${t("paint.loaiSon")} *`}
+                  className="md:col-span-2"
+                >
+                  <Select name="productId" required>
                     <option value="">{t("paint.chonSon")}</option>
                     {products.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.label}
                       </option>
                     ))}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-sm text-slate-600">
-                    {t("paint.lopThu")}
-                  </span>
-                  <input
+                  </Select>
+                </Field>
+                <Field label={t("paint.lopThu")}>
+                  <Input
                     name="layerNo"
                     type="number"
                     min="1"
                     step="1"
                     defaultValue={layers.length + 1}
-                    className="w-full rounded border p-2"
+                    className="tabular"
                   />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-sm text-slate-600">
-                    {t("paint.soLopPhu")}
-                  </span>
-                  <input
+                </Field>
+                <Field label={t("paint.soLopPhu")}>
+                  <Input
                     name="coats"
                     type="number"
                     min="1"
                     step="1"
                     defaultValue={1}
-                    className="w-full rounded border p-2"
+                    className="tabular"
                   />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-sm text-slate-600">
-                    DFT (µm)
-                  </span>
-                  <input
+                </Field>
+                <Field label="DFT (µm)">
+                  <Input
                     name="dft"
                     type="number"
                     min="0"
                     step="1"
-                    className="w-full rounded border p-2"
+                    className="tabular"
                   />
-                </label>
-                <label className="block md:col-span-5">
-                  <span className="mb-1 block text-sm text-slate-600">
-                    {t("chung.ghiChu")}
-                  </span>
-                  <input name="notes" className="w-full rounded border p-2" />
-                </label>
+                </Field>
+                <Field label={t("chung.ghiChu")} className="md:col-span-5">
+                  <Input name="notes" />
+                </Field>
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  disabled={layerPending}
-                  className="rounded bg-blue-700 px-5 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  variant="primary"
+                  loading={layerPending}
+                  icon={<Plus className="size-4" />}
                 >
                   {layerPending ? t("chung.dangLuu") : t("paint.themLop")}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => setAdding(false)}
-                  className="text-sm text-slate-600 hover:underline"
                 >
                   {t("chung.dong")}
-                </button>
+                </Button>
                 {layerState.message && (
-                  <span
-                    className={`text-sm ${
-                      layerState.success ? "text-green-700" : "text-red-600"
-                    }`}
+                  <Notice
+                    tone={layerState.success ? "success" : "danger"}
+                    className="basis-full"
                   >
                     {layerState.message}
-                  </span>
+                  </Notice>
                 )}
               </div>
             </form>
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }

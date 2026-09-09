@@ -1,4 +1,11 @@
 import { redirect } from "next/navigation";
+import {
+  ArrowRight,
+  History,
+  ShieldCheck,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser } from "@/lib/auth";
 import { SI_QUAN, trangThaiUyQuyen } from "@/lib/roles";
@@ -15,8 +22,29 @@ import {
   ThuHoiUyQuyen,
 } from "@/components/QuyenNangCao";
 import { layT } from "@/lib/i18n/server";
+import {
+  Avatar,
+  Badge,
+  Card,
+  CardHeader,
+  EmptyState,
+  PageHeader,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
+
+/** Vai trò có mô tả quyền riêng, xếp theo thứ tự quyền giảm dần. */
+const VAI_TRO_CO_MO_TA = [
+  "ADMIN",
+  "TECH_MANAGER",
+  "MASTER",
+  "CHIEF_ENGINEER",
+] as const;
 
 export default async function UsersPage() {
   const currentUser = await requireScopedUser();
@@ -56,83 +84,130 @@ export default async function UsersPage() {
     label: `${vessel.code} - ${vessel.name}`,
   }));
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("vessels.nguoiDungTieuDe")}
-        </h2>
-        <p className="text-slate-600">{t("vessels.nguoiDungMoTa")}</p>
-      </div>
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-          <h3 className="mb-4 text-lg font-semibold">
-            {t("vessels.taoNguoiDungMoi")}
-          </h3>
-          <UserForm vessels={vesselOptions} />
-          <div className="mt-6 rounded bg-slate-50 p-3 text-xs text-slate-600">
-            <p className="mb-1 font-semibold">{t("vessels.quyenTheoVaiTro")}</p>
-            {["ADMIN", "TECH_MANAGER", "MASTER", "CHIEF_ENGINEER"].map((r) => (
-              <p key={r}>
-                <b>{tTuDo(`labels.role_${r}`)}</b> —{" "}
-                {tTuDo(`vessels.roleDesc_${r}`)}
-              </p>
-            ))}
-            <p>
-              <b>
-                {SI_QUAN.filter((r) => r !== "CREW")
-                  .map((r) => tTuDo(`labels.role_${r}`))
-                  .join(", ")}
-                , {tTuDo("labels.role_CREW")}
-              </b>{" "}
-              — {t("vessels.roleDesc_CREW")}
-            </p>
-            <p className="mt-2 font-semibold">
+    <div className="space-y-5">
+      <PageHeader
+        title={t("vessels.nguoiDungTieuDe")}
+        subtitle={t("vessels.nguoiDungMoTa")}
+      />
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <div className="space-y-5">
+          <Card>
+            <CardHeader
+              icon={<UserPlus className="size-4" />}
+              title={t("vessels.taoNguoiDungMoi")}
+            />
+            <UserForm vessels={vesselOptions} />
+          </Card>
+          {/* Bảng tra quyền — trước đây là một hộp màu nhồi chữ; giờ là danh
+              sách định nghĩa, đọc theo cặp "vai trò — làm được gì". */}
+          <Card>
+            <CardHeader
+              icon={<ShieldCheck className="size-4" />}
+              title={t("vessels.quyenTheoVaiTro")}
+            />
+            <dl className="space-y-2 text-xs">
+              {VAI_TRO_CO_MO_TA.map((r) => (
+                <div
+                  key={r}
+                  className="grid gap-0.5 sm:grid-cols-[8rem_1fr] sm:gap-3"
+                >
+                  <dt className="font-medium text-[var(--text-primary)]">
+                    {tTuDo(`labels.role_${r}`)}
+                  </dt>
+                  <dd className="text-[var(--text-secondary)]">
+                    {tTuDo(`vessels.roleDesc_${r}`)}
+                  </dd>
+                </div>
+              ))}
+              <div className="grid gap-0.5 sm:grid-cols-[8rem_1fr] sm:gap-3">
+                <dt className="font-medium text-[var(--text-primary)]">
+                  {SI_QUAN.filter((r) => r !== "CREW")
+                    .map((r) => tTuDo(`labels.role_${r}`))
+                    .join(", ")}
+                  , {tTuDo("labels.role_CREW")}
+                </dt>
+                <dd className="text-[var(--text-secondary)]">
+                  {t("vessels.roleDesc_CREW")}
+                </dd>
+              </div>
+            </dl>
+
+            <p className="mt-5 mb-2 text-xs font-semibold tracking-wide text-[var(--text-muted)] uppercase">
               {t("vessels.duongDiPheDuyet")}
             </p>
-            <p>
-              {t("vessels.luongNhap")} <b>{t("vessels.luongTauDuyet")}</b>{" "}
-              {t("vessels.luongTauDuyetGhiChu")}{" "}
-              <b>{t("vessels.luongCongTyDuyet")}</b>{" "}
-              {t("vessels.luongCongTyGhiChu")}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--text-secondary)]">
+              <span>{t("vessels.luongNhap")}</span>
+              <ArrowRight className="size-3.5 shrink-0 text-[var(--text-muted)]" />
+              <span>
+                <b className="font-semibold text-[var(--text-primary)]">
+                  {t("vessels.luongTauDuyet")}
+                </b>{" "}
+                {t("vessels.luongTauDuyetGhiChu")}
+              </span>
+              <ArrowRight className="size-3.5 shrink-0 text-[var(--text-muted)]" />
+              <span>
+                <b className="font-semibold text-[var(--text-primary)]">
+                  {t("vessels.luongCongTyDuyet")}
+                </b>{" "}
+                {t("vessels.luongCongTyGhiChu")}
+              </span>
+              <ArrowRight className="size-3.5 shrink-0 text-[var(--text-muted)]" />
+              <span>{t("vessels.luongMuaSam")}</span>
+            </div>
+
+            <p className="mt-5 mb-2 text-xs font-semibold tracking-wide text-[var(--text-muted)] uppercase">
+              {t("vessels.tauPhuTrach")}
             </p>
-            <p className="mt-2 font-semibold">{t("vessels.tauPhuTrach")}</p>
-            <p>{t("vessels.ganTauMoTa")}</p>
-            <p>{t("vessels.adminToanDoi")}</p>
-            <p>{t("vessels.techManagerMoTa")}</p>
-            <p>{t("vessels.masterKhongGanTau")}</p>
-            <p>{t("vessels.crewKhongGanTau")}</p>
-          </div>
+            <ul className="list-inside list-disc space-y-1 text-xs text-[var(--text-secondary)]">
+              <li>{t("vessels.ganTauMoTa")}</li>
+              <li>{t("vessels.adminToanDoi")}</li>
+              <li>{t("vessels.techManagerMoTa")}</li>
+              <li>{t("vessels.masterKhongGanTau")}</li>
+              <li>{t("vessels.crewKhongGanTau")}</li>
+            </ul>
+          </Card>
         </div>
-        <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 xl:col-span-2">
-          <h3 className="mb-4 text-lg font-semibold">
-            {t("vessels.danhSachNguoiDung")}
-          </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full border text-sm">
+        <Card className="xl:col-span-2">
+          <CardHeader
+            icon={<Users className="size-4" />}
+            title={t("vessels.danhSachNguoiDung")}
+          />
+          <TableWrap>
+            <Table dense>
               <thead>
-                <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">{t("vessels.cotHoTen")}</th>
-                  <th className="p-2">{t("login.email")}</th>
-                  <th className="p-2">{t("vessels.cotVaiTroTau")}</th>
-                  <th className="p-2">{t("chung.trangThai")}</th>
-                  <th className="p-2">{t("chung.thaoTac")}</th>
+                <tr>
+                  <Th>{t("vessels.cotHoTen")}</Th>
+                  <Th>{t("login.email")}</Th>
+                  <Th>{t("vessels.cotVaiTroTau")}</Th>
+                  <Th>{t("chung.trangThai")}</Th>
+                  <Th>{t("chung.thaoTac")}</Th>
                 </tr>
               </thead>
               <tbody>
                 {users.map((user) => {
                   const isSelf = user.id === currentUser.id;
                   return (
-                    <tr key={user.id} className="border-b align-top">
-                      <td className="p-2 font-medium">
-                        {user.name}
-                        {isSelf && (
-                          <span className="ml-1 text-xs text-slate-400">
-                            {t("vessels.laBan")}
+                    <Tr
+                      key={user.id}
+                      className="align-top transition-colors hover:bg-[var(--surface-sunken)]/50"
+                    >
+                      <Td>
+                        <div className="flex items-center gap-2">
+                          <Avatar name={user.name} size={28} />
+                          <span className="font-medium">
+                            {user.name}
+                            {isSelf && (
+                              <span className="ml-1 text-xs text-[var(--text-muted)]">
+                                {t("vessels.laBan")}
+                              </span>
+                            )}
                           </span>
-                        )}
-                      </td>
-                      <td className="p-2">{user.email}</td>
-                      <td className="p-2">
+                        </div>
+                      </Td>
+                      <Td className="text-[var(--text-secondary)]">
+                        {user.email}
+                      </Td>
+                      <Td>
                         <UserRoleForm
                           id={user.id}
                           role={user.role}
@@ -141,20 +216,16 @@ export default async function UsersPage() {
                           vessels={vesselOptions}
                           disabled={isSelf}
                         />
-                      </td>
-                      <td className="p-2">
-                        {user.isActive ? (
-                          <span className="rounded bg-green-100 px-2 py-1 text-green-700">
-                            {t("vessels.tkHoatDong")}
-                          </span>
-                        ) : (
-                          <span className="rounded bg-slate-200 px-2 py-1 text-slate-600">
-                            {t("vessels.tkDaKhoa")}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-2">
-                        <div className="flex items-center gap-2">
+                      </Td>
+                      <Td>
+                        <Badge tone={user.isActive ? "success" : "danger"} dot>
+                          {user.isActive
+                            ? t("vessels.tkHoatDong")
+                            : t("vessels.tkDaKhoa")}
+                        </Badge>
+                      </Td>
+                      <Td>
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <UserActiveToggle
                             id={user.id}
                             isActive={user.isActive}
@@ -166,39 +237,45 @@ export default async function UsersPage() {
                             disabled={isSelf}
                           />
                         </div>
-                      </td>
-                    </tr>
+                      </Td>
+                    </Tr>
                   );
                 })}
               </tbody>
-            </table>
-          </div>
-        </div>
+            </Table>
+          </TableWrap>
+        </Card>
       </div>
 
-      <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <h3 className="text-lg font-semibold">
-          {t("vessels.phanCongDoiTauTieuDe")}
-        </h3>
-        <p className="mb-4 text-sm text-slate-600">
-          {t("vessels.phanCongMoTa")}
-        </p>
+      <Card>
+        <CardHeader
+          icon={<Users className="size-4" />}
+          title={t("vessels.phanCongDoiTauTieuDe")}
+          subtitle={t("vessels.phanCongMoTa")}
+        />
         {quanLyKyThuat.length === 0 ? (
-          <p className="rounded bg-slate-50 p-3 text-sm text-slate-600">
-            {t("vessels.chuaCoTaiKhoanVaiTro", {
+          <EmptyState
+            icon={<Users className="size-5" />}
+            title={t("vessels.chuaCoTaiKhoanVaiTro", {
               ten: tTuDo("labels.role_TECH_MANAGER"),
             })}
-          </p>
+          />
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-4">
             {quanLyKyThuat.map((u) => (
-              <div key={u.id} className="rounded border border-slate-200 p-4">
-                <p className="mb-2 font-medium">
-                  {u.name}{" "}
-                  <span className="text-sm font-normal text-slate-500">
-                    {u.email}
-                  </span>
-                </p>
+              <div
+                key={u.id}
+                className="rounded-xl border border-[var(--border-subtle)] p-4"
+              >
+                <div className="mb-3 flex items-center gap-2">
+                  <Avatar name={u.name} size={28} />
+                  <p className="text-sm font-medium text-[var(--text-primary)]">
+                    {u.name}{" "}
+                    <span className="font-normal text-[var(--text-muted)]">
+                      {u.email}
+                    </span>
+                  </p>
+                </div>
                 <PhanCongDoiTau
                   user={{ id: u.id, name: u.name, email: u.email, role: u.role }}
                   vessels={vesselOptions}
@@ -208,41 +285,51 @@ export default async function UsersPage() {
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-          <h3 className="text-lg font-semibold">{t("vessels.uyQuyenTieuDe")}</h3>
-          <p className="mb-4 text-sm text-slate-600">
-            {t("vessels.uyQuyenMoTa1")} <b>{t("vessels.uyQuyenMoTaDam")}</b>{" "}
-            {t("vessels.uyQuyenMoTa2")}
-          </p>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <Card>
+          <CardHeader
+            icon={<ShieldCheck className="size-4" />}
+            title={t("vessels.uyQuyenTieuDe")}
+            subtitle={
+              <>
+                {t("vessels.uyQuyenMoTa1")}{" "}
+                <b className="font-semibold text-[var(--text-primary)]">
+                  {t("vessels.uyQuyenMoTaDam")}
+                </b>{" "}
+                {t("vessels.uyQuyenMoTa2")}
+              </>
+            }
+          />
           <LapUyQuyen
             nguoiCoQuyen={nguoiDangHoatDong}
             nguoiNhan={nguoiDangHoatDong}
             laAdmin
             toiId={currentUser.id}
           />
-        </div>
-        <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 xl:col-span-2">
-          <h3 className="mb-4 text-lg font-semibold">
-            {t("vessels.uyQuyenDaLap", { n: uyQuyens.length })}
-          </h3>
+        </Card>
+        <Card className="xl:col-span-2">
+          <CardHeader
+            icon={<History className="size-4" />}
+            title={t("vessels.uyQuyenDaLap", { n: uyQuyens.length })}
+          />
           {uyQuyens.length === 0 ? (
-            <p className="rounded bg-slate-50 p-3 text-sm text-slate-600">
-              {t("vessels.chuaCoUyQuyen")}
-            </p>
+            <EmptyState
+              icon={<History className="size-5" />}
+              title={t("vessels.chuaCoUyQuyen")}
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border text-sm">
+            <TableWrap>
+              <Table dense>
                 <thead>
-                  <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                    <th className="p-2">{t("vessels.cotNguoiGiaoQuyen")}</th>
-                    <th className="p-2">{t("vessels.cotNguoiNhan")}</th>
-                    <th className="p-2">{t("vessels.cotThoiHan")}</th>
-                    <th className="p-2">{t("vessels.cotLyDo")}</th>
-                    <th className="p-2">{t("chung.trangThai")}</th>
-                    <th className="p-2"></th>
+                  <tr>
+                    <Th>{t("vessels.cotNguoiGiaoQuyen")}</Th>
+                    <Th>{t("vessels.cotNguoiNhan")}</Th>
+                    <Th>{t("vessels.cotThoiHan")}</Th>
+                    <Th>{t("vessels.cotLyDo")}</Th>
+                    <Th>{t("chung.trangThai")}</Th>
+                    <Th></Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -251,40 +338,47 @@ export default async function UsersPage() {
                     const conHieuLuc =
                       trangThai === "HIEU_LUC" || trangThai === "CHUA_TOI";
                     return (
-                      <tr key={u.id} className="border-b align-top">
-                        <td className="p-2">
+                      <Tr
+                        key={u.id}
+                        className="align-top transition-colors hover:bg-[var(--surface-sunken)]/50"
+                      >
+                        <Td>
                           {u.delegator.name}
-                          <span className="block text-xs text-slate-500">
+                          <span className="block text-xs text-[var(--text-muted)]">
                             {tTuDo(`labels.role_${u.delegator.role}`)}
                           </span>
-                        </td>
-                        <td className="p-2">
+                        </Td>
+                        <Td>
                           {u.delegate.name}
-                          <span className="block text-xs text-slate-500">
+                          <span className="block text-xs text-[var(--text-muted)]">
                             {tTuDo(`labels.role_${u.delegate.role}`)}
                           </span>
-                        </td>
-                        <td className="p-2 whitespace-nowrap">
-                          {ngay(u.startAt)} → {ngay(u.endAt)}
-                        </td>
-                        <td className="p-2 text-slate-600">{u.reason ?? "—"}</td>
-                        <td className="p-2">
+                        </Td>
+                        <Td className="tabular whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1.5">
+                            {ngay(u.startAt)}
+                            <ArrowRight className="size-3.5 shrink-0 text-[var(--text-muted)]" />
+                            {ngay(u.endAt)}
+                          </span>
+                        </Td>
+                        <Td className="text-[var(--text-secondary)]">
+                          {u.reason ?? "—"}
+                        </Td>
+                        <Td>
                           <NhanTrangThaiUyQuyen
                             trangThai={trangThai}
                             revokedAt={u.revokedAt}
                           />
-                        </td>
-                        <td className="p-2">
-                          {conHieuLuc && <ThuHoiUyQuyen id={u.id} />}
-                        </td>
-                      </tr>
+                        </Td>
+                        <Td>{conHieuLuc && <ThuHoiUyQuyen id={u.id} />}</Td>
+                      </Tr>
                     );
                   })}
                 </tbody>
-              </table>
-            </div>
+              </Table>
+            </TableWrap>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

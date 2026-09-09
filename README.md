@@ -402,6 +402,68 @@ Vài điểm đã tính sẵn:
 Thư mục `dong-bo/` chứa dữ liệu thật của công ty nên **không** được đưa lên Git (đã có trong
 `.gitignore`).
 
+## Giao diện: bộ nhận diện Mercury Lines, nền tối / nền sáng
+
+App dùng **cùng bảng màu, phông chữ và bộ thành phần** với app Quản lý thuyền viên
+(`apps/web` của dự án `antigaravity`), để hai hệ thống của công ty nhìn là một.
+
+**Nền tối là mặc định** — màu chủ đạo của nhận diện (navy `#0b1117`, màu nhấn `#0296c7`
+lấy từ chính trang chủ mercurylines.com.vn). Nút ☾/☀ ở thanh trên đổi sang nền sáng;
+lựa chọn lưu trong cookie `theme` (1 năm, xem `lib/chuDe.ts`).
+
+Vì sao là **cookie** chứ không phải `localStorage` như bản Vite: trang ở đây dựng trên
+server, nên server phải biết chế độ **ngay từ đầu** để gắn `class="dark"` vào `<html>`
+trước khi trình duyệt vẽ. Đọc từ `localStorage` trong `useEffect` thì mỗi lần mở trang
+sẽ **lóe nền sáng rồi mới đổi sang tối**.
+
+**Phông chữ tự host** trong `public/fonts` (Manrope cho nội dung — có bộ tiếng Việt đầy
+đủ kể cả dấu ₫; Michroma cho mã/tên tàu). Không gọi `fonts.googleapis.com`: app chạy
+trên tàu, có thể không có mạng — lúc đó chữ sẽ rơi về phông hệ thống, khác hẳn giao diện
+bình thường. **Michroma không có ký tự tiếng Việt**, chỉ dùng cho chuỗi thuần Latin (mã
+vật tư, số IMO, chữ số) qua lớp `font-display` — không bao giờ cho tiêu đề.
+
+### Quy tắc màu: không viết màu thẳng vào trang
+
+Mọi mặt nền và chữ lấy từ **biến CSS** khai trong `app/globals.css`, nên đổi chế độ là cả
+app đổi theo:
+
+| Dùng cho | Viết |
+|---|---|
+| Chữ chính / phụ / mờ | `text-[var(--text-primary)]` · `--text-secondary` · `--text-muted` |
+| Mặt thẻ | `<Card>` (hoặc lớp `surface` + `border`) |
+| Dải chìm, nền phụ | `bg-[var(--surface-sunken)]` |
+| Viền, đường kẻ | `border-[var(--border-subtle)]` · `divide-[var(--border-subtle)]` |
+| Liên kết | `text-brand-700 hover:underline dark:text-brand-300` |
+| **Trạng thái** | `<Badge tone="success\|warning\|danger\|info\|brand\|muted\|neutral">` |
+
+**Không** viết `bg-white`, `text-blue-950`, `bg-red-100`, `ring-blue-100`… Nhãn trạng thái
+dùng **nền đặc** (không phải màng bán trong suốt) nên tỷ lệ tương phản không đổi theo thứ
+nằm dưới — cùng một nhãn trên thẻ trắng và trên hàng kẻ sọc đều đạt ngưỡng WCAG AA.
+
+### Bộ thành phần dùng chung (`components/ui.tsx`)
+
+`PageHeader` · `Card` + `CardHeader` · `Stat` · `Badge` · `Button` / `buttonClass()` ·
+`Input` / `Select` / `Textarea` / `Field` · `TableWrap` + `Table` + `Th` / `Td` / `Tr` /
+`TrNhom` · `Notice` · `EmptyState` · `Meter` · `Avatar`. File này **không có hook** nên
+server component import thẳng được; phần cần state (`Modal`, `PasswordInput`) ở
+`components/ui-client.tsx`. Đầu `ui.tsx` có **bảng đối chiếu lớp cũ → thành phần mới**
+dùng khi chuyển một trang cũ sang dáng mới.
+
+Trạng thái yêu cầu / đơn mua tra qua `TONE_YEU_CAU` và `TONE_DON_MUA` — **một nguồn duy
+nhất**, để Dashboard, danh sách và trang chi tiết không tô khác màu cho cùng một trạng thái.
+
+### Chứng từ luôn là tờ giấy trắng
+
+Biểu mẫu công ty (MLS-11-05A/B, MLS-11-01, MLS-11-13, PO/RFQ) có viền đen và chữ đen cố
+định theo bản gốc giấy. Lớp `.print-area` **ghi đè bộ biến sang màu giấy** ngay trong
+`globals.css`, nên mọi chứng từ hiện là tờ giấy trắng **ở cả hai chế độ** — đặt lên nền
+navy thì viền biến mất và chữ không đọc được. Khi in, `@media print` cũng ép lại bộ biến
+sáng và ẩn thanh bên / thanh trên / họa tiết nền, nên bản in luôn đen trên trắng bất kể
+người dùng đang để chế độ nào.
+
+Nội dung **bên trong** các biểu mẫu là bản sao của chứng từ gốc — đừng đổi chữ, viền hay
+bố cục ở đó khi chỉnh giao diện.
+
 ## Đổi ngôn ngữ: Tiếng Việt · English
 
 Nút **VI | EN** nằm ở cuối thanh bên (ngay trên thẻ tài khoản) và ở **trang đăng nhập** — đổi

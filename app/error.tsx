@@ -1,6 +1,9 @@
 "use client";
 
+import { AlertTriangle, ArrowLeft, RotateCcw } from "lucide-react";
+import { LogoLockup } from "@/components/MercuryLogo";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Button, Card } from "@/components/ui";
 
 export default function GlobalError({
   retry,
@@ -10,24 +13,43 @@ export default function GlobalError({
 }) {
   const { t } = useNgonNgu();
   return (
-    <div className="mx-auto mt-16 max-w-lg rounded-xl bg-white p-8 shadow-sm ring-1 ring-blue-100">
-      <h2 className="mb-2 text-xl font-bold text-red-600">
-        {t("login.loiTieuDe")}
-      </h2>
-      <p className="mb-4 text-slate-600">{t("login.loiNoiDung")}</p>
-      <div className="flex gap-3">
-        <button
-          onClick={() => retry()}
-          className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800"
-        >
-          {t("login.thuLai")}
-        </button>
-        <button
-          onClick={() => window.history.back()}
-          className="rounded border px-4 py-2 hover:bg-blue-50"
-        >
-          {t("chung.quayLai")}
-        </button>
+    /* Ranh giới lỗi nằm NGOÀI vỏ ứng dụng — dựng lại dáng trang đăng nhập:
+       một thẻ ở giữa nền có họa tiết vòng cung. */
+    <div className="relative flex min-h-screen items-center justify-center p-6">
+      <div className="app-motif" aria-hidden="true" />
+      <div className="relative z-10 w-full max-w-lg">
+        <div className="mb-6 flex flex-col items-center gap-3 text-center">
+          <LogoLockup height={44} />
+        </div>
+        <Card className="text-center">
+          <span className="mx-auto mb-3 grid size-11 place-items-center rounded-full bg-[var(--tone-danger-bg)] text-[var(--tone-danger-text)]">
+            <AlertTriangle className="size-5" />
+          </span>
+          <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">
+            {t("login.loiTieuDe")}
+          </h1>
+          <p className="mt-1 mb-5 text-sm text-[var(--text-secondary)]">
+            {t("login.loiNoiDung")}
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => retry()}
+              icon={<RotateCcw className="size-4" />}
+            >
+              {t("login.thuLai")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => window.history.back()}
+              icon={<ArrowLeft className="size-4" />}
+            >
+              {t("chung.quayLai")}
+            </Button>
+          </div>
+        </Card>
       </div>
     </div>
   );

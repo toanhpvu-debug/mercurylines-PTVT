@@ -1,8 +1,21 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { Send } from "lucide-react";
 import { taoYeuCauSon } from "@/app/paint-actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import {
+  Button,
+  Field,
+  Input,
+  Notice,
+  Select,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui";
 
 export type PaintRequestLine = {
   productId: number;
@@ -53,9 +66,11 @@ export default function PaintRequestForm({
 
   if (lines.length === 0) {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-[var(--text-secondary)]">
         {t("paint.chuaCoLoaiTruoc")}{" "}
-        <span className="font-medium">{t("paint.danhMucSon")}</span>{" "}
+        <span className="font-medium text-[var(--text-primary)]">
+          {t("paint.danhMucSon")}
+        </span>{" "}
         {t("paint.chuaCoLoaiSau")}
       </p>
     );
@@ -66,111 +81,112 @@ export default function PaintRequestForm({
       <input type="hidden" name="vesselId" value={vesselId} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-slate-600">
-          {t("paint.xinCap1")} <b>{t("paint.xinCapDam1")}</b>{" "}
-          {t("paint.xinCap2")} <b>{t("paint.xinCapDam2")}</b>.
+        <p className="text-sm text-[var(--text-secondary)]">
+          {t("paint.xinCap1")}{" "}
+          <b className="text-[var(--text-primary)]">{t("paint.xinCapDam1")}</b>{" "}
+          {t("paint.xinCap2")}{" "}
+          <b className="text-[var(--text-primary)]">{t("paint.xinCapDam2")}</b>.
         </p>
-        <label className="flex items-center gap-2 text-sm text-slate-600">
+        <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
           <input
             type="checkbox"
             checked={chiThieu}
             onChange={(e) => setChiThieu(e.target.checked)}
+            className="size-4 accent-brand-600"
           />
           {t("paint.chiHienDuoiDinhMuc")}
         </label>
       </div>
 
       {hienThi.length === 0 ? (
-        <p className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-          {t("paint.khongCoLoaiDuoiDinhMuc")}
-        </p>
+        <Notice tone="success">{t("paint.khongCoLoaiDuoiDinhMuc")}</Notice>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border text-sm">
+        <TableWrap>
+          <Table dense>
             <thead>
-              <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                <th className="p-2">{t("paint.loaiSon")}</th>
-                <th className="p-2">{t("chung.donVi")}</th>
-                <th className="p-2">{t("paint.cotTon")}</th>
-                <th className="p-2">{t("paint.cotDinhMuc")}</th>
-                <th className="p-2">{t("paint.cotSoLuongXin")}</th>
+              <tr>
+                <Th>{t("paint.loaiSon")}</Th>
+                <Th>{t("chung.donVi")}</Th>
+                <Th align="right">{t("paint.cotTon")}</Th>
+                <Th align="right">{t("paint.cotDinhMuc")}</Th>
+                <Th>{t("paint.cotSoLuongXin")}</Th>
               </tr>
             </thead>
             <tbody>
               {hienThi.map((l) => {
                 const goiY = thieu.get(l.productId) ?? 0;
                 return (
-                  <tr key={l.productId} className="border-b">
-                    <td className="p-2">{l.label}</td>
-                    <td className="p-2 text-slate-600">{l.uom}</td>
-                    <td
-                      className={`p-2 ${
-                        goiY > 0 ? "font-medium text-amber-700" : ""
-                      }`}
-                    >
-                      {l.ton}
-                    </td>
-                    <td className="p-2 text-slate-600">
-                      {l.minQty > 0 ? l.minQty : "—"}
-                    </td>
-                    <td className="p-2">
-                      <input
-                        name={`sl_${l.productId}`}
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        defaultValue={goiY > 0 ? goiY : ""}
-                        placeholder="0"
-                        className="w-28 rounded border p-1"
-                      />
-                    </td>
-                  </tr>
+                  <Tr key={l.productId}>
+                    <Td>{l.label}</Td>
+                    <Td>
+                      <span className="text-xs text-[var(--text-secondary)]">
+                        {l.uom}
+                      </span>
+                    </Td>
+                    <Td align="right">
+                      <span
+                        className={
+                          goiY > 0
+                            ? "font-medium text-[var(--text-warning)]"
+                            : undefined
+                        }
+                      >
+                        {l.ton}
+                      </span>
+                    </Td>
+                    <Td align="right">
+                      <span className="text-[var(--text-muted)]">
+                        {l.minQty > 0 ? l.minQty : "—"}
+                      </span>
+                    </Td>
+                    <Td>
+                      <div className="w-28">
+                        <Input
+                          name={`sl_${l.productId}`}
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          defaultValue={goiY > 0 ? goiY : ""}
+                          placeholder="0"
+                          className="tabular"
+                        />
+                      </div>
+                    </Td>
+                  </Tr>
                 );
               })}
             </tbody>
-          </table>
-        </div>
+          </Table>
+        </TableWrap>
       )}
 
       <div className="grid gap-3 md:grid-cols-3">
-        <label className="block md:col-span-2">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.lyDoMucDich")}
-          </span>
-          <input
-            name="purpose"
-            placeholder={t("paint.phLyDo")}
-            className="w-full rounded border p-2"
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("paint.mucUuTien")}
-          </span>
-          <select name="priority" className="w-full rounded border p-2">
+        <Field label={t("paint.lyDoMucDich")} className="md:col-span-2">
+          <Input name="purpose" placeholder={t("paint.phLyDo")} />
+        </Field>
+        <Field label={t("paint.mucUuTien")}>
+          <Select name="priority">
             <option value="NORMAL">{t("labels.priority_NORMAL")}</option>
             <option value="HIGH">{t("labels.priority_HIGH")}</option>
             <option value="URGENT">{t("labels.priority_URGENT")}</option>
             <option value="LOW">{t("labels.priority_LOW")}</option>
-          </select>
-        </label>
+          </Select>
+        </Field>
       </div>
 
-      <button
-        disabled={pending || hienThi.length === 0}
-        className="rounded bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
+      <Button
+        variant="primary"
+        disabled={hienThi.length === 0}
+        loading={pending}
+        icon={<Send className="size-4" />}
       >
         {pending ? t("paint.dangGui") : t("paint.nutGuiYeuCau")}
-      </button>
+      </Button>
 
       {state.message && (
-        <p
-          className={`text-sm ${
-            state.success ? "text-emerald-700" : "text-red-600"
-          }`}
-        >
+        <Notice tone={state.success ? "success" : "danger"}>
           {state.message}
-        </p>
+        </Notice>
       )}
     </form>
   );

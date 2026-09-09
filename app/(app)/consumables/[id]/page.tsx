@@ -1,5 +1,25 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import {
+  AlertTriangle,
+  ArrowDownToLine,
+  ArrowLeft,
+  ArrowUpFromLine,
+  Boxes,
+  ChevronRight,
+  Droplets,
+  FileText,
+  Flame,
+  FlaskConical,
+  Fuel,
+  Gauge,
+  History,
+  Send,
+  ShieldAlert,
+  TestTube,
+  type LucideIcon,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
@@ -16,16 +36,17 @@ import {
   trinhThangLenCongTy,
 } from "@/lib/roles";
 import {
-  CATEGORY_ICON,
   CATEGORY_VALUES,
   CONSUMABLE_CATEGORIES,
   GIOI_HAN_LUU_HUYNH,
   NGUONG_CANH_BAO_HAN_DUNG,
   kiemTraLuuHuynh,
   soNgayToi,
+  type CanhBaoLuuHuynh,
 } from "@/lib/consumables";
 import { layT } from "@/lib/i18n/server";
 import type { HamDichTuDo } from "@/lib/i18n";
+import { cn } from "@/lib/cn";
 import {
   ConsumableMinForm,
   ConsumableMoveForm,
@@ -34,6 +55,22 @@ import {
 import ConsumableReceiptDeleteButton from "@/components/ConsumableReceiptDeleteButton";
 import ConsumableRequestForm from "@/components/ConsumableRequestForm";
 import VesselSwitcher from "@/components/VesselSwitcher";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  DataRow,
+  EmptyState,
+  Meter,
+  Notice,
+  PageHeader,
+  Table,
+  Td,
+  Th,
+  Tr,
+  TrNhom,
+  type Tone,
+} from "@/components/ui";
 
 // Băng tin hạn dùng nối mọi lô vào MỘT dòng chữ, nên phải có trần hiển thị:
 // không có nó thì một tàu tồn nhiều lô quá hạn sẽ đẩy ra một dòng dài vô tận,
@@ -41,6 +78,52 @@ import VesselSwitcher from "@/components/VesselSwitcher";
 const SO_LO_HIEN_TREN_BANG_TIN = 10;
 
 export const dynamic = "force-dynamic";
+
+/** Biểu tượng nhóm — thay cho emoji `icon` trong lib/consumables.ts. */
+const CATEGORY_ICON: Record<string, LucideIcon> = {
+  FUEL: Fuel,
+  LUBE: Droplets,
+  CHEMICAL: FlaskConical,
+};
+
+/** Màu nhãn của nhóm — cùng một màu cho một nhóm ở mọi chỗ trên trang. */
+const CATEGORY_TONE: Record<string, Tone> = {
+  FUEL: "warning",
+  LUBE: "brand",
+  CHEMICAL: "info",
+};
+
+/** Ba mức của kiemTraLuuHuynh() → tone của nhãn (cùng bảng với form nhận). */
+const TONE_LUU_HUYNH: Record<CanhBaoLuuHuynh["muc"], Tone> = {
+  VUOT_TOAN_CAU: "danger",
+  VUOT_ECA: "warning",
+  DAT: "success",
+};
+
+/** Loại giao dịch → tone: nhận vào xanh, xuất ra vàng, tiêu thụ trung tính. */
+const TONE_GIAO_DICH: Record<string, Tone> = {
+  IN: "success",
+  OUT: "warning",
+  CONSUME: "neutral",
+};
+
+const LINK = "text-brand-700 hover:underline dark:text-brand-300";
+
+/** Tiêu đề khung gập: cùng một dáng cho mọi <details> trên trang. */
+const SUMMARY =
+  "flex cursor-pointer select-none list-none flex-wrap items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-sunken)] [&::-webkit-details-marker]:hidden";
+
+/** Nút chọn nhóm — cùng dáng với dải chuyển tàu (components/VesselSwitcher). */
+const TAB =
+  "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none";
+const TAB_ON = "bg-brand-700 font-medium text-white";
+const TAB_OFF =
+  "bg-[var(--surface-sunken)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]";
+
+/** Màu thanh tồn / định mức: càng thiếu càng đỏ (cùng trang Tồn kho). */
+function toneThieu(pct: number): Tone {
+  return pct < 40 ? "danger" : pct < 75 ? "warning" : "info";
+}
 
 function nhanMatHang(
   p: {
@@ -214,7 +297,7 @@ export default async function ConsumableVesselPage({
     .filter((p) => nhomGhiDuoc.includes(p.category) && hopNhom(p.category))
     .map((p) => ({
       id: p.id,
-      label: `${CATEGORY_ICON[p.category] ?? ""} ${nhanMatHang(p, tTuDo)}`,
+      label: nhanMatHang(p, tTuDo),
       uom: p.uom,
       category: p.category,
       shelfLifeMonths: p.shelfLifeMonths,
@@ -346,26 +429,29 @@ export default async function ConsumableVesselPage({
   })).filter((c) => c.stocks.length > 0);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link
-            href="/consumables"
-            className="text-sm text-blue-700 hover:underline"
-          >
-            ← {t("consumables.quayLaiTongQuan")}
-          </Link>
-          <h2 className="text-2xl font-bold text-blue-950">
-            {vessel.code} — {vessel.name}
-          </h2>
-          <p className="text-slate-600">{t("consumables.moTaTau")}</p>
-        </div>
-        {!coTheGhi && (
-          <p className="rounded border border-slate-200 bg-slate-50 p-2 text-sm text-slate-600">
-            {t("consumables.chiXemKhongGhi")}
-          </p>
-        )}
+    <div className="space-y-5">
+      <div>
+        <Link
+          href="/consumables"
+          className={`mb-3 inline-flex items-center gap-1.5 text-sm ${LINK}`}
+        >
+          <ArrowLeft className="size-4" />
+          {t("consumables.quayLaiTongQuan")}
+        </Link>
+        <PageHeader
+          title={
+            <>
+              <span className="font-display tracking-wide">{vessel.code}</span>{" "}
+              — {vessel.name}
+            </>
+          }
+          subtitle={t("consumables.moTaTau")}
+        />
       </div>
+
+      {!coTheGhi && (
+        <Notice tone="info">{t("consumables.chiXemKhongGhi")}</Notice>
+      )}
 
       {/* Giữ nguyên tab nhóm đang xem khi nhảy sang tàu khác — đang so tồn dầu
           giữa các tàu mà mỗi lần bấm lại về "Tất cả" thì phải chọn lại. */}
@@ -377,30 +463,29 @@ export default async function ConsumableVesselPage({
       />
 
       {/* ── Tách nhóm ────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-2">
+      <Card
+        padded={false}
+        className="flex flex-wrap items-center gap-2 px-3 py-2.5"
+      >
         <Link
           href={`/consumables/${vesselId}`}
-          className={`rounded px-3 py-1.5 text-sm ${
-            nhomChon === null
-              ? "bg-blue-700 text-white"
-              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-          }`}
+          aria-current={nhomChon === null ? "page" : undefined}
+          className={cn(TAB, nhomChon === null ? TAB_ON : TAB_OFF)}
         >
           {t("chung.tatCa")}
         </Link>
         {CONSUMABLE_CATEGORIES.map((c) => {
           const ghiDuoc = nhomGhiDuoc.includes(c.value);
+          const Icon = CATEGORY_ICON[c.value];
           return (
             <Link
               key={c.value}
               href={`/consumables/${vesselId}?nhom=${c.value}`}
-              className={`rounded px-3 py-1.5 text-sm ${
-                nhomChon === c.value
-                  ? "bg-blue-700 text-white"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
+              aria-current={nhomChon === c.value ? "page" : undefined}
+              className={cn(TAB, nhomChon === c.value ? TAB_ON : TAB_OFF)}
             >
-              {c.icon} {tTuDo(`consumables.nhom_${c.value}`)}
+              {Icon && <Icon className="size-4 shrink-0" />}
+              {tTuDo(`consumables.nhom_${c.value}`)}
               {!ghiDuoc && (
                 <span className="ml-1 text-xs opacity-70">
                   {t("consumables.chiXemNgoac")}
@@ -409,7 +494,7 @@ export default async function ConsumableVesselPage({
             </Link>
           );
         })}
-      </div>
+      </Card>
 
       {/* ── Cảnh báo ─────────────────────────────────────────────────── */}
       {(duoiDinhMuc.length > 0 ||
@@ -418,74 +503,94 @@ export default async function ConsumableVesselPage({
         mauHetHanGiu.length > 0) && (
         <div className="space-y-2">
           {duoiDinhMuc.length > 0 && (
-            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-              <b>
-                {t("consumables.canhBaoDuoiDinhMuc", {
-                  n: duoiDinhMuc.length,
-                })}
-              </b>{" "}
-              {duoiDinhMuc
-                .map(
-                  (s) =>
-                    `${s.product.name} (${s.quantity}/${s.minQty} ${s.product.uom})`
-                )
-                .join(" · ")}
-            </div>
+            <Notice tone="danger">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <p>
+                  <b>
+                    {t("consumables.canhBaoDuoiDinhMuc", {
+                      n: duoiDinhMuc.length,
+                    })}
+                  </b>{" "}
+                  {duoiDinhMuc
+                    .map(
+                      (s) =>
+                        `${s.product.name} (${s.quantity}/${s.minQty} ${s.product.uom})`
+                    )
+                    .join(" · ")}
+                </p>
+              </div>
+            </Notice>
           )}
           {sapHetTheoTocDo.length > 0 && (
-            <div className="rounded-lg border border-orange-300 bg-orange-50 p-3 text-sm text-orange-900">
-              <b>{t("consumables.canhBaoSapHet")}</b>{" "}
-              {sapHetTheoTocDo
-                .map(({ s, ngay: conNgay }) =>
-                  t("consumables.dongSapHet", {
-                    ten: s.product.name,
-                    n: conNgay ?? 0,
-                    sl: s.quantity,
-                    dv: s.product.uom,
-                  })
-                )
-                .join(" · ")}
-            </div>
+            <Notice tone="warning">
+              <div className="flex items-start gap-2">
+                <Gauge className="mt-0.5 size-4 shrink-0" />
+                <p>
+                  <b>{t("consumables.canhBaoSapHet")}</b>{" "}
+                  {sapHetTheoTocDo
+                    .map(({ s, ngay: conNgay }) =>
+                      t("consumables.dongSapHet", {
+                        ten: s.product.name,
+                        n: conNgay ?? 0,
+                        sl: s.quantity,
+                        dv: s.product.uom,
+                      })
+                    )
+                    .join(" · ")}
+                </p>
+              </div>
+            </Notice>
           )}
           {loHetHan.length > 0 && (
-            <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900">
-              <b>{t("consumables.nhanHanDung")}</b>{" "}
-              {loHetHan
-                .slice(0, SO_LO_HIEN_TREN_BANG_TIN)
-                .map(({ r, con }) =>
-                  t("consumables.dongLoHetHan", {
-                    ten: r.product.name,
-                    so: r.docNo,
-                    tinhTrang:
-                      con < 0
-                        ? t("consumables.quaHanNNgay", { n: -con })
-                        : t("consumables.conNNgay", { n: con }),
-                  })
-                )
-                .join(" · ")}
-              {loHetHan.length > SO_LO_HIEN_TREN_BANG_TIN &&
-                ` · ${t("consumables.vaNLoKhac", {
-                  n: loHetHan.length - SO_LO_HIEN_TREN_BANG_TIN,
-                })}`}
-            </div>
+            <Notice tone="danger">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <p>
+                  <b>{t("consumables.nhanHanDung")}</b>{" "}
+                  {loHetHan
+                    .slice(0, SO_LO_HIEN_TREN_BANG_TIN)
+                    .map(({ r, con }) =>
+                      t("consumables.dongLoHetHan", {
+                        ten: r.product.name,
+                        so: r.docNo,
+                        tinhTrang:
+                          con < 0
+                            ? t("consumables.quaHanNNgay", { n: -con })
+                            : t("consumables.conNNgay", { n: con }),
+                      })
+                    )
+                    .join(" · ")}
+                  {loHetHan.length > SO_LO_HIEN_TREN_BANG_TIN &&
+                    ` · ${t("consumables.vaNLoKhac", {
+                      n: loHetHan.length - SO_LO_HIEN_TREN_BANG_TIN,
+                    })}`}
+                </p>
+              </div>
+            </Notice>
           )}
           {mauHetHanGiu.length > 0 && (
-            <div className="rounded-lg border border-slate-300 bg-slate-50 p-3 text-sm text-slate-700">
-              <b>{t("consumables.mauQuaMocDam")}</b>{" "}
-              {t("consumables.mauQuaMocSau")}{" "}
-              {mauHetHanGiu
-                .map(
-                  (r) =>
-                    `${r.docNo}${
-                      r.sampleSealNo
-                        ? ` (${t("consumables.niemSo", {
-                            so: r.sampleSealNo,
-                          })})`
-                        : ""
-                    }`
-                )
-                .join(" · ")}
-            </div>
+            <Notice tone="neutral">
+              <div className="flex items-start gap-2">
+                <TestTube className="mt-0.5 size-4 shrink-0" />
+                <p>
+                  <b>{t("consumables.mauQuaMocDam")}</b>{" "}
+                  {t("consumables.mauQuaMocSau")}{" "}
+                  {mauHetHanGiu
+                    .map(
+                      (r) =>
+                        `${r.docNo}${
+                          r.sampleSealNo
+                            ? ` (${t("consumables.niemSo", {
+                                so: r.sampleSealNo,
+                              })})`
+                            : ""
+                        }`
+                    )
+                    .join(" · ")}
+                </p>
+              </div>
+            </Notice>
           )}
         </div>
       )}
@@ -495,589 +600,808 @@ export default async function ConsumableVesselPage({
         const ton = tonTheoChungLoai(c.value);
         const tt = tieuThuTheoNoi(c.value);
         if (ton.length === 0 && tt.length === 0) return null;
+        const Icon = CATEGORY_ICON[c.value];
+        const nhanNhom = `${tTuDo(`consumables.nhom_${c.value}`)} — ${t(
+          "consumables.tongHop"
+        )}`;
         return (
-          <section key={`tt-${c.value}`} className="space-y-3">
-            <h3 className="text-xl font-semibold text-blue-950">
-              {c.icon} {tTuDo(`consumables.nhom_${c.value}`)} —{" "}
-              {t("consumables.tongHop")}
-            </h3>
-            <div className="grid gap-3 lg:grid-cols-2">
-              <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-                <h4 className="mb-2 text-sm font-semibold text-slate-700">
-                  {t("consumables.tonTheoChungLoai")}
-                </h4>
-                {ton.length === 0 ? (
-                  <p className="text-sm text-slate-500">
-                    {t("consumables.chuaCoTon")}
-                  </p>
-                ) : (
-                  <ul className="space-y-1 text-sm">
-                    {ton.map(([grade, v]) => (
-                      <li key={grade} className="flex justify-between gap-3">
-                        <span className="text-slate-700">
+          <div key={`tt-${c.value}`} className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader
+                icon={Icon && <Icon className="size-4" />}
+                title={t("consumables.tonTheoChungLoai")}
+                subtitle={nhanNhom}
+              />
+              {ton.length === 0 ? (
+                <p className="text-sm text-[var(--text-muted)]">
+                  {t("consumables.chuaCoTon")}
+                </p>
+              ) : (
+                <dl className="divide-y divide-[var(--border-subtle)]">
+                  {ton.map(([grade, v]) => (
+                    <DataRow
+                      key={grade}
+                      label={
+                        <>
                           {tTuDo(`consumables.loai_${grade}`)}
-                          <span className="text-slate-400">
+                          <span className="text-[var(--text-muted)]">
                             {" "}
                             · {t("consumables.nMatHang", { n: v.soMat })}
                           </span>
-                        </span>
-                        <span className="font-semibold text-blue-950">
+                        </>
+                      }
+                      value={
+                        <span className="tabular">
                           {Math.round(v.tong * 1000) / 1000} {v.uom}
                         </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                      }
+                    />
+                  ))}
+                </dl>
+              )}
 
-                {/* Dầu đốt: câu hỏi quan trọng nhất trước khi vào vùng ECA là
-                    "còn bao nhiêu dầu dùng được trong ECA". */}
-                {c.value === "FUEL" &&
-                  (() => {
-                    const lh = tonTheoLuuHuynh();
-                    const tong = lh.dungEca + lh.ngoaiEca + lh.chuaKhai;
-                    if (tong === 0) return null;
-                    return (
-                      <div className="mt-3 border-t pt-3 text-sm">
-                        <p className="mb-1 font-semibold text-slate-700">
-                          {t("consumables.theoGioiHanLuuHuynh")}
-                        </p>
-                        <p className="text-emerald-700">
-                          {t("consumables.dungTrongEca", {
+              {/* Dầu đốt: câu hỏi quan trọng nhất trước khi vào vùng ECA là
+                  "còn bao nhiêu dầu dùng được trong ECA". */}
+              {c.value === "FUEL" &&
+                (() => {
+                  const lh = tonTheoLuuHuynh();
+                  const tong = lh.dungEca + lh.ngoaiEca + lh.chuaKhai;
+                  if (tong === 0) return null;
+                  return (
+                    <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
+                      <p className="mb-1 text-xs font-medium text-[var(--text-secondary)]">
+                        {t("consumables.theoGioiHanLuuHuynh")}
+                      </p>
+                      <dl>
+                        <DataRow
+                          label={t("consumables.dungTrongEca", {
                             s: GIOI_HAN_LUU_HUYNH.ECA,
-                          })}{" "}
-                          <b>
-                            {Math.round(lh.dungEca * 1000) / 1000} {lh.uom}
-                          </b>
-                        </p>
-                        <p className="text-amber-800">
-                          {t("consumables.chiNgoaiEca", {
+                          })}
+                          value={
+                            <Badge tone="success">
+                              <span className="tabular">
+                                {Math.round(lh.dungEca * 1000) / 1000} {lh.uom}
+                              </span>
+                            </Badge>
+                          }
+                        />
+                        <DataRow
+                          label={t("consumables.chiNgoaiEca", {
                             s: GIOI_HAN_LUU_HUYNH.ECA,
-                          })}{" "}
-                          <b>
-                            {Math.round(lh.ngoaiEca * 1000) / 1000} {lh.uom}
-                          </b>
-                        </p>
+                          })}
+                          value={
+                            <Badge tone="warning">
+                              <span className="tabular">
+                                {Math.round(lh.ngoaiEca * 1000) / 1000} {lh.uom}
+                              </span>
+                            </Badge>
+                          }
+                        />
                         {lh.chuaKhai > 0 && (
-                          <p className="text-slate-500">
-                            {t("consumables.chuaKhaiLuuHuynh")}{" "}
-                            <b>
-                              {Math.round(lh.chuaKhai * 1000) / 1000} {lh.uom}
-                            </b>{" "}
-                            {t("consumables.chuaXepNhom")}
-                          </p>
+                          <DataRow
+                            label={
+                              <>
+                                {t("consumables.chuaKhaiLuuHuynh")}{" "}
+                                <span className="text-[var(--text-muted)]">
+                                  {t("consumables.chuaXepNhom")}
+                                </span>
+                              </>
+                            }
+                            value={
+                              <Badge tone="muted">
+                                <span className="tabular">
+                                  {Math.round(lh.chuaKhai * 1000) / 1000}{" "}
+                                  {lh.uom}
+                                </span>
+                              </Badge>
+                            }
+                          />
                         )}
-                        <p className="mt-1 text-xs text-slate-500">
-                          {t("consumables.ghiChuLuuHuynhDanhNghia")}
-                        </p>
-                      </div>
-                    );
-                  })()}
-              </div>
+                      </dl>
+                      <p className="mt-2 text-xs text-[var(--text-muted)]">
+                        {t("consumables.ghiChuLuuHuynhDanhNghia")}
+                      </p>
+                    </div>
+                  );
+                })()}
+            </Card>
 
-              <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-                <h4 className="mb-2 text-sm font-semibold text-slate-700">
-                  {t("consumables.tieuThu30Ngay")}
-                </h4>
-                {tt.length === 0 ? (
-                  <p className="text-sm text-slate-500">
-                    {t("consumables.chuaCoTieuThu30")}
-                  </p>
-                ) : (
-                  <ul className="space-y-1 text-sm">
-                    {tt.map(([noi, v]) => (
-                      <li key={noi} className="flex justify-between gap-3">
-                        <span className="text-slate-700">
-                          {tTuDo(`consumables.noiTieuThu_${noi}`)}
-                        </span>
-                        <span className="font-semibold text-blue-950">
+            <Card>
+              <CardHeader
+                icon={<Flame className="size-4" />}
+                title={t("consumables.tieuThu30Ngay")}
+                subtitle={nhanNhom}
+              />
+              {tt.length === 0 ? (
+                <p className="text-sm text-[var(--text-muted)]">
+                  {t("consumables.chuaCoTieuThu30")}
+                </p>
+              ) : (
+                <dl className="divide-y divide-[var(--border-subtle)]">
+                  {tt.map(([noi, v]) => (
+                    <DataRow
+                      key={noi}
+                      label={tTuDo(`consumables.noiTieuThu_${noi}`)}
+                      value={
+                        <span className="tabular">
                           {Math.round(v.tong * 1000) / 1000} {v.uom}
                         </span>
-                      </li>
-                    ))}
-                    <li className="flex justify-between gap-3 border-t pt-1">
-                      <span className="font-medium text-slate-700">
-                        {t("consumables.tong")}
-                      </span>
-                      <span className="font-bold text-blue-950">
-                        {Math.round(
-                          tt.reduce((a, [, v]) => a + v.tong, 0) * 1000
-                        ) / 1000}{" "}
-                        {tt[0][1].uom}
-                      </span>
-                    </li>
-                  </ul>
-                )}
-              </div>
-            </div>
-          </section>
+                      }
+                    />
+                  ))}
+                  <div className="border-t border-[var(--border-subtle)]">
+                    <DataRow
+                      label={
+                        <span className="font-medium text-[var(--text-primary)]">
+                          {t("consumables.tong")}
+                        </span>
+                      }
+                      value={
+                        <span className="tabular font-semibold">
+                          {Math.round(
+                            tt.reduce((a, [, v]) => a + v.tong, 0) * 1000
+                          ) / 1000}{" "}
+                          {tt[0][1].uom}
+                        </span>
+                      }
+                    />
+                  </div>
+                </dl>
+              )}
+            </Card>
+          </div>
         );
       })}
 
       {/* ── Tồn theo nhóm ────────────────────────────────────────────── */}
-      <section className="space-y-3">
-        <h3 className="text-xl font-semibold text-blue-950">
-          {t("consumables.tonTrenTau")}
-        </h3>
+      <Card>
+        <CardHeader
+          icon={<Boxes className="size-4" />}
+          title={t("consumables.tonTrenTau")}
+        />
         {theoNhom.length === 0 ? (
-          <p className="rounded-xl bg-white p-6 text-sm text-slate-500 shadow-sm ring-1 ring-blue-100">
-            {t("consumables.chuaCoSoLieu")}
-          </p>
+          <EmptyState
+            icon={<Boxes className="size-5" />}
+            title={t("consumables.chuaCoSoLieu")}
+          />
         ) : (
-          theoNhom.map((nhom) => (
-            <div
-              key={nhom.value}
-              className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100"
-            >
-              <h4 className="mb-2 font-semibold text-blue-950">
-                {nhom.icon} {tTuDo(`consumables.nhom_${nhom.value}`)}
-              </h4>
-              <div className="overflow-x-auto">
-                <table className="w-full border text-sm">
-                  <thead>
-                    <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                      <th className="p-2">{t("chung.ma")}</th>
-                      <th className="p-2">{t("consumables.matHang")}</th>
-                      <th className="p-2">{t("consumables.chungLoai")}</th>
-                      <th className="p-2 text-right">{t("consumables.ton")}</th>
-                      <th className="p-2 text-right">
-                        {t("consumables.dungMoiNgay")}
-                      </th>
-                      <th className="p-2 text-right">
-                        {t("consumables.conDungDuoc")}
-                      </th>
-                      <th className="p-2 text-right">
-                        {t("consumables.dinhMuc")}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {nhom.stocks.map((s) => {
-                      const thieu = s.minQty > 0 && s.quantity < s.minQty;
-                      return (
-                        <tr key={s.id} className="border-b">
-                          <td className="p-2 font-mono text-xs">
-                            {s.product.code}
-                          </td>
-                          <td className="p-2">
-                            {s.product.name}
-                            {s.product.maker && (
-                              <span className="text-slate-500">
-                                {" "}
-                                · {s.product.maker}
+          <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+            <Table dense>
+              <thead>
+                <tr>
+                  <Th>{t("chung.ma")}</Th>
+                  <Th>{t("consumables.matHang")}</Th>
+                  <Th>{t("consumables.chungLoai")}</Th>
+                  <Th align="right">{t("consumables.ton")}</Th>
+                  <Th align="right">{t("consumables.dungMoiNgay")}</Th>
+                  <Th align="right">{t("consumables.conDungDuoc")}</Th>
+                  <Th align="right">{t("consumables.dinhMuc")}</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {theoNhom.map((nhom) => {
+                  const Icon = CATEGORY_ICON[nhom.value];
+                  return (
+                    <Fragment key={nhom.value}>
+                      <TrNhom colSpan={7}>
+                        <span className="inline-flex flex-wrap items-center gap-2">
+                          {Icon && (
+                            <Icon className="size-4 text-[var(--text-muted)]" />
+                          )}
+                          {tTuDo(`consumables.nhom_${nhom.value}`)}
+                          <Badge tone={CATEGORY_TONE[nhom.value] ?? "neutral"}>
+                            {t("consumables.nMatHang", {
+                              n: nhom.stocks.length,
+                            })}
+                          </Badge>
+                        </span>
+                      </TrNhom>
+                      {nhom.stocks.map((s) => {
+                        const thieu = s.minQty > 0 && s.quantity < s.minQty;
+                        // Tỷ lệ tồn / định mức cho thanh mức thiếu (chỉ vẽ ở
+                        // dòng thiếu, như trang Tồn kho).
+                        const pct =
+                          s.minQty > 0
+                            ? Math.max(
+                                0,
+                                Math.min(
+                                  100,
+                                  Math.round((s.quantity / s.minQty) * 100)
+                                )
+                              )
+                            : 0;
+                        return (
+                          <Tr
+                            key={s.id}
+                            className="transition-colors hover:bg-[var(--surface-sunken)]/50"
+                          >
+                            <Td className="font-display text-xs tracking-wide whitespace-nowrap">
+                              {s.product.code}
+                            </Td>
+                            <Td>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span>{s.product.name}</span>
+                                {s.product.maker && (
+                                  <span className="text-[var(--text-muted)]">
+                                    · {s.product.maker}
+                                  </span>
+                                )}
+                                {thieu && (
+                                  <Badge tone="danger">
+                                    {t("consumables.badgeThieu")}
+                                  </Badge>
+                                )}
+                              </div>
+                            </Td>
+                            <Td>
+                              <span className="text-[var(--text-secondary)]">
+                                {tTuDo(`consumables.loai_${s.product.grade}`)}
                               </span>
-                            )}
-                            {thieu && (
-                              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
-                                {t("consumables.badgeThieu")}
+                            </Td>
+                            <Td align="right">
+                              <span
+                                className={cn(
+                                  "font-semibold",
+                                  thieu && "text-[var(--text-danger)]"
+                                )}
+                              >
+                                {s.quantity} {s.product.uom}
                               </span>
-                            )}
-                          </td>
-                          <td className="p-2 text-slate-600">
-                            {tTuDo(`consumables.loai_${s.product.grade}`)}
-                          </td>
-                          <td className="p-2 text-right font-semibold">
-                            {s.quantity} {s.product.uom}
-                          </td>
-                          <td className="p-2 text-right text-slate-600">
-                            {(() => {
-                              const md = tieuThuMoiNgay(s.productId);
-                              return md > 0 ? Math.round(md * 100) / 100 : "—";
-                            })()}
-                          </td>
-                          <td className="p-2 text-right">
-                            {(() => {
-                              const ng = soNgayConDung(s.productId, s.quantity);
-                              if (ng === null)
+                              {thieu && (
+                                <div className="mt-1 ml-auto w-16">
+                                  <Meter value={pct} tone={toneThieu(pct)} />
+                                </div>
+                              )}
+                            </Td>
+                            <Td align="right">
+                              <span className="text-[var(--text-secondary)]">
+                                {(() => {
+                                  const md = tieuThuMoiNgay(s.productId);
+                                  return md > 0
+                                    ? Math.round(md * 100) / 100
+                                    : "—";
+                                })()}
+                              </span>
+                            </Td>
+                            <Td align="right">
+                              {(() => {
+                                const ng = soNgayConDung(
+                                  s.productId,
+                                  s.quantity
+                                );
+                                if (ng === null)
+                                  return (
+                                    <span className="text-[var(--text-muted)]">
+                                      {t("consumables.chuaCoTieuThu")}
+                                    </span>
+                                  );
                                 return (
-                                  <span className="text-slate-400">
-                                    {t("consumables.chuaCoTieuThu")}
+                                  <span
+                                    className={
+                                      ng < NGUONG_NGAY_SAP_HET
+                                        ? "font-semibold text-[var(--text-warning)]"
+                                        : "text-[var(--text-secondary)]"
+                                    }
+                                  >
+                                    {t("consumables.nNgay", { n: ng })}
                                   </span>
                                 );
-                              return (
-                                <span
-                                  className={
-                                    ng < NGUONG_NGAY_SAP_HET
-                                      ? "font-semibold text-orange-700"
-                                      : "text-slate-700"
-                                  }
-                                >
-                                  {t("consumables.nNgay", { n: ng })}
+                              })()}
+                            </Td>
+                            <Td align="right">
+                              {nhomGhiDuoc.includes(s.product.category) ? (
+                                <div className="flex justify-end">
+                                  <ConsumableMinForm
+                                    vesselId={vesselId}
+                                    productId={s.productId}
+                                    minQty={s.minQty}
+                                  />
+                                </div>
+                              ) : (
+                                <span className="text-[var(--text-muted)]">
+                                  {s.minQty || "—"}
                                 </span>
-                              );
-                            })()}
-                          </td>
-                          <td className="p-2 text-right">
-                            {nhomGhiDuoc.includes(s.product.category) ? (
-                              <div className="flex justify-end">
-                                <ConsumableMinForm
-                                  vesselId={vesselId}
-                                  productId={s.productId}
-                                  minQty={s.minQty}
-                                />
-                              </div>
-                            ) : (
-                              s.minQty || "—"
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))
+                              )}
+                            </Td>
+                          </Tr>
+                        );
+                      })}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </div>
         )}
-      </section>
+      </Card>
 
       {/* ── Ghi phiếu nhận ───────────────────────────────────────────── */}
       {coTheGhi && (
-        <section className="space-y-3">
-          <h3 className="text-xl font-semibold text-blue-950">
-            {t("consumables.tieuDeGhiPhieu")}
-          </h3>
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-            <ConsumableReceiptForm
-              vesselId={vesselId}
-              products={optionsChoNhom}
-            />
-          </div>
-        </section>
+        <Card padded={false}>
+          <details className="group" open>
+            <summary className={SUMMARY}>
+              <ChevronRight
+                aria-hidden="true"
+                className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
+              />
+              <ArrowDownToLine className="size-4 text-[var(--text-muted)]" />
+              {t("consumables.tieuDeGhiPhieu")}
+            </summary>
+            <div className="border-t border-[var(--border-subtle)] px-4 py-4">
+              <ConsumableReceiptForm
+                vesselId={vesselId}
+                products={optionsChoNhom}
+              />
+            </div>
+          </details>
+        </Card>
       )}
 
       {/* ── Tiêu thụ / xuất ──────────────────────────────────────────── */}
       {coTheGhi && (
-        <section className="space-y-3">
-          <h3 className="text-xl font-semibold text-blue-950">
-            {t("consumables.tieuDeGhiTieuThu")}
-          </h3>
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-            <ConsumableMoveForm vesselId={vesselId} products={optionsChoNhom} />
-          </div>
-        </section>
+        <Card padded={false}>
+          <details className="group" open>
+            <summary className={SUMMARY}>
+              <ChevronRight
+                aria-hidden="true"
+                className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
+              />
+              <ArrowUpFromLine className="size-4 text-[var(--text-muted)]" />
+              {t("consumables.tieuDeGhiTieuThu")}
+            </summary>
+            <div className="border-t border-[var(--border-subtle)] px-4 py-4">
+              <ConsumableMoveForm
+                vesselId={vesselId}
+                products={optionsChoNhom}
+              />
+            </div>
+          </details>
+        </Card>
       )}
 
       {/* ── Yêu cầu cấp ──────────────────────────────────────────────── */}
       {coTheXinCap && (
-        <section className="space-y-3">
-          <h3 className="text-xl font-semibold text-blue-950">
-            {t("consumables.tieuDeXinCap")}
-          </h3>
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-            <ConsumableRequestForm
-              vesselId={vesselId}
-              lines={dongXinCap}
-              nguoiDuyet={nguoiDuyetCuaToi}
-            />
-          </div>
-        </section>
+        <Card padded={false}>
+          <details className="group">
+            <summary className={SUMMARY}>
+              <ChevronRight
+                aria-hidden="true"
+                className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
+              />
+              <Send className="size-4 text-[var(--text-muted)]" />
+              {t("consumables.tieuDeXinCap")}
+            </summary>
+            <div className="border-t border-[var(--border-subtle)] px-4 py-4">
+              <ConsumableRequestForm
+                vesselId={vesselId}
+                lines={dongXinCap}
+                nguoiDuyet={nguoiDuyetCuaToi}
+              />
+            </div>
+          </details>
+        </Card>
       )}
 
       {/* ── Mẫu dầu đang giữ (chỉ có nghĩa với dầu đốt) ──────────────── */}
       {hopNhom("FUEL") && mauDangGiu.length > 0 && (
-        <section className="space-y-3">
-          <h3 className="text-xl font-semibold text-blue-950">
-            {t("consumables.tieuDeMauDau")}
-          </h3>
-          <div className="overflow-x-auto rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-            <p className="mb-2 text-sm text-slate-600">
-              {t("consumables.moTaMauDau")}
-            </p>
-            <table className="w-full border text-sm">
-              <thead>
-                <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">{t("consumables.soBdn")}</th>
-                  <th className="p-2">{t("consumables.cotNgayGiao")}</th>
-                  <th className="p-2">{t("consumables.matHang")}</th>
-                  <th className="p-2">{t("consumables.cotSoNiem")}</th>
-                  <th className="p-2">{t("consumables.cotGiuToi")}</th>
-                  <th className="p-2 text-right">{t("consumables.cotCon")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mauDangGiu.map((r) => {
-                  const con = soNgayToi(r.sampleKeepUntil)!;
-                  return (
-                    <tr key={r.id} className="border-b">
-                      <td className="p-2 font-medium">{r.docNo}</td>
-                      <td className="p-2 whitespace-nowrap">
-                        {ngay(r.receivedAt)}
-                      </td>
-                      <td className="p-2">{r.product.name}</td>
-                      <td className="p-2 font-mono text-xs">
-                        {r.sampleSealNo ?? (
-                          <span className="text-amber-700">
-                            {t("consumables.chuaGhiSoNiem")}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-2 whitespace-nowrap">
-                        {ngay(r.sampleKeepUntil!)}
-                      </td>
-                      <td className="p-2 text-right whitespace-nowrap text-slate-600">
-                        {t("consumables.nNgay", { n: con })}
-                      </td>
+        <Card padded={false}>
+          <details className="group">
+            <summary className={SUMMARY}>
+              <ChevronRight
+                aria-hidden="true"
+                className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
+              />
+              <TestTube className="size-4 text-[var(--text-muted)]" />
+              {t("consumables.tieuDeMauDau")}
+              <span className="text-xs font-normal text-[var(--text-muted)]">
+                ({mauDangGiu.length})
+              </span>
+            </summary>
+            <div className="border-t border-[var(--border-subtle)] px-4 py-4">
+              <p className="mb-3 text-xs text-[var(--text-secondary)]">
+                {t("consumables.moTaMauDau")}
+              </p>
+              <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+                <Table dense>
+                  <thead>
+                    <tr>
+                      <Th>{t("consumables.soBdn")}</Th>
+                      <Th>{t("consumables.cotNgayGiao")}</Th>
+                      <Th>{t("consumables.matHang")}</Th>
+                      <Th>{t("consumables.cotSoNiem")}</Th>
+                      <Th>{t("consumables.cotGiuToi")}</Th>
+                      <Th align="right">{t("consumables.cotCon")}</Th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                  </thead>
+                  <tbody>
+                    {mauDangGiu.map((r) => {
+                      const con = soNgayToi(r.sampleKeepUntil)!;
+                      return (
+                        <Tr
+                          key={r.id}
+                          className="transition-colors hover:bg-[var(--surface-sunken)]/50"
+                        >
+                          <Td className="font-medium whitespace-nowrap">
+                            {r.docNo}
+                          </Td>
+                          <Td className="whitespace-nowrap">
+                            {ngay(r.receivedAt)}
+                          </Td>
+                          <Td>{r.product.name}</Td>
+                          <Td className="font-display text-xs tracking-wide">
+                            {r.sampleSealNo ?? (
+                              <span className="text-[var(--text-warning)]">
+                                {t("consumables.chuaGhiSoNiem")}
+                              </span>
+                            )}
+                          </Td>
+                          <Td className="whitespace-nowrap">
+                            {ngay(r.sampleKeepUntil!)}
+                          </Td>
+                          <Td align="right" className="whitespace-nowrap">
+                            <span className="text-[var(--text-secondary)]">
+                              {t("consumables.nNgay", { n: con })}
+                            </span>
+                          </Td>
+                        </Tr>
+                      );
+                    })}
+                  </tbody>
+                </Table>
+              </div>
+            </div>
+          </details>
+        </Card>
       )}
 
       {/* ── An toàn hóa chất ─────────────────────────────────────────── */}
       {hopNhom("CHEMICAL") && hoaChatNguyHiem.length > 0 && (
-        <section className="space-y-3">
-          <h3 className="text-xl font-semibold text-blue-950">
-            {t("consumables.tieuDeAnToanHoaChat")}
-          </h3>
-          <div className="overflow-x-auto rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-            <table className="w-full border text-sm">
-              <thead>
-                <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">{t("chung.ma")}</th>
-                  <th className="p-2">{t("consumables.cotHoaChat")}</th>
-                  <th className="p-2">
-                    {t("consumables.cotPhanLoaiNguyHiem")}
-                  </th>
-                  <th className="p-2">{t("consumables.cotHanDung")}</th>
-                  <th className="p-2">{t("consumables.ghiChuAnToan")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {hoaChatNguyHiem.map((p) => (
-                  <tr key={p.id} className="border-b">
-                    <td className="p-2 font-mono text-xs">{p.code}</td>
-                    <td className="p-2">{p.name}</td>
-                    <td className="p-2">
-                      {p.hazardClass ? (
-                        <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-800">
-                          {p.hazardClass}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400">—</span>
-                      )}
-                    </td>
-                    <td className="p-2 text-slate-600">
-                      {p.shelfLifeMonths
-                        ? t("consumables.nThangTuNgayNhan", {
-                            n: p.shelfLifeMonths,
-                          })
-                        : "—"}
-                    </td>
-                    <td className="p-2 text-slate-600">{p.msdsNote ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <Card padded={false}>
+          <details className="group">
+            <summary className={SUMMARY}>
+              <ChevronRight
+                aria-hidden="true"
+                className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
+              />
+              <ShieldAlert className="size-4 text-[var(--text-muted)]" />
+              {t("consumables.tieuDeAnToanHoaChat")}
+              <span className="text-xs font-normal text-[var(--text-muted)]">
+                ({hoaChatNguyHiem.length})
+              </span>
+            </summary>
+            <div className="border-t border-[var(--border-subtle)] px-4 py-4">
+              <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+                <Table dense>
+                  <thead>
+                    <tr>
+                      <Th>{t("chung.ma")}</Th>
+                      <Th>{t("consumables.cotHoaChat")}</Th>
+                      <Th>{t("consumables.cotPhanLoaiNguyHiem")}</Th>
+                      <Th>{t("consumables.cotHanDung")}</Th>
+                      <Th>{t("consumables.ghiChuAnToan")}</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {hoaChatNguyHiem.map((p) => (
+                      <Tr
+                        key={p.id}
+                        className="transition-colors hover:bg-[var(--surface-sunken)]/50"
+                      >
+                        <Td className="font-display text-xs tracking-wide whitespace-nowrap">
+                          {p.code}
+                        </Td>
+                        <Td>{p.name}</Td>
+                        <Td>
+                          {p.hazardClass ? (
+                            <Badge tone="danger">{p.hazardClass}</Badge>
+                          ) : (
+                            <span className="text-[var(--text-muted)]">—</span>
+                          )}
+                        </Td>
+                        <Td>
+                          <span className="text-[var(--text-secondary)]">
+                            {p.shelfLifeMonths
+                              ? t("consumables.nThangTuNgayNhan", {
+                                  n: p.shelfLifeMonths,
+                                })
+                              : "—"}
+                          </span>
+                        </Td>
+                        <Td>
+                          <span className="text-[var(--text-secondary)]">
+                            {p.msdsNote ?? "—"}
+                          </span>
+                        </Td>
+                      </Tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+            </div>
+          </details>
+        </Card>
       )}
 
       {/* ── Lịch sử phiếu nhận ───────────────────────────────────────── */}
-      <section className="space-y-3">
-        <h3 className="text-xl font-semibold text-blue-950">
-          {t("consumables.tieuDePhieuGanDay")}
-        </h3>
-        <div className="overflow-x-auto rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-          {receipts.length === 0 ? (
-            <p className="text-sm text-slate-500">
-              {t("consumables.chuaCoPhieu")}
-            </p>
-          ) : (
-            <table className="w-full border text-sm">
-              <thead>
-                <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">{t("consumables.cotSoChungTu")}</th>
-                  <th className="p-2">{t("chung.ngay")}</th>
-                  <th className="p-2">{t("consumables.matHang")}</th>
-                  <th className="p-2 text-right">{t("chung.soLuong")}</th>
-                  <th className="p-2">{t("consumables.cotCangNcc")}</th>
-                  <th className="p-2">{t("consumables.cotDacTinh")}</th>
-                  <th className="p-2">{t("consumables.cotMauHanDung")}</th>
-                  <th className="p-2">{t("consumables.cotBanGoc")}</th>
-                  <th className="p-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {receipts.filter((r) => hopNhom(r.product.category)).map((r) => {
-                  const cb = kiemTraLuuHuynh(r.sulphur);
-                  const conHan = soNgayToi(r.expiryDate);
-                  return (
-                    <tr key={r.id} className="border-b align-top">
-                      <td className="p-2 font-medium">{r.docNo}</td>
-                      <td className="p-2 whitespace-nowrap">
-                        {ngay(r.receivedAt)}
-                      </td>
-                      <td className="p-2">
-                        {CATEGORY_ICON[r.product.category]} {r.product.name}
-                      </td>
-                      <td className="p-2 text-right whitespace-nowrap">
-                        {r.quantity} {r.product.uom}
-                      </td>
-                      <td className="p-2 text-slate-600">
-                        {[r.port, r.supplier].filter(Boolean).join(" · ") || "—"}
-                      </td>
-                      <td className="p-2 text-xs text-slate-600">
-                        {r.sulphur !== null && (
-                          <span
-                            className={
-                              cb?.muc === "VUOT_TOAN_CAU"
-                                ? "font-semibold text-red-700"
-                                : cb?.muc === "VUOT_ECA"
-                                  ? "font-semibold text-amber-700"
-                                  : "text-emerald-700"
-                            }
-                          >
-                            S {r.sulphur}%
-                          </span>
-                        )}
-                        {r.density !== null && <> · ρ {r.density}</>}
-                        {r.viscosity !== null && <> · {r.viscosity} cSt</>}
-                        {r.bnValue !== null && <> · TBN {r.bnValue}</>}
-                        {r.sulphur === null &&
-                          r.density === null &&
-                          r.viscosity === null &&
-                          r.bnValue === null &&
-                          "—"}
-                      </td>
-                      <td className="p-2 text-xs text-slate-600">
-                        {r.sampleKeepUntil && (
-                          <>
-                            {t("consumables.mauToi", {
-                              ngay: ngay(r.sampleKeepUntil),
-                            })}
-                            {r.sampleSealNo
-                              ? ` · ${t("consumables.niemSo", {
-                                  so: r.sampleSealNo,
-                                })}`
-                              : ""}
-                          </>
-                        )}
-                        {r.expiryDate && (
-                          <span
-                            className={
-                              conHan !== null && conHan <= NGUONG_CANH_BAO_HAN_DUNG
-                                ? "font-semibold text-red-700"
-                                : ""
-                            }
-                          >
-                            {r.sampleKeepUntil ? <br /> : null}
-                            {t("consumables.hanDungNgan", {
-                              ngay: ngay(r.expiryDate),
-                            })}
-                          </span>
-                        )}
-                        {!r.sampleKeepUntil && !r.expiryDate && "—"}
-                      </td>
-                      <td className="p-2 text-xs">
-                        {r.attachStored && coXemBanGoc ? (
-                          <a
-                            href={`/api/consumable-receipts/${r.id}/file`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-blue-700 hover:underline"
-                            title={r.attachName ?? ""}
-                          >
-                            {t("consumables.xemBanGoc")}
-                          </a>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-                      <td className="p-2 text-right">
-                        {nhomGhiDuoc.includes(r.product.category) && (
-                          <ConsumableReceiptDeleteButton
-                            id={r.id}
-                            docNo={r.docNo}
-                          />
-                        )}
-                      </td>
+      <Card padded={false}>
+        <details className="group" open>
+          <summary className={SUMMARY}>
+            <ChevronRight
+              aria-hidden="true"
+              className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
+            />
+            <FileText className="size-4 text-[var(--text-muted)]" />
+            {t("consumables.tieuDePhieuGanDay")}
+          </summary>
+          <div className="border-t border-[var(--border-subtle)] px-4 py-4">
+            {receipts.length === 0 ? (
+              <EmptyState
+                icon={<FileText className="size-5" />}
+                title={t("consumables.chuaCoPhieu")}
+              />
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+                <Table dense>
+                  <thead>
+                    <tr>
+                      <Th>{t("consumables.cotSoChungTu")}</Th>
+                      <Th>{t("chung.ngay")}</Th>
+                      <Th>{t("consumables.matHang")}</Th>
+                      <Th align="right">{t("chung.soLuong")}</Th>
+                      <Th>{t("consumables.cotCangNcc")}</Th>
+                      <Th>{t("consumables.cotDacTinh")}</Th>
+                      <Th>{t("consumables.cotMauHanDung")}</Th>
+                      <Th>{t("consumables.cotBanGoc")}</Th>
+                      <Th />
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </section>
+                  </thead>
+                  <tbody>
+                    {receipts
+                      .filter((r) => hopNhom(r.product.category))
+                      .map((r) => {
+                        const cb = kiemTraLuuHuynh(r.sulphur);
+                        const conHan = soNgayToi(r.expiryDate);
+                        const Icon = CATEGORY_ICON[r.product.category];
+                        return (
+                          <Tr
+                            key={r.id}
+                            className="align-top transition-colors hover:bg-[var(--surface-sunken)]/50"
+                          >
+                            <Td className="font-medium whitespace-nowrap">
+                              {r.docNo}
+                            </Td>
+                            <Td className="whitespace-nowrap">
+                              {ngay(r.receivedAt)}
+                            </Td>
+                            <Td>
+                              <span className="inline-flex items-center gap-1.5">
+                                {Icon && (
+                                  <Icon className="size-4 shrink-0 text-[var(--text-muted)]" />
+                                )}
+                                {r.product.name}
+                              </span>
+                            </Td>
+                            <Td align="right" className="whitespace-nowrap">
+                              {r.quantity} {r.product.uom}
+                            </Td>
+                            <Td>
+                              <span className="text-[var(--text-secondary)]">
+                                {[r.port, r.supplier]
+                                  .filter(Boolean)
+                                  .join(" · ") || "—"}
+                              </span>
+                            </Td>
+                            <Td className="text-xs">
+                              <span className="inline-flex flex-wrap items-center gap-1.5 text-[var(--text-secondary)]">
+                                {r.sulphur !== null && cb && (
+                                  <Badge
+                                    tone={TONE_LUU_HUYNH[cb.muc]}
+                                    title={tTuDo(
+                                      `consumables.luuHuynh_${cb.muc}`,
+                                      { s: r.sulphur }
+                                    )}
+                                  >
+                                    <span className="tabular">
+                                      S {r.sulphur}%
+                                    </span>
+                                  </Badge>
+                                )}
+                                {r.density !== null && (
+                                  <span className="tabular">ρ {r.density}</span>
+                                )}
+                                {r.viscosity !== null && (
+                                  <span className="tabular">
+                                    {r.viscosity} cSt
+                                  </span>
+                                )}
+                                {r.bnValue !== null && (
+                                  <span className="tabular">
+                                    TBN {r.bnValue}
+                                  </span>
+                                )}
+                                {r.sulphur === null &&
+                                  r.density === null &&
+                                  r.viscosity === null &&
+                                  r.bnValue === null &&
+                                  "—"}
+                              </span>
+                            </Td>
+                            <Td className="text-xs">
+                              <span className="text-[var(--text-secondary)]">
+                                {r.sampleKeepUntil && (
+                                  <>
+                                    {t("consumables.mauToi", {
+                                      ngay: ngay(r.sampleKeepUntil),
+                                    })}
+                                    {r.sampleSealNo
+                                      ? ` · ${t("consumables.niemSo", {
+                                          so: r.sampleSealNo,
+                                        })}`
+                                      : ""}
+                                  </>
+                                )}
+                                {r.expiryDate && (
+                                  <span
+                                    className={
+                                      conHan !== null &&
+                                      conHan <= NGUONG_CANH_BAO_HAN_DUNG
+                                        ? "font-semibold text-[var(--text-danger)]"
+                                        : ""
+                                    }
+                                  >
+                                    {r.sampleKeepUntil ? <br /> : null}
+                                    {t("consumables.hanDungNgan", {
+                                      ngay: ngay(r.expiryDate),
+                                    })}
+                                  </span>
+                                )}
+                                {!r.sampleKeepUntil && !r.expiryDate && "—"}
+                              </span>
+                            </Td>
+                            <Td className="text-xs">
+                              {r.attachStored && coXemBanGoc ? (
+                                <a
+                                  href={`/api/consumable-receipts/${r.id}/file`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={`inline-flex items-center gap-1 ${LINK}`}
+                                  title={r.attachName ?? ""}
+                                >
+                                  <FileText className="size-3.5" />
+                                  {t("consumables.xemBanGoc")}
+                                </a>
+                              ) : (
+                                <span className="text-[var(--text-muted)]">
+                                  —
+                                </span>
+                              )}
+                            </Td>
+                            <Td align="right">
+                              {nhomGhiDuoc.includes(r.product.category) && (
+                                <div className="flex justify-end">
+                                  <ConsumableReceiptDeleteButton
+                                    id={r.id}
+                                    docNo={r.docNo}
+                                  />
+                                </div>
+                              )}
+                            </Td>
+                          </Tr>
+                        );
+                      })}
+                  </tbody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </details>
+      </Card>
 
       {/* ── Nhật ký giao dịch ────────────────────────────────────────── */}
-      <section className="space-y-3">
-        <h3 className="text-xl font-semibold text-blue-950">
-          {t("consumables.tieuDeNhatKy")}
-        </h3>
-        <div className="overflow-x-auto rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-          {transactions.length === 0 ? (
-            <p className="text-sm text-slate-500">
-              {t("consumables.chuaCoGiaoDich")}
-            </p>
-          ) : (
-            <table className="w-full border text-sm">
-              <thead>
-                <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">{t("consumables.cotThoiDiem")}</th>
-                  <th className="p-2">{t("consumables.cotLoai")}</th>
-                  <th className="p-2">{t("consumables.matHang")}</th>
-                  <th className="p-2">{t("consumables.noiTieuThu")}</th>
-                  <th className="p-2 text-right">{t("chung.soLuong")}</th>
-                  <th className="p-2">{t("consumables.cotNguoiGhi")}</th>
-                  <th className="p-2">{t("chung.ghiChu")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions
-                  .filter((tx) => hopNhom(tx.product.category))
-                  .map((tx) => (
-                  <tr key={tx.id} className="border-b">
-                    <td className="p-2 whitespace-nowrap">
-                      {ngayGio(tx.occurredAt)}
-                    </td>
-                    <td className="p-2">
-                      <span
-                        className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                          tx.type === "IN"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : tx.type === "CONSUME"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-slate-100 text-slate-700"
-                        }`}
-                      >
-                        {tTuDo(`consumables.giaoDich_${tx.type}`)}
-                      </span>
-                    </td>
-                    <td className="p-2">{tx.product.name}</td>
-                    <td className="p-2 text-slate-600">
-                      {tx.consumer
-                        ? tTuDo(`consumables.noiTieuThu_${tx.consumer}`)
-                        : "—"}
-                    </td>
-                    <td className="p-2 text-right whitespace-nowrap">
-                      {tx.type === "IN" ? "+" : "−"}
-                      {tx.quantity} {tx.product.uom}
-                    </td>
-                    <td className="p-2 text-slate-600">
-                      {tx.performedBy ?? "—"}
-                    </td>
-                    <td className="p-2 text-slate-600">{tx.note ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </section>
+      <Card padded={false}>
+        <details className="group">
+          <summary className={SUMMARY}>
+            <ChevronRight
+              aria-hidden="true"
+              className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
+            />
+            <History className="size-4 text-[var(--text-muted)]" />
+            {t("consumables.tieuDeNhatKy")}
+          </summary>
+          <div className="border-t border-[var(--border-subtle)] px-4 py-4">
+            {transactions.length === 0 ? (
+              <EmptyState
+                icon={<History className="size-5" />}
+                title={t("consumables.chuaCoGiaoDich")}
+              />
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-[var(--border-subtle)]">
+                <Table dense>
+                  <thead>
+                    <tr>
+                      <Th>{t("consumables.cotThoiDiem")}</Th>
+                      <Th>{t("consumables.cotLoai")}</Th>
+                      <Th>{t("consumables.matHang")}</Th>
+                      <Th>{t("consumables.noiTieuThu")}</Th>
+                      <Th align="right">{t("chung.soLuong")}</Th>
+                      <Th>{t("consumables.cotNguoiGhi")}</Th>
+                      <Th>{t("chung.ghiChu")}</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions
+                      .filter((tx) => hopNhom(tx.product.category))
+                      .map((tx) => (
+                        <Tr
+                          key={tx.id}
+                          className="transition-colors hover:bg-[var(--surface-sunken)]/50"
+                        >
+                          <Td className="whitespace-nowrap">
+                            {ngayGio(tx.occurredAt)}
+                          </Td>
+                          <Td>
+                            <Badge tone={TONE_GIAO_DICH[tx.type] ?? "neutral"}>
+                              {tTuDo(`consumables.giaoDich_${tx.type}`)}
+                            </Badge>
+                          </Td>
+                          <Td>{tx.product.name}</Td>
+                          <Td>
+                            <span className="text-[var(--text-secondary)]">
+                              {tx.consumer
+                                ? tTuDo(
+                                    `consumables.noiTieuThu_${tx.consumer}`
+                                  )
+                                : "—"}
+                            </span>
+                          </Td>
+                          <Td align="right" className="whitespace-nowrap">
+                            <span
+                              className={cn(
+                                "font-semibold",
+                                tx.type === "IN"
+                                  ? "text-[var(--text-success)]"
+                                  : "text-[var(--text-warning)]"
+                              )}
+                            >
+                              {tx.type === "IN" ? "+" : "−"}
+                              {tx.quantity} {tx.product.uom}
+                            </span>
+                          </Td>
+                          <Td>
+                            <span className="text-[var(--text-secondary)]">
+                              {tx.performedBy ?? "—"}
+                            </span>
+                          </Td>
+                          <Td>
+                            <span className="text-[var(--text-secondary)]">
+                              {tx.note ?? "—"}
+                            </span>
+                          </Td>
+                        </Tr>
+                      ))}
+                  </tbody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </details>
+      </Card>
 
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-[var(--text-muted)]">
         {t("consumables.quyenTrenTauTruoc")}{" "}
-        <b>{t("consumables.quyenGhiDam")}</b> {t("consumables.quyenGhiSau")}{" "}
+        <b className="text-[var(--text-primary)]">
+          {t("consumables.quyenGhiDam")}
+        </b>{" "}
+        {t("consumables.quyenGhiSau")}{" "}
         {nhomGhiDuoc.length
           ? nhomGhiDuoc
               .map((c) => tTuDo(`consumables.nhom_${c}`))
               .join(" · ")
           : t("consumables.khongNhomNao")}
-        . <b>{t("consumables.quyenXinDam")}</b>{" "}
+        .{" "}
+        <b className="text-[var(--text-primary)]">
+          {t("consumables.quyenXinDam")}
+        </b>{" "}
         {t("consumables.quyenXinSau")}{" "}
         {nhomXinDuoc.length
           ? nhomXinDuoc

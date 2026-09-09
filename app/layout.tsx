@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import "./globals.css";
+import { TaiTruocPhong } from "@/components/TaiTruocPhong";
 import { COOKIE_CHU_DE, docChuDe } from "@/lib/chuDe";
 import { NgonNguProvider } from "@/lib/i18n/client";
 import { layNgonNgu, layT } from "@/lib/i18n/server";
@@ -38,6 +39,8 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-screen" suppressHydrationWarning>
+        {/* Không vẽ gì; chỉ ghi thẻ preload phông vào <head> lúc dựng HTML. */}
+        <TaiTruocPhong />
         <NgonNguProvider locale={locale}>{children}</NgonNguProvider>
       </body>
     </html>

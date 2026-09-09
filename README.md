@@ -486,6 +486,26 @@ người dùng đang để chế độ nào.
 Nội dung **bên trong** các biểu mẫu là bản sao của chứng từ gốc — đừng đổi chữ, viền hay
 bố cục ở đó khi chỉnh giao diện.
 
+### Phông chữ: bộ nhớ đệm một năm, nên đổi phông là đổi TÊN tệp
+
+`next.config.ts` trả `Cache-Control: max-age=31536000, immutable` cho `/fonts/*`. Lý do:
+mặc định Next trả `max-age=0` cho mọi thứ trong `public/`, nên ở **mỗi lần mở trang đầy
+đủ** (đăng nhập, đổi ngôn ngữ, F5) trình duyệt phải hỏi lại server 5 tệp phông, và trong
+lúc chờ câu trả lời (~200 ms trên đường truyền tàu) chữ hiện bằng phông hệ thống rồi mới
+nhảy sang Manrope — **nháy chữ ở mỗi lần mở trang**.
+
+Hệ quả phải nhớ: **không sửa tệp phông tại chỗ**. Muốn đổi phông thì đặt tên tệp mới và
+sửa đường dẫn trong `globals.css` (và `components/TaiTruocPhong.tsx`), vì bản cũ có thể nằm
+trong bộ nhớ đệm của người dùng tới một năm. Họa tiết nền và biểu tượng tab cache một ngày.
+
+Hai tệp Manrope chính được **preload** qua `TaiTruocPhong.tsx`, để trình duyệt tải phông
+ngay khi nhận phản hồi chứ không đợi đọc xong CSS. Kiểm chứng ở **HTTP header** của trang,
+không phải trong HTML — Next đưa preload ra header `Link:`:
+
+```bash
+curl -sS -o NUL -D - http://localhost:3000/login | findstr /i "^Link:"
+```
+
 ## Đổi ngôn ngữ: Tiếng Việt · English
 
 Nút **VI | EN** nằm ở cuối thanh bên (ngay trên thẻ tài khoản) và ở **trang đăng nhập** — đổi

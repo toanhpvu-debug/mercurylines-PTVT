@@ -31,12 +31,23 @@ function Doc-KetNoi {
     }
 }
 
-# Tìm pg_dump / pg_restore / psql: ưu tiên PATH, không có thì dò thư mục cài.
+# Tìm pg_dump / pg_restore / psql: ưu tiên PATH, rồi bản PostgreSQL RIÊNG của
+# dự án, cuối cùng mới tới bản cài dạng dịch vụ.
+#
+# Bản riêng (..\pgsql cạnh thư mục dự án) phải được dò: đó chính là bản mà máy
+# này đang chạy — cài dạng xách tay, không nằm trong PATH và không nằm ở
+# "C:\Program Files\PostgreSQL". Thiếu nhánh đó thì sao lưu và khôi phục đều
+# chết ngay ở bước tìm công cụ, dù database vẫn chạy bình thường ngay bên cạnh.
 function Tim-CongCuPg {
     param([Parameter(Mandatory)][string]$Ten)
 
     $duong = (Get-Command $Ten -ErrorAction SilentlyContinue).Source
     if ($duong) { return $duong }
+
+    # Bản xách tay của dự án: <cha của mercury-materials>\pgsql\bin
+    $gocDuAn = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    $rieng = Join-Path $gocDuAn "pgsql\bin\$Ten.exe"
+    if (Test-Path $rieng) { return $rieng }
 
     $duong = Get-ChildItem "C:\Program Files\PostgreSQL" -Directory -ErrorAction SilentlyContinue |
              Sort-Object Name -Descending |
@@ -45,7 +56,8 @@ function Tim-CongCuPg {
              Select-Object -First 1
     if ($duong) { return $duong }
 
-    throw "Không tìm thấy $Ten.exe. Cài PostgreSQL client hoặc thêm thư mục bin vào PATH."
+    throw ("Không tìm thấy $Ten.exe. Đã dò: PATH, $rieng, và C:\Program Files\PostgreSQL.`n" +
+           "Cài PostgreSQL client hoặc thêm thư mục bin vào PATH.")
 }
 
 <#

@@ -1,6 +1,7 @@
 @echo off
 chcp 65001 >nul
-REM Khoi phuc du lieu tu mot ban sao luu trong E:\backup-mercury
+REM Khoi phuc du lieu tu mot ban sao luu (script tu tim thu muc backup-mercury;
+REM muon chi dinh thang thi dat BACKUP_DIR trong .env)
 REM
 REM   khoi-phuc-du-lieu.cmd                    chon tu danh sach
 REM   khoi-phuc-du-lieu.cmd -MoiNhat           lay ban moi nhat

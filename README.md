@@ -9,7 +9,7 @@ Web app quản lý vật tư cho đội tàu: Dashboard cảnh báo tồn kho th
 ## Database: PostgreSQL
 
 Dữ liệu nghiệp vụ nằm trong **PostgreSQL 17**. Trước đây dự án dùng SQLite (một file
-`prisma/dev.db`); bản SQLite gốc vẫn được giữ trong `E:\backup-mercury` để đối chiếu.
+`prisma/dev.db`); bản SQLite gốc vẫn được giữ trong thư mục sao lưu để đối chiếu.
 
 ### Chuyển từ SQLite sang PostgreSQL
 
@@ -242,8 +242,30 @@ báo nếu cổng 3000 đang bị bản chạy ngầm chiếm.
 Hai chiều của cùng một việc, chạy bằng cách bấm đúp:
 
 ```
-sao-luu-du-lieu.cmd     ->  E:\backup-mercury\backup-<ngày giờ>.zip
+sao-luu-du-lieu.cmd     ->  <thư mục sao lưu>\backup-<ngày giờ>.zip
 khoi-phuc-du-lieu.cmd   <-  chọn một bản trong danh sách rồi đưa dữ liệu trở lại
+```
+
+### Bản sao lưu để ở đâu
+
+Script **tự tìm**, không ghim cứng một ổ nào (`scripts/lib-sao-luu.ps1`). Thứ tự: biến môi
+trường `BACKUP_DIR` → `BACKUP_DIR` trong `.env` → ổ nào đã có sẵn thư mục `backup-mercury`
+→ ổ nằm trên **đĩa vật lý khác** và ghi được (ổ rời trước) → cuối cùng mới là cùng đĩa, và
+khi đó script **cảnh báo**.
+
+Hai cái bẫy mà cách chọn này tránh, cả hai đều đã xảy ra thật trên máy đang dùng:
+
+- **"Ổ khác chữ cái" không có nghĩa là "đĩa khác".** `C:` và `D:` ở đây là hai phân vùng của
+  cùng một ổ NVMe — chép từ `D:` sang `C:` thì hỏng ổ là mất cả dữ liệu lẫn bản sao lưu. Nên
+  script so theo **số đĩa vật lý**, và chỉ coi là an toàn khi khác đĩa.
+- **Thư mục gốc ổ hệ thống thường không ghi được** nếu không chạy quyền quản trị. Chọn xong
+  mà không ghi thử thì tới lúc nén mới báo "Access denied" — nên mỗi ứng viên đều được **ghi
+  thử** một tệp rỗng trước khi chọn.
+
+Muốn cố định một chỗ (ổ ngoài, thư mục đồng bộ đám mây), thêm vào `.env`:
+
+```
+BACKUP_DIR="G:\backup-mercury"
 ```
 
 Bản sao lưu gồm bản chụp PostgreSQL (`pg_dump` định dạng custom), `uploads/`, `.env`,
@@ -262,7 +284,7 @@ bản ghi bị sửa nội dung vẫn lọt qua.
 một cú bấm sai xóa sạch dữ liệu thật. Lùi lại bằng chính script đó:
 
 ```bash
-khoi-phuc-du-lieu.cmd -File "E:\backup-mercury\truoc-khi-khoi-phuc-20260821-222112.dump"
+khoi-phuc-du-lieu.cmd -File "G:\backup-mercury\truoc-khi-khoi-phuc-20260821-222112.dump"
 ```
 
 **Không làm nửa vời.** Chụp đường lùi thất bại thì dừng, không khôi phục. `pg_restore` lỗi thì

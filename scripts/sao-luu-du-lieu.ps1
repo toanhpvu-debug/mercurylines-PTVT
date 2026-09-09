@@ -7,7 +7,9 @@
 #   - .env                   khóa session + thông tin công ty in trên chứng từ
 #   - templates\*.xlsx       biểu mẫu Excel gốc của công ty
 #
-# Kết quả: E:\backup-mercury\backup-YYYYMMDD-HHmm.zip
+# Kết quả: <thư mục sao lưu>\backup-YYYYMMDD-HHmm.zip
+# Chỗ để bản sao lưu do scripts\lib-sao-luu.ps1 quyết định — xem thứ tự tìm ở
+# đầu file đó. Muốn chỉ định thẳng: đặt BACKUP_DIR trong .env.
 #
 # Khôi phục: chạy khoi-phuc-du-lieu.cmd (đọc thẳng file zip này).
 
@@ -15,16 +17,19 @@
 $ErrorActionPreference = "Stop"
 
 . "$PSScriptRoot\lib-postgres.ps1"
+. "$PSScriptRoot\lib-sao-luu.ps1"
 
 $proj = Split-Path -Parent $PSScriptRoot
-$backupRoot = "E:\backup-mercury"
+$cho = Tim-ThuMucSaoLuu -DuAn $proj
+$backupRoot = $cho.Duong
 $stamp = Get-Date -Format "yyyyMMdd-HHmm"
 $zipPath = Join-Path $backupRoot "backup-$stamp.zip"
 
 Write-Host ""
 Write-Host "=== SAO LƯU DỮ LIỆU MERCURY MATERIALS ===" -ForegroundColor Cyan
 Write-Host "Dự án : $proj"
-Write-Host "Lưu về: $zipPath"
+Write-Host "Lưu về: $zipPath  ($($cho.Nguon))"
+Canh-Bao-CungODia -Cho $cho
 Write-Host ""
 
 # Cảnh báo nếu app đang chạy — nên tắt để database chắc chắn ở trạng thái ổn định.

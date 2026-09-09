@@ -34,9 +34,16 @@ param(
 $ErrorActionPreference = "Stop"
 
 . "$PSScriptRoot\lib-postgres.ps1"
+. "$PSScriptRoot\lib-sao-luu.ps1"
 
 $proj = Split-Path -Parent $PSScriptRoot
-$backupRoot = "E:\backup-mercury"
+# Tìm chỗ ĐANG CÓ bản sao lưu (xem lib-sao-luu.ps1). Không thấy thì để trống —
+# thà nói thẳng "chưa có bản sao lưu nào" còn hơn trỏ vào một thư mục bịa ra.
+$choDoc = Tim-ThuMucSaoLuu -DuAn $proj -DeDoc
+$backupRoot = if ($choDoc) { $choDoc.Duong } else { $null }
+# Bản chụp "trước khi khôi phục" phải ghi được kể cả khi chưa có thư mục sao lưu
+# (người dùng chỉ thẳng file zip bằng -File).
+$choGhi = Tim-ThuMucSaoLuu -DuAn $proj
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 
 Write-Host ""
@@ -46,6 +53,12 @@ Write-Host ""
 
 # --- 1. Chọn bản sao lưu ---
 if (-not $File) {
+    if (-not $backupRoot) {
+        throw ("Không tìm thấy thư mục sao lưu nào trên máy này.`n" +
+               "  - Cắm ổ ngoài có sẵn thư mục backup-mercury rồi chạy lại, hoặc`n" +
+               "  - đặt BACKUP_DIR trong .env trỏ tới nơi để bản sao lưu, hoặc`n" +
+               "  - chỉ thẳng file: khoi-phuc-du-lieu.cmd -File ""D:\...\backup-....zip""")
+    }
     $all = Get-ChildItem $backupRoot -Filter "backup-*.zip" -ErrorAction SilentlyContinue |
            Sort-Object LastWriteTime -Descending
     if (-not $all) { throw "Không thấy bản sao lưu nào trong $backupRoot." }
@@ -131,8 +144,12 @@ if (-not $KhongHoi) {
 }
 
 # --- 5. Chụp lại dữ liệu hiện tại (đường lùi) ---
-$duongLui = Join-Path $backupRoot "truoc-khi-khoi-phuc-$stamp.dump"
-if (-not (Test-Path $backupRoot)) { New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null }
+# Dùng $choGhi chứ không dùng $backupRoot: khi người dùng chỉ thẳng file zip
+# bằng -File thì $backupRoot có thể trống, mà bản chụp đường lùi thì LÚC NÀO
+# cũng phải ghi được — đây là thứ duy nhất cứu được nếu khôi phục nhầm bản.
+$thuMucLui = $choGhi.Duong
+$duongLui = Join-Path $thuMucLui "truoc-khi-khoi-phuc-$stamp.dump"
+if (-not (Test-Path $thuMucLui)) { New-Item -ItemType Directory -Path $thuMucLui -Force | Out-Null }
 Write-Host "Đang chụp lại dữ liệu hiện tại để lùi lại được..." -ForegroundColor DarkGray
 $logLui = Join-Path $env:TEMP "mercury-duonglui-$stamp.log"
 $ma = Chay-Lenh -Exe $pgDump -MatKhau $kn.MatKhau -FileLog $logLui -ThamSo @(

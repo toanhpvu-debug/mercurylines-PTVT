@@ -204,6 +204,20 @@ html {
   text-rendering: optimizeLegibility;
 }
 
+/*
+ * Điều khiển gốc của trình duyệt — thanh cuộn, danh sách thả xuống của <select>,
+ * ô chọn ngày, nền tự điền — không đọc biến CSS của app; chúng chỉ nghe
+ * `color-scheme`. Thiếu hai dòng này thì ở nền tối, mở một <select> ra là một
+ * danh sách trắng lóa trên nền navy. Theo class .dark chứ không theo hệ điều
+ * hành, cùng lý do với @custom-variant ở đầu file.
+ */
+:root {
+  color-scheme: light;
+}
+:root.dark {
+  color-scheme: dark;
+}
+
 /* Thanh cuộn mỏng, hợp với bảng dữ liệu dài */
 ::-webkit-scrollbar {
   width: 10px;
@@ -294,6 +308,8 @@ html {
  * Băng màu / nền trên chứng từ phải giữ màu khi in.
  */
 .print-area {
+  /* Tờ giấy trắng thì điều khiển gốc bên trong cũng phải sáng. */
+  color-scheme: light;
   --surface: #ffffff;
   --surface-raised: #ffffff;
   --surface-sunken: #f2f4f7;
@@ -317,6 +333,7 @@ html {
 @media print {
   :root,
   :root.dark {
+    color-scheme: light;
     --surface: #ffffff;
     --surface-raised: #ffffff;
     --surface-sunken: #f2f4f7;

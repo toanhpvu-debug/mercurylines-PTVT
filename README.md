@@ -127,6 +127,12 @@ npx prisma db seed   # 15 tàu, 45 kho, 10 vật tư, dữ liệu tồn kho mẫ
 npm run dev          # http://localhost:3000
 ```
 
+**Trên Windows, dừng app (`dung-app.cmd`) trước khi `npm install`.** Bước `postinstall`
+chạy `prisma generate`, và lệnh đó đổi tên tệp `query_engine-windows.dll.node` — tệp mà app
+đang chạy giữ khóa. Kết quả là `EPERM: operation not permitted, rename …` và `npm install`
+báo lỗi dù các gói đã cài xong; phần khó chịu là client Prisma cũ vẫn dùng được nên lỗi này
+dễ bị bỏ qua cho tới khi schema đổi. Dừng app, chạy `npx prisma generate`, rồi chạy lại app.
+
 Hai thứ **không nằm trong repo** vì thuộc dữ liệu riêng của từng công ty:
 
 - **`.env`** — khóa session, mật khẩu seed, thông tin công ty in trên PO/RFQ. Chép từ `.env.example`.

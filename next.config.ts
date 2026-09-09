@@ -10,6 +10,10 @@ const BAT_BIEN = "public, max-age=31536000, immutable";
 const MOT_NGAY_ROI_HOI_LAI = "public, max-age=86400, stale-while-revalidate=604800";
 
 const nextConfig: NextConfig = {
+  // Không khai "X-Powered-By: Next.js" trong mọi phản hồi: kẻ dò quét dùng
+  // header này để chọn đúng lỗ hổng theo framework. Bỏ đi không ảnh hưởng gì.
+  poweredByHeader: false,
+
   experimental: {
     serverActions: {
       // Cho phép upload file báo cáo PDF/Excel tới 25MB qua server action

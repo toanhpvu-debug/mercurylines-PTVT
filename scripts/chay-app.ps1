@@ -140,7 +140,18 @@ if (Test-Path $buildId) {
         Where-Object { $_.Extension -in ".ts", ".tsx", ".css", ".prisma", ".mjs", ".json" } |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     # Đổi cấu hình gốc cũng phải build lại.
-    $configs = @("next.config.ts", "postcss.config.mjs", "package.json") |
+    #
+    # proxy.ts và instrumentation.ts nằm ở THƯ MỤC GỐC chứ không trong app/ hay
+    # lib/, nên nếu thiếu ở đây thì sửa chúng xong chạy lại app vẫn là bản build
+    # cũ — bước build bị bỏ qua trong im lặng. Đã gặp thật: sửa danh sách loại
+    # trừ của proxy để phông chữ không bị chặn, chạy lại vẫn thấy /fonts trả 307.
+    $configs = @(
+        "next.config.ts",
+        "postcss.config.mjs",
+        "package.json",
+        "proxy.ts",
+        "instrumentation.ts"
+    ) |
         ForEach-Object { Join-Path $proj $_ } | Where-Object { Test-Path $_ } |
         ForEach-Object { Get-Item $_ } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     $newestSrc = @($newest, $configs) | Where-Object { $_ } |

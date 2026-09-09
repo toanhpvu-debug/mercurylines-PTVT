@@ -151,8 +151,22 @@ async function nhatKyRequest(
   });
 }
 
+/**
+ * Bộ chặn cửa KHÔNG chạy cho tệp tĩnh.
+ *
+ * Phông chữ (.woff2) phải nằm trong danh sách loại trừ: chúng được nạp từ
+ * TRANG ĐĂNG NHẬP, tức lúc người dùng chưa có phiên. Thiếu dòng đó thì mỗi
+ * yêu cầu tải phông bị chặn và chuyển hướng về /login, trình duyệt không nhận
+ * được tệp phông nên trang đăng nhập rơi về phông hệ thống — đúng cái mà việc
+ * tự host phông sinh ra để tránh. Đã gặp thật trên bản chạy: /fonts/*.woff2
+ * trả 307.
+ *
+ * Các đuôi khác trong danh sách cũng vì lẽ đó: ảnh, biểu tượng, họa tiết nền
+ * đều là tài nguyên công khai, chặn chúng chỉ tốn một vòng chuyển hướng chứ
+ * không bảo vệ gì. Dữ liệu thật nằm sau các đường dẫn không có đuôi tệp.
+ */
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:png|jpg|jpeg|svg|ico|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:png|jpg|jpeg|svg|ico|webp|woff2|woff|ttf|otf)$).*)",
   ],
 };

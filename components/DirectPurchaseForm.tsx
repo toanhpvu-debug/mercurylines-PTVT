@@ -1,8 +1,10 @@
 "use client";
 
 import { startTransition, useActionState, useState } from "react";
+import { Plus, ShoppingCart, Upload, X } from "lucide-react";
 import { createDirectPurchaseOrder } from "@/app/actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Button, Field, Input, Notice, Select } from "@/components/ui";
 
 type Option = { id: number; label: string };
 
@@ -64,15 +66,11 @@ export default function DirectPurchaseForm({
       className="space-y-5"
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("chung.tau")} *
-          </span>
-          <select
+        <Field label={`${t("chung.tau")} *`}>
+          <Select
             name="vesselId"
             value={vesselId}
             onChange={(e) => setVesselId(e.target.value)}
-            className="w-full rounded border p-2"
             required
           >
             <option value="">— {t("chung.chonTau")} —</option>
@@ -81,17 +79,13 @@ export default function DirectPurchaseForm({
                 {v.label}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.nhaCungCap")} *
-          </span>
-          <select
+          </Select>
+        </Field>
+        <Field label={`${t("purchasing.nhaCungCap")} *`}>
+          <Select
             name="supplierId"
             value={supplierId}
             onChange={(e) => setSupplierId(e.target.value)}
-            className="w-full rounded border p-2"
             required
           >
             <option value="">— {t("purchasing.chonNcc")} —</option>
@@ -100,65 +94,46 @@ export default function DirectPurchaseForm({
                 {s.label}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.labelSubject")}
-          </span>
-          <input
+        <Field label={t("purchasing.labelSubject")}>
+          <Input
             name="subject"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder={t("purchasing.phViDuSubject")}
-            className="w-full rounded border p-2"
           />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.labelYref")}
-          </span>
-          <input
+        </Field>
+        <Field label={t("purchasing.labelYref")}>
+          <Input
             name="supplierRef"
             value={supplierRef}
             onChange={(e) => setSupplierRef(e.target.value)}
-            className="w-full rounded border p-2"
           />
-        </label>
+        </Field>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.tienTe")}
-          </span>
-          <input
+        <Field label={t("purchasing.tienTe")}>
+          <Input
             name="currency"
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
-            className="w-full rounded border p-2"
           />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.canHang")}
-          </span>
-          <input
+        </Field>
+        <Field label={t("purchasing.canHang")}>
+          <Input
             name="expectedDate"
             type="date"
             value={expectedDate}
             onChange={(e) => setExpectedDate(e.target.value)}
-            className="w-full rounded border p-2"
           />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.chietKhau")}
-          </span>
-          <input
+        </Field>
+        <Field label={t("purchasing.chietKhau")}>
+          <Input
             name="discountPercent"
             type="number"
             step="0.01"
@@ -166,57 +141,48 @@ export default function DirectPurchaseForm({
             max="100"
             value={discountPercent}
             onChange={(e) => setDiscountPercent(e.target.value)}
-            className="w-full rounded border p-2"
+            className="tabular"
           />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.phiVanChuyen")}
-          </span>
-          <input
+        </Field>
+        <Field label={t("purchasing.phiVanChuyen")}>
+          <Input
             name="transportFee"
             type="number"
             step="0.01"
             min="0"
             value={transportFee}
             onChange={(e) => setTransportFee(e.target.value)}
-            className="w-full rounded border p-2"
+            className="tabular"
           />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.phiGiaoLenTau")}
-          </span>
-          <input
+        </Field>
+        <Field label={t("purchasing.phiGiaoLenTau")}>
+          <Input
             name="deliveryFee"
             type="number"
             step="0.01"
             min="0"
             value={deliveryFee}
             onChange={(e) => setDeliveryFee(e.target.value)}
-            className="w-full rounded border p-2"
+            className="tabular"
           />
-        </label>
+        </Field>
       </div>
 
-      <label className="block">
-        <span className="mb-1 block text-sm text-slate-600">
-          {t("chung.ghiChu")}
-        </span>
-        <input
+      <Field label={t("chung.ghiChu")}>
+        <Input
           name="notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          className="w-full rounded border p-2"
         />
-      </label>
+      </Field>
 
       {/* Upload Excel theo form công ty */}
-      <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4">
-        <p className="mb-1 font-semibold text-blue-950">
+      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-4">
+        <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+          <Upload className="size-4 text-[var(--text-muted)]" />
           {t("purchasing.uploadExcel")}
         </p>
-        <p className="mb-3 text-xs text-slate-600">
+        <p className="mb-3 text-xs text-[var(--text-secondary)]">
           {t("purchasing.uploadExcelMoTaDau")} <b>Description</b>{" "}
           {t("chung.va")} <b>Q&apos;ty</b>{" "}
           {t("purchasing.uploadExcelMoTaCuoi")}
@@ -225,52 +191,52 @@ export default function DirectPurchaseForm({
           type="file"
           name="excel"
           accept=".xls,.xlsx"
-          className="text-sm"
+          className="block w-full text-sm text-[var(--text-secondary)] file:mr-3 file:rounded-lg file:border-0 file:bg-brand-700 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-brand-600"
         />
       </div>
 
       {/* Dòng nhập tay */}
       <div>
-        <div className="mb-2 flex items-center justify-between">
-          <p className="font-semibold text-blue-950">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-[var(--text-primary)]">
             {t("purchasing.dongNhapTay")}
           </p>
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
+            icon={<Plus className="size-4" />}
             onClick={() => setManualLines((prev) => [...prev, blankLine()])}
-            className="rounded border border-blue-200 px-3 py-1 text-sm text-blue-700 hover:bg-blue-50"
           >
-            + {t("purchasing.themDong")}
-          </button>
+            {t("purchasing.themDong")}
+          </Button>
         </div>
         <div className="space-y-2">
           {manualLines.map((line, index) => (
             <div
               key={index}
-              className="grid grid-cols-2 gap-2 rounded-lg border border-blue-100 p-3 md:grid-cols-[1fr_10rem_6rem_6rem_7rem_2.5rem]"
+              className="grid grid-cols-2 items-center gap-2 rounded-lg border border-[var(--border-subtle)] p-3 md:grid-cols-[1fr_10rem_6rem_6rem_7rem_2.5rem]"
             >
-              <input
+              <Input
                 name={`line_desc_${index}`}
                 value={line.description}
                 onChange={(e) => setLine(index, { description: e.target.value })}
                 placeholder={t("purchasing.phMoTaVatTu")}
-                className="col-span-2 rounded border p-2 md:col-span-1"
+                className="col-span-2 md:col-span-1"
               />
-              <input
+              <Input
                 name={`line_pn_${index}`}
                 value={line.partNo}
                 onChange={(e) => setLine(index, { partNo: e.target.value })}
                 placeholder="PN / IMPA"
-                className="rounded border p-2"
               />
-              <input
+              <Input
                 name={`line_uom_${index}`}
                 value={line.uom}
                 onChange={(e) => setLine(index, { uom: e.target.value })}
                 placeholder={t("chung.donVi")}
-                className="rounded border p-2"
               />
-              <input
+              <Input
                 name={`line_qty_${index}`}
                 type="number"
                 step="0.01"
@@ -278,9 +244,9 @@ export default function DirectPurchaseForm({
                 value={line.quantity}
                 onChange={(e) => setLine(index, { quantity: e.target.value })}
                 placeholder={t("purchasing.phSl")}
-                className="rounded border p-2"
+                className="tabular"
               />
-              <input
+              <Input
                 name={`line_price_${index}`}
                 type="number"
                 step="0.01"
@@ -288,10 +254,12 @@ export default function DirectPurchaseForm({
                 value={line.unitPrice}
                 onChange={(e) => setLine(index, { unitPrice: e.target.value })}
                 placeholder={t("purchasing.cotDonGia")}
-                className="rounded border p-2"
+                className="tabular"
               />
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() =>
                   setManualLines((prev) =>
                     prev.length > 1
@@ -301,27 +269,25 @@ export default function DirectPurchaseForm({
                 }
                 aria-label={t("purchasing.xoaDong")}
                 title={t("purchasing.xoaDong")}
-                className="rounded border border-red-200 text-red-600 hover:bg-red-50"
-              >
-                ×
-              </button>
+                icon={<X className="size-4" />}
+                className="justify-self-end text-[var(--text-danger)]"
+              />
             </div>
           ))}
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <button
-          disabled={pending}
-          className="rounded bg-blue-700 px-6 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          variant="primary"
+          icon={<ShoppingCart className="size-4" />}
+          loading={pending}
         >
           {pending
             ? t("purchasing.dangTaoDon")
             : t("purchasing.nutTaoDonIfqPo")}
-        </button>
-        {state.message && (
-          <p className="text-sm text-red-600">{state.message}</p>
-        )}
+        </Button>
+        {state.message && <Notice tone="danger">{state.message}</Notice>}
       </div>
     </form>
   );

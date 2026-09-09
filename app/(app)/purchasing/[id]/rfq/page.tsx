@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
@@ -10,6 +11,7 @@ import { getStandardForVessel } from "@/lib/formStandardsDb";
 import FormDocHeader from "@/components/FormDocHeader";
 import PrintButton from "@/components/PrintButton";
 import { layT } from "@/lib/i18n/server";
+import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -44,23 +46,29 @@ export default async function RfqPage({
   const dateStr = new Date(po.createdAt).toLocaleDateString("vi-VN");
 
   return (
-    <div className="space-y-4">
-      <div className="no-print flex flex-wrap items-center justify-between gap-2">
+    <div className="space-y-5">
+      <div className="no-print">
         <Link
           href={`/purchasing/${po.id}`}
-          className="text-sm text-blue-700 hover:underline"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-brand-700 hover:underline dark:text-brand-300"
         >
+          <ArrowLeft className="size-4" />
           {t("purchasing.quayLaiDonMua")}
         </Link>
-        <PrintButton label={t("purchasing.inRfq")} />
+        <PageHeader
+          title={<span className="font-display tracking-wide">{po.poNo}</span>}
+          subtitle={
+            <>
+              {t("purchasing.nutRfq")} · {po.supplier.name} ·{" "}
+              {t("purchasing.chungTuTheoChuan")} <b>{standard.label}</b>
+            </>
+          }
+          action={<PrintButton label={t("purchasing.inRfq")} />}
+        />
       </div>
 
-      <p className="no-print text-xs text-slate-500">
-        {t("purchasing.chungTuTheoChuan")} <b>{standard.label}</b>
-      </p>
-
       <style>{`@page { size: A4 portrait; margin: 12mm; }`}</style>
-      <div className="print-area rounded-xl bg-white p-8 text-sm shadow-sm ring-1 ring-blue-100 print:rounded-none print:p-0 print:shadow-none print:ring-0">
+      <div className="print-area surface rounded-xl border p-6 text-sm shadow-sm print:rounded-none print:p-0 print:shadow-none print:border-0">
         <FormDocHeader standard={standard} title="INQUIRY FOR QUOTE" />
 
         <div className="mt-4 grid grid-cols-2 gap-4">

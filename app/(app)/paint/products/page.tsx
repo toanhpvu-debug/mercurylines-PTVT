@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowLeft, Droplets, Upload } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
@@ -8,6 +9,20 @@ import {
   PaintProductAddForm,
   PaintProductRowActions,
 } from "@/components/PaintProductManager";
+import { cn } from "@/lib/cn";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  EmptyState,
+  PageHeader,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+  buttonClass,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -31,80 +46,92 @@ export default async function PaintProductsPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <Link href="/paint" className="text-sm text-blue-700 hover:underline">
-          ← {t("paint.quayLaiQuanLySon")}
-        </Link>
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("paint.danhMucSon")}
-        </h2>
-        <p className="text-slate-600">{t("paint.danhMucMoTa")}</p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <PaintProductAddForm types={PAINT_TYPES} />
         <Link
-          href="/paint/import"
-          className="rounded border border-blue-300 bg-white px-4 py-2 text-sm text-blue-800 hover:bg-blue-50"
+          href="/paint"
+          className="inline-flex items-center gap-1 text-sm text-brand-700 hover:underline dark:text-brand-300"
         >
-          ⬆ {t("paint.nutNhapTuFile")}
+          <ArrowLeft className="size-4" />
+          {t("paint.quayLaiQuanLySon")}
         </Link>
+        <PageHeader
+          title={t("paint.danhMucSon")}
+          subtitle={t("paint.danhMucMoTa")}
+          action={
+            <>
+              <PaintProductAddForm types={PAINT_TYPES} />
+              <Link href="/paint/import" className={buttonClass("secondary")}>
+                <Upload className="size-4" />
+                {t("paint.nutNhapTuFile")}
+              </Link>
+            </>
+          }
+        />
       </div>
 
-      <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-        <p className="mb-3 font-semibold text-blue-950">
-          {t("paint.danhSachN", { n: products.length })}
-        </p>
+      <Card>
+        <CardHeader
+          icon={<Droplets className="size-4" />}
+          title={t("paint.danhSachN", { n: products.length })}
+        />
         {products.length === 0 ? (
-          <p className="text-sm text-slate-500">{t("paint.chuaCoLoaiSon")}</p>
+          <EmptyState
+            icon={<Droplets className="size-5" />}
+            title={t("paint.chuaCoLoaiSon")}
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-sm">
-              <thead className="bg-blue-900 text-left text-white">
+          <TableWrap>
+            <Table dense>
+              <thead>
                 <tr>
-                  <th className="p-2">{t("chung.ma")}</th>
-                  <th className="p-2">{t("paint.tenSon")}</th>
-                  <th className="p-2">{t("paint.hang")}</th>
-                  <th className="p-2">{t("paint.cotLoai")}</th>
-                  <th className="p-2">{t("paint.cotMau")}</th>
-                  <th className="p-2 text-right">{t("paint.cotDoPhu")}</th>
-                  <th className="p-2 text-right">DFT (µm)</th>
-                  <th className="p-2 text-right">{t("paint.cotTongTon")}</th>
-                  <th className="p-2">{t("chung.thaoTac")}</th>
+                  <Th>{t("chung.ma")}</Th>
+                  <Th>{t("paint.tenSon")}</Th>
+                  <Th>{t("paint.hang")}</Th>
+                  <Th>{t("paint.cotLoai")}</Th>
+                  <Th>{t("paint.cotMau")}</Th>
+                  <Th align="right">{t("paint.cotDoPhu")}</Th>
+                  <Th align="right">DFT (µm)</Th>
+                  <Th align="right">{t("paint.cotTongTon")}</Th>
+                  <Th>{t("chung.thaoTac")}</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-blue-50">
+              <tbody>
                 {products.map((p) => {
                   const total = p.stocks.reduce((s, x) => s + x.quantity, 0);
                   return (
-                    <tr
+                    <Tr
                       key={p.id}
-                      className={p.isActive ? "" : "bg-slate-50 text-slate-400"}
+                      className={cn(
+                        "transition-colors hover:bg-[var(--surface-sunken)]/50",
+                        !p.isActive && "opacity-60"
+                      )}
                     >
-                      <td className="p-2 font-mono text-xs">{p.code}</td>
-                      <td className="p-2">
+                      <Td className="font-display text-xs tracking-wide whitespace-nowrap">
+                        {p.code}
+                      </Td>
+                      <Td>
                         {p.name}
                         {!p.isActive && (
-                          <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs text-slate-600">
+                          <Badge tone="muted" className="ml-2">
                             {t("labels.active_false")}
-                          </span>
+                          </Badge>
                         )}
-                      </td>
-                      <td className="p-2">{p.maker ?? "—"}</td>
-                      <td className="p-2">{tenLoaiSon(p.paintType)}</td>
-                      <td className="p-2">
+                      </Td>
+                      <Td>{p.maker ?? "—"}</Td>
+                      <Td>
+                        <Badge tone="neutral">{tenLoaiSon(p.paintType)}</Badge>
+                      </Td>
+                      <Td>
                         {[p.colorName, p.colorCode].filter(Boolean).join(" · ") ||
                           "—"}
-                      </td>
-                      <td className="p-2 text-right">
-                        {p.coverage || "—"}
-                      </td>
-                      <td className="p-2 text-right">{p.dftPerCoat || "—"}</td>
-                      <td className="p-2 text-right">
+                      </Td>
+                      <Td align="right">{p.coverage || "—"}</Td>
+                      <Td align="right">{p.dftPerCoat || "—"}</Td>
+                      <Td align="right">
                         {total ? `${total} ${p.uom}` : "—"}
-                      </td>
-                      <td className="p-2">
+                      </Td>
+                      <Td>
                         <PaintProductRowActions
                           product={{
                             id: p.id,
@@ -125,15 +152,15 @@ export default async function PaintProductsPage() {
                           types={PAINT_TYPES}
                           canDelete={user.role === "ADMIN"}
                         />
-                      </td>
-                    </tr>
+                      </Td>
+                    </Tr>
                   );
                 })}
               </tbody>
-            </table>
-          </div>
+            </Table>
+          </TableWrap>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

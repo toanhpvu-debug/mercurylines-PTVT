@@ -1,20 +1,32 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { ArrowDownToLine, Save } from "lucide-react";
 import {
   createConsumableMove,
   createConsumableReceipt,
   saveConsumableMin,
 } from "@/app/consumable-actions";
 import {
+  CATEGORY_VALUES,
   CONSUMERS,
   GIOI_HAN_LUU_HUYNH,
   kiemTraLuuHuynh,
+  type CanhBaoLuuHuynh,
 } from "@/lib/consumables";
 import ConsumablePdfReader, {
+  LOP_O_TEP,
   type KetQuaDoc,
 } from "@/components/ConsumablePdfReader";
 import { useNgonNgu } from "@/lib/i18n/client";
+import {
+  Button,
+  Field,
+  Input,
+  Notice,
+  Select,
+  type Tone,
+} from "@/components/ui";
 
 export type ProductOption = {
   id: number;
@@ -24,18 +36,77 @@ export type ProductOption = {
   shelfLifeMonths: number | null;
 };
 
-function Nhan({ children }: { children: React.ReactNode }) {
-  return <span className="mb-1 block text-sm text-slate-600">{children}</span>;
-}
+/** Ba mức của kiemTraLuuHuynh() → tone của hộp cảnh báo. */
+const TONE_LUU_HUYNH: Record<CanhBaoLuuHuynh["muc"], Tone> = {
+  VUOT_TOAN_CAU: "danger",
+  VUOT_ECA: "warning",
+  DAT: "success",
+};
+
+/**
+ * Ô do máy đọc từ bản scan điền sẵn: vòng màu cảnh báo quanh ô — nhìn là biết
+ * chỗ phải đối chiếu với bản gốc. Vẽ bằng ring (box-shadow) chứ không chỉ đổi
+ * màu viền, để chắc chắn nổi lên trên lớp `field` của ô nhập ở cả hai chế độ.
+ */
+const O_MAY_DIEN =
+  "border-[var(--tone-warning-text)] ring-2 ring-[var(--tone-warning-text)]";
+
+/** Khung nhóm ô nhập (đặc tính lô hàng). */
+const FIELDSET = "rounded-lg border border-[var(--border-subtle)] p-3";
+const LEGEND = "px-1 text-xs font-medium text-[var(--text-secondary)]";
+
+/**
+ * Ô nhập compact cho form định mức nằm trong ô bảng. Không dùng <Input> vì
+ * cn() không gộp lớp trùng: px-3/py-2 của FIELD và px-2/py-1 truyền thêm sẽ
+ * cùng tồn tại, ô rộng hay hẹp tùy thứ tự CSS sinh ra.
+ */
+const O_NHO =
+  "field w-24 rounded-lg border px-2 py-1 text-right text-sm tabular " +
+  "focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none " +
+  "disabled:cursor-not-allowed disabled:opacity-60";
 
 function ThongBao({ state }: { state: { message: string; success?: boolean } }) {
   if (!state.message) return null;
   return (
-    <p
-      className={`text-sm ${state.success ? "text-emerald-700" : "text-red-600"}`}
-    >
-      {state.message}
-    </p>
+    <Notice tone={state.success ? "success" : "danger"}>{state.message}</Notice>
+  );
+}
+
+/**
+ * Danh sách <option> mặt hàng, gom theo nhóm bằng <optgroup> khi ô chọn chứa
+ * nhiều hơn một nhóm — thay cho emoji nhóm từng đứng đầu mỗi nhãn. Một nhóm
+ * thì không cần tiêu đề nhóm.
+ */
+function OptionMatHang({ products }: { products: ProductOption[] }) {
+  const { tTuDo } = useNgonNgu();
+  const nhom = CATEGORY_VALUES.filter((c) =>
+    products.some((p) => p.category === c)
+  );
+  if (nhom.length <= 1) {
+    return (
+      <>
+        {products.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.label}
+          </option>
+        ))}
+      </>
+    );
+  }
+  return (
+    <>
+      {nhom.map((c) => (
+        <optgroup key={c} label={tTuDo(`consumables.nhom_${c}`)}>
+          {products
+            .filter((p) => p.category === c)
+            .map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+        </optgroup>
+      ))}
+    </>
   );
 }
 
@@ -65,11 +136,8 @@ export function ConsumableReceiptForm({
   const [lanDoc, setLanDoc] = useState(0);
   const dx = doc?.deXuat;
   const daDoc = new Set(dx?.daDoc ?? []);
-  // Ô nào máy điền thì viền vàng — nhìn là biết chỗ phải đối chiếu bản gốc.
-  const oDoc = (ten: string) =>
-    daDoc.has(ten)
-      ? "w-full rounded border-2 border-amber-400 bg-amber-50 p-2"
-      : "w-full rounded border p-2";
+  // Ô nào máy điền thì có vòng cảnh báo — nhìn là biết chỗ phải đối chiếu bản gốc.
+  const oDoc = (ten: string) => (daDoc.has(ten) ? O_MAY_DIEN : undefined);
 
   const chon = products.find((p) => String(p.id) === productId);
   const laDau = chon?.category === "FUEL";
@@ -79,9 +147,11 @@ export function ConsumableReceiptForm({
 
   if (products.length === 0) {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-[var(--text-secondary)]">
         {t("consumables.chuaCoMatHangTruoc")}{" "}
-        <span className="font-medium">{t("consumables.danhMucDam")}</span>{" "}
+        <span className="font-medium text-[var(--text-primary)]">
+          {t("consumables.danhMucDam")}
+        </span>{" "}
         {t("consumables.chuaCoMatHangSau")}
       </p>
     );
@@ -104,13 +174,13 @@ export function ConsumableReceiptForm({
       />
 
       {dx && (
-        <p className="rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+        <Notice tone="warning">
           {t("consumables.goiYVienVangTruoc")}{" "}
           <b>{t("consumables.goiYVienVangDam")}</b>{" "}
           {t("consumables.goiYVienVangGiua")}{" "}
           <b>{t("consumables.goiYSoLuongDam")}</b> {t("chung.va")}{" "}
           <b>{t("consumables.goiYLuuHuynhDam")}</b>.
-        </p>
+        </Notice>
       )}
 
       <form action={action} className="space-y-3" key={lanDoc}>
@@ -124,52 +194,42 @@ export function ConsumableReceiptForm({
       )}
 
       <div className="grid gap-3 md:grid-cols-4">
-        <label className="block md:col-span-2">
-          <Nhan>{t("consumables.matHang")} *</Nhan>
-          <select
+        <Field label={`${t("consumables.matHang")} *`} className="md:col-span-2">
+          <Select
             name="productId"
             required
             value={productId}
             onChange={(e) => setProductId(e.target.value)}
-            className="w-full rounded border p-2"
           >
             <option value="">{t("consumables.chonMatHang")}</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <Nhan>
-            {laDau
-              ? t("consumables.soBdn")
-              : t("consumables.soPhieuGiao")}{" "}
-            *
-          </Nhan>
-          <input
+            <OptionMatHang products={products} />
+          </Select>
+        </Field>
+        <Field
+          label={`${
+            laDau ? t("consumables.soBdn") : t("consumables.soPhieuGiao")
+          } *`}
+        >
+          <Input
             name="docNo"
             required
             defaultValue={dx?.docNo ?? ""}
             className={oDoc("docNo")}
           />
-        </label>
-        <label className="block">
-          <Nhan>{t("consumables.ngayNhan")} *</Nhan>
-          <input
+        </Field>
+        <Field label={`${t("consumables.ngayNhan")} *`}>
+          <Input
             type="date"
             name="receivedAt"
             required
             defaultValue={dx?.receivedAt ?? ""}
             className={oDoc("receivedAt")}
           />
-        </label>
-        <label className="block">
-          <Nhan>
-            {t("chung.soLuong")} * {chon ? `(${chon.uom})` : ""}
-          </Nhan>
-          <input
+        </Field>
+        <Field
+          label={`${t("chung.soLuong")} * ${chon ? `(${chon.uom})` : ""}`}
+        >
+          <Input
             name="quantity"
             type="number"
             step="0.001"
@@ -178,146 +238,129 @@ export function ConsumableReceiptForm({
             defaultValue={dx?.quantity ?? ""}
             className={oDoc("quantity")}
           />
-        </label>
-        <label className="block">
-          <Nhan>{t("consumables.cangNhan")}</Nhan>
-          <input
+        </Field>
+        <Field label={t("consumables.cangNhan")}>
+          <Input
             name="port"
             defaultValue={dx?.port ?? ""}
             className={oDoc("port")}
           />
-        </label>
-        <label className="block">
-          <Nhan>{t("consumables.nhaCungCap")}</Nhan>
-          <input
+        </Field>
+        <Field label={t("consumables.nhaCungCap")}>
+          <Input
             name="supplier"
             defaultValue={dx?.supplier ?? ""}
             className={oDoc("supplier")}
           />
-        </label>
+        </Field>
         {laDau && (
-          <label className="block">
-            <Nhan>{t("consumables.saLanXeCap")}</Nhan>
-            <input
+          <Field label={t("consumables.saLanXeCap")}>
+            <Input
               name="barge"
               defaultValue={dx?.barge ?? ""}
               className={oDoc("barge")}
             />
-          </label>
+          </Field>
         )}
       </div>
 
       {(laDau || laNhon) && (
-        <fieldset className="rounded border border-slate-200 p-3">
-          <legend className="px-1 text-sm font-medium text-slate-700">
+        <fieldset className={FIELDSET}>
+          <legend className={LEGEND}>
             {t("consumables.dacTinhLoHang")}{" "}
             {laDau ? t("consumables.theoBdn") : ""}
           </legend>
           <div className="grid gap-3 md:grid-cols-4">
             {laDau && (
-              <label className="block">
-                <Nhan>{t("consumables.luuHuynh")}</Nhan>
-                <input
+              <Field label={t("consumables.luuHuynh")}>
+                <Input
                   name="sulphur"
                   type="number"
                   step="0.001"
                   min="0"
                   value={sulphur}
                   onChange={(e) => setSulphur(e.target.value)}
-                  className="w-full rounded border p-2"
                 />
-              </label>
+              </Field>
             )}
-            <label className="block">
-              <Nhan>{t("consumables.khoiLuongRieng")}</Nhan>
-              <input
+            <Field label={t("consumables.khoiLuongRieng")}>
+              <Input
                 name="density"
                 type="number"
                 step="0.1"
                 defaultValue={dx?.density ?? ""}
                 className={oDoc("density")}
               />
-            </label>
-            <label className="block">
-              <Nhan>{t("consumables.doNhot")}</Nhan>
-              <input
+            </Field>
+            <Field label={t("consumables.doNhot")}>
+              <Input
                 name="viscosity"
                 type="number"
                 step="0.1"
                 defaultValue={dx?.viscosity ?? ""}
                 className={oDoc("viscosity")}
               />
-            </label>
+            </Field>
             {laDau && (
               <>
-                <label className="block">
-                  <Nhan>{t("consumables.nuoc")}</Nhan>
-                  <input
+                <Field label={t("consumables.nuoc")}>
+                  <Input
                     name="waterContent"
                     type="number"
                     step="0.01"
                     defaultValue={dx?.waterContent ?? ""}
                     className={oDoc("waterContent")}
                   />
-                </label>
-                <label className="block">
-                  <Nhan>{t("consumables.diemChopChay")}</Nhan>
-                  <input
+                </Field>
+                <Field label={t("consumables.diemChopChay")}>
+                  <Input
                     name="flashPoint"
                     type="number"
                     step="0.1"
                     defaultValue={dx?.flashPoint ?? ""}
                     className={oDoc("flashPoint")}
                   />
-                </label>
+                </Field>
               </>
             )}
             {laNhon && (
-              <label className="block">
-                <Nhan>{t("consumables.tbn")}</Nhan>
-                <input
+              <Field label={t("consumables.tbn")}>
+                <Input
                   name="bnValue"
                   type="number"
                   step="0.1"
                   defaultValue={dx?.bnValue ?? ""}
                   className={oDoc("bnValue")}
                 />
-              </label>
+              </Field>
             )}
           </div>
 
           {canhBao && (
-            <p
-              className={`mt-3 rounded p-2 text-sm ${
-                canhBao.muc === "VUOT_TOAN_CAU"
-                  ? "bg-red-50 text-red-800"
-                  : canhBao.muc === "VUOT_ECA"
-                    ? "bg-amber-50 text-amber-900"
-                    : "bg-emerald-50 text-emerald-800"
-              }`}
-            >
+            <Notice tone={TONE_LUU_HUYNH[canhBao.muc]} className="mt-3">
               {/* Câu chữ lấy theo MỨC, không lấy chuỗi tiếng Việt dựng sẵn
                   trong lib/consumables.ts — file đó dùng chung cả hai phía. */}
               {tTuDo(`consumables.luuHuynh_${canhBao.muc}`, {
                 s: Number(sulphur),
               })}
-            </p>
+            </Notice>
           )}
 
           {laDau && (
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <label className="block">
-                <Nhan>{t("consumables.soNiemMau")}</Nhan>
-                <input
+              <Field label={t("consumables.soNiemMau")}>
+                <Input
                   name="sampleSealNo"
                   placeholder={t("consumables.soNiemPlaceholder")}
                   defaultValue={dx?.sampleSealNo ?? ""}
                   className={oDoc("sampleSealNo")}
                 />
-              </label>
-              <p className="self-end text-xs text-slate-600">
+              </Field>
+              <p className="self-end text-xs text-[var(--text-secondary)]">
                 {t("consumables.mauGiuTruoc")}{" "}
-                <b>{t("consumables.mauGiu12Thang")}</b>{" "}
+                <b className="text-[var(--text-primary)]">
+                  {t("consumables.mauGiu12Thang")}
+                </b>{" "}
                 {t("consumables.mauGiuSau")}
               </p>
             </div>
@@ -327,16 +370,15 @@ export function ConsumableReceiptForm({
 
       {laHoaChat && (
         <div className="grid gap-3 md:grid-cols-3">
-          <label className="block">
-            <Nhan>{t("consumables.hanDungCuaLo")}</Nhan>
-            <input
+          <Field label={t("consumables.hanDungCuaLo")}>
+            <Input
               type="date"
               name="expiryDate"
               defaultValue={dx?.expiryDate ?? ""}
               className={oDoc("expiryDate")}
             />
-          </label>
-          <p className="text-xs text-slate-600 md:col-span-2 md:self-end">
+          </Field>
+          <p className="text-xs text-[var(--text-secondary)] md:col-span-2 md:self-end">
             {chon?.shelfLifeMonths
               ? t("consumables.tuTinhHanDung", { n: chon.shelfLifeMonths })
               : t("consumables.chuaKhaiHanDung")}
@@ -345,54 +387,53 @@ export function ConsumableReceiptForm({
       )}
 
       <div className="grid gap-3 md:grid-cols-4">
-        <label className="block">
-          <Nhan>{t("consumables.donGia")}</Nhan>
-          <input
+        <Field label={t("consumables.donGia")}>
+          <Input
             name="unitPrice"
             type="number"
             step="0.01"
             defaultValue={dx?.unitPrice ?? ""}
             className={oDoc("unitPrice")}
           />
-        </label>
-        <label className="block">
-          <Nhan>{t("consumables.tienTe")}</Nhan>
-          <input
+        </Field>
+        <Field label={t("consumables.tienTe")}>
+          <Input
             name="currency"
             placeholder="USD"
             defaultValue={dx?.currency ?? ""}
             className={oDoc("currency")}
           />
-        </label>
-        <label className="block md:col-span-2">
-          <Nhan>{t("chung.ghiChu")}</Nhan>
-          <input name="note" className="w-full rounded border p-2" />
-        </label>
+        </Field>
+        <Field label={t("chung.ghiChu")} className="md:col-span-2">
+          <Input name="note" />
+        </Field>
       </div>
 
-      <label className="block">
-        <Nhan>{t("consumables.dinhKemBanGoc")}</Nhan>
-        <input
-          type="file"
-          name="attach"
-          accept=".pdf"
-          className="w-full rounded border p-2"
-        />
-        {doc?.tepTam && (
-          <span className="mt-1 block text-xs text-emerald-700">
-            {t("consumables.daCoBanGoc", { ten: doc.tenTep ?? "" })}
-          </span>
-        )}
-      </label>
-
-      <button
-        disabled={pending}
-        className="rounded bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
+      <Field
+        label={t("consumables.dinhKemBanGoc")}
+        hint={
+          doc?.tepTam ? (
+            <span className="text-[var(--text-success)]">
+              {t("consumables.daCoBanGoc", { ten: doc.tenTep ?? "" })}
+            </span>
+          ) : undefined
+        }
       >
-        {pending
-          ? t("consumables.dangGhi")
-          : t("consumables.nutGhiPhieuNhan")}
-      </button>
+        <Input type="file" name="attach" accept=".pdf" className={LOP_O_TEP} />
+      </Field>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="submit"
+          variant="primary"
+          loading={pending}
+          icon={<ArrowDownToLine className="size-4" />}
+        >
+          {pending
+            ? t("consumables.dangGhi")
+            : t("consumables.nutGhiPhieuNhan")}
+        </Button>
+      </div>
       <ThongBao state={state} />
       </form>
     </div>
@@ -419,82 +460,70 @@ export function ConsumableMoveForm({
     <form action={action} className="space-y-3">
       <input type="hidden" name="vesselId" value={vesselId} />
       <div className="grid gap-3 md:grid-cols-5">
-        <label className="block md:col-span-2">
-          <Nhan>{t("consumables.matHang")} *</Nhan>
-          <select name="productId" required className="w-full rounded border p-2">
+        <Field label={`${t("consumables.matHang")} *`} className="md:col-span-2">
+          <Select name="productId" required>
             <option value="">{t("consumables.chonMatHang")}</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <Nhan>{t("consumables.loaiGhi")} *</Nhan>
-          <select
+            <OptionMatHang products={products} />
+          </Select>
+        </Field>
+        <Field label={`${t("consumables.loaiGhi")} *`}>
+          <Select
             name="type"
             value={type}
             onChange={(e) => setType(e.target.value)}
-            className="w-full rounded border p-2"
           >
             <option value="CONSUME">
               {t("consumables.giaoDich_CONSUME")}
             </option>
             <option value="OUT">{t("consumables.giaoDich_OUT")}</option>
             <option value="IN">{t("consumables.giaoDich_IN")}</option>
-          </select>
-        </label>
+          </Select>
+        </Field>
         {/* Nơi tiêu thụ chỉ hiện với CONSUME — ghi vào nhận/xuất là dữ liệu vô
             nghĩa làm báo cáo cộng nhầm. */}
         {type === "CONSUME" && (
-          <label className="block">
-            <Nhan>{t("consumables.noiTieuThu")} *</Nhan>
-            <select name="consumer" className="w-full rounded border p-2">
+          <Field label={`${t("consumables.noiTieuThu")} *`}>
+            <Select name="consumer">
               {CONSUMERS.map((c) => (
                 <option key={c.value} value={c.value}>
                   {tTuDo(`consumables.noiTieuThu_${c.value}`)}
                 </option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </Field>
         )}
-        <label className="block">
-          <Nhan>{t("chung.soLuong")} *</Nhan>
-          <input
+        <Field label={`${t("chung.soLuong")} *`}>
+          <Input
             name="quantity"
             type="number"
             step="0.001"
             min="0.001"
             required
-            className="w-full rounded border p-2"
+            className="tabular"
           />
-        </label>
-        <label className="block">
-          <Nhan>{t("consumables.thoiDiemTrong")}</Nhan>
-          <input
-            type="datetime-local"
-            name="occurredAt"
-            className="w-full rounded border p-2"
-          />
-        </label>
-        <label className="block md:col-span-3">
-          <Nhan>{t("chung.ghiChu")}</Nhan>
-          <input
+        </Field>
+        <Field label={t("consumables.thoiDiemTrong")}>
+          <Input type="datetime-local" name="occurredAt" />
+        </Field>
+        <Field label={t("chung.ghiChu")} className="md:col-span-3">
+          <Input
             name="note"
             placeholder={t("consumables.ghiChuPlaceholder")}
-            className="w-full rounded border p-2"
           />
-        </label>
+        </Field>
       </div>
-      <button
-        disabled={pending}
-        className="rounded bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
-      >
-        {pending
-          ? t("consumables.dangGhi")
-          : t("consumables.nutGhiGiaoDich")}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="submit"
+          variant="primary"
+          loading={pending}
+          icon={<Save className="size-4" />}
+        >
+          {pending
+            ? t("consumables.dangGhi")
+            : t("consumables.nutGhiGiaoDich")}
+        </Button>
+      </div>
       <ThongBao state={state} />
     </form>
   );
@@ -514,7 +543,7 @@ export function ConsumableMinForm({
     message: "",
   });
   return (
-    <form action={action} className="flex items-center gap-1">
+    <form action={action} className="flex items-center justify-end gap-1.5">
       <input type="hidden" name="vesselId" value={vesselId} />
       <input type="hidden" name="productId" value={productId} />
       <input
@@ -523,17 +552,20 @@ export function ConsumableMinForm({
         step="0.01"
         min="0"
         defaultValue={minQty}
-        className="w-20 rounded border p-1 text-right text-sm"
+        className={O_NHO}
       />
-      <button
-        disabled={pending}
+      <Button
+        type="submit"
+        size="sm"
+        variant="secondary"
+        loading={pending}
         title={t("consumables.luuDinhMuc")}
-        className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+        icon={<Save className="size-4" />}
       >
-        {pending ? "..." : t("chung.luu")}
-      </button>
+        {t("chung.luu")}
+      </Button>
       {state.message && !state.success && (
-        <span className="text-xs text-red-600">{state.message}</span>
+        <span className="text-xs text-[var(--text-danger)]">{state.message}</span>
       )}
     </form>
   );

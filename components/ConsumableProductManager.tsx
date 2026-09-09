@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Plus, Power, PowerOff, Save, Trash2 } from "lucide-react";
 import {
   deleteConsumableProduct,
   saveConsumableProduct,
@@ -12,6 +13,7 @@ import {
   UOM_GOI_Y,
 } from "@/lib/consumables";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Button, Field, Input, Notice, Select } from "@/components/ui";
 
 export type ProductRow = {
   id: number;
@@ -31,9 +33,9 @@ export type ProductRow = {
   isActive: boolean;
 };
 
-function Nhan({ children }: { children: React.ReactNode }) {
-  return <span className="mb-1 block text-sm text-slate-600">{children}</span>;
-}
+/** Khung nhóm ô nhập (đặc tính danh nghĩa, an toàn & hạn dùng). */
+const FIELDSET = "rounded-lg border border-[var(--border-subtle)] p-3";
+const LEGEND = "px-1 text-xs font-medium text-[var(--text-secondary)]";
 
 /**
  * Form thêm / sửa một mặt hàng.
@@ -56,205 +58,175 @@ export function ConsumableProductForm({ row }: { row?: ProductRow }) {
     <form action={action} className="space-y-3">
       {row && <input type="hidden" name="id" value={row.id} />}
       <div className="grid gap-3 md:grid-cols-4">
-        <label className="block">
-          <Nhan>{t("chung.nhom")} *</Nhan>
-          <select
+        <Field label={`${t("chung.nhom")} *`}>
+          <Select
             name="category"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full rounded border p-2"
           >
             {CONSUMABLE_CATEGORIES.map((c) => (
               <option key={c.value} value={c.value}>
-                {c.icon} {tTuDo(`consumables.nhom_${c.value}`)}
+                {tTuDo(`consumables.nhom_${c.value}`)}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="block">
-          <Nhan>{t("consumables.chungLoai")} *</Nhan>
-          <select
-            name="grade"
-            defaultValue={row?.grade}
-            key={category}
-            className="w-full rounded border p-2"
-          >
+          </Select>
+        </Field>
+        <Field label={`${t("consumables.chungLoai")} *`}>
+          <Select name="grade" defaultValue={row?.grade} key={category}>
             {GRADES[category].map((g) => (
               <option key={g.value} value={g.value}>
                 {tTuDo(`consumables.loai_${g.value}`)}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="block md:col-span-2">
-          <Nhan>{t("consumables.tenMatHang")} *</Nhan>
-          <input
-            name="name"
-            required
-            defaultValue={row?.name}
-            className="w-full rounded border p-2"
-          />
-        </label>
-        <label className="block">
-          <Nhan>{t("consumables.maTuSinh")}</Nhan>
-          <input
+          </Select>
+        </Field>
+        <Field
+          label={`${t("consumables.tenMatHang")} *`}
+          className="md:col-span-2"
+        >
+          <Input name="name" required defaultValue={row?.name} />
+        </Field>
+        <Field label={t("consumables.maTuSinh")}>
+          <Input
             name="code"
             defaultValue={row?.code}
             placeholder={laDau ? "FO-0001" : laNhon ? "LO-0001" : "CH-0001"}
-            className="w-full rounded border p-2"
           />
-        </label>
-        <label className="block">
-          <Nhan>{t("consumables.hangSx")}</Nhan>
-          <input
-            name="maker"
-            defaultValue={row?.maker ?? ""}
-            className="w-full rounded border p-2"
-          />
-        </label>
-        <label className="block">
-          <Nhan>{t("consumables.donViTinh")} *</Nhan>
-          <input
+        </Field>
+        <Field label={t("consumables.hangSx")}>
+          <Input name="maker" defaultValue={row?.maker ?? ""} />
+        </Field>
+        <Field label={`${t("consumables.donViTinh")} *`}>
+          <Input
             name="uom"
             list="uom-goi-y"
             defaultValue={row?.uom ?? (laDau ? "MT" : "L")}
-            className="w-full rounded border p-2"
           />
           <datalist id="uom-goi-y">
             {(UOM_GOI_Y[category] ?? []).map((u) => (
               <option key={u} value={u} />
             ))}
           </datalist>
-        </label>
-        <label className="block">
-          <Nhan>{t("consumables.dungTichThung")}</Nhan>
-          <input
+        </Field>
+        <Field label={t("consumables.dungTichThung")}>
+          <Input
             name="packSize"
             type="number"
             step="0.01"
             min="0"
-            className="w-full rounded border p-2"
+            className="tabular"
           />
-        </label>
+        </Field>
       </div>
 
       {(laDau || laNhon) && (
-        <fieldset className="rounded border border-slate-200 p-3">
-          <legend className="px-1 text-sm font-medium text-slate-700">
+        <fieldset className={FIELDSET}>
+          <legend className={LEGEND}>
             {t("consumables.dacTinhDanhNghia")}
           </legend>
-          <p className="mb-2 text-xs text-slate-500">
+          <p className="mb-2 text-xs text-[var(--text-muted)]">
             {t("consumables.ghiChuDacTinh")}
           </p>
           <div className="grid gap-3 md:grid-cols-4">
             {laDau && (
-              <label className="block">
-                <Nhan>{t("consumables.luuHuynhToiDa")}</Nhan>
-                <input
+              <Field label={t("consumables.luuHuynhToiDa")}>
+                <Input
                   name="sulphurMax"
                   type="number"
                   step="0.001"
                   defaultValue={row?.sulphurMax ?? ""}
-                  className="w-full rounded border p-2"
+                  className="tabular"
                 />
-              </label>
+              </Field>
             )}
-            <label className="block">
-              <Nhan>{t("consumables.doNhot")}</Nhan>
-              <input
+            <Field label={t("consumables.doNhot")}>
+              <Input
                 name="viscosity"
                 type="number"
                 step="0.1"
                 defaultValue={row?.viscosity ?? ""}
-                className="w-full rounded border p-2"
+                className="tabular"
               />
-            </label>
-            <label className="block">
-              <Nhan>{t("consumables.khoiLuongRiengNgan")}</Nhan>
-              <input
+            </Field>
+            <Field label={t("consumables.khoiLuongRiengNgan")}>
+              <Input
                 name="density"
                 type="number"
                 step="0.1"
                 defaultValue={row?.density ?? ""}
-                className="w-full rounded border p-2"
+                className="tabular"
               />
-            </label>
+            </Field>
             {laNhon && (
-              <label className="block">
-                <Nhan>{t("consumables.tbn")}</Nhan>
-                <input
+              <Field label={t("consumables.tbn")}>
+                <Input
                   name="bnValue"
                   type="number"
                   step="0.1"
                   defaultValue={row?.bnValue ?? ""}
-                  className="w-full rounded border p-2"
+                  className="tabular"
                 />
-              </label>
+              </Field>
             )}
           </div>
         </fieldset>
       )}
 
       {laHoaChat && (
-        <fieldset className="rounded border border-slate-200 p-3">
-          <legend className="px-1 text-sm font-medium text-slate-700">
-            {t("consumables.anToanHanDung")}
-          </legend>
+        <fieldset className={FIELDSET}>
+          <legend className={LEGEND}>{t("consumables.anToanHanDung")}</legend>
           <div className="grid gap-3 md:grid-cols-3">
-            <label className="block">
-              <Nhan>{t("consumables.phanLoaiNguyHiemGhs")}</Nhan>
-              <input
+            <Field label={t("consumables.phanLoaiNguyHiemGhs")}>
+              <Input
                 name="hazardClass"
                 defaultValue={row?.hazardClass ?? ""}
                 placeholder={t("consumables.viDuNguyHiem")}
-                className="w-full rounded border p-2"
               />
-            </label>
-            <label className="block">
-              <Nhan>{t("consumables.hanDungThang")}</Nhan>
-              <input
+            </Field>
+            <Field
+              label={t("consumables.hanDungThang")}
+              hint={t("consumables.goiYHanDung")}
+            >
+              <Input
                 name="shelfLifeMonths"
                 type="number"
                 min="0"
                 step="1"
                 defaultValue={row?.shelfLifeMonths ?? ""}
-                className="w-full rounded border p-2"
+                className="tabular"
               />
-              <span className="mt-1 block text-xs text-slate-500">
-                {t("consumables.goiYHanDung")}
-              </span>
-            </label>
-            <label className="block">
-              <Nhan>{t("consumables.ghiChuAnToan")}</Nhan>
-              <input name="msdsNote" className="w-full rounded border p-2" />
-            </label>
+            </Field>
+            <Field label={t("consumables.ghiChuAnToan")}>
+              <Input name="msdsNote" />
+            </Field>
           </div>
         </fieldset>
       )}
 
-      <label className="block">
-        <Nhan>{t("chung.ghiChu")}</Nhan>
-        <input name="notes" className="w-full rounded border p-2" />
-      </label>
+      <Field label={t("chung.ghiChu")}>
+        <Input name="notes" />
+      </Field>
 
-      <button
-        disabled={pending}
-        className="rounded bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
-      >
-        {pending
-          ? t("chung.dangLuu")
-          : row
-            ? t("consumables.luuThayDoi")
-            : t("consumables.themMatHang")}
-      </button>
-      {state.message && (
-        <p
-          className={`text-sm ${
-            state.success ? "text-emerald-700" : "text-red-600"
-          }`}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="submit"
+          variant="primary"
+          loading={pending}
+          icon={
+            row ? <Save className="size-4" /> : <Plus className="size-4" />
+          }
         >
+          {pending
+            ? t("chung.dangLuu")
+            : row
+              ? t("consumables.luuThayDoi")
+              : t("consumables.themMatHang")}
+        </Button>
+      </div>
+      {state.message && (
+        <Notice tone={state.success ? "success" : "danger"}>
           {state.message}
-        </p>
+        </Notice>
       )}
     </form>
   );
@@ -270,17 +242,26 @@ export function ConsumableProductActions({ row }: { row: ProductRow }) {
   });
   return (
     <div className="flex flex-col items-end gap-1">
-      <div className="flex gap-1">
+      <div className="flex gap-1.5">
         <form action={tAction}>
           <input type="hidden" name="id" value={row.id} />
-          <button
-            disabled={tPending}
-            className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+          <Button
+            type="submit"
+            size="sm"
+            variant="ghost"
+            loading={tPending}
+            icon={
+              row.isActive ? (
+                <PowerOff className="size-4" />
+              ) : (
+                <Power className="size-4" />
+              )
+            }
           >
             {row.isActive
               ? t("consumables.nutNgungDung")
               : t("consumables.nutDungLai")}
-          </button>
+          </Button>
         </form>
         <form
           action={dAction}
@@ -295,18 +276,24 @@ export function ConsumableProductActions({ row }: { row: ProductRow }) {
           }}
         >
           <input type="hidden" name="id" value={row.id} />
-          <button
-            disabled={dPending}
-            className="rounded bg-red-50 px-2 py-1 text-xs text-red-700 hover:bg-red-100 disabled:opacity-50"
+          <Button
+            type="submit"
+            size="sm"
+            variant="danger"
+            loading={dPending}
+            icon={<Trash2 className="size-4" />}
           >
             {t("chung.xoa")}
-          </button>
+          </Button>
         </form>
       </div>
       {[tState.message, dState.message]
         .filter((m) => m)
         .map((m, i) => (
-          <span key={i} className="max-w-72 text-right text-xs text-red-600">
+          <span
+            key={i}
+            className="max-w-72 text-right text-xs text-[var(--text-danger)]"
+          >
             {m}
           </span>
         ))}

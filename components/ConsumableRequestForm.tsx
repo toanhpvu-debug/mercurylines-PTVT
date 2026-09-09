@@ -1,9 +1,29 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import {
+  Droplets,
+  FlaskConical,
+  Fuel,
+  Send,
+  type LucideIcon,
+} from "lucide-react";
 import { taoYeuCauNhienLieu } from "@/app/consumable-actions";
-import { CATEGORY_ICON } from "@/lib/consumables";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { cn } from "@/lib/cn";
+import {
+  Button,
+  EmptyState,
+  Field,
+  Input,
+  Notice,
+  Select,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui";
 
 export type RequestLine = {
   productId: number;
@@ -14,6 +34,13 @@ export type RequestLine = {
   minQty: number;
   /** Tiêu thụ trung bình mỗi ngày, tính trên 30 ngày gần nhất. 0 = chưa có. */
   moiNgay: number;
+};
+
+/** Biểu tượng nhóm — thay cho emoji `icon` trong lib/consumables.ts. */
+const CATEGORY_ICON: Record<string, LucideIcon> = {
+  FUEL: Fuel,
+  LUBE: Droplets,
+  CHEMICAL: FlaskConical,
 };
 
 /** Số ngày dự trữ mặc định khi đề xuất số lượng xin cấp. */
@@ -77,55 +104,69 @@ export default function ConsumableRequestForm({
 
   if (lines.length === 0) {
     return (
-      <p className="text-sm text-slate-500">
-        {t("consumables.chuaCoMatHangNhom")}
-      </p>
+      <EmptyState
+        icon={<Droplets className="size-5" />}
+        title={t("consumables.chuaCoMatHangNhom")}
+      />
     );
   }
 
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} className="space-y-4">
       <input type="hidden" name="vesselId" value={vesselId} />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-slate-600">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-[var(--text-secondary)]">
           {nguoiDuyet ? (
             <>
-              {t("consumables.luongDuyetTruoc")} <b>{nguoiDuyet}</b>{" "}
+              {t("consumables.luongDuyetTruoc")}{" "}
+              <b className="text-[var(--text-primary)]">{nguoiDuyet}</b>{" "}
               {t("consumables.luongDuyetGiua")}{" "}
-              <b>{t("consumables.quanLyKyThuat")}</b>
+              <b className="text-[var(--text-primary)]">
+                {t("consumables.quanLyKyThuat")}
+              </b>
               {t("consumables.luongDuyetSau")}{" "}
-              <b>{t("consumables.muaSam")}</b>.
+              <b className="text-[var(--text-primary)]">
+                {t("consumables.muaSam")}
+              </b>
+              .
             </>
           ) : (
             <>
               {t("consumables.luongDuyetThangTruoc")}{" "}
-              <b>{t("consumables.luongDuyetThangDam")}</b>
+              <b className="text-[var(--text-primary)]">
+                {t("consumables.luongDuyetThangDam")}
+              </b>
               {t("consumables.luongDuyetSau")}{" "}
-              <b>{t("consumables.muaSam")}</b>.
+              <b className="text-[var(--text-primary)]">
+                {t("consumables.muaSam")}
+              </b>
+              .
             </>
           )}
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-slate-600">
+          <label className="flex items-center gap-2 text-sm whitespace-nowrap text-[var(--text-secondary)]">
             {t("consumables.duTruDuDung")}
-            <select
-              value={soNgay}
-              onChange={(e) => setSoNgay(Number(e.target.value))}
-              className="rounded border p-1"
-            >
-              {[30, 45, 60, 90, 120].map((n) => (
-                <option key={n} value={n}>
-                  {t("consumables.nNgay", { n })}
-                </option>
-              ))}
-            </select>
+            <span className="block w-28">
+              <Select
+                value={soNgay}
+                onChange={(e) => setSoNgay(Number(e.target.value))}
+              >
+                {[30, 45, 60, 90, 120].map((n) => (
+                  <option key={n} value={n}>
+                    {t("consumables.nNgay", { n })}
+                  </option>
+                ))}
+              </Select>
+            </span>
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-600">
+          <label className="flex cursor-pointer items-center gap-2 text-sm whitespace-nowrap text-[var(--text-secondary)]">
             <input
               type="checkbox"
               checked={chiThieu}
               onChange={(e) => setChiThieu(e.target.checked)}
+              className="size-4 rounded accent-brand-600"
             />
             {t("consumables.chiHienCanCap")}
           </label>
@@ -133,25 +174,21 @@ export default function ConsumableRequestForm({
       </div>
 
       {hienThi.length === 0 ? (
-        <p className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+        <Notice tone="success">
           {t("consumables.khongCanCap", { n: soNgay })}
-        </p>
+        </Notice>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border text-sm">
+        <TableWrap>
+          <Table dense>
             <thead>
-              <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                <th className="p-2">{t("consumables.matHang")}</th>
-                <th className="p-2">{t("chung.donVi")}</th>
-                <th className="p-2 text-right">{t("consumables.ton")}</th>
-                <th className="p-2 text-right">
-                  {t("consumables.dungMoiNgay")}
-                </th>
-                <th className="p-2 text-right">
-                  {t("consumables.conDungDuoc")}
-                </th>
-                <th className="p-2 text-right">{t("consumables.dinhMuc")}</th>
-                <th className="p-2">{t("consumables.cotSoLuongXinCap")}</th>
+              <tr>
+                <Th>{t("consumables.matHang")}</Th>
+                <Th>{t("chung.donVi")}</Th>
+                <Th align="right">{t("consumables.ton")}</Th>
+                <Th align="right">{t("consumables.dungMoiNgay")}</Th>
+                <Th align="right">{t("consumables.conDungDuoc")}</Th>
+                <Th align="right">{t("consumables.dinhMuc")}</Th>
+                <Th>{t("consumables.cotSoLuongXinCap")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -159,108 +196,121 @@ export default function ConsumableRequestForm({
                 const dx = deXuat.get(l.productId) ?? { sl: 0, vi: "" };
                 const conDung =
                   l.moiNgay > 0 ? Math.floor(l.ton / l.moiNgay) : null;
+                const Icon = CATEGORY_ICON[l.category];
                 return (
-                  <tr key={l.productId} className="border-b">
-                    <td className="p-2">
-                      {CATEGORY_ICON[l.category]} {l.label}
-                    </td>
-                    <td className="p-2 text-slate-600">{l.uom}</td>
-                    <td
-                      className={`p-2 text-right ${
-                        dx.sl > 0 ? "font-medium text-amber-700" : ""
-                      }`}
-                    >
-                      {l.ton}
-                    </td>
-                    <td className="p-2 text-right text-slate-600">
-                      {l.moiNgay > 0
-                        ? Math.round(l.moiNgay * 100) / 100
-                        : "—"}
-                    </td>
-                    <td className="p-2 text-right">
+                  <Tr key={l.productId}>
+                    <Td>
+                      <span className="inline-flex items-center gap-1.5">
+                        {Icon && (
+                          <Icon className="size-4 shrink-0 text-[var(--text-muted)]" />
+                        )}
+                        {l.label}
+                      </span>
+                    </Td>
+                    <Td>
+                      <span className="text-xs text-[var(--text-secondary)]">
+                        {l.uom}
+                      </span>
+                    </Td>
+                    <Td align="right">
+                      <span
+                        className={cn(
+                          dx.sl > 0 &&
+                            "font-semibold text-[var(--text-warning)]"
+                        )}
+                      >
+                        {l.ton}
+                      </span>
+                    </Td>
+                    <Td align="right">
+                      <span className="text-[var(--text-secondary)]">
+                        {l.moiNgay > 0
+                          ? Math.round(l.moiNgay * 100) / 100
+                          : "—"}
+                      </span>
+                    </Td>
+                    <Td align="right">
                       {conDung === null ? (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-[var(--text-muted)]">—</span>
                       ) : (
                         <span
                           className={
                             conDung < soNgay
-                              ? "font-semibold text-orange-700"
-                              : "text-slate-700"
+                              ? "font-semibold text-[var(--text-warning)]"
+                              : "text-[var(--text-secondary)]"
                           }
                         >
                           {t("consumables.nNgay", { n: conDung })}
                         </span>
                       )}
-                    </td>
-                    <td className="p-2 text-right text-slate-600">
-                      {l.minQty > 0 ? l.minQty : "—"}
-                    </td>
-                    <td className="p-2">
-                      <input
-                        name={`sl_${l.productId}`}
-                        type="number"
-                        step="0.001"
-                        min="0"
-                        key={`${l.productId}-${soNgay}`}
-                        defaultValue={dx.sl > 0 ? dx.sl : ""}
-                        placeholder="0"
-                        className="w-28 rounded border p-1"
-                      />
+                    </Td>
+                    <Td align="right">
+                      <span className="text-[var(--text-secondary)]">
+                        {l.minQty > 0 ? l.minQty : "—"}
+                      </span>
+                    </Td>
+                    <Td>
+                      <div className="w-28">
+                        <Input
+                          name={`sl_${l.productId}`}
+                          type="number"
+                          step="0.001"
+                          min="0"
+                          key={`${l.productId}-${soNgay}`}
+                          defaultValue={dx.sl > 0 ? dx.sl : ""}
+                          placeholder="0"
+                          className="tabular"
+                        />
+                      </div>
                       {dx.vi && (
-                        <span className="mt-0.5 block text-xs text-slate-500">
+                        <span className="mt-1 block text-xs text-[var(--text-muted)]">
                           {dx.vi}
                         </span>
                       )}
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 );
               })}
             </tbody>
-          </table>
-        </div>
+          </Table>
+        </TableWrap>
       )}
 
       <div className="grid gap-3 md:grid-cols-3">
-        <label className="block md:col-span-2">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("consumables.lyDoMucDich")}
-          </span>
-          <input
+        <Field label={t("consumables.lyDoMucDich")} className="md:col-span-2">
+          <Input
             name="purpose"
             placeholder={t("consumables.lyDoPlaceholder")}
-            className="w-full rounded border p-2"
           />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-600">
-            {t("consumables.mucUuTien")}
-          </span>
-          <select name="priority" className="w-full rounded border p-2">
+        </Field>
+        <Field label={t("consumables.mucUuTien")}>
+          <Select name="priority">
             <option value="NORMAL">{t("labels.priority_NORMAL")}</option>
             <option value="HIGH">{t("labels.priority_HIGH")}</option>
             <option value="URGENT">{t("labels.priority_URGENT")}</option>
             <option value="LOW">{t("labels.priority_LOW")}</option>
-          </select>
-        </label>
+          </Select>
+        </Field>
       </div>
 
-      <button
-        disabled={pending || hienThi.length === 0}
-        className="rounded bg-blue-700 px-5 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
-      >
-        {pending
-          ? t("consumables.dangGui")
-          : t("consumables.nutGuiYeuCau")}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="submit"
+          variant="primary"
+          loading={pending}
+          disabled={hienThi.length === 0}
+          icon={<Send className="size-4" />}
+        >
+          {pending
+            ? t("consumables.dangGui")
+            : t("consumables.nutGuiYeuCau")}
+        </Button>
+      </div>
 
       {state.message && (
-        <p
-          className={`text-sm ${
-            state.success ? "text-emerald-700" : "text-red-600"
-          }`}
-        >
+        <Notice tone={state.success ? "success" : "danger"}>
           {state.message}
-        </p>
+        </Notice>
       )}
     </form>
   );

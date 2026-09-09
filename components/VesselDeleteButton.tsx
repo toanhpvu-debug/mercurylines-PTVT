@@ -1,8 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
+import { Trash2 } from "lucide-react";
 import { deleteVessel } from "@/app/actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Button } from "@/components/ui";
 
 export default function VesselDeleteButton({
   id,
@@ -20,13 +22,10 @@ export default function VesselDeleteButton({
   if (requestCount > 0) {
     return (
       <div>
-        <button
-          disabled
-          className="cursor-not-allowed rounded bg-slate-100 px-4 py-2 text-slate-400"
-        >
+        <Button type="button" variant="danger" disabled icon={<Trash2 className="size-4" />}>
           {t("vessels.xoaTau")}
-        </button>
-        <p className="mt-2 text-sm text-slate-500">
+        </Button>
+        <p className="mt-2 text-sm text-[var(--text-muted)]">
           {t("vessels.khongXoaDuocTau", { n: requestCount })}
         </p>
       </div>
@@ -42,14 +41,16 @@ export default function VesselDeleteButton({
       }}
     >
       <input type="hidden" name="id" value={id} />
-      <button
-        disabled={pending}
-        className="rounded bg-red-100 px-4 py-2 text-red-700 hover:bg-red-200 disabled:opacity-50"
+      <Button
+        type="submit"
+        variant="danger"
+        loading={pending}
+        icon={<Trash2 className="size-4" />}
       >
         {pending ? t("vessels.dangXoa") : t("vessels.xoaTau")}
-      </button>
+      </Button>
       {state.message && (
-        <p className="mt-2 text-sm text-red-600">{state.message}</p>
+        <p className="mt-2 text-sm text-[var(--text-danger)]">{state.message}</p>
       )}
     </form>
   );

@@ -37,7 +37,7 @@ export const paint = tuDien(
     dongDuoiToiThieu: "{ten}: còn {con} {dv} / tối thiểu {min} {dv}",
     soDoSon: "Sơ đồ sơn theo khu vực",
     chuaCoKhuVuc: "Chưa khai báo khu vực sơn nào cho tàu này.",
-    goiYThemKhuVuc: "Bấm “+ Thêm khu vực sơn” để bắt đầu.",
+    goiYThemKhuVuc: "Bấm “Thêm khu vực sơn” để bắt đầu.",
     duTruSon: "Dự trù sơn theo sơ đồ",
     nLoaiCanMuaThem: "{n} loại cần mua thêm",
     duTruMoTa:
@@ -86,8 +86,8 @@ export const paint = tuDien(
     chuaCoGiaoDich: "Chưa có giao dịch nào.",
     thoiDiem: "Thời điểm",
     cotSL: "SL",
-    giaoDichNhan: "↓ Nhận",
-    giaoDichXuat: "↑ Xuất",
+    giaoDichNhan: "Nhận",
+    giaoDichXuat: "Xuất",
 
     // --- Trang nhập danh mục từ file /paint/import ---
     quayLaiDanhMuc: "Quay lại danh mục sơn",
@@ -312,7 +312,7 @@ export const paint = tuDien(
     dongDuoiToiThieu: "{ten}: {con} {dv} left / minimum {min} {dv}",
     soDoSon: "Paint scheme by area",
     chuaCoKhuVuc: "No paint area has been defined for this vessel yet.",
-    goiYThemKhuVuc: "Use “+ Add paint area” to start.",
+    goiYThemKhuVuc: "Use “Add paint area” to start.",
     duTruSon: "Paint requirement from the scheme",
     nLoaiCanMuaThem: "{n} products to order",
     duTruMoTa:
@@ -361,8 +361,8 @@ export const paint = tuDien(
     chuaCoGiaoDich: "No transactions yet.",
     thoiDiem: "Time",
     cotSL: "Qty",
-    giaoDichNhan: "↓ Received",
-    giaoDichXuat: "↑ Issued",
+    giaoDichNhan: "Received",
+    giaoDichXuat: "Issued",
 
     quayLaiDanhMuc: "Back to the paint catalogue",
     nhapDanhMucTieuDe: "Import the paint catalogue from a file",

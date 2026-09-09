@@ -1,9 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
+import { Save } from "lucide-react";
 import { updateVessel } from "@/app/actions";
 import ChonMayChinh from "@/components/ChonMayChinh";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Button, Field, Input, Notice, Select } from "@/components/ui";
 
 type VesselData = {
   id: number;
@@ -26,90 +28,51 @@ export default function VesselEditForm({ vessel }: { vessel: VesselData }) {
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="id" value={vessel.id} />
-      <div>
-        <label className="mb-1 block text-sm text-slate-600">
-          {t("vessels.maTau")}
-        </label>
-        <input
-          name="code"
-          className="w-full rounded border p-2"
-          defaultValue={v.code ?? vessel.code}
-          required
-        />
-      </div>
-      <div>
-        <label className="mb-1 block text-sm text-slate-600">
-          {t("vessels.tenTau")}
-        </label>
-        <input
-          name="name"
-          className="w-full rounded border p-2"
-          defaultValue={v.name ?? vessel.name}
-          required
-        />
-      </div>
-      <div>
-        <label className="mb-1 block text-sm text-slate-600">IMO number</label>
-        <input
-          name="imo"
-          className="w-full rounded border p-2"
-          defaultValue={v.imo ?? vessel.imo ?? ""}
-        />
-      </div>
-      <div>
-        <label className="mb-1 block text-sm text-slate-600">
-          {t("vessels.coTau")}
-        </label>
-        <input
-          name="flag"
-          className="w-full rounded border p-2"
-          defaultValue={v.flag ?? vessel.flag ?? ""}
-        />
-      </div>
-      <div>
-        <label className="mb-1 block text-sm text-slate-600">
-          {t("vessels.loaiTau")}
-        </label>
-        <input
-          name="vesselType"
-          className="w-full rounded border p-2"
-          defaultValue={v.vesselType ?? vessel.vesselType ?? ""}
-        />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label={t("vessels.maTau")}>
+          <Input name="code" defaultValue={v.code ?? vessel.code} required />
+        </Field>
+        <Field label={t("vessels.tenTau")}>
+          <Input name="name" defaultValue={v.name ?? vessel.name} required />
+        </Field>
+        <Field label="IMO number">
+          <Input name="imo" defaultValue={v.imo ?? vessel.imo ?? ""} />
+        </Field>
+        <Field label={t("vessels.coTau")}>
+          <Input name="flag" defaultValue={v.flag ?? vessel.flag ?? ""} />
+        </Field>
+        <Field label={t("vessels.loaiTau")} className="sm:col-span-2">
+          <Input
+            name="vesselType"
+            defaultValue={v.vesselType ?? vessel.vesselType ?? ""}
+          />
+        </Field>
       </div>
       <ChonMayChinh
         nhom={v.mainEngineGroup ?? vessel.mainEngineGroup ?? ""}
         model={v.mainEngineModel ?? vessel.mainEngineModel ?? ""}
       />
-      <div>
-        <label className="mb-1 block text-sm text-slate-600">
-          {t("chung.trangThai")}
-        </label>
-        <select
-          name="status"
-          className="w-full rounded border p-2"
-          defaultValue={v.status ?? vessel.status}
-        >
+      <Field label={t("chung.trangThai")}>
+        <Select name="status" defaultValue={v.status ?? vessel.status}>
           <option value="ACTIVE">{tTuDo("labels.vesselStatus_ACTIVE")}</option>
           <option value="MAINTENANCE">{t("vessels.trangThaiBaoDuong")}</option>
           <option value="INACTIVE">
             {tTuDo("labels.vesselStatus_INACTIVE")}
           </option>
-        </select>
-      </div>
-      <button
-        disabled={pending}
-        className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
+        </Select>
+      </Field>
+      <Button
+        type="submit"
+        variant="primary"
+        loading={pending}
+        icon={<Save className="size-4" />}
       >
         {pending ? t("chung.dangLuu") : t("vessels.luuThayDoi")}
-      </button>
+      </Button>
       {state.message && (
-        <p
-          className={`text-sm ${
-            state.success ? "text-green-700" : "text-red-600"
-          }`}
-        >
+        <Notice tone={state.success ? "success" : "danger"}>
           {state.message}
-        </p>
+        </Notice>
       )}
     </form>
   );

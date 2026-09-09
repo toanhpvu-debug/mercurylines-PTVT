@@ -1,22 +1,39 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, type ReactNode } from "react";
+import { PackageCheck } from "lucide-react";
 import {
   receivePurchaseOrder,
   updatePurchaseOrderStatus,
 } from "@/app/actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import {
+  Button,
+  Field,
+  Input,
+  Notice,
+  Select,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui";
 
 export function POStatusButton({
   id,
   status,
   label,
+  variant = "secondary",
+  icon,
   className,
 }: {
   id: number;
   status: string;
   label: string;
-  className: string;
+  variant?: "primary" | "secondary" | "ghost" | "danger";
+  icon?: ReactNode;
+  className?: string;
 }) {
   const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(
@@ -37,11 +54,16 @@ export function POStatusButton({
     >
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="status" value={status} />
-      <button disabled={pending} className={className}>
-        {pending ? "..." : label}
-      </button>
+      <Button
+        variant={variant}
+        icon={icon}
+        loading={pending}
+        className={className}
+      >
+        {label}
+      </Button>
       {state.message && (
-        <p className="mt-1 text-xs text-red-600">{state.message}</p>
+        <p className="mt-1 text-xs text-[var(--text-danger)]">{state.message}</p>
       )}
     </form>
   );
@@ -77,88 +99,95 @@ export function ReceiveGoodsForm({
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="id" value={poId} />
       {anyMaterial && (
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.khoNhanVao")}
-          </label>
-          <select
-            name="warehouseId"
-            className="rounded border p-2"
-            defaultValue=""
-            required
-          >
+        <Field label={t("purchasing.khoNhanVao")} className="max-w-sm">
+          <Select name="warehouseId" defaultValue="" required>
             <option value="">{t("purchasing.chonKho")}</option>
             {warehouses.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.code} - {w.name}
               </option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </Field>
       )}
-      <div className="overflow-x-auto">
-        <table className="w-full border text-sm">
+      <TableWrap>
+        <Table dense>
           <thead>
-            <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-              <th className="p-2">{t("chung.moTa")}</th>
-              <th className="p-2">Part No.</th>
-              <th className="p-2">{t("chung.donVi")}</th>
-              <th className="p-2">{t("purchasing.cotSlDat")}</th>
-              <th className="p-2">{t("purchasing.cotDaNhan")}</th>
-              <th className="p-2">{t("purchasing.cotNhanLanNay")}</th>
+            <tr>
+              <Th>{t("chung.moTa")}</Th>
+              <Th>Part No.</Th>
+              <Th>{t("chung.donVi")}</Th>
+              <Th align="right">{t("purchasing.cotSlDat")}</Th>
+              <Th align="right">{t("purchasing.cotDaNhan")}</Th>
+              <Th>{t("purchasing.cotNhanLanNay")}</Th>
             </tr>
           </thead>
           <tbody>
             {lines.map((l) => {
               const remaining = Math.max(0, l.quantity - l.quantityReceived);
               return (
-                <tr key={l.id} className="border-b">
-                  <td className="p-2">
+                <Tr key={l.id}>
+                  <Td>
                     {l.description}
                     {!l.hasMaterial && (
-                      <span className="ml-1 text-xs text-slate-400">
+                      <span className="ml-1 text-xs text-[var(--text-muted)]">
                         {t("purchasing.ngoaiDanhMuc")}
                       </span>
                     )}
-                  </td>
-                  <td className="p-2">{l.partNo}</td>
-                  <td className="p-2">{l.uom}</td>
-                  <td className="p-2">{l.quantity}</td>
-                  <td className="p-2">{l.quantityReceived}</td>
-                  <td className="p-2">
-                    <input
-                      name={`recv_${l.id}`}
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max={remaining}
-                      defaultValue={0}
-                      disabled={remaining <= 0}
-                      className="w-24 rounded border p-1 disabled:bg-slate-100"
-                    />
-                  </td>
-                </tr>
+                  </Td>
+                  <Td className="font-display text-xs tracking-wide">
+                    {l.partNo}
+                  </Td>
+                  <Td>
+                    <span className="text-xs text-[var(--text-secondary)]">
+                      {l.uom}
+                    </span>
+                  </Td>
+                  <Td align="right">{l.quantity}</Td>
+                  <Td align="right">
+                    <span
+                      className={
+                        remaining <= 0
+                          ? "font-semibold text-[var(--text-success)]"
+                          : undefined
+                      }
+                    >
+                      {l.quantityReceived}
+                    </span>
+                  </Td>
+                  <Td>
+                    <div className="w-24">
+                      <Input
+                        name={`recv_${l.id}`}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={remaining}
+                        defaultValue={0}
+                        disabled={remaining <= 0}
+                        className="tabular"
+                      />
+                    </div>
+                  </Td>
+                </Tr>
               );
             })}
           </tbody>
-        </table>
-      </div>
-      <button
-        disabled={pending}
-        className="rounded bg-green-100 px-4 py-2 text-green-700 hover:bg-green-200 disabled:opacity-50"
+        </Table>
+      </TableWrap>
+      <Button
+        variant="primary"
+        icon={<PackageCheck className="size-4" />}
+        loading={pending}
       >
         {pending
           ? t("purchasing.dangGhiNhan")
           : t("purchasing.nutGhiNhanNhanHang")}
-      </button>
+      </Button>
       {state.message && (
-        <p
-          className={`text-sm ${
-            state.success ? "text-green-700" : "text-red-600"
-          }`}
-        >
+        <Notice tone={state.success ? "success" : "danger"}>
           {state.message}
-        </p>
+        </Notice>
       )}
     </form>
   );

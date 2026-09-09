@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { ScanText } from "lucide-react";
 import { docPhieuTuPdf } from "@/app/consumable-actions";
 import type { PhieuDeXuat } from "@/lib/bunkerParse";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { cn } from "@/lib/cn";
+import { Button, Input } from "@/components/ui";
 
 export type KetQuaDoc = {
   deXuat?: PhieuDeXuat;
@@ -11,6 +14,13 @@ export type KetQuaDoc = {
   tenTep?: string;
   coTep?: number;
 };
+
+/**
+ * Lớp cho ô chọn tệp: nút "Chọn tệp" của trình duyệt tô màu nhấn nhạt để cùng
+ * dáng với các nút khác. Dùng chung với form ghi phiếu (ConsumableForms).
+ */
+export const LOP_O_TEP =
+  "file:mr-3 file:rounded-md file:border-0 file:bg-brand-500/10 file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-brand-700 dark:file:text-brand-300";
 
 /**
  * Đọc BDN / phiếu giao từ file PDF — kể cả bản SCAN — rồi điền sẵn vào form.
@@ -60,48 +70,55 @@ export default function ConsumablePdfReader({
   };
 
   return (
-    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-      <p className="text-sm font-medium text-blue-950">
+    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-3">
+      <p className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
+        <ScanText className="size-4 text-[var(--text-muted)]" />
         {t("consumables.docTuPdf")}
       </p>
-      <p className="mt-1 text-xs text-blue-900">
-        {t("consumables.moTaDocTruoc")} <b>{t("consumables.dienSanDam")}</b>{" "}
-        {t("consumables.moTaDocGiua")} <b>{t("consumables.doiChieuDam")}</b>.{" "}
+      <p className="mt-1 text-xs text-[var(--text-secondary)]">
+        {t("consumables.moTaDocTruoc")}{" "}
+        <b className="text-[var(--text-primary)]">{t("consumables.dienSanDam")}</b>{" "}
+        {t("consumables.moTaDocGiua")}{" "}
+        <b className="text-[var(--text-primary)]">{t("consumables.doiChieuDam")}</b>.{" "}
         {t("consumables.moTaDocSau")}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <input
-          type="file"
-          accept=".pdf"
-          onChange={(e) => setTep(e.target.files?.[0] ?? null)}
-          className="rounded border bg-white p-2 text-sm"
-        />
-        <button
+        <div className="min-w-56 flex-1">
+          <Input
+            type="file"
+            accept=".pdf"
+            onChange={(e) => setTep(e.target.files?.[0] ?? null)}
+            className={LOP_O_TEP}
+          />
+        </div>
+        <Button
           type="button"
+          variant="primary"
           onClick={doc}
-          disabled={dangChay}
-          className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800 disabled:opacity-50"
+          loading={dangChay}
+          icon={<ScanText className="size-4" />}
         >
           {dangChay
             ? t("consumables.dangDocScan")
             : t("consumables.nutDocFile")}
-        </button>
+        </Button>
       </div>
       {thongBao && (
         <p
-          className={`mt-2 text-sm ${
-            tot ? "text-emerald-800" : "text-amber-900"
-          }`}
+          className={cn(
+            "mt-2 text-sm",
+            tot ? "text-[var(--text-success)]" : "text-[var(--text-warning)]"
+          )}
         >
           {thongBao}
         </p>
       )}
       {chu && (
         <details className="mt-2 text-xs">
-          <summary className="cursor-pointer text-blue-800">
+          <summary className="cursor-pointer select-none text-brand-700 hover:underline dark:text-brand-300">
             {t("consumables.xemChuDoc")}
           </summary>
-          <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded bg-white p-2 text-[11px] text-slate-700">
+          <pre className="mt-1 max-h-56 overflow-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-2 font-mono text-[11px] whitespace-pre-wrap text-[var(--text-secondary)]">
             {chu}
           </pre>
         </details>

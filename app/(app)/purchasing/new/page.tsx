@@ -1,6 +1,7 @@
 import Form from "next/form";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowLeft, ArrowRight, ShoppingCart } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   chonDuocTau,
@@ -10,8 +11,19 @@ import {
 } from "@/lib/auth";
 import CreatePurchaseOrderForm from "@/components/CreatePurchaseOrderForm";
 import { layT } from "@/lib/i18n/server";
+import {
+  Button,
+  Card,
+  EmptyState,
+  Notice,
+  PageHeader,
+  Select,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
+
+const BACK_LINK =
+  "mb-3 inline-flex items-center gap-1.5 text-sm text-brand-700 hover:underline dark:text-brand-300";
 
 export default async function NewPurchaseOrderPage({
   searchParams,
@@ -41,13 +53,9 @@ export default async function NewPurchaseOrderPage({
 
   if (scope.unassigned) {
     return (
-      <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("purchasing.tieuDeTaoDon")}
-        </h2>
-        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          {t("chung.chuaGanTau")}
-        </div>
+      <div className="space-y-5">
+        <PageHeader title={t("purchasing.tieuDeTaoDon")} />
+        <Notice tone="warning">{t("chung.chuaGanTau")}</Notice>
       </div>
     );
   }
@@ -55,38 +63,45 @@ export default async function NewPurchaseOrderPage({
   // Chưa chọn tàu (người toàn đội) → hiện danh sách tàu để chọn.
   if (!selectedVesselId) {
     return (
-      <div className="space-y-4">
-        <Link
-          href="/purchasing"
-          className="text-sm text-blue-700 hover:underline"
-        >
-          {t("purchasing.quayLaiMuaSam")}
-        </Link>
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("purchasing.taoDonChonTau")}
-        </h2>
-        <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
+      <div className="space-y-5">
+        <div>
+          <Link href="/purchasing" className={BACK_LINK}>
+            <ArrowLeft className="size-4" />
+            {t("purchasing.quayLaiMuaSam")}
+          </Link>
+          <PageHeader title={t("purchasing.taoDonChonTau")} />
+        </div>
+        <Card>
           {/* next/form: chọn tàu xong chuyển trang phía client (không tải lại
               cả trang); `required` vẫn chặn gửi khi chưa chọn. */}
-          <Form action="/purchasing/new" className="flex items-center gap-2">
-            <select
-              name="vessel"
-              className="rounded border p-2"
-              defaultValue=""
-              required
+          <Form
+            action="/purchasing/new"
+            className="flex flex-wrap items-center gap-2"
+          >
+            <div className="w-72">
+              <Select
+                name="vessel"
+                defaultValue=""
+                required
+                title={t("chung.tau")}
+              >
+                <option value="">{t("purchasing.phChonTauMuaSam")}</option>
+                {vessels.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.code} - {v.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <Button
+              type="submit"
+              variant="primary"
+              icon={<ArrowRight className="size-4" />}
             >
-              <option value="">{t("purchasing.phChonTauMuaSam")}</option>
-              {vessels.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.code} - {v.name}
-                </option>
-              ))}
-            </select>
-            <button className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800">
               {t("chung.tiepTuc")}
-            </button>
+            </Button>
           </Form>
-        </div>
+        </Card>
       </div>
     );
   }
@@ -144,31 +159,42 @@ export default async function NewPurchaseOrderPage({
   const defaultDate = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="space-y-4">
-      <Link href="/purchasing" className="text-sm text-blue-700 hover:underline">
-        {t("purchasing.quayLaiMuaSam")}
-      </Link>
+    <div className="space-y-5">
       <div>
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("purchasing.tieuDeTaoDon")} — {selectedVessel.code}{" "}
-          {selectedVessel.name}
-        </h2>
-        <p className="text-slate-600">{t("purchasing.moTaTaoDon")}</p>
+        <Link href="/purchasing" className={BACK_LINK}>
+          <ArrowLeft className="size-4" />
+          {t("purchasing.quayLaiMuaSam")}
+        </Link>
+        <PageHeader
+          title={
+            <>
+              {t("purchasing.tieuDeTaoDon")} —{" "}
+              <span className="font-display text-lg tracking-wide">
+                {selectedVessel.code}
+              </span>{" "}
+              {selectedVessel.name}
+            </>
+          }
+          subtitle={t("purchasing.moTaTaoDon")}
+        />
       </div>
-      <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
+      <Card>
         {suppliers.length === 0 ? (
-          <p className="text-amber-700">
+          <Notice tone="warning">
             {t("purchasing.chuaCoNcc")}{" "}
             <Link
               href="/purchasing/suppliers"
-              className="text-blue-700 hover:underline"
+              className="font-medium underline"
             >
               {t("purchasing.themNcc")}
             </Link>{" "}
             {t("purchasing.truoc")}
-          </p>
+          </Notice>
         ) : pendingLines.length === 0 ? (
-          <p className="text-slate-600">{t("purchasing.khongCoDongCho")}</p>
+          <EmptyState
+            icon={<ShoppingCart className="size-5" />}
+            title={t("purchasing.khongCoDongCho")}
+          />
         ) : (
           <CreatePurchaseOrderForm
             vesselId={selectedVesselId}
@@ -177,7 +203,7 @@ export default async function NewPurchaseOrderPage({
             defaultDate={defaultDate}
           />
         )}
-      </div>
+      </Card>
     </div>
   );
 }

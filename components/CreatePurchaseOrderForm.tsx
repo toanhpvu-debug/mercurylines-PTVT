@@ -1,8 +1,22 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
+import { ShoppingCart } from "lucide-react";
 import { createPurchaseOrder } from "@/app/actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import {
+  Badge,
+  Button,
+  Field,
+  Input,
+  Notice,
+  Select,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui";
 
 type PendingLine = {
   id: number;
@@ -27,7 +41,7 @@ export default function CreatePurchaseOrderForm({
   lines: PendingLine[];
   defaultDate: string;
 }) {
-  const { t, so } = useNgonNgu();
+  const { t, tTuDo, so } = useNgonNgu();
   const [state, formAction, pending] = useActionState(createPurchaseOrder, {
     message: "",
   });
@@ -42,123 +56,85 @@ export default function CreatePurchaseOrderForm({
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="vesselId" value={vesselId} />
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.nhaCungCap")}
-          </label>
-          <select
-            name="supplierId"
-            className="w-full rounded border p-2"
-            defaultValue=""
-            required
-          >
+        <Field label={t("purchasing.nhaCungCap")}>
+          <Select name="supplierId" defaultValue="" required>
             <option value="">{t("purchasing.chonNcc")}</option>
             {suppliers.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.code} - {s.name}
               </option>
             ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.tienTe")}
-          </label>
-          <select
-            name="currency"
-            className="w-full rounded border p-2"
-            defaultValue="USD"
-          >
+          </Select>
+        </Field>
+        <Field label={t("purchasing.tienTe")}>
+          <Select name="currency" defaultValue="USD">
             <option value="USD">USD</option>
             <option value="VND">VND</option>
             <option value="SGD">SGD</option>
             <option value="EUR">EUR</option>
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.ngayCanHang")}
-          </label>
-          <input
-            name="expectedDate"
-            type="date"
-            defaultValue={defaultDate}
-            className="w-full rounded border p-2"
-          />
-        </div>
+          </Select>
+        </Field>
+        <Field label={t("purchasing.ngayCanHang")}>
+          <Input name="expectedDate" type="date" defaultValue={defaultDate} />
+        </Field>
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <input
-          name="subject"
-          placeholder={t("purchasing.phSubject")}
-          className="rounded border p-2"
-        />
-        <input
-          name="supplierRef"
-          placeholder={t("purchasing.phYref")}
-          className="rounded border p-2"
-        />
+        <Field label={t("purchasing.labelSubject")}>
+          <Input name="subject" placeholder={t("purchasing.phSubject")} />
+        </Field>
+        <Field label={t("purchasing.labelYref")}>
+          <Input name="supplierRef" placeholder={t("purchasing.phYref")} />
+        </Field>
       </div>
-      <input
-        name="notes"
-        placeholder={t("purchasing.phGhiChuDon")}
-        className="w-full rounded border p-2"
-      />
+      <Field label={t("chung.ghiChu")}>
+        <Input name="notes" placeholder={t("purchasing.phGhiChuDon")} />
+      </Field>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.chietKhau")}
-          </label>
-          <input
+        <Field label={t("purchasing.chietKhau")}>
+          <Input
             name="discountPercent"
             type="number"
             step="0.01"
             min="0"
             max="100"
             defaultValue={0}
-            className="w-full rounded border p-2"
+            className="tabular"
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.phiVanChuyen")}
-          </label>
-          <input
+        </Field>
+        <Field label={t("purchasing.phiVanChuyen")}>
+          <Input
             name="transportFee"
             type="number"
             step="0.01"
             min="0"
             defaultValue={0}
-            className="w-full rounded border p-2"
+            className="tabular"
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-slate-600">
-            {t("purchasing.phiGiaoLenTau")}
-          </label>
-          <input
+        </Field>
+        <Field label={t("purchasing.phiGiaoLenTau")}>
+          <Input
             name="deliveryFee"
             type="number"
             step="0.01"
             min="0"
             defaultValue={0}
-            className="w-full rounded border p-2"
+            className="tabular"
           />
-        </div>
+        </Field>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full border text-sm">
+      <TableWrap>
+        <Table dense>
           <thead>
-            <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-              <th className="p-2">{t("chung.chon")}</th>
-              <th className="p-2">{t("purchasing.cotSoYeuCau")}</th>
-              <th className="p-2">{t("chung.moTa")}</th>
-              <th className="p-2">Part No.</th>
-              <th className="p-2">{t("chung.donVi")}</th>
-              <th className="p-2">{t("purchasing.cotSlCanMua")}</th>
-              <th className="p-2">{t("purchasing.cotDonGia")}</th>
-              <th className="p-2">{t("purchasing.cotThanhTien")}</th>
+            <tr>
+              <Th>{t("chung.chon")}</Th>
+              <Th>{t("purchasing.cotSoYeuCau")}</Th>
+              <Th>{t("chung.moTa")}</Th>
+              <Th>Part No.</Th>
+              <Th>{t("chung.donVi")}</Th>
+              <Th>{t("purchasing.cotSlCanMua")}</Th>
+              <Th>{t("purchasing.cotDonGia")}</Th>
+              <Th align="right">{t("purchasing.cotThanhTien")}</Th>
             </tr>
           </thead>
           <tbody>
@@ -167,8 +143,15 @@ export default function CreatePurchaseOrderForm({
               const price = Number(prices[l.id] ?? 0);
               const amount = (Number.isFinite(price) ? price : 0) * l.remaining;
               return (
-                <tr key={l.id} className="border-b">
-                  <td className="p-2">
+                <Tr
+                  key={l.id}
+                  className={
+                    isChecked
+                      ? "bg-brand-500/5"
+                      : "transition-colors hover:bg-[var(--surface-sunken)]/50"
+                  }
+                >
+                  <Td>
                     <input
                       type="checkbox"
                       name={`chk_${l.id}`}
@@ -176,57 +159,75 @@ export default function CreatePurchaseOrderForm({
                       onChange={(e) =>
                         setChecked({ ...checked, [l.id]: e.target.checked })
                       }
+                      className="size-4 rounded accent-brand-600"
                     />
-                  </td>
-                  <td className="p-2">{l.requestNo}</td>
-                  <td className="p-2">{l.description}</td>
-                  <td className="p-2">{l.partNo}</td>
-                  <td className="p-2">{l.uom}</td>
-                  <td className="p-2">
-                    <input
-                      name={`qty_${l.id}`}
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      defaultValue={l.remaining}
-                      className="w-24 rounded border p-1"
-                    />
-                  </td>
-                  <td className="p-2">
-                    <input
-                      name={`price_${l.id}`}
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={prices[l.id] ?? ""}
-                      onChange={(e) =>
-                        setPrices({ ...prices, [l.id]: e.target.value })
-                      }
-                      placeholder="0.00"
-                      className="w-28 rounded border p-1"
-                    />
-                  </td>
-                  <td className="p-2 text-slate-600">
+                  </Td>
+                  <Td className="whitespace-nowrap">
+                    <span className="font-display text-xs tracking-wide">
+                      {l.requestNo}
+                    </span>{" "}
+                    <Badge tone={l.kind === "SPARE" ? "brand" : "neutral"}>
+                      {tTuDo(`labels.type_${l.kind === "SPARE" ? "SPARE" : "STORE"}`)}
+                    </Badge>
+                  </Td>
+                  <Td>{l.description}</Td>
+                  <Td className="font-display text-xs tracking-wide">
+                    {l.partNo}
+                  </Td>
+                  <Td>
+                    <span className="text-xs text-[var(--text-secondary)]">
+                      {l.uom}
+                    </span>
+                  </Td>
+                  <Td>
+                    <div className="w-24">
+                      <Input
+                        name={`qty_${l.id}`}
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        defaultValue={l.remaining}
+                        className="tabular"
+                      />
+                    </div>
+                  </Td>
+                  <Td>
+                    <div className="w-28">
+                      <Input
+                        name={`price_${l.id}`}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={prices[l.id] ?? ""}
+                        onChange={(e) =>
+                          setPrices({ ...prices, [l.id]: e.target.value })
+                        }
+                        placeholder="0.00"
+                        className="tabular"
+                      />
+                    </div>
+                  </Td>
+                  <Td align="right" className="text-[var(--text-secondary)]">
                     {amount ? so(amount) : ""}
-                  </td>
-                </tr>
+                  </Td>
+                </Tr>
               );
             })}
           </tbody>
-        </table>
-      </div>
+        </Table>
+      </TableWrap>
 
-      <button
-        disabled={pending || selectedCount === 0}
-        className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-50"
+      <Button
+        variant="primary"
+        icon={<ShoppingCart className="size-4" />}
+        loading={pending}
+        disabled={selectedCount === 0}
       >
         {pending
           ? t("purchasing.dangTao")
           : t("purchasing.nutTaoDonSoDong", { n: selectedCount })}
-      </button>
-      {state.message && (
-        <p className="text-sm text-red-600">{state.message}</p>
-      )}
+      </Button>
+      {state.message && <Notice tone="danger">{state.message}</Notice>}
     </form>
   );
 }

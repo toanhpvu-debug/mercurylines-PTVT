@@ -8,9 +8,9 @@ export const purchasing = tuDien(
     moTa: "Quy trình từ yêu cầu đã duyệt → đơn mua hàng → nhận hàng → hoàn tất",
     chuaGanTau:
       "Bạn chưa được gán tàu phụ trách nên chưa xem được mua sắm. Vui lòng liên hệ quản trị viên.",
-    nutTaoTrucTiep: "+ Tạo IFQ/PO trực tiếp (KT-VT)",
+    nutTaoTrucTiep: "Tạo IFQ/PO trực tiếp (KT-VT)",
     nutMauBieu: "Mẫu biểu theo tàu",
-    nutTaoDon: "+ Tạo đơn mua",
+    nutTaoDon: "Tạo đơn mua",
     yeuCauChoMuaSam: "Yêu cầu chờ mua sắm ({n})",
     yeuCauChoMuaSamMoTa:
       "Yêu cầu đã duyệt và chuyển sang mua sắm — chọn để lập đơn mua hàng.",
@@ -29,8 +29,8 @@ export const purchasing = tuDien(
     nutXem: "Xem",
 
     // Trang chi tiết đơn mua (phần ngoài biểu mẫu in)
-    quayLaiMuaSam: "← Quay lại mua sắm",
-    quayLaiDonMua: "← Quay lại đơn mua",
+    quayLaiMuaSam: "Quay lại mua sắm",
+    quayLaiDonMua: "Quay lại đơn mua",
     nutRfq: "Yêu cầu báo giá (RFQ)",
     inDonMua: "In đơn mua (PO)",
     inRfq: "In Yêu cầu báo giá (RFQ)",
@@ -162,9 +162,9 @@ export const purchasing = tuDien(
     moTa: "The flow from approved requisition → purchase order → goods receipt → closed",
     chuaGanTau:
       "You have not been assigned to a vessel, so you cannot see purchasing yet. Please contact the administrator.",
-    nutTaoTrucTiep: "+ New direct RFQ/PO (Tech. & Purchasing)",
+    nutTaoTrucTiep: "New direct RFQ/PO (Tech. & Purchasing)",
     nutMauBieu: "Form standards by vessel",
-    nutTaoDon: "+ New purchase order",
+    nutTaoDon: "New purchase order",
     yeuCauChoMuaSam: "Requisitions awaiting purchase ({n})",
     yeuCauChoMuaSamMoTa:
       "Requisitions approved and moved to purchasing — pick one to raise a purchase order.",
@@ -182,8 +182,8 @@ export const purchasing = tuDien(
     cotGiaTri: "Value",
     nutXem: "View",
 
-    quayLaiMuaSam: "← Back to purchasing",
-    quayLaiDonMua: "← Back to the purchase order",
+    quayLaiMuaSam: "Back to purchasing",
+    quayLaiDonMua: "Back to the purchase order",
     nutRfq: "Request for quotation (RFQ)",
     inDonMua: "Print purchase order (PO)",
     inRfq: "Print request for quotation (RFQ)",

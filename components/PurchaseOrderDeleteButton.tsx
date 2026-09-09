@@ -1,7 +1,9 @@
 "use client";
 
 import { startTransition, useActionState } from "react";
+import { Trash2 } from "lucide-react";
 import { deletePurchaseOrder } from "@/app/actions";
+import { Button } from "@/components/ui";
 import { useNgonNgu } from "@/lib/i18n/client";
 
 // Xóa đơn mua đã hủy. Chỉ hiện với quản trị viên và chỉ ở đơn ĐÃ HỦY —
@@ -9,10 +11,12 @@ import { useNgonNgu } from "@/lib/i18n/client";
 export default function PurchaseOrderDeleteButton({
   id,
   poNo,
+  size = "md",
   className,
 }: {
   id: number;
   poNo: string;
+  size?: "sm" | "md";
   className?: string;
 }) {
   const { t } = useNgonNgu();
@@ -36,18 +40,18 @@ export default function PurchaseOrderDeleteButton({
       className="inline"
     >
       <input type="hidden" name="id" value={id} />
-      <button
-        disabled={pending}
-        className={
-          className ??
-          "text-sm text-red-600 hover:underline disabled:opacity-50"
-        }
+      <Button
+        variant="danger"
+        size={size}
+        icon={<Trash2 className="size-4" />}
+        loading={pending}
+        className={className}
         title={state.message || t("purchasing.tooltipXoaDon")}
       >
         {pending ? t("purchasing.dangXoa") : t("chung.xoa")}
-      </button>
+      </Button>
       {state.message && !state.success && (
-        <p className="mt-1 text-xs text-red-600">{state.message}</p>
+        <p className="mt-1 text-xs text-[var(--text-danger)]">{state.message}</p>
       )}
     </form>
   );

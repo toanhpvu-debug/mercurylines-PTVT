@@ -1,5 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Check,
+  FileText,
+  ListChecks,
+  PackageCheck,
+  Send,
+  X,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
@@ -15,6 +25,15 @@ import {
   ReceiveGoodsForm,
 } from "@/components/PurchaseOrderForms";
 import { layT } from "@/lib/i18n/server";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  Notice,
+  PageHeader,
+  TONE_DON_MUA,
+  buttonClass,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -74,54 +93,63 @@ export default async function PurchaseOrderDetailPage({
   );
 
   return (
-    <div className="space-y-4">
-      <div className="no-print flex flex-wrap items-center justify-between gap-2">
+    <div className="space-y-5">
+      <div className="no-print">
         <Link
           href="/purchasing"
-          className="text-sm text-blue-700 hover:underline"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-brand-700 hover:underline dark:text-brand-300"
         >
+          <ArrowLeft className="size-4" />
           {t("purchasing.quayLaiMuaSam")}
         </Link>
-        <div className="flex items-center gap-2">
-          <span className="rounded bg-slate-100 px-2 py-1 text-sm">
-            {tTuDo(`labels.poStatus_${po.status}`)}
-          </span>
-          <Link
-            href={`/purchasing/${po.id}/rfq`}
-            className="rounded border px-4 py-2 text-sm hover:bg-blue-50"
-          >
-            {t("purchasing.nutRfq")}
-          </Link>
-          <PrintButton label={t("purchasing.inDonMua")} />
-          {/* Dọn đơn đã hủy — điều kiện kiểm lại ở server. */}
-          {user.role === "ADMIN" && po.status === "CANCELLED" && (
-            <PurchaseOrderDeleteButton
-              id={po.id}
-              poNo={po.poNo}
-              className="rounded border border-red-300 px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
-            />
-          )}
-        </div>
+        <PageHeader
+          title={<span className="font-display tracking-wide">{po.poNo}</span>}
+          subtitle={
+            <>
+              {po.supplier.name} · {po.vessel.name} ·{" "}
+              {t("purchasing.chungTuTheoChuan")} <b>{standard.label}</b> (
+              {t("purchasing.doiO")}{" "}
+              <Link
+                href="/purchasing/forms"
+                className="text-brand-700 hover:underline dark:text-brand-300"
+              >
+                {t("purchasing.nutMauBieu")}
+              </Link>
+              )
+            </>
+          }
+          action={
+            <>
+              <Badge tone={TONE_DON_MUA[po.status] ?? "neutral"} dot>
+                {tTuDo(`labels.poStatus_${po.status}`)}
+              </Badge>
+              <Link
+                href={`/purchasing/${po.id}/rfq`}
+                className={buttonClass("secondary")}
+              >
+                <FileText className="size-4" />
+                {t("purchasing.nutRfq")}
+              </Link>
+              <PrintButton label={t("purchasing.inDonMua")} />
+              {/* Dọn đơn đã hủy — điều kiện kiểm lại ở server. */}
+              {user.role === "ADMIN" && po.status === "CANCELLED" && (
+                <PurchaseOrderDeleteButton id={po.id} poNo={po.poNo} />
+              )}
+            </>
+          }
+        />
       </div>
 
       {Number.isInteger(skippedRows) && skippedRows > 0 && (
-        <div className="no-print rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-          ⚠ {t("purchasing.boQuaDong", { n: skippedRows })}
-        </div>
+        <Notice tone="warning" className="no-print flex items-start gap-2">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <span>{t("purchasing.boQuaDong", { n: skippedRows })}</span>
+        </Notice>
       )}
-
-      <p className="no-print text-xs text-slate-500">
-        {t("purchasing.chungTuTheoChuan")}{" "}
-        <b>{standard.label}</b> ({t("purchasing.doiO")}{" "}
-        <Link href="/purchasing/forms" className="text-blue-700 hover:underline">
-          {t("purchasing.nutMauBieu")}
-        </Link>
-        )
-      </p>
 
       {/* Bản in PO theo form công ty */}
       <style>{`@page { size: A4 portrait; margin: 12mm; }`}</style>
-      <div className="print-area rounded-xl bg-white p-8 text-sm shadow-sm ring-1 ring-blue-100 print:rounded-none print:p-0 print:shadow-none print:ring-0">
+      <div className="print-area surface rounded-xl border p-6 text-sm shadow-sm print:rounded-none print:p-0 print:shadow-none print:border-0">
         <FormDocHeader standard={standard} title="PURCHASING ORDER" />
 
         <div className="mt-4 grid grid-cols-2 gap-4">
@@ -336,17 +364,19 @@ export default async function PurchaseOrderDetailPage({
 
       {/* Điều khiển quy trình */}
       {canManage && po.status !== "CANCELLED" && po.status !== "CLOSED" && (
-        <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-          <h3 className="mb-3 text-lg font-semibold">
-            {t("purchasing.tienTrinhDon")}
-          </h3>
+        <Card className="no-print">
+          <CardHeader
+            icon={<ListChecks className="size-4" />}
+            title={t("purchasing.tienTrinhDon")}
+          />
           <div className="flex flex-wrap items-center gap-2">
             {po.status === "DRAFT" && (
               <POStatusButton
                 id={po.id}
                 status="SENT"
                 label={t("purchasing.nutGuiNcc")}
-                className="rounded bg-blue-100 px-3 py-1 text-sm text-blue-700 hover:bg-blue-200 disabled:opacity-50"
+                variant="primary"
+                icon={<Send className="size-4" />}
               />
             )}
             {po.status === "SENT" && (
@@ -354,7 +384,8 @@ export default async function PurchaseOrderDetailPage({
                 id={po.id}
                 status="CONFIRMED"
                 label={t("purchasing.nutNccXacNhan")}
-                className="rounded bg-indigo-100 px-3 py-1 text-sm text-indigo-700 hover:bg-indigo-200 disabled:opacity-50"
+                variant="primary"
+                icon={<Check className="size-4" />}
               />
             )}
             {po.status === "RECEIVED" && (
@@ -362,7 +393,8 @@ export default async function PurchaseOrderDetailPage({
                 id={po.id}
                 status="CLOSED"
                 label={t("purchasing.nutHoanTat")}
-                className="rounded bg-green-100 px-3 py-1 text-sm text-green-700 hover:bg-green-200 disabled:opacity-50"
+                variant="primary"
+                icon={<PackageCheck className="size-4" />}
               />
             )}
             {po.status === "PARTIALLY_RECEIVED" && (
@@ -370,7 +402,8 @@ export default async function PurchaseOrderDetailPage({
                 id={po.id}
                 status="CLOSED"
                 label={t("purchasing.nutDongDonThieu")}
-                className="rounded bg-green-100 px-3 py-1 text-sm text-green-700 hover:bg-green-200 disabled:opacity-50"
+                variant="secondary"
+                icon={<PackageCheck className="size-4" />}
               />
             )}
             {["DRAFT", "SENT", "CONFIRMED"].includes(po.status) && (
@@ -378,19 +411,22 @@ export default async function PurchaseOrderDetailPage({
                 id={po.id}
                 status="CANCELLED"
                 label={t("purchasing.nutHuyDon")}
-                className="rounded bg-red-100 px-3 py-1 text-sm text-red-700 hover:bg-red-200 disabled:opacity-50"
+                variant="danger"
+                icon={<X className="size-4" />}
               />
             )}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Nhận hàng */}
       {canReceive && (
-        <div className="no-print rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-          <h3 className="mb-3 text-lg font-semibold">
-            {t("purchasing.nhanHang")}
-          </h3>
+        <Card className="no-print">
+          <CardHeader
+            icon={<PackageCheck className="size-4" />}
+            title={t("purchasing.nhanHang")}
+            subtitle={t("purchasing.nhanHangMoTa")}
+          />
           <ReceiveGoodsForm
             poId={po.id}
             warehouses={warehouses}
@@ -404,10 +440,7 @@ export default async function PurchaseOrderDetailPage({
               hasMaterial: it.materialId !== null,
             }))}
           />
-          <p className="mt-2 text-xs text-slate-500">
-            {t("purchasing.nhanHangMoTa")}
-          </p>
-        </div>
+        </Card>
       )}
     </div>
   );

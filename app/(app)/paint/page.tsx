@@ -1,4 +1,11 @@
 import Link from "next/link";
+import {
+  AlertTriangle,
+  Anchor,
+  ClipboardList,
+  Droplets,
+  Paintbrush,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
@@ -6,8 +13,25 @@ import {
   vesselScopeDayDu,
 } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
+import { cn } from "@/lib/cn";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  Notice,
+  PageHeader,
+  Stat,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+  buttonClass,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
+
+const LINK = "text-brand-700 hover:underline dark:text-brand-300";
 
 export default async function PaintOverviewPage() {
   const user = await requireScopedUser();
@@ -17,13 +41,9 @@ export default async function PaintOverviewPage() {
 
   if (scope.unassigned) {
     return (
-      <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("paint.tieuDe")}
-        </h2>
-        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          {t("chung.chuaGanTau")}
-        </div>
+      <div className="space-y-5">
+        <PageHeader title={t("paint.tieuDe")} />
+        <Notice tone="warning">{t("chung.chuaGanTau")}</Notice>
       </div>
     );
   }
@@ -58,67 +78,59 @@ export default async function PaintOverviewPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold text-blue-950">
-            {t("paint.tieuDe")}
-          </h2>
-          <p className="text-slate-600">{t("paint.moTa")}</p>
-        </div>
-        {canManageCatalog && (
-          <Link
-            href="/paint/products"
-            className="rounded border border-blue-300 bg-white px-4 py-2 text-sm text-blue-800 hover:bg-blue-50"
-          >
-            {t("paint.danhMucSonN", { n: productCount })}
-          </Link>
-        )}
+    <div className="space-y-5">
+      <PageHeader
+        title={t("paint.tieuDe")}
+        subtitle={t("paint.moTa")}
+        action={
+          canManageCatalog && (
+            <Link href="/paint/products" className={buttonClass("secondary")}>
+              <ClipboardList className="size-4" />
+              {t("paint.danhMucSonN", { n: productCount })}
+            </Link>
+          )
+        }
+      />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Stat
+          icon={<Anchor className="size-4" />}
+          label={t("chung.tau")}
+          value={vessels.length}
+          tone="brand"
+        />
+        <Stat
+          icon={<Droplets className="size-4" />}
+          label={t("paint.loaiSonDangDung")}
+          value={productCount}
+        />
+        <Stat
+          icon={<AlertTriangle className="size-4" />}
+          label={t("paint.sonDuoiDinhMuc")}
+          value={fleetLow}
+          tone={fleetLow > 0 ? "danger" : "success"}
+        />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-          <p className="text-xs uppercase tracking-wide text-slate-500">
-            {t("chung.tau")}
-          </p>
-          <p className="text-2xl font-bold text-blue-950">{vessels.length}</p>
-        </div>
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-          <p className="text-xs uppercase tracking-wide text-slate-500">
-            {t("paint.loaiSonDangDung")}
-          </p>
-          <p className="text-2xl font-bold text-blue-950">{productCount}</p>
-        </div>
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-          <p className="text-xs uppercase tracking-wide text-slate-500">
-            {t("paint.sonDuoiDinhMuc")}
-          </p>
-          <p
-            className={`text-2xl font-bold ${
-              fleetLow > 0 ? "text-red-600" : "text-blue-950"
-            }`}
-          >
-            {fleetLow}
-          </p>
-        </div>
-      </div>
-
-      <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-        <p className="mb-3 font-semibold text-blue-950">{t("paint.theoTau")}</p>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-blue-900 text-left text-white">
+      <Card>
+        <CardHeader
+          icon={<Paintbrush className="size-4" />}
+          title={t("paint.theoTau")}
+        />
+        <TableWrap>
+          <Table dense>
+            <thead>
               <tr>
-                <th className="p-2">{t("paint.cotMaTau")}</th>
-                <th className="p-2">{t("paint.cotTenTau")}</th>
-                <th className="p-2 text-right">{t("paint.cotKhuVuc")}</th>
-                <th className="p-2 text-right">{t("paint.cotLoaiCoTon")}</th>
-                <th className="p-2 text-right">{t("paint.cotDuoiDinhMuc")}</th>
-                <th className="p-2 text-right">{t("paint.cotLanThiCong")}</th>
-                <th className="p-2">{t("paint.cotGanNhat")}</th>
+                <Th>{t("paint.cotMaTau")}</Th>
+                <Th>{t("paint.cotTenTau")}</Th>
+                <Th align="right">{t("paint.cotKhuVuc")}</Th>
+                <Th align="right">{t("paint.cotLoaiCoTon")}</Th>
+                <Th align="right">{t("paint.cotDuoiDinhMuc")}</Th>
+                <Th align="right">{t("paint.cotLanThiCong")}</Th>
+                <Th>{t("paint.cotGanNhat")}</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-blue-50">
+            <tbody>
               {vessels.map((v) => {
                 const stocked = v.paintStocks.filter((s) => s.quantity > 0).length;
                 const low = v.paintStocks.filter(
@@ -126,51 +138,54 @@ export default async function PaintOverviewPage() {
                 ).length;
                 const last = v.paintJobs[0];
                 return (
-                  <tr key={v.id} className="hover:bg-blue-50/50">
-                    <td className="p-2 font-mono text-xs">
+                  <Tr
+                    key={v.id}
+                    className="transition-colors hover:bg-[var(--surface-sunken)]/50"
+                  >
+                    <Td className="whitespace-nowrap">
                       <Link
                         href={`/paint/${v.id}`}
-                        className="text-blue-700 hover:underline"
+                        className={cn("font-display text-xs tracking-wide", LINK)}
                       >
                         {v.code}
                       </Link>
-                    </td>
-                    <td className="p-2">
+                    </Td>
+                    <Td>
                       <Link
                         href={`/paint/${v.id}`}
-                        className="font-medium text-blue-900 hover:underline"
+                        className={cn("font-medium", LINK)}
                       >
                         {v.name}
                       </Link>
-                    </td>
-                    <td className="p-2 text-right">{v._count.paintAreas}</td>
-                    <td className="p-2 text-right">{stocked}</td>
-                    <td className="p-2 text-right">
+                    </Td>
+                    <Td align="right">{v._count.paintAreas}</Td>
+                    <Td align="right">{stocked}</Td>
+                    <Td align="right">
                       {low > 0 ? (
-                        <span className="rounded bg-red-100 px-2 py-0.5 font-semibold text-red-700">
-                          {low}
-                        </span>
+                        <Badge tone="danger">{low}</Badge>
                       ) : (
-                        "—"
+                        <span className="text-[var(--text-muted)]">—</span>
                       )}
-                    </td>
-                    <td className="p-2 text-right">{v._count.paintJobs}</td>
-                    <td className="p-2 text-slate-600">
-                      {last
-                        ? `${ngay(last.jobDate)}${
-                            last.paintedM2
-                              ? ` · ${t("paint.nM2", { n: last.paintedM2 })}`
-                              : ""
-                          }`
-                        : "—"}
-                    </td>
-                  </tr>
+                    </Td>
+                    <Td align="right">{v._count.paintJobs}</Td>
+                    <Td>
+                      <span className="text-[var(--text-secondary)]">
+                        {last
+                          ? `${ngay(last.jobDate)}${
+                              last.paintedM2
+                                ? ` · ${t("paint.nM2", { n: last.paintedM2 })}`
+                                : ""
+                            }`
+                          : "—"}
+                      </span>
+                    </Td>
+                  </Tr>
                 );
               })}
             </tbody>
-          </table>
-        </div>
-      </div>
+          </Table>
+        </TableWrap>
+      </Card>
     </div>
   );
 }

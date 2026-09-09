@@ -2,6 +2,7 @@
 
 import { NHOM_MAY_CHINH } from "@/lib/maVatTu";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Field, Input, Select } from "@/components/ui";
 
 /**
  * Khai máy chính của tàu: họ máy (MAN B&W / Mitsubishi UEC) và model cụ thể.
@@ -23,35 +24,24 @@ export default function ChonMayChinh({
 }) {
   const { t, tenNhomThietBi } = useNgonNgu();
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-      <div>
-        <label className="mb-1 block text-sm text-slate-600">
-          {t("vessels.mayChinh")}
-        </label>
-        <select
-          name="mainEngineGroup"
-          defaultValue={nhom}
-          className="w-full rounded border p-2"
-        >
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <Field label={t("vessels.mayChinh")}>
+        <Select name="mainEngineGroup" defaultValue={nhom}>
           <option value="">{t("vessels.chuaKhaiMay")}</option>
           {NHOM_MAY_CHINH.map((ma) => (
             <option key={ma} value={ma}>
               {tenNhomThietBi(ma)} ({ma})
             </option>
           ))}
-        </select>
-      </div>
-      <div>
-        <label className="mb-1 block text-sm text-slate-600">
-          {t("vessels.modelMay")}
-        </label>
-        <input
+        </Select>
+      </Field>
+      <Field label={t("vessels.modelMay")}>
+        <Input
           name="mainEngineModel"
           defaultValue={model}
           placeholder="6UEC50LSII, 6S50MC-C..."
-          className="w-full rounded border p-2"
         />
-      </div>
+      </Field>
     </div>
   );
 }

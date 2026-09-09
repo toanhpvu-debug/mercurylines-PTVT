@@ -1,4 +1,13 @@
 import Link from "next/link";
+import {
+  AlertTriangle,
+  Anchor,
+  BookOpen,
+  Droplets,
+  FlaskConical,
+  Fuel,
+  type LucideIcon,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   danhTinhHieuLuc,
@@ -13,8 +22,31 @@ import {
   soNgayToi,
 } from "@/lib/consumables";
 import { layT } from "@/lib/i18n/server";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  Notice,
+  PageHeader,
+  Stat,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+  buttonClass,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
+
+/** Biểu tượng nhóm — thay cho emoji `icon` trong lib/consumables.ts. */
+const CATEGORY_ICON: Record<string, LucideIcon> = {
+  FUEL: Fuel,
+  LUBE: Droplets,
+  CHEMICAL: FlaskConical,
+};
+
+const LINK = "text-brand-700 hover:underline dark:text-brand-300";
 
 export default async function ConsumablesPage() {
   const user = await requireScopedUser();
@@ -79,132 +111,129 @@ export default async function ConsumablesPage() {
     soMatHang: products.filter((p) => p.category === c.value).length,
   }));
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold text-blue-950">
-            {t("consumables.tieuDe")}
-          </h2>
-          <p className="text-slate-600">{t("consumables.moTa")}</p>
-        </div>
-        {canManageCatalog && (
-          <Link
-            href="/consumables/products"
-            className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800"
-          >
-            {t("consumables.nutDanhMuc", { n: products.length })}
-          </Link>
-        )}
-      </div>
+  const soCanChuY = duoiDinhMuc.length + sapHetHan.length;
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {soTheoNhom.map((c) => (
-          <div
-            key={c.value}
-            className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100"
-          >
-            <p className="text-xs font-medium uppercase text-slate-500">
-              {c.icon} {tTuDo(`consumables.nhom_${c.value}`)}
-            </p>
-            <p className="text-2xl font-bold text-blue-950">{c.soMatHang}</p>
-            <p className="text-xs text-slate-500">
-              {t("consumables.matHangTrongDanhMuc")}
-            </p>
-          </div>
-        ))}
-        <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-          <p className="text-xs font-medium uppercase text-slate-500">
-            {t("consumables.canChuY")}
-          </p>
-          <p className="text-2xl font-bold text-blue-950">
-            {duoiDinhMuc.length + sapHetHan.length}
-          </p>
-          <p className="text-xs text-slate-500">
-            {t("consumables.tomTatCanChuY", {
-              duoi: duoiDinhMuc.length,
-              han: sapHetHan.length,
-            })}
-          </p>
-        </div>
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        title={t("consumables.tieuDe")}
+        subtitle={t("consumables.moTa")}
+        action={
+          canManageCatalog && (
+            <Link
+              href="/consumables/products"
+              className={buttonClass("primary")}
+            >
+              <BookOpen className="size-4" />
+              {t("consumables.nutDanhMuc", { n: products.length })}
+            </Link>
+          )
+        }
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {soTheoNhom.map((c) => {
+          const Icon = CATEGORY_ICON[c.value];
+          return (
+            <Stat
+              key={c.value}
+              icon={Icon && <Icon className="size-4" />}
+              label={tTuDo(`consumables.nhom_${c.value}`)}
+              value={c.soMatHang}
+              sub={t("consumables.matHangTrongDanhMuc")}
+            />
+          );
+        })}
+        <Stat
+          icon={<AlertTriangle className="size-4" />}
+          label={t("consumables.canChuY")}
+          value={soCanChuY}
+          tone={soCanChuY > 0 ? "danger" : "success"}
+          sub={t("consumables.tomTatCanChuY", {
+            duoi: duoiDinhMuc.length,
+            han: sapHetHan.length,
+          })}
+        />
       </div>
 
       {loVuotEca.length > 0 && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+        <Notice tone="warning">
           <b>{t("consumables.ecaDam", { n: loVuotEca.length })}</b>{" "}
           {t("consumables.ecaSau")}
-        </div>
+        </Notice>
       )}
 
-      <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-blue-100">
-        <h3 className="mb-3 text-lg font-semibold text-blue-950">
-          {t("consumables.theoTau")}
-        </h3>
-        <div className="overflow-x-auto">
-          <table className="w-full border text-sm">
+      <Card>
+        <CardHeader
+          icon={<Anchor className="size-4" />}
+          title={t("consumables.theoTau")}
+        />
+        <TableWrap>
+          <Table dense>
             <thead>
-              <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                <th className="p-2">{t("consumables.cotMaTau")}</th>
-                <th className="p-2">{t("consumables.cotTenTau")}</th>
-                <th className="p-2 text-right">
-                  {t("consumables.cotMatHangCoTon")}
-                </th>
-                <th className="p-2 text-right">
-                  {t("consumables.cotDuoiDinhMuc")}
-                </th>
-                <th className="p-2 text-right">
-                  {t("consumables.cotPhieuNhan")}
-                </th>
-                <th className="p-2">{t("consumables.cotNhanGanNhat")}</th>
-                <th className="p-2">{t("consumables.cotQuyenCuaBan")}</th>
+              <tr>
+                <Th>{t("consumables.cotMaTau")}</Th>
+                <Th>{t("consumables.cotTenTau")}</Th>
+                <Th align="right">{t("consumables.cotMatHangCoTon")}</Th>
+                <Th align="right">{t("consumables.cotDuoiDinhMuc")}</Th>
+                <Th align="right">{t("consumables.cotPhieuNhan")}</Th>
+                <Th>{t("consumables.cotNhanGanNhat")}</Th>
+                <Th>{t("consumables.cotQuyenCuaBan")}</Th>
               </tr>
             </thead>
             <tbody>
               {theoTau.map((dong) => (
-                <tr key={dong.v.id} className="border-b">
-                  <td className="p-2 font-medium">
+                <Tr
+                  key={dong.v.id}
+                  className="transition-colors hover:bg-[var(--surface-sunken)]/50"
+                >
+                  <Td className="whitespace-nowrap">
                     <Link
                       href={`/consumables/${dong.v.id}`}
-                      className="text-blue-700 hover:underline"
+                      className={`font-display text-xs tracking-wide ${LINK}`}
                     >
                       {dong.v.code}
                     </Link>
-                  </td>
-                  <td className="p-2">
+                  </Td>
+                  <Td>
                     <Link
                       href={`/consumables/${dong.v.id}`}
-                      className="font-medium text-blue-900 hover:underline"
+                      className={`font-medium ${LINK}`}
                     >
                       {dong.v.name}
                     </Link>
-                  </td>
-                  <td className="p-2 text-right">{dong.soMatHang}</td>
-                  <td className="p-2 text-right">
+                  </Td>
+                  <Td align="right">{dong.soMatHang}</Td>
+                  <Td align="right">
                     {dong.thieu > 0 ? (
-                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
-                        {dong.thieu}
-                      </span>
+                      <Badge tone="danger">{dong.thieu}</Badge>
                     ) : (
-                      "—"
+                      <span className="text-[var(--text-muted)]">—</span>
                     )}
-                  </td>
-                  <td className="p-2 text-right">{dong.soPhieu}</td>
-                  <td className="p-2 text-slate-600">
-                    {dong.ganNhat ? ngay(dong.ganNhat) : "—"}
-                  </td>
-                  <td className="p-2 text-xs text-slate-600">
-                    {dong.nhomGhiDuoc > 0
-                      ? t("consumables.ghiDuocNNhom", { n: dong.nhomGhiDuoc })
-                      : t("consumables.chiXem")}
-                  </td>
-                </tr>
+                  </Td>
+                  <Td align="right">{dong.soPhieu}</Td>
+                  <Td className="whitespace-nowrap">
+                    <span className="text-[var(--text-secondary)]">
+                      {dong.ganNhat ? ngay(dong.ganNhat) : "—"}
+                    </span>
+                  </Td>
+                  <Td>
+                    {dong.nhomGhiDuoc > 0 ? (
+                      <Badge tone="success">
+                        {t("consumables.ghiDuocNNhom", { n: dong.nhomGhiDuoc })}
+                      </Badge>
+                    ) : (
+                      <Badge tone="muted">{t("consumables.chiXem")}</Badge>
+                    )}
+                  </Td>
+                </Tr>
               ))}
             </tbody>
-          </table>
-        </div>
-      </div>
+          </Table>
+        </TableWrap>
+      </Card>
 
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-[var(--text-muted)]">
         {t("consumables.chuThichQuyenGhi")}
       </p>
     </div>

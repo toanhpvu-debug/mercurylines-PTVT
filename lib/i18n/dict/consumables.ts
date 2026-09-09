@@ -50,7 +50,7 @@ export const consumables = tuDien(
     moTa: "Nhận theo BDN / phiếu giao · tồn từng tàu · tiêu thụ theo M/E, A/E, nồi hơi · lưu huỳnh MARPOL · mẫu dầu · hạn dùng hóa chất",
     nutDanhMuc: "Danh mục dầu & hóa chất ({n})",
     matHangTrongDanhMuc: "mặt hàng trong danh mục",
-    canChuY: "⚠️ Cần chú ý",
+    canChuY: "Cần chú ý",
     tomTatCanChuY: "{duoi} dưới định mức · {han} sắp/đã hết hạn",
     ecaDam: "{n} lô dầu có lưu huỳnh trên 0,10%",
     ecaSau: "— không dùng được trong vùng kiểm soát khí thải (ECA) nếu tàu không có hệ thống lọc khí thải. MARPOL Annex VI Reg 14.",
@@ -65,7 +65,7 @@ export const consumables = tuDien(
     ghiDuocNNhom: "ghi được {n}/3 nhóm",
     chiXem: "chỉ xem",
     chuThichQuyenGhi:
-      "🛢️ Dầu đốt và 🧴 dầu nhờn thuộc buồng máy — máy trưởng ghi. 🧪 Hóa chất thì cả máy trưởng (nồi hơi, nước làm mát, xử lý dầu) và đại phó (tẩy rửa, vệ sinh hầm hàng) cùng ghi được.",
+      "Dầu đốt và dầu nhờn thuộc buồng máy — máy trưởng ghi. Hóa chất thì cả máy trưởng (nồi hơi, nước làm mát, xử lý dầu) và đại phó (tẩy rửa, vệ sinh hầm hàng) cùng ghi được.",
 
     // ── Trang chi tiết một tàu /consumables/[id] ─────────────────────────────
     quayLaiTongQuan: "Quay lại tổng quan",
@@ -135,7 +135,7 @@ export const consumables = tuDien(
     cotBanGoc: "Bản gốc",
     mauToi: "Mẫu tới {ngay}",
     hanDungNgan: "HD {ngay}",
-    xemBanGoc: "📎 Xem bản gốc",
+    xemBanGoc: "Xem bản gốc",
     tieuDeNhatKy: "Nhật ký giao dịch gần đây",
     chuaCoGiaoDich: "Chưa có giao dịch nào.",
     cotThoiDiem: "Thời điểm",
@@ -228,7 +228,7 @@ export const consumables = tuDien(
     hdNThang: "HD {n} tháng",
     nPhieuNGiaoDich: "{p} phiếu · {g} giao dịch",
     chuThichVongDoi:
-      "🛢️ Dầu đốt · 🧴 dầu nhờn · 🧪 hóa chất dùng chung một danh mục vì vòng đời giống nhau: nhận theo lô có chứng từ → nằm trong két/kho → tiêu thụ dần.",
+      "Dầu đốt · dầu nhờn · hóa chất dùng chung một danh mục vì vòng đời giống nhau: nhận theo lô có chứng từ → nằm trong két/kho → tiêu thụ dần.",
     tenMatHang: "Tên mặt hàng",
     maTuSinh: "Mã (trống = tự sinh)",
     hangSx: "Hãng SX",
@@ -317,7 +317,7 @@ export const consumables = tuDien(
     moTa: "Receipts by BDN / delivery note · ROB per vessel · consumption by M/E, A/E, boiler · MARPOL sulphur · fuel samples · chemical shelf life",
     nutDanhMuc: "Fuel & chemical catalogue ({n})",
     matHangTrongDanhMuc: "items in the catalogue",
-    canChuY: "⚠️ Needs attention",
+    canChuY: "Needs attention",
     tomTatCanChuY: "{duoi} below minimum · {han} expiring or expired",
     ecaDam: "{n} fuel batches with sulphur above 0.10%",
     ecaSau: "— they cannot be burned inside an Emission Control Area (ECA) unless the vessel has an exhaust gas cleaning system. MARPOL Annex VI Reg 14.",
@@ -332,7 +332,7 @@ export const consumables = tuDien(
     ghiDuocNNhom: "may record {n}/3 groups",
     chiXem: "view only",
     chuThichQuyenGhi:
-      "🛢️ Fuel oil and 🧴 lube oil belong to the engine room — the Chief Engineer records them. 🧪 Chemicals are recorded by both the Chief Engineer (boiler, cooling water, fuel treatment) and the Chief Officer (cleaning, cargo hold washing).",
+      "Fuel oil and lube oil belong to the engine room — the Chief Engineer records them. Chemicals are recorded by both the Chief Engineer (boiler, cooling water, fuel treatment) and the Chief Officer (cleaning, cargo hold washing).",
 
     quayLaiTongQuan: "Back to overview",
     moTaTau: "Fuel oil · Lube oil · Chemicals — ROB, receipts and consumption",
@@ -403,7 +403,7 @@ export const consumables = tuDien(
     cotBanGoc: "Original",
     mauToi: "Sample until {ngay}",
     hanDungNgan: "Exp. {ngay}",
-    xemBanGoc: "📎 View original",
+    xemBanGoc: "View original",
     tieuDeNhatKy: "Recent transaction log",
     chuaCoGiaoDich: "No transaction yet.",
     cotThoiDiem: "Time",
@@ -495,7 +495,7 @@ export const consumables = tuDien(
     hdNThang: "Exp. {n} months",
     nPhieuNGiaoDich: "{p} receipts · {g} transactions",
     chuThichVongDoi:
-      "🛢️ Fuel oil · 🧴 lube oil · 🧪 chemicals share one catalogue because their life cycle is the same: received as documented batches → held in tanks or stores → consumed gradually.",
+      "Fuel oil · lube oil · chemicals share one catalogue because their life cycle is the same: received as documented batches → held in tanks or stores → consumed gradually.",
     tenMatHang: "Item name",
     maTuSinh: "Code (empty = auto-generated)",
     hangSx: "Maker",

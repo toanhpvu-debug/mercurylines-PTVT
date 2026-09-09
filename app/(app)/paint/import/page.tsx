@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowLeft, CircleHelp } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
 import PaintImportForm from "@/components/PaintImportForm";
+import { Card, CardHeader, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -25,39 +27,43 @@ export default async function PaintImportPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
         <Link
           href="/paint/products"
-          className="text-sm text-blue-700 hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-brand-700 hover:underline dark:text-brand-300"
         >
-          ← {t("paint.quayLaiDanhMuc")}
+          <ArrowLeft className="size-4" />
+          {t("paint.quayLaiDanhMuc")}
         </Link>
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("paint.nhapDanhMucTieuDe")}
-        </h2>
-        <p className="text-slate-600">{t("paint.nhapDanhMucMoTa")}</p>
+        <PageHeader
+          title={t("paint.nhapDanhMucTieuDe")}
+          subtitle={t("paint.nhapDanhMucMoTa")}
+        />
       </div>
 
-      <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
+      <Card>
         <PaintImportForm
           vessels={vessels.map((v) => ({
             id: v.id,
             label: `${v.code} — ${v.name}`,
           }))}
         />
-      </div>
+      </Card>
 
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-        <p className="mb-1 font-semibold text-slate-900">
-          {t("paint.hoiTrungLap")}
-        </p>
-        <p>
-          {t("paint.dapTrungLap1")} <b>{t("paint.dapTrungLapDam1")}</b>{" "}
-          {t("paint.dapTrungLap2")} <b>{t("paint.dapTrungLapDam2")}</b>
+      <Card>
+        <CardHeader
+          icon={<CircleHelp className="size-4" />}
+          title={t("paint.hoiTrungLap")}
+        />
+        <p className="text-sm text-[var(--text-secondary)]">
+          {t("paint.dapTrungLap1")}{" "}
+          <b className="text-[var(--text-primary)]">{t("paint.dapTrungLapDam1")}</b>{" "}
+          {t("paint.dapTrungLap2")}{" "}
+          <b className="text-[var(--text-primary)]">{t("paint.dapTrungLapDam2")}</b>
           {t("paint.dapTrungLap3")}
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

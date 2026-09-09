@@ -1,8 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
+import { Trash2 } from "lucide-react";
 import { deleteConsumableReceipt } from "@/app/consumable-actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { Button } from "@/components/ui";
 
 /**
  * Xóa một phiếu nhận. Server hoàn lại đúng lượng đã cộng vào tồn, nên nút này
@@ -29,14 +31,19 @@ export default function ConsumableReceiptDeleteButton({
       }}
     >
       <input type="hidden" name="id" value={id} />
-      <button
-        disabled={pending}
-        className="rounded bg-red-50 px-2 py-1 text-xs text-red-700 hover:bg-red-100 disabled:opacity-50"
+      <Button
+        type="submit"
+        size="sm"
+        variant="danger"
+        loading={pending}
+        icon={<Trash2 className="size-4" />}
       >
-        {pending ? "..." : t("chung.xoa")}
-      </button>
+        {t("chung.xoa")}
+      </Button>
       {state.message && !state.success && (
-        <span className="block text-xs text-red-600">{state.message}</span>
+        <span className="mt-1 block text-xs text-[var(--text-danger)]">
+          {state.message}
+        </span>
       )}
     </form>
   );

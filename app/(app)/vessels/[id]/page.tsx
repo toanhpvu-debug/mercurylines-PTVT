@@ -1,5 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Boxes,
+  ClipboardList,
+  Download,
+  FileText,
+  Pencil,
+  Printer,
+  Trash2,
+  Warehouse,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
@@ -10,15 +22,41 @@ import VesselEditForm from "@/components/VesselEditForm";
 import VesselDeleteButton from "@/components/VesselDeleteButton";
 import VesselSwitcher from "@/components/VesselSwitcher";
 import { layT } from "@/lib/i18n/server";
+import { cn } from "@/lib/cn";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  EmptyState,
+  PageHeader,
+  TONE_YEU_CAU,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+  buttonClass,
+  type Tone,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-// Chỉ giữ MÀU ở đây; nhãn trạng thái lấy từ từ điển (labels.vesselStatus_* cho
+const LINK = "text-brand-700 hover:underline dark:text-brand-300";
+
+// Chỉ giữ TONE ở đây; nhãn trạng thái lấy từ từ điển (labels.vesselStatus_* cho
 // ACTIVE/INACTIVE, vessels.trangThaiBaoDuong cho MAINTENANCE).
-const mauTrangThai: Record<string, string> = {
-  ACTIVE: "bg-green-100 text-green-700",
-  MAINTENANCE: "bg-yellow-100 text-yellow-700",
-  INACTIVE: "bg-slate-200 text-slate-600",
+const TONE_TRANG_THAI: Record<string, Tone> = {
+  ACTIVE: "success",
+  MAINTENANCE: "warning",
+  INACTIVE: "muted",
+};
+
+/** Mức ưu tiên → tone nhãn — cùng bảng với trang Yêu cầu vật tư. */
+const TONE_UU_TIEN: Record<string, Tone> = {
+  URGENT: "danger",
+  HIGH: "warning",
+  NORMAL: "neutral",
+  LOW: "muted",
 };
 
 export default async function VesselDetailPage({
@@ -83,111 +121,138 @@ export default async function VesselDetailPage({
       },
     }),
   ]);
-  const mauTT = mauTrangThai[vessel.status] ?? "bg-slate-100 text-slate-600";
+  const toneTT = TONE_TRANG_THAI[vessel.status] ?? "neutral";
   const nhanTT =
     vessel.status === "MAINTENANCE"
       ? t("vessels.trangThaiBaoDuong")
-      : vessel.status in mauTrangThai
+      : vessel.status in TONE_TRANG_THAI
         ? tTuDo(`labels.vesselStatus_${vessel.status}`)
         : vessel.status;
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <Link href="/vessels" className="text-sm text-blue-700 hover:underline">
-          ← {t("vessels.quayLaiDoiTau")}
+        <Link
+          href="/vessels"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-brand-700 hover:underline dark:text-brand-300"
+        >
+          <ArrowLeft className="size-4" />
+          {t("vessels.quayLaiDoiTau")}
         </Link>
-        <div className="mt-1 flex flex-wrap items-center gap-3">
-          <h2 className="text-2xl font-bold text-blue-950">
-            {vessel.code} — {vessel.name}
-          </h2>
-          <span className={`rounded px-2 py-1 text-sm ${mauTT}`}>{nhanTT}</span>
-        </div>
-        <p className="text-slate-600">
-          IMO: {vessel.imo || "—"} · {t("vessels.nhanCo")}:{" "}
-          {vessel.flag || "—"} · {t("vessels.nhanLoai")}:{" "}
-          {vessel.vesselType || "—"} ·{" "}
-          {t("vessels.nKho", { n: vessel.warehouses.length })}
-        </p>
+        <PageHeader
+          title={
+            <>
+              <span className="font-display tracking-wide">{vessel.code}</span>
+              {" — "}
+              {vessel.name}
+            </>
+          }
+          subtitle={
+            <>
+              IMO:{" "}
+              <span className="font-display text-xs tracking-wide">
+                {vessel.imo || "—"}
+              </span>{" "}
+              · {t("vessels.nhanCo")}: {vessel.flag || "—"} ·{" "}
+              {t("vessels.nhanLoai")}: {vessel.vesselType || "—"} ·{" "}
+              {t("vessels.nKho", { n: vessel.warehouses.length })}
+            </>
+          }
+          action={
+            <Badge tone={toneTT} dot>
+              {nhanTT}
+            </Badge>
+          }
+        />
       </div>
 
       <VesselSwitcher hienTai={vessel.id} duongDan={(id) => `/vessels/${id}`} />
 
-      <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">{t("vessels.baoCaoNhanh")}</h3>
-          <Link
-            href="/documents"
-            className="text-sm text-blue-700 hover:underline"
-          >
-            {t("vessels.taiLenXemTatCa")}
-          </Link>
-        </div>
-        {documents.length === 0 ? (
-          <p className="text-slate-600">
-            {t("vessels.chuaCoBaoCaoTau")}{" "}
-            <Link href="/documents" className="text-blue-700 hover:underline">
-              {t("vessels.taiBaoCaoLen")}
+      <Card>
+        <CardHeader
+          icon={<FileText className="size-4" />}
+          title={t("vessels.baoCaoNhanh")}
+          action={
+            <Link href="/documents" className={buttonClass("secondary", "sm")}>
+              {t("vessels.taiLenXemTatCa")}
+              <ArrowRight className="size-4" />
             </Link>
-            .
-          </p>
+          }
+        />
+        {documents.length === 0 ? (
+          <EmptyState
+            icon={<FileText className="size-5" />}
+            title={t("vessels.chuaCoBaoCaoTau")}
+            action={
+              <Link href="/documents" className={buttonClass("secondary", "sm")}>
+                {t("vessels.taiBaoCaoLen")}
+              </Link>
+            }
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border text-sm">
+          <TableWrap>
+            <Table dense>
               <thead>
-                <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">{t("vessels.cotNgayTai")}</th>
-                  <th className="p-2">{t("vessels.cotLoai")}</th>
-                  <th className="p-2">{t("vessels.cotKy")}</th>
-                  <th className="p-2">{t("vessels.cotTieuDeFile")}</th>
-                  <th className="p-2">{t("vessels.cotCoFile")}</th>
-                  <th className="p-2">{t("vessels.cotNguoiTai")}</th>
-                  <th className="p-2"></th>
+                <tr>
+                  <Th>{t("vessels.cotNgayTai")}</Th>
+                  <Th>{t("vessels.cotLoai")}</Th>
+                  <Th>{t("vessels.cotKy")}</Th>
+                  <Th>{t("vessels.cotTieuDeFile")}</Th>
+                  <Th>{t("vessels.cotCoFile")}</Th>
+                  <Th>{t("vessels.cotNguoiTai")}</Th>
+                  <Th></Th>
                 </tr>
               </thead>
               <tbody>
                 {documents.map((doc) => (
-                  <tr key={doc.id} className="border-b align-top">
-                    <td className="p-2 whitespace-nowrap">
+                  <Tr
+                    key={doc.id}
+                    className="align-top transition-colors hover:bg-[var(--surface-sunken)]/50"
+                  >
+                    <Td className="tabular whitespace-nowrap text-[var(--text-secondary)]">
                       {ngay(doc.createdAt)}
-                    </td>
-                    <td className="p-2 whitespace-nowrap">{doc.reportType}</td>
-                    <td className="p-2 whitespace-nowrap">{doc.period}</td>
-                    <td className="p-2">
+                    </Td>
+                    <Td className="whitespace-nowrap">{doc.reportType}</Td>
+                    <Td className="whitespace-nowrap">{doc.period}</Td>
+                    <Td>
                       <p className="font-medium">{doc.title}</p>
                       {doc.title !== doc.fileName && (
-                        <p className="text-xs text-slate-500">{doc.fileName}</p>
+                        <p className="text-xs text-[var(--text-muted)]">
+                          {doc.fileName}
+                        </p>
                       )}
-                    </td>
-                    <td className="p-2 whitespace-nowrap">
+                    </Td>
+                    <Td className="tabular whitespace-nowrap text-[var(--text-secondary)]">
                       {doc.size >= 1024 * 1024
                         ? `${(doc.size / (1024 * 1024)).toFixed(1)} MB`
                         : `${Math.max(1, Math.round(doc.size / 1024))} KB`}
-                    </td>
-                    <td className="p-2">{doc.uploadedBy.name}</td>
-                    <td className="p-2">
+                    </Td>
+                    <Td>{doc.uploadedBy.name}</Td>
+                    <Td>
                       <a
                         href={`/api/documents/${doc.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200"
+                        className={buttonClass("secondary", "sm")}
                       >
+                        <Download className="size-4" />
                         {t("vessels.xemTaiFile")}
                       </a>
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+            </Table>
+          </TableWrap>
         )}
-      </div>
+      </Card>
 
       {canManage && (
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 xl:col-span-2">
-            <h3 className="mb-4 text-lg font-semibold">
-              {t("vessels.suaThongTinTau")}
-            </h3>
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+          <Card className="xl:col-span-2">
+            <CardHeader
+              icon={<Pencil className="size-4" />}
+              title={t("vessels.suaThongTinTau")}
+            />
             <VesselEditForm
               vessel={{
                 id: vessel.id,
@@ -201,80 +266,95 @@ export default async function VesselDetailPage({
                 mainEngineModel: vessel.mainEngineModel,
               }}
             />
-          </div>
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <h3 className="mb-4 text-lg font-semibold">
-              {t("vessels.xoaTau")}
-            </h3>
-            <p className="mb-4 text-sm text-slate-600">
-              {t("vessels.luuYXoaTau")}
-            </p>
+          </Card>
+          <Card>
+            <CardHeader
+              icon={<Trash2 className="size-4" />}
+              title={t("vessels.xoaTau")}
+              subtitle={t("vessels.luuYXoaTau")}
+            />
             <VesselDeleteButton
               id={vessel.id}
               name={vessel.name}
               requestCount={requests.length}
             />
-          </div>
+          </Card>
         </div>
       )}
 
-      <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <h3 className="mb-4 text-lg font-semibold">
-          {t("vessels.khoTrenTau")}
-        </h3>
+      <Card>
+        <CardHeader
+          icon={<Warehouse className="size-4" />}
+          title={t("vessels.khoTrenTau")}
+        />
         {vessel.warehouses.length === 0 ? (
-          <p className="text-slate-600">{t("vessels.chuaCoKho")}</p>
+          <EmptyState
+            icon={<Warehouse className="size-5" />}
+            title={t("vessels.chuaCoKho")}
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border text-sm">
+          <TableWrap>
+            <Table dense>
               <thead>
-                <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">{t("vessels.cotMaKho")}</th>
-                  <th className="p-2">{t("vessels.cotTenKho")}</th>
-                  <th className="p-2">{t("vessels.cotLoai")}</th>
+                <tr>
+                  <Th>{t("vessels.cotMaKho")}</Th>
+                  <Th>{t("vessels.cotTenKho")}</Th>
+                  <Th>{t("vessels.cotLoai")}</Th>
                 </tr>
               </thead>
               <tbody>
                 {vessel.warehouses.map((warehouse) => (
-                  <tr key={warehouse.id} className="border-b">
-                    <td className="p-2 font-medium">{warehouse.code}</td>
-                    <td className="p-2">{warehouse.name}</td>
-                    <td className="p-2">{warehouse.warehouseType}</td>
-                  </tr>
+                  <Tr
+                    key={warehouse.id}
+                    className="transition-colors hover:bg-[var(--surface-sunken)]/50"
+                  >
+                    <Td className="font-display text-xs tracking-wide whitespace-nowrap">
+                      {warehouse.code}
+                    </Td>
+                    <Td className="font-medium">{warehouse.name}</Td>
+                    <Td className="text-[var(--text-secondary)]">
+                      {warehouse.warehouseType}
+                    </Td>
+                  </Tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+            </Table>
+          </TableWrap>
         )}
-      </div>
+      </Card>
 
-      <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-lg font-semibold">
-            {t("vessels.tonKhoCuaTau", { ten: vessel.name })}
-          </h3>
-          {/* Nhập/xuất và xuất kiểm kê làm ở module Tồn kho — ở đây chỉ xem. */}
-          <Link
-            href={`/inventory?vessel=${vessel.id}`}
-            className="rounded border border-blue-200 bg-white px-3 py-1.5 text-sm text-blue-800 hover:bg-blue-50"
-          >
-            {t("vessels.nhapXuatKiemKe")}
-          </Link>
-        </div>
+      <Card>
+        <CardHeader
+          icon={<Boxes className="size-4" />}
+          title={t("vessels.tonKhoCuaTau", { ten: vessel.name })}
+          action={
+            /* Nhập/xuất và xuất kiểm kê làm ở module Tồn kho — ở đây chỉ xem. */
+            <Link
+              href={`/inventory?vessel=${vessel.id}`}
+              className={buttonClass("secondary", "sm")}
+            >
+              {t("vessels.nhapXuatKiemKe")}
+              <ArrowRight className="size-4" />
+            </Link>
+          }
+        />
         {tongTonKho === 0 ? (
-          <p className="text-slate-600">{t("vessels.chuaCoTonKho")}</p>
+          <EmptyState
+            icon={<Boxes className="size-5" />}
+            title={t("vessels.chuaCoTonKho")}
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border text-sm">
+          <TableWrap>
+            <Table dense>
               <thead>
-                <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">{t("chung.kho")}</th>
-                  <th className="p-2">{t("vessels.cotMaVatTu")}</th>
-                  <th className="p-2">{t("vessels.cotTenVatTu")}</th>
-                  <th className="p-2">{t("chung.donVi")}</th>
-                  <th className="p-2">{t("vessels.cotTon")}</th>
-                  <th className="p-2">{t("vessels.cotGiu")}</th>
-                  <th className="p-2">{t("vessels.cotKhaDung")}</th>
+                <tr>
+                  <Th>{t("chung.kho")}</Th>
+                  <Th>{t("vessels.cotMaVatTu")}</Th>
+                  <Th>{t("vessels.cotTenVatTu")}</Th>
+                  <Th>{t("chung.donVi")}</Th>
+                  <Th align="right">{t("vessels.cotTon")}</Th>
+                  <Th align="right">{t("vessels.cotGiu")}</Th>
+                  <Th align="right">{t("vessels.cotKhaDung")}</Th>
                 </tr>
               </thead>
               <tbody>
@@ -282,130 +362,168 @@ export default async function VesselDetailPage({
                   const available =
                     inventory.quantity - inventory.reservedQuantity;
                   return (
-                    <tr key={inventory.id} className="border-b">
-                      <td className="p-2">{inventory.warehouse.name}</td>
-                      <td className="p-2">{inventory.material.code}</td>
-                      <td className="p-2">{inventory.material.nameVn}</td>
-                      <td className="p-2">{inventory.material.uom}</td>
-                      <td className="p-2">{inventory.quantity}</td>
-                      <td className="p-2">{inventory.reservedQuantity}</td>
-                      <td
-                        className={`p-2 font-medium ${
-                          available <= inventory.material.minStock
-                            ? "text-red-600"
-                            : "text-green-700"
-                        }`}
-                      >
-                        {available}
-                      </td>
-                    </tr>
+                    <Tr
+                      key={inventory.id}
+                      className="transition-colors hover:bg-[var(--surface-sunken)]/50"
+                    >
+                      <Td className="text-[var(--text-secondary)]">
+                        {inventory.warehouse.name}
+                      </Td>
+                      <Td className="font-display text-xs tracking-wide whitespace-nowrap">
+                        {inventory.material.code}
+                      </Td>
+                      <Td>{inventory.material.nameVn}</Td>
+                      <Td>
+                        <span className="text-xs text-[var(--text-secondary)]">
+                          {inventory.material.uom}
+                        </span>
+                      </Td>
+                      <Td align="right">{inventory.quantity}</Td>
+                      <Td align="right">
+                        <span className="text-[var(--text-muted)]">
+                          {inventory.reservedQuantity}
+                        </span>
+                      </Td>
+                      <Td align="right">
+                        <span
+                          className={cn(
+                            "font-semibold",
+                            available <= inventory.material.minStock
+                              ? "text-[var(--text-danger)]"
+                              : "text-[var(--text-success)]"
+                          )}
+                        >
+                          {available}
+                        </span>
+                      </Td>
+                    </Tr>
                   );
                 })}
                 {tongTonKho > inventories.length && (
-                  <tr className="border-b bg-slate-50/60">
-                    <td colSpan={7} className="p-2 text-xs text-slate-500">
-                      {t("vessels.dangHienTruoc", { n: inventories.length })}{" "}
-                      <b>{tongTonKho}</b> {t("vessels.dangHienSau")}{" "}
+                  <tr>
+                    <Td
+                      colSpan={7}
+                      className="bg-[var(--surface-sunken)]/60 text-xs"
+                    >
+                      <span className="text-[var(--text-muted)]">
+                        {t("vessels.dangHienTruoc", { n: inventories.length })}{" "}
+                        <b className="text-[var(--text-primary)]">{tongTonKho}</b>{" "}
+                        {t("vessels.dangHienSau")}
+                      </span>{" "}
                       <Link
                         href={`/inventory?vessel=${vessel.id}`}
-                        className="text-blue-700 hover:underline"
+                        className={LINK}
                       >
                         {t("vessels.xemDayDuTonKho")}
                       </Link>
-                    </td>
+                    </Td>
                   </tr>
                 )}
               </tbody>
-            </table>
-          </div>
+            </Table>
+          </TableWrap>
         )}
-      </div>
+      </Card>
 
-      <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-lg font-semibold">
-            {t("vessels.yeuCauCuaTau", { ten: vessel.name })}
-          </h3>
-          {/* Tạo, duyệt, xóa yêu cầu làm ở module Yêu cầu vật tư. */}
-          <Link
-            href={`/requests?vessel=${vessel.id}`}
-            className="rounded border border-blue-200 bg-white px-3 py-1.5 text-sm text-blue-800 hover:bg-blue-50"
-          >
-            {t("vessels.taoDuyetYeuCau")}
-          </Link>
-        </div>
+      <Card>
+        <CardHeader
+          icon={<ClipboardList className="size-4" />}
+          title={t("vessels.yeuCauCuaTau", { ten: vessel.name })}
+          action={
+            /* Tạo, duyệt, xóa yêu cầu làm ở module Yêu cầu vật tư. */
+            <Link
+              href={`/requests?vessel=${vessel.id}`}
+              className={buttonClass("secondary", "sm")}
+            >
+              {t("vessels.taoDuyetYeuCau")}
+              <ArrowRight className="size-4" />
+            </Link>
+          }
+        />
         {requests.length === 0 ? (
-          <p className="text-slate-600">{t("vessels.chuaCoYeuCau")}</p>
+          <EmptyState
+            icon={<ClipboardList className="size-5" />}
+            title={t("vessels.chuaCoYeuCau")}
+          />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border text-sm">
+          <TableWrap>
+            <Table dense>
               <thead>
-                <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                  <th className="p-2">{t("vessels.cotSoHieuYeuCau")}</th>
-                  <th className="p-2">{t("vessels.cotLoai")}</th>
-                  <th className="p-2">{t("vessels.cotNguoiYeuCau")}</th>
-                  <th className="p-2">{t("vessels.cotBoPhan")}</th>
-                  <th className="p-2">{t("vessels.cotUuTien")}</th>
-                  <th className="p-2">{t("vessels.cotNoiDung")}</th>
-                  <th className="p-2">{t("chung.trangThai")}</th>
-                  <th className="p-2">{t("chung.thaoTac")}</th>
+                <tr>
+                  <Th>{t("vessels.cotSoHieuYeuCau")}</Th>
+                  <Th>{t("vessels.cotLoai")}</Th>
+                  <Th>{t("vessels.cotNguoiYeuCau")}</Th>
+                  <Th>{t("vessels.cotBoPhan")}</Th>
+                  <Th>{t("vessels.cotUuTien")}</Th>
+                  <Th>{t("vessels.cotNoiDung")}</Th>
+                  <Th>{t("chung.trangThai")}</Th>
+                  <Th>{t("chung.thaoTac")}</Th>
                 </tr>
               </thead>
               <tbody>
                 {requests.map((request) => (
-                  <tr key={request.id} className="border-b align-top">
-                    <td className="p-2 font-medium">
-                      <Link
-                        href={`/requests/${request.id}`}
-                        className="text-blue-700 hover:underline"
-                      >
+                  <Tr
+                    key={request.id}
+                    className="align-top transition-colors hover:bg-[var(--surface-sunken)]/50"
+                  >
+                    <Td className="font-display text-xs tracking-wide whitespace-nowrap">
+                      <Link href={`/requests/${request.id}`} className={LINK}>
                         {request.requestNo}
                       </Link>
-                    </td>
-                    <td className="p-2">
-                      {tTuDo(`labels.type_${request.kind}`)}
-                    </td>
-                    <td className="p-2">{request.requestedBy}</td>
-                    <td className="p-2">
-                      {tTuDo(`labels.reqDept_${request.department}`)}
-                    </td>
-                    <td className="p-2">
-                      {tTuDo(`labels.priority_${request.priority}`)}
-                    </td>
-                    <td className="p-2">
+                    </Td>
+                    <Td>
+                      <Badge tone={request.kind === "SPARE" ? "brand" : "neutral"}>
+                        {tTuDo(`labels.type_${request.kind}`)}
+                      </Badge>
+                    </Td>
+                    <Td>{request.requestedBy}</Td>
+                    <Td>{tTuDo(`labels.reqDept_${request.department}`)}</Td>
+                    <Td>
+                      <Badge tone={TONE_UU_TIEN[request.priority] ?? "neutral"}>
+                        {tTuDo(`labels.priority_${request.priority}`)}
+                      </Badge>
+                    </Td>
+                    <Td>
                       {request.items.map((item) => (
-                        <p key={item.id}>
-                          {item.material
-                            ? item.material.code
-                            : `${item.itemName ?? t("vessels.vatTuMoi")} ${t(
-                                "vessels.vatTuMoi"
-                              )}`}{" "}
-                          x {item.quantity}
+                        <p key={item.id} className="whitespace-nowrap">
+                          {item.material ? (
+                            <span className="font-display text-xs tracking-wide">
+                              {item.material.code}
+                            </span>
+                          ) : (
+                            `${item.itemName ?? t("vessels.vatTuMoi")} ${t(
+                              "vessels.vatTuMoi"
+                            )}`
+                          )}{" "}
+                          <span className="tabular text-[var(--text-secondary)]">
+                            x {item.quantity}
+                          </span>
                         </p>
                       ))}
-                    </td>
-                    <td className="p-2">
-                      <span className="rounded bg-slate-100 px-2 py-1">
+                    </Td>
+                    <Td>
+                      <Badge tone={TONE_YEU_CAU[request.status] ?? "neutral"} dot>
                         {tTuDo(`labels.reqStatus_${request.status}`)}
-                      </span>
-                    </td>
-                    <td className="p-2">
+                      </Badge>
+                    </Td>
+                    <Td>
                       <div className="flex flex-col gap-2">
                         <Link
                           href={`/requests/${request.id}`}
-                          className="rounded bg-slate-100 px-3 py-1 text-center text-slate-700 hover:bg-slate-200"
+                          className={buttonClass("secondary", "sm")}
                         >
+                          <Printer className="size-4" />
                           {t("vessels.xemIn")}
                         </Link>
                       </div>
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+            </Table>
+          </TableWrap>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

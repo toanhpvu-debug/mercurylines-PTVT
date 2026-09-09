@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/auth";
 import DirectPurchaseForm from "@/components/DirectPurchaseForm";
 import { layT } from "@/lib/i18n/server";
+import { Card, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -32,26 +34,29 @@ export default async function DirectPurchasePage() {
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
         <Link
           href="/purchasing"
-          className="text-sm text-blue-700 hover:underline"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-brand-700 hover:underline dark:text-brand-300"
         >
+          <ArrowLeft className="size-4" />
           {t("purchasing.quayLaiMuaSam")}
         </Link>
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("purchasing.tieuDeTrucTiep")}
-        </h2>
-        <p className="text-slate-600">
-          {t("purchasing.moTaTrucTiepDau")}{" "}
-          <b>{t("purchasing.damRfq")}</b>{" "}
-          {t("purchasing.moTaTrucTiepGiua")} <b>PO</b>{" "}
-          {t("purchasing.moTaTrucTiepCuoi")}
-        </p>
+        <PageHeader
+          title={t("purchasing.tieuDeTrucTiep")}
+          subtitle={
+            <>
+              {t("purchasing.moTaTrucTiepDau")}{" "}
+              <b>{t("purchasing.damRfq")}</b>{" "}
+              {t("purchasing.moTaTrucTiepGiua")} <b>PO</b>{" "}
+              {t("purchasing.moTaTrucTiepCuoi")}
+            </>
+          }
+        />
       </div>
 
-      <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
+      <Card>
         <DirectPurchaseForm
           vessels={vessels.map((v) => ({
             id: v.id,
@@ -62,7 +67,7 @@ export default async function DirectPurchasePage() {
             label: `${s.code} — ${s.name}`,
           }))}
         />
-      </div>
+      </Card>
     </div>
   );
 }

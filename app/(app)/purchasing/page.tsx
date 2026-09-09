@@ -1,4 +1,13 @@
 import Link from "next/link";
+import {
+  Building2,
+  ClipboardList,
+  Eye,
+  FilePlus,
+  FileText,
+  Plus,
+  ShoppingCart,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import PurchaseOrderDeleteButton from "@/components/PurchaseOrderDeleteButton";
 import {
@@ -7,19 +16,34 @@ import {
   vesselWhere,
 } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  EmptyState,
+  Meter,
+  Notice,
+  PageHeader,
+  TONE_DON_MUA,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+  buttonClass,
+  type Tone,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-// Chỉ còn màu của huy hiệu trạng thái — chữ lấy từ labels.poStatus_*.
-const poStatusClass: Record<string, string> = {
-  DRAFT: "bg-slate-100 text-slate-600",
-  SENT: "bg-blue-100 text-blue-700",
-  CONFIRMED: "bg-indigo-100 text-indigo-700",
-  PARTIALLY_RECEIVED: "bg-amber-100 text-amber-700",
-  RECEIVED: "bg-green-100 text-green-700",
-  CLOSED: "bg-green-200 text-green-800",
-  CANCELLED: "bg-red-100 text-red-700",
-};
+const LINK = "text-brand-700 hover:underline dark:text-brand-300";
+
+/** Tiến độ nhận hàng → tone thanh: nhận đủ xanh, một phần vàng, chưa nhận mờ. */
+function toneNhan(received: number, ordered: number): Tone {
+  if (ordered > 0 && received >= ordered) return "success";
+  if (received > 0) return "warning";
+  return "muted";
+}
 
 export default async function PurchasingPage() {
   const user = await requireScopedUser();
@@ -50,134 +74,146 @@ export default async function PurchasingPage() {
   ]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-2xl font-bold text-blue-950">
-            {t("purchasing.tieuDe")}
-          </h2>
-          <p className="text-slate-600">{t("purchasing.moTa")}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {canManage && (
-            <Link
-              href="/purchasing/direct"
-              className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800"
-            >
-              {t("purchasing.nutTaoTrucTiep")}
+    <div className="space-y-5">
+      <PageHeader
+        title={t("purchasing.tieuDe")}
+        subtitle={t("purchasing.moTa")}
+        action={
+          <>
+            {canManage && (
+              <Link
+                href="/purchasing/direct"
+                className={buttonClass("secondary")}
+              >
+                <FilePlus className="size-4" />
+                {t("purchasing.nutTaoTrucTiep")}
+              </Link>
+            )}
+            <Link href="/purchasing/forms" className={buttonClass("secondary")}>
+              <FileText className="size-4" />
+              {t("purchasing.nutMauBieu")}
             </Link>
-          )}
-          <Link
-            href="/purchasing/forms"
-            className="rounded border px-4 py-2 text-sm hover:bg-blue-50"
-          >
-            {t("purchasing.nutMauBieu")}
-          </Link>
-          <Link
-            href="/purchasing/suppliers"
-            className="rounded border px-4 py-2 text-sm hover:bg-blue-50"
-          >
-            {t("purchasing.nhaCungCap")}
-          </Link>
-          {canManage && (
             <Link
-              href="/purchasing/new"
-              className="rounded bg-blue-700 px-4 py-2 text-sm text-white hover:bg-blue-800"
+              href="/purchasing/suppliers"
+              className={buttonClass("secondary")}
             >
-              {t("purchasing.nutTaoDon")}
+              <Building2 className="size-4" />
+              {t("purchasing.nhaCungCap")}
             </Link>
-          )}
-        </div>
-      </div>
+            {canManage && (
+              <Link href="/purchasing/new" className={buttonClass("primary")}>
+                <Plus className="size-4" />
+                {t("purchasing.nutTaoDon")}
+              </Link>
+            )}
+          </>
+        }
+      />
 
       {scope.unassigned ? (
-        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
-          {t("purchasing.chuaGanTau")}
-        </div>
+        <Notice tone="warning">{t("purchasing.chuaGanTau")}</Notice>
       ) : (
         <>
           {/* Bước 1: yêu cầu đã duyệt, chờ lập đơn mua */}
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <h3 className="mb-1 text-lg font-semibold">
-              {t("purchasing.yeuCauChoMuaSam", { n: pendingRequests.length })}
-            </h3>
-            <p className="mb-4 text-sm text-slate-500">
-              {t("purchasing.yeuCauChoMuaSamMoTa")}
-            </p>
+          <Card>
+            <CardHeader
+              icon={<ClipboardList className="size-4" />}
+              title={t("purchasing.yeuCauChoMuaSam", {
+                n: pendingRequests.length,
+              })}
+              subtitle={t("purchasing.yeuCauChoMuaSamMoTa")}
+            />
             {pendingRequests.length === 0 ? (
-              <p className="text-slate-600">
-                {t("purchasing.khongCoYeuCauCho")}
-              </p>
+              <EmptyState
+                icon={<ClipboardList className="size-5" />}
+                title={t("purchasing.khongCoYeuCauCho")}
+              />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border text-sm">
+              <TableWrap>
+                <Table dense>
                   <thead>
-                    <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                      <th className="p-2">{t("purchasing.cotSoYeuCau")}</th>
-                      <th className="p-2">{t("purchasing.cotLoai")}</th>
-                      <th className="p-2">{t("chung.tau")}</th>
-                      <th className="p-2">{t("purchasing.nguoiYeuCau")}</th>
-                      <th className="p-2">{t("purchasing.cotSoDong")}</th>
-                      <th className="p-2"></th>
+                    <tr>
+                      <Th>{t("purchasing.cotSoYeuCau")}</Th>
+                      <Th>{t("purchasing.cotLoai")}</Th>
+                      <Th>{t("chung.tau")}</Th>
+                      <Th>{t("purchasing.nguoiYeuCau")}</Th>
+                      <Th align="right">{t("purchasing.cotSoDong")}</Th>
+                      <Th>{t("chung.thaoTac")}</Th>
                     </tr>
                   </thead>
                   <tbody>
                     {pendingRequests.map((req) => (
-                      <tr key={req.id} className="border-b">
-                        <td className="p-2 font-medium">
-                          <Link
-                            href={`/requests/${req.id}`}
-                            className="text-blue-700 hover:underline"
-                          >
+                      <Tr
+                        key={req.id}
+                        className="transition-colors hover:bg-[var(--surface-sunken)]/50"
+                      >
+                        <Td className="font-display text-xs tracking-wide whitespace-nowrap">
+                          <Link href={`/requests/${req.id}`} className={LINK}>
                             {req.requestNo}
                           </Link>
-                        </td>
-                        <td className="p-2">
-                          {tTuDo(
-                            `labels.type_${req.kind === "SPARE" ? "SPARE" : "STORE"}`
-                          )}
-                        </td>
-                        <td className="p-2">{req.vessel.name}</td>
-                        <td className="p-2">{req.requestedBy}</td>
-                        <td className="p-2">{req.items.length}</td>
-                        <td className="p-2">
+                        </Td>
+                        <Td>
+                          <Badge
+                            tone={req.kind === "SPARE" ? "brand" : "neutral"}
+                          >
+                            {tTuDo(
+                              `labels.type_${req.kind === "SPARE" ? "SPARE" : "STORE"}`
+                            )}
+                          </Badge>
+                        </Td>
+                        <Td>
+                          <Link
+                            href={`/vessels/${req.vessel.id}`}
+                            className={LINK}
+                          >
+                            {req.vessel.name}
+                          </Link>
+                        </Td>
+                        <Td>{req.requestedBy}</Td>
+                        <Td align="right">{req.items.length}</Td>
+                        <Td>
                           {canManage && (
                             <Link
                               href={`/purchasing/new?vessel=${req.vessel.id}`}
-                              className="rounded bg-slate-100 px-3 py-1 text-slate-700 hover:bg-slate-200"
+                              className={buttonClass("secondary", "sm")}
                             >
+                              <ShoppingCart className="size-4" />
                               {t("purchasing.nutLapDon")}
                             </Link>
                           )}
-                        </td>
-                      </tr>
+                        </Td>
+                      </Tr>
                     ))}
                   </tbody>
-                </table>
-              </div>
+                </Table>
+              </TableWrap>
             )}
-          </div>
+          </Card>
 
           {/* Danh sách đơn mua hàng */}
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <h3 className="mb-4 text-lg font-semibold">
-              {t("purchasing.danhSachDon", { n: purchaseOrders.length })}
-            </h3>
+          <Card>
+            <CardHeader
+              icon={<ShoppingCart className="size-4" />}
+              title={t("purchasing.danhSachDon", { n: purchaseOrders.length })}
+            />
             {purchaseOrders.length === 0 ? (
-              <p className="text-slate-600">{t("purchasing.chuaCoDonMua")}</p>
+              <EmptyState
+                icon={<ShoppingCart className="size-5" />}
+                title={t("purchasing.chuaCoDonMua")}
+              />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border text-sm">
+              <TableWrap>
+                <Table dense>
                   <thead>
-                    <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                      <th className="p-2">{t("purchasing.cotSoPo")}</th>
-                      <th className="p-2">{t("purchasing.nhaCungCap")}</th>
-                      <th className="p-2">{t("chung.tau")}</th>
-                      <th className="p-2">{t("chung.trangThai")}</th>
-                      <th className="p-2">{t("purchasing.cotSoDong")}</th>
-                      <th className="p-2">{t("purchasing.cotTienDoNhan")}</th>
-                      <th className="p-2">{t("purchasing.cotGiaTri")}</th>
-                      <th className="p-2"></th>
+                    <tr>
+                      <Th>{t("purchasing.cotSoPo")}</Th>
+                      <Th>{t("purchasing.nhaCungCap")}</Th>
+                      <Th>{t("chung.tau")}</Th>
+                      <Th>{t("chung.trangThai")}</Th>
+                      <Th align="right">{t("purchasing.cotSoDong")}</Th>
+                      <Th>{t("purchasing.cotTienDoNhan")}</Th>
+                      <Th align="right">{t("purchasing.cotGiaTri")}</Th>
+                      <Th>{t("chung.thaoTac")}</Th>
                     </tr>
                   </thead>
                   <tbody>
@@ -194,40 +230,63 @@ export default async function PurchasingPage() {
                         (s, it) => s + it.quantityReceived,
                         0
                       );
-                      const stClass =
-                        poStatusClass[po.status] ?? "bg-slate-100";
                       return (
-                        <tr key={po.id} className="border-b">
-                          <td className="p-2 font-medium">
+                        <Tr
+                          key={po.id}
+                          className="transition-colors hover:bg-[var(--surface-sunken)]/50"
+                        >
+                          <Td className="font-display text-xs tracking-wide whitespace-nowrap">
                             <Link
                               href={`/purchasing/${po.id}`}
-                              className="text-blue-700 hover:underline"
+                              className={LINK}
                             >
                               {po.poNo}
                             </Link>
-                          </td>
-                          <td className="p-2">{po.supplier.name}</td>
-                          <td className="p-2">{po.vessel.code}</td>
-                          <td className="p-2">
-                            <span
-                              className={`rounded px-2 py-1 text-xs ${stClass}`}
+                          </Td>
+                          <Td>{po.supplier.name}</Td>
+                          <Td>
+                            <Link
+                              href={`/vessels/${po.vessel.id}`}
+                              className={LINK}
+                              title={po.vessel.name}
+                            >
+                              <span className="font-display text-xs tracking-wide">
+                                {po.vessel.code}
+                              </span>
+                            </Link>
+                          </Td>
+                          <Td>
+                            <Badge
+                              tone={TONE_DON_MUA[po.status] ?? "neutral"}
+                              dot
                             >
                               {tTuDo(`labels.poStatus_${po.status}`)}
-                            </span>
-                          </td>
-                          <td className="p-2">{po.items.length}</td>
-                          <td className="p-2">
-                            {received} / {ordered}
-                          </td>
-                          <td className="p-2">
+                            </Badge>
+                          </Td>
+                          <Td align="right">{po.items.length}</Td>
+                          <Td>
+                            <div className="w-28">
+                              <p className="tabular text-xs text-[var(--text-secondary)]">
+                                {received} / {ordered}
+                              </p>
+                              <Meter
+                                value={received}
+                                max={ordered}
+                                tone={toneNhan(received, ordered)}
+                                className="mt-1"
+                              />
+                            </div>
+                          </Td>
+                          <Td align="right" className="whitespace-nowrap">
                             {total ? `${so(total)} ${po.currency}` : "—"}
-                          </td>
-                          <td className="p-2">
-                            <div className="flex items-center gap-3">
+                          </Td>
+                          <Td>
+                            <div className="flex flex-wrap items-center gap-2">
                               <Link
                                 href={`/purchasing/${po.id}`}
-                                className="text-blue-700 hover:underline"
+                                className={buttonClass("secondary", "sm")}
                               >
+                                <Eye className="size-4" />
                                 {t("purchasing.nutXem")}
                               </Link>
                               {/* Đơn đã hủy là rác trong danh sách — cho quản
@@ -236,18 +295,19 @@ export default async function PurchasingPage() {
                                 <PurchaseOrderDeleteButton
                                   id={po.id}
                                   poNo={po.poNo}
+                                  size="sm"
                                 />
                               )}
                             </div>
-                          </td>
-                        </tr>
+                          </Td>
+                        </Tr>
                       );
                     })}
                   </tbody>
-                </table>
-              </div>
+                </Table>
+              </TableWrap>
             )}
-          </div>
+          </Card>
         </>
       )}
     </div>

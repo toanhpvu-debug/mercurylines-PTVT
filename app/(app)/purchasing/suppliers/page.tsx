@@ -1,5 +1,5 @@
-import { Fragment } from "react";
 import Link from "next/link";
+import { ArrowLeft, Building2, Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser } from "@/lib/auth";
 import {
@@ -9,6 +9,19 @@ import {
   SupplierForm,
 } from "@/components/SupplierForm";
 import { layT } from "@/lib/i18n/server";
+import { cn } from "@/lib/cn";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  EmptyState,
+  PageHeader,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -22,120 +35,115 @@ export default async function SuppliersPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
         <Link
           href="/purchasing"
-          className="text-sm text-blue-700 hover:underline"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-brand-700 hover:underline dark:text-brand-300"
         >
+          <ArrowLeft className="size-4" />
           {t("purchasing.quayLaiMuaSam")}
         </Link>
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("purchasing.nhaCungCap")}
-        </h2>
-        <p className="text-slate-600">{t("purchasing.moTaNcc")}</p>
+        <PageHeader
+          title={t("purchasing.nhaCungCap")}
+          subtitle={t("purchasing.moTaNcc")}
+        />
       </div>
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         {canManage && (
-          <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-            <h3 className="mb-4 text-lg font-semibold">
-              {t("purchasing.themNcc")}
-            </h3>
+          <Card>
+            <CardHeader
+              icon={<Plus className="size-4" />}
+              title={t("purchasing.themNcc")}
+            />
             <SupplierForm />
-          </div>
+          </Card>
         )}
-        <div
-          className={`rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 ${
-            canManage ? "xl:col-span-2" : "xl:col-span-3"
-          }`}
-        >
-          <h3 className="mb-4 text-lg font-semibold">
-            {t("purchasing.danhSach", { n: suppliers.length })}
-          </h3>
+        <Card className={canManage ? "xl:col-span-2" : "xl:col-span-3"}>
+          <CardHeader
+            icon={<Building2 className="size-4" />}
+            title={t("purchasing.danhSach", { n: suppliers.length })}
+          />
           {suppliers.length === 0 ? (
-            <p className="text-slate-600">{t("purchasing.chuaCoNcc")}</p>
+            <EmptyState
+              icon={<Building2 className="size-5" />}
+              title={t("purchasing.chuaCoNcc")}
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border text-sm">
+            <TableWrap>
+              <Table dense>
                 <thead>
-                  <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                    <th className="p-2">{t("chung.ma")}</th>
-                    <th className="p-2">{t("chung.ten")}</th>
-                    <th className="p-2">{t("purchasing.cotLienHe")}</th>
-                    <th className="p-2">{t("purchasing.cotEmailDt")}</th>
-                    <th className="p-2">{t("purchasing.cotSoDonPo")}</th>
-                    <th className="p-2">{t("chung.trangThai")}</th>
-                    {canManage && <th className="p-2">{t("chung.thaoTac")}</th>}
+                  <tr>
+                    <Th>{t("chung.ma")}</Th>
+                    <Th>{t("chung.ten")}</Th>
+                    <Th>{t("purchasing.cotLienHe")}</Th>
+                    <Th>{t("purchasing.cotEmailDt")}</Th>
+                    <Th align="right">{t("purchasing.cotSoDonPo")}</Th>
+                    <Th>{t("chung.trangThai")}</Th>
+                    {canManage && <Th>{t("chung.thaoTac")}</Th>}
                   </tr>
                 </thead>
                 <tbody>
                   {suppliers.map((s) => (
-                    <Fragment key={s.id}>
-                      <tr
-                        className={`border-b ${
-                          s.isActive ? "" : "bg-slate-50 text-slate-400"
-                        }`}
-                      >
-                        <td className="p-2 font-medium">{s.code}</td>
-                        <td className="p-2">{s.name}</td>
-                        <td className="p-2">{s.contact}</td>
-                        <td className="p-2">
-                          <p>{s.email}</p>
-                          <p className="text-xs text-slate-500">{s.phone}</p>
-                        </td>
-                        <td className="p-2">{s._count.purchaseOrders}</td>
-                        <td className="p-2">
-                          {s.isActive ? (
-                            <span className="rounded bg-green-100 px-2 py-1 text-xs text-green-700">
-                              {t("labels.active_true")}
-                            </span>
-                          ) : (
-                            <span className="rounded bg-slate-200 px-2 py-1 text-xs text-slate-600">
-                              {t("labels.active_false")}
-                            </span>
-                          )}
-                        </td>
-                        {canManage && (
-                          <td className="p-2">
-                            <div className="flex flex-wrap items-start gap-2">
-                              <SupplierActiveToggle
-                                id={s.id}
-                                isActive={s.isActive}
-                              />
-                              <SupplierDeleteButton id={s.id} />
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                      {canManage && (
-                        <tr className="border-b">
-                          <td colSpan={7} className="p-2 pt-0">
-                            <details>
-                              <summary className="cursor-pointer text-xs text-blue-700 hover:underline">
-                                {t("purchasing.suaThongTinNcc")}
-                              </summary>
-                              <SupplierEditForm
-                                supplier={{
-                                  id: s.id,
-                                  code: s.code,
-                                  name: s.name,
-                                  contact: s.contact,
-                                  email: s.email,
-                                  phone: s.phone,
-                                  address: s.address,
-                                }}
-                              />
-                            </details>
-                          </td>
-                        </tr>
+                    <Tr
+                      key={s.id}
+                      className={cn(
+                        "align-top transition-colors hover:bg-[var(--surface-sunken)]/50",
+                        !s.isActive && "opacity-60"
                       )}
-                    </Fragment>
+                    >
+                      <Td className="font-display text-xs tracking-wide whitespace-nowrap">
+                        {s.code}
+                      </Td>
+                      <Td className="font-medium">{s.name}</Td>
+                      <Td>{s.contact}</Td>
+                      <Td>
+                        <p>{s.email}</p>
+                        <p className="text-xs text-[var(--text-muted)]">
+                          {s.phone}
+                        </p>
+                      </Td>
+                      <Td align="right">{s._count.purchaseOrders}</Td>
+                      <Td>
+                        {s.isActive ? (
+                          <Badge tone="success" dot>
+                            {t("labels.active_true")}
+                          </Badge>
+                        ) : (
+                          <Badge tone="muted" dot>
+                            {t("labels.active_false")}
+                          </Badge>
+                        )}
+                      </Td>
+                      {canManage && (
+                        <Td>
+                          <div className="flex flex-wrap items-start gap-2">
+                            <SupplierEditForm
+                              supplier={{
+                                id: s.id,
+                                code: s.code,
+                                name: s.name,
+                                contact: s.contact,
+                                email: s.email,
+                                phone: s.phone,
+                                address: s.address,
+                              }}
+                            />
+                            <SupplierActiveToggle
+                              id={s.id}
+                              isActive={s.isActive}
+                            />
+                            <SupplierDeleteButton id={s.id} />
+                          </div>
+                        </Td>
+                      )}
+                    </Tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+              </Table>
+            </TableWrap>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

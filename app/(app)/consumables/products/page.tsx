@@ -1,5 +1,15 @@
+import React from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  ArrowLeft,
+  BookOpen,
+  Droplets,
+  FlaskConical,
+  Fuel,
+  Plus,
+  type LucideIcon,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { danhTinhHieuLuc, requireScopedUser } from "@/lib/auth";
 import { QUAN_DANH_MUC_NHIEN_LIEU, VAN_HANH_HOA_CHAT } from "@/lib/roles";
@@ -9,8 +19,29 @@ import {
   ConsumableProductForm,
 } from "@/components/ConsumableProductManager";
 import { layT } from "@/lib/i18n/server";
+import {
+  Badge,
+  Card,
+  CardHeader,
+  EmptyState,
+  Notice,
+  PageHeader,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
+  TrNhom,
+} from "@/components/ui";
 
 export const dynamic = "force-dynamic";
+
+/** Biểu tượng nhóm — thay cho emoji `icon` trong lib/consumables.ts. */
+const CATEGORY_ICON: Record<string, LucideIcon> = {
+  FUEL: Fuel,
+  LUBE: Droplets,
+  CHEMICAL: FlaskConical,
+};
 
 export default async function ConsumableProductsPage() {
   const user = await requireScopedUser();
@@ -43,124 +74,148 @@ export default async function ConsumableProductsPage() {
     },
   });
 
+  // Một bảng chung, mỗi nhóm một dòng tiêu đề — cột của ba nhóm giống hệt nhau.
+  const soCot = laVanPhong ? 8 : 7;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
         <Link
           href="/consumables"
-          className="text-sm text-blue-700 hover:underline"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-brand-700 hover:underline dark:text-brand-300"
         >
-          ← {t("consumables.quayLaiTieuHao")}
+          <ArrowLeft className="size-4" />
+          {t("consumables.quayLaiTieuHao")}
         </Link>
-        <h2 className="text-2xl font-bold text-blue-950">
-          {t("consumables.tieuDeDanhMuc")}
-        </h2>
-        <p className="text-slate-600">{t("consumables.moTaDanhMuc")}</p>
+        <PageHeader
+          title={t("consumables.tieuDeDanhMuc")}
+          subtitle={t("consumables.moTaDanhMuc")}
+        />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100">
-          <h3 className="mb-4 text-lg font-semibold">
-            {t("consumables.themMatHang")}
-          </h3>
+      <div className="grid gap-5 xl:grid-cols-3">
+        <Card>
+          <CardHeader
+            icon={<Plus className="size-4" />}
+            title={t("consumables.themMatHang")}
+          />
           <ConsumableProductForm />
           {!laVanPhong && (
-            <p className="mt-4 rounded bg-slate-50 p-3 text-xs text-slate-600">
+            <Notice tone="info" className="mt-4 text-xs">
               {t("consumables.luuYQuyenSua")}
-            </p>
+            </Notice>
           )}
-        </div>
+        </Card>
 
-        <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-blue-100 xl:col-span-2">
-          <h3 className="mb-4 text-lg font-semibold">
-            {t("consumables.danhSachN", { n: products.length })}
-          </h3>
+        <Card className="xl:col-span-2">
+          <CardHeader
+            icon={<BookOpen className="size-4" />}
+            title={t("consumables.danhSachN", { n: products.length })}
+          />
           {products.length === 0 ? (
-            <p className="text-sm text-slate-500">
-              {t("consumables.chuaCoMatHangNao")}
-            </p>
+            <EmptyState
+              icon={<BookOpen className="size-5" />}
+              title={t("consumables.chuaCoMatHangNao")}
+            />
           ) : (
-            CONSUMABLE_CATEGORIES.map((c) => {
-              const rows = products.filter((p) => p.category === c.value);
-              if (rows.length === 0) return null;
-              return (
-                <div key={c.value} className="mb-6">
-                  <h4 className="mb-2 font-semibold text-blue-950">
-                    {c.icon} {tTuDo(`consumables.nhom_${c.value}`)} (
-                    {rows.length})
-                  </h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full border text-sm">
-                      <thead>
-                        <tr className="border-b border-blue-200 bg-blue-50 text-left text-blue-950">
-                          <th className="p-2">{t("chung.ma")}</th>
-                          <th className="p-2">{t("chung.ten")}</th>
-                          <th className="p-2">{t("consumables.chungLoai")}</th>
-                          <th className="p-2">{t("consumables.cotHang")}</th>
-                          <th className="p-2">{t("chung.donVi")}</th>
-                          <th className="p-2">{t("consumables.cotDacTinh")}</th>
-                          <th className="p-2">{t("chung.trangThai")}</th>
-                          {laVanPhong && <th className="p-2"></th>}
-                        </tr>
-                      </thead>
-                      <tbody>
+            <TableWrap>
+              <Table dense>
+                <thead>
+                  <tr>
+                    <Th>{t("chung.ma")}</Th>
+                    <Th>{t("chung.ten")}</Th>
+                    <Th>{t("consumables.chungLoai")}</Th>
+                    <Th>{t("consumables.cotHang")}</Th>
+                    <Th>{t("chung.donVi")}</Th>
+                    <Th>{t("consumables.cotDacTinh")}</Th>
+                    <Th>{t("chung.trangThai")}</Th>
+                    {laVanPhong && <Th />}
+                  </tr>
+                </thead>
+                <tbody>
+                  {CONSUMABLE_CATEGORIES.map((c) => {
+                    const rows = products.filter((p) => p.category === c.value);
+                    if (rows.length === 0) return null;
+                    const Icon = CATEGORY_ICON[c.value];
+                    return (
+                      <React.Fragment key={c.value}>
+                        <TrNhom colSpan={soCot}>
+                          <span className="inline-flex flex-wrap items-center gap-2">
+                            {Icon && (
+                              <Icon className="size-4 text-[var(--text-muted)]" />
+                            )}
+                            {tTuDo(`consumables.nhom_${c.value}`)}
+                            <span className="text-xs font-normal text-[var(--text-muted)]">
+                              ({rows.length})
+                            </span>
+                          </span>
+                        </TrNhom>
                         {rows.map((p) => (
-                          <tr key={p.id} className="border-b align-top">
-                            <td className="p-2 font-mono text-xs">{p.code}</td>
-                            <td className="p-2">
+                          <Tr
+                            key={p.id}
+                            className="align-top transition-colors hover:bg-[var(--surface-sunken)]/50"
+                          >
+                            <Td className="font-display text-xs tracking-wide whitespace-nowrap">
+                              {p.code}
+                            </Td>
+                            <Td>
                               {p.name}
                               {p.nameEn && (
-                                <span className="block text-xs text-slate-500">
+                                <span className="block text-xs text-[var(--text-muted)]">
                                   {p.nameEn}
                                 </span>
                               )}
-                            </td>
-                            <td className="p-2 text-slate-600">
-                              {tTuDo(`consumables.loai_${p.grade}`)}
-                            </td>
-                            <td className="p-2 text-slate-600">
-                              {p.maker ?? "—"}
-                            </td>
-                            <td className="p-2">{p.uom}</td>
-                            <td className="p-2 text-xs text-slate-600">
-                              {p.sulphurMax !== null && <>S ≤ {p.sulphurMax}% </>}
-                              {p.viscosity !== null && <>· {p.viscosity} cSt </>}
-                              {p.bnValue !== null && <>· TBN {p.bnValue} </>}
-                              {p.shelfLifeMonths !== null && (
-                                <>
-                                  ·{" "}
-                                  {t("consumables.hdNThang", {
-                                    n: p.shelfLifeMonths,
-                                  })}{" "}
-                                </>
-                              )}
-                              {p.hazardClass && <>· {p.hazardClass}</>}
-                              {p.sulphurMax === null &&
-                                p.viscosity === null &&
-                                p.bnValue === null &&
-                                p.shelfLifeMonths === null &&
-                                !p.hazardClass &&
-                                "—"}
-                            </td>
-                            <td className="p-2">
-                              <span
-                                className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                                  p.isActive
-                                    ? "bg-emerald-100 text-emerald-800"
-                                    : "bg-slate-100 text-slate-600"
-                                }`}
-                              >
-                                {tTuDo(`labels.active_${p.isActive}`)}
+                            </Td>
+                            <Td>
+                              <span className="text-[var(--text-secondary)]">
+                                {tTuDo(`consumables.loai_${p.grade}`)}
                               </span>
-                              <span className="mt-1 block text-xs text-slate-500">
+                            </Td>
+                            <Td>
+                              <span className="text-[var(--text-secondary)]">
+                                {p.maker ?? "—"}
+                              </span>
+                            </Td>
+                            <Td>
+                              <span className="text-xs text-[var(--text-secondary)]">
+                                {p.uom}
+                              </span>
+                            </Td>
+                            <Td>
+                              <span className="tabular text-xs text-[var(--text-secondary)]">
+                                {p.sulphurMax !== null && <>S ≤ {p.sulphurMax}% </>}
+                                {p.viscosity !== null && <>· {p.viscosity} cSt </>}
+                                {p.bnValue !== null && <>· TBN {p.bnValue} </>}
+                                {p.shelfLifeMonths !== null && (
+                                  <>
+                                    ·{" "}
+                                    {t("consumables.hdNThang", {
+                                      n: p.shelfLifeMonths,
+                                    })}{" "}
+                                  </>
+                                )}
+                                {p.hazardClass && <>· {p.hazardClass}</>}
+                                {p.sulphurMax === null &&
+                                  p.viscosity === null &&
+                                  p.bnValue === null &&
+                                  p.shelfLifeMonths === null &&
+                                  !p.hazardClass &&
+                                  "—"}
+                              </span>
+                            </Td>
+                            <Td>
+                              <Badge tone={p.isActive ? "success" : "muted"} dot>
+                                {tTuDo(`labels.active_${p.isActive}`)}
+                              </Badge>
+                              <span className="mt-1 block text-xs whitespace-nowrap text-[var(--text-muted)]">
                                 {t("consumables.nPhieuNGiaoDich", {
                                   p: p._count.receipts,
                                   g: p._count.transactions,
                                 })}
                               </span>
-                            </td>
+                            </Td>
                             {laVanPhong && (
-                              <td className="p-2">
+                              <Td>
                                 <ConsumableProductActions
                                   row={{
                                     id: p.id,
@@ -180,21 +235,21 @@ export default async function ConsumableProductsPage() {
                                     isActive: p.isActive,
                                   }}
                                 />
-                              </td>
+                              </Td>
                             )}
-                          </tr>
+                          </Tr>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              );
-            })
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            </TableWrap>
           )}
-        </div>
+        </Card>
       </div>
 
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-[var(--text-muted)]">
         {t("consumables.chuThichVongDoi")}
       </p>
     </div>

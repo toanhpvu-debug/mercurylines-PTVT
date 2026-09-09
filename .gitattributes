@@ -10,6 +10,8 @@
 # File nhị phân — không đụng vào nội dung.
 *.png binary
 *.ico binary
+*.woff2 binary
+*.woff binary
 *.xlsx binary
 *.xls binary
 *.pdf binary

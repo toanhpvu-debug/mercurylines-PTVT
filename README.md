@@ -946,7 +946,24 @@ Trang tồn kho bố cục theo luồng làm việc: **Tổng quan** (3 thẻ th
 
 ## Thời gian & người thực hiện của mỗi giao dịch kho
 
-Mỗi lần nhập/xuất đều ghi **thời điểm thực hiện** (`occurredAt`) và **người thực hiện** (tự động từ tài khoản đăng nhập). Form nhập/xuất có ô "Thời điểm thực hiện": để trống = bây giờ, hoặc chọn lùi ngày giờ khi nhập bù (không cho ghi tương lai). Trang **Tồn kho** có bảng **"Lịch sử nhập xuất gần đây"**: thời điểm, loại, vật tư, kho, SL, người thực hiện, ghi chú — cột "Ghi sổ lúc" chỉ hiện khi giao dịch nhập bù (thời điểm thực hiện ≠ thời điểm ghi hệ thống, phục vụ audit). Báo cáo MLS-11-01, xuất kiểm kê MLS-11-06 và Dashboard đều tính kỳ theo thời điểm thực hiện.
+Mỗi lần nhập/xuất đều ghi **thời điểm thực hiện** (`occurredAt`), **ghi chú** và **người thực hiện** (tự động từ tài khoản đăng nhập). Form nhập/xuất có ô "Thời điểm thực hiện": để trống = bây giờ, hoặc chọn lùi ngày giờ khi nhập bù (không cho ghi tương lai). Trang **Tồn kho** có bảng **"Lịch sử nhập xuất gần đây"**: thời điểm, loại, vật tư, kho, SL, người thực hiện, ghi chú — cột "Ghi sổ lúc" chỉ hiện khi giao dịch nhập bù (thời điểm thực hiện ≠ thời điểm ghi hệ thống, phục vụ audit). Báo cáo MLS-11-01, xuất kiểm kê MLS-11-06 và Dashboard đều tính kỳ theo thời điểm thực hiện.
+
+### Theo từng mặt hàng: cột "Nhập / Xuất gần nhất" và thẻ kho
+
+Bảng tồn kho có thêm hai cột **Nhập gần nhất** và **Xuất gần nhất** cho từng dòng: ngày · số
+lượng, ghi chú ở dòng dưới. Lấy bằng **một** câu SQL `DISTINCT ON` cho cả trang
+(`lib/theKho.ts`) thay vì hỏi từng dòng — 630 dòng tồn mà hỏi lẻ là 1.260 truy vấn mỗi lần mở
+trang. "Gần nhất" tính theo **thời điểm thực hiện**, không phải lúc ghi sổ: phiếu nhập bù ghi lùi
+ngày phải xếp đúng chỗ của nó trên dòng thời gian.
+
+Bấm vào **mã vật tư** (ở bảng tồn kho hoặc ở nhật ký) mở **thẻ kho**
+(`/inventory/stock-card?material=…&wh=…`): toàn bộ nhập / xuất của mặt hàng đó tại kho đó theo
+thứ tự thời gian, có cột **tồn sau** từng dòng, ghi chú, người thực hiện, in được, và một form
+ghi nhập / xuất đã chọn sẵn vật tư + kho. Tồn sau cộng dồn phải ra **đúng tồn hiện tại**: nếu
+số tồn từng được đưa vào không qua giao dịch (nhập danh mục từ file kèm số tồn, gói đồng bộ, dữ
+liệu mẫu) thì thẻ kho hiện một dòng **"Tồn đầu"** riêng bằng hiệu số, thay vì để cột tồn sau lệch
+với con số ở bảng tồn kho rồi bị nghi là sai. Phạm vi tàu kiểm qua kho: gõ id kho của tàu không
+phụ trách thì nhận 404 y như kho không tồn tại.
 
 ## Bắt đầu từ dữ liệu trắng — xóa dữ liệu mẫu
 

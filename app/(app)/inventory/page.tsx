@@ -27,6 +27,12 @@ import {
 } from "@/lib/departments";
 import InventoryForm from "@/components/InventoryForm";
 import {
+  duongDanTheKho,
+  khoaDongTon,
+  layNhapXuatGanNhat,
+  type GiaoDichGanNhat,
+} from "@/lib/theKho";
+import {
   chonDuocTau,
   danhTinhHieuLuc,
   requireScopedUser,
@@ -80,6 +86,51 @@ function toneThieu(pct: number): Tone {
 
 const LINK = "text-brand-700 hover:underline dark:text-brand-300";
 
+/**
+ * Ô "nhập / xuất gần nhất" của một dòng tồn: ngày · số lượng, ghi chú ở dòng
+ * dưới (cắt ngắn, rê chuột thấy đủ). Trả lời ngay câu "món này lần cuối động
+ * tới khi nào" mà không phải mở thẻ kho.
+ */
+function ONhapXuat({
+  gd,
+  isIn,
+  ngay,
+  chuaCo,
+}: {
+  gd?: GiaoDichGanNhat;
+  isIn: boolean;
+  ngay: (d: Date) => string;
+  chuaCo: string;
+}) {
+  if (!gd) {
+    return <span className="text-xs text-[var(--text-muted)]">{chuaCo}</span>;
+  }
+  return (
+    <span className="inline-flex flex-col leading-tight">
+      <span className="text-xs">
+        <span className="font-medium">{ngay(gd.occurredAt)}</span>{" "}
+        <span
+          className={cn(
+            "font-semibold",
+            isIn ? "text-[var(--text-success)]" : "text-[var(--text-warning)]"
+          )}
+        >
+          {isIn ? "+" : "−"}
+          {gd.quantity}
+        </span>
+      </span>
+      {gd.note && (
+        <span
+          className="max-w-44 truncate text-xs text-[var(--text-muted)]"
+          title={gd.note}
+        >
+          {gd.note}
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** Tiêu đề khung gập: cùng một dáng cho mọi <details> trên trang. */
 const SUMMARY =
   "flex cursor-pointer select-none list-none flex-wrap items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-sunken)] [&::-webkit-details-marker]:hidden";
@@ -99,7 +150,7 @@ export default async function InventoryPage({
   }>;
 }) {
   const user = await requireScopedUser();
-  const { t, tTuDo, ngayGio } = await layT();
+  const { t, tTuDo, ngay, ngayGio } = await layT();
   const scope = vesselScopeDayDu(user);
   // Phải khớp đúng danh sách của createInventoryTransaction (VAN_HANH_TAU,
   // app/actions.ts) — liệt kê tay ở đây làm máy trưởng không thấy form dù server
@@ -195,6 +246,12 @@ export default async function InventoryPage({
   );
 
   const warehouseById = new Map(warehouses.map((w) => [w.id, w]));
+
+  // Lần nhập / xuất gần nhất của từng dòng tồn — MỘT câu SQL cho cả trang
+  // (lib/theKho.ts), khoanh đúng các tàu đang hiện.
+  const ganNhat = await layNhapXuatGanNhat(
+    vesselFilter ? [vesselFilter] : vessels.map((v) => v.id)
+  );
 
   // Áp bộ lọc loại / tìm kiếm / chỉ-thiếu (dữ liệu nhỏ — lọc tại chỗ).
   const filtered = inventories.filter((inv) => {
@@ -442,6 +499,8 @@ export default async function InventoryPage({
                           <Th align="right">{t("inventory.cotTon")}</Th>
                           <Th align="right">{t("inventory.cotKhaDung")}</Th>
                           <Th align="right">{t("inventory.cotToiThieu")}</Th>
+                          <Th>{t("inventory.cotNhapGanNhat")}</Th>
+                          <Th>{t("inventory.cotXuatGanNhat")}</Th>
                         </tr>
                       </thead>
                       <tbody>
@@ -466,7 +525,7 @@ export default async function InventoryPage({
                           return (
                             <React.Fragment key={dept.key}>
                               {/* Tiêu đề bộ phận */}
-                              <TrNhom colSpan={7}>
+                              <TrNhom colSpan={9}>
                                 <span className="inline-flex flex-wrap items-center gap-2">
                                   <DeptIcon className="size-4 text-[var(--text-muted)]" />
                                   {tTuDo(`labels.dept_${dept.key}`)}
@@ -485,7 +544,7 @@ export default async function InventoryPage({
                               {conLai > 0 && (
                                 <tr>
                                   <Td
-                                    colSpan={7}
+                                    colSpan={9}
                                     className="bg-[var(--surface-sunken)]/60 text-xs"
                                   >
                                     <span className="text-[var(--text-muted)]">
@@ -514,6 +573,9 @@ export default async function InventoryPage({
                                 </tr>
                               )}
                               {deptRows.map((inventory) => {
+                                const gn = ganNhat.get(
+                                  khoaDongTon(inventory.materialId, inventory.warehouseId)
+                                );
                                 const available =
                                   inventory.quantity -
                                   inventory.reservedQuantity;
@@ -550,7 +612,7 @@ export default async function InventoryPage({
                                     {showEquipmentHeader && (
                                       <tr>
                                         <td
-                                          colSpan={7}
+                                          colSpan={9}
                                           className="border-b border-[var(--border-subtle)] bg-[var(--surface-sunken)]/60 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]"
                                         >
                                           <Wrench className="mr-1 inline size-3" />
@@ -567,7 +629,16 @@ export default async function InventoryPage({
                                         </span>
                                       </Td>
                                       <Td className="font-display text-xs tracking-wide whitespace-nowrap">
-                                        {inventory.material.code}
+                                        <Link
+                                          href={duongDanTheKho(
+                                            inventory.materialId,
+                                            inventory.warehouseId
+                                          )}
+                                          className={LINK}
+                                          title={t("inventory.moTheKho")}
+                                        >
+                                          {inventory.material.code}
+                                        </Link>
                                       </Td>
                                       <Td>
                                         <div
@@ -629,6 +700,22 @@ export default async function InventoryPage({
                                         <span className="text-[var(--text-muted)]">
                                           {inventory.material.minStock}
                                         </span>
+                                      </Td>
+                                      <Td className="whitespace-nowrap">
+                                        <ONhapXuat
+                                          gd={gn?.IN}
+                                          isIn
+                                          ngay={ngay}
+                                          chuaCo={t("inventory.chuaNhapXuat")}
+                                        />
+                                      </Td>
+                                      <Td className="whitespace-nowrap">
+                                        <ONhapXuat
+                                          gd={gn?.OUT}
+                                          isIn={false}
+                                          ngay={ngay}
+                                          chuaCo={t("inventory.chuaNhapXuat")}
+                                        />
                                       </Td>
                                     </Tr>
                                   </React.Fragment>
@@ -738,9 +825,13 @@ export default async function InventoryPage({
                           <Td>
                             {material ? (
                               <span className="inline-flex flex-wrap items-center gap-1.5">
-                                <span className="font-display text-xs tracking-wide">
+                                <Link
+                                  href={duongDanTheKho(tx.materialId, tx.warehouseId)}
+                                  className={cn("font-display text-xs tracking-wide", LINK)}
+                                  title={t("inventory.moTheKho")}
+                                >
                                   {material.code}
-                                </span>
+                                </Link>
                                 <span>— {material.nameVn}</span>
                                 {/* Có tên rồi vẫn phải nói rõ hàng đã ngừng dùng:
                                     người xem lịch sử dễ đi tìm mặt hàng này trong

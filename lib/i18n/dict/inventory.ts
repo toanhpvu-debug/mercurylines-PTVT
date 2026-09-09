@@ -42,6 +42,30 @@ export const inventory = tuDien(
     daNgungDung: "đã ngừng dùng",
     ghiChuGhiSoLuc:
       'Cột "Ghi sổ lúc" chỉ hiện khi giao dịch được nhập bù (thời điểm thực hiện khác thời điểm ghi vào hệ thống).',
+    cotNhapGanNhat: "Nhập gần nhất",
+    cotXuatGanNhat: "Xuất gần nhất",
+    chuaNhapXuat: "chưa có",
+    moTheKho: "Mở thẻ kho — toàn bộ lịch sử nhập / xuất của mặt hàng này",
+
+    // --- Thẻ kho (/inventory/stock-card) ---
+    theKho: "Thẻ kho",
+    theKhoMoTa:
+      "Toàn bộ nhập / xuất của một mặt hàng tại một kho — ngày, số lượng, tồn sau mỗi lần, ghi chú, người thực hiện",
+    inTheKho: "In thẻ kho",
+    quayLaiTonKho: "Quay lại tồn kho",
+    cotNhap: "Nhập",
+    cotXuat: "Xuất",
+    cotTonSau: "Tồn sau",
+    tonDauKhongGiaoDich: "Tồn đầu — đưa vào không qua giao dịch (nhập từ file, đồng bộ)",
+    nGiaoDich: "{n} giao dịch",
+    chuaCoGiaoDichMatHang:
+      "Mặt hàng này chưa có lần nhập / xuất nào tại kho này.",
+    ghiChoMatHangNay: "Ghi nhập / xuất cho mặt hàng này",
+    ghiChoMatHangNayMoTa:
+      "Vật tư và kho đã chọn sẵn — chỉ cần loại, số lượng, ngày thực hiện và ghi chú.",
+    tongNhap: "Tổng nhập",
+    tongXuat: "Tổng xuất",
+    inLuc: "In lúc",
 
     // --- Form nhập / xuất kho ---
     chonVatTu: "Chọn vật tư",
@@ -50,6 +74,7 @@ export const inventory = tuDien(
     optXuatKho: "Xuất kho",
     goiYThoiDiem:
       "Thời điểm thực hiện (để trống = bây giờ; cho phép ghi lùi khi nhập bù)",
+    ghiChuGoiY: "Số phiếu, lý do, người nhận, thiết bị dùng…",
     nutThucHien: "Thực hiện nhập / xuất",
 
     // --- Trang Báo cáo nhận và sử dụng vật tư (MLS-11-01) ---
@@ -145,6 +170,29 @@ export const inventory = tuDien(
     daNgungDung: "discontinued",
     ghiChuGhiSoLuc:
       'The "Recorded at" column only shows for back-dated entries (performed at a different time from when they were recorded).',
+    cotNhapGanNhat: "Last receipt",
+    cotXuatGanNhat: "Last issue",
+    chuaNhapXuat: "none yet",
+    moTheKho: "Open the stock card — full receipt / issue history of this item",
+
+    theKho: "Stock card",
+    theKhoMoTa:
+      "Every receipt / issue of one item at one warehouse — date, quantity, balance after each movement, notes, person",
+    inTheKho: "Print stock card",
+    quayLaiTonKho: "Back to inventory",
+    cotNhap: "In",
+    cotXuat: "Out",
+    cotTonSau: "Balance",
+    tonDauKhongGiaoDich: "Opening balance — entered without a transaction (file import, sync)",
+    nGiaoDich: "{n} transactions",
+    chuaCoGiaoDichMatHang:
+      "This item has no receipt / issue at this warehouse yet.",
+    ghiChoMatHangNay: "Post a receipt / issue for this item",
+    ghiChoMatHangNayMoTa:
+      "Item and warehouse are preselected — only type, quantity, date and notes are needed.",
+    tongNhap: "Total in",
+    tongXuat: "Total out",
+    inLuc: "Printed at",
 
     chonVatTu: "Select item",
     chonKho: "Select warehouse",
@@ -152,6 +200,7 @@ export const inventory = tuDien(
     optXuatKho: "Issue from store",
     goiYThoiDiem:
       "Performed at (leave empty for now; back-dating is allowed for late entries)",
+    ghiChuGoiY: "Voucher no., reason, recipient, equipment used…",
     nutThucHien: "Post receipt / issue",
 
     baoCaoTieuDe: "Materials receiving and using report",

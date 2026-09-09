@@ -33,11 +33,17 @@ export default function InventoryForm({
     { message: "" }
   );
   const v = state.values ?? {};
+  // Thẻ kho gọi form này với đúng MỘT vật tư và MỘT kho: chọn sẵn luôn, đừng
+  // bắt người dùng mở một ô chọn chỉ có một dòng rồi bấm vào dòng đó.
+  const vatTuMacDinh =
+    v.materialId ?? (materials.length === 1 ? String(materials[0].id) : "");
+  const khoMacDinh =
+    v.warehouseId ?? (warehouses.length === 1 ? String(warehouses[0].id) : "");
   return (
     <form action={formAction} className="grid grid-cols-1 gap-3 md:grid-cols-5">
       {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
       <Field label={t("chung.vatTu")}>
-        <Select name="materialId" required defaultValue={v.materialId ?? ""}>
+        <Select name="materialId" required defaultValue={vatTuMacDinh}>
           <option value="">{t("inventory.chonVatTu")}</option>
           {materials.map((material) => (
             <option key={material.id} value={material.id}>
@@ -47,7 +53,7 @@ export default function InventoryForm({
         </Select>
       </Field>
       <Field label={t("chung.kho")}>
-        <Select name="warehouseId" required defaultValue={v.warehouseId ?? ""}>
+        <Select name="warehouseId" required defaultValue={khoMacDinh}>
           <option value="">{t("inventory.chonKho")}</option>
           {warehouses.map((warehouse) => (
             <option key={warehouse.id} value={warehouse.id}>
@@ -77,7 +83,7 @@ export default function InventoryForm({
       <Field label={t("chung.ghiChu")}>
         <Input
           name="note"
-          placeholder={t("chung.ghiChu")}
+          placeholder={t("inventory.ghiChuGoiY")}
           defaultValue={v.note ?? ""}
         />
       </Field>

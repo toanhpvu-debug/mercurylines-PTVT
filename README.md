@@ -492,6 +492,27 @@ người dùng đang để chế độ nào.
 Nội dung **bên trong** các biểu mẫu là bản sao của chứng từ gốc — đừng đổi chữ, viền hay
 bố cục ở đó khi chỉnh giao diện.
 
+### Chữ phải đọc được cả ngày: 13 px là cỡ nhỏ nhất, chữ mờ ≥ 7:1
+
+Đo trên trang danh mục (`/materials`) trước khi chỉnh: **1.593 phần tử chữ ở 12 px** — cỡ
+áp đảo của app (nhãn ô nhập, đầu cột bảng, nhãn trạng thái, mã vật tư), và chữ mờ / nhãn
+trạng thái chỉ đạt **4,6–6:1**, vừa chạm ngưỡng tối thiểu AA. Người làm việc với app tám
+tiếng một ngày đọc chính những dòng đó.
+
+Hai quy tắc, cả hai đều nằm ở **một chỗ** trong `app/globals.css`:
+
+- **`--text-xs` = 13 px** (trong `@theme`), không phải 12 px mặc định của Tailwind. Đổi biến
+  này là đổi cả 208 chỗ dùng `text-xs`, vì Tailwind 4 phát ra `font-size: var(--text-xs)`.
+  Trên màn hình **không viết `text-[10px]` / `text-[11px]`** — cỡ 11 px chỉ còn ở nhãn nhóm
+  menu và mã tàu trong thanh bên (chữ hoa Michroma rộng, đọc được). Chứng từ in
+  (`.print-area`, `@media print`) ghi đè lại 12 px để giữ đúng khổ giấy.
+- **Tương phản tối thiểu:** chữ phụ ≥ 7,5:1, chữ mờ ≥ 7:1 (nền tối) / 6,2:1 (nền sáng), chữ
+  trạng thái trong bảng ≥ 6,5:1, chữ trên nhãn (`Badge`) ≥ 6:1 — đo trên **cả ba mặt nền**
+  (`--surface`, `--surface-raised`, `--surface-sunken`). Màu được suy từ màu gốc của bộ nhận
+  diện bằng cách **giữ nguyên sắc, chỉ kéo độ sáng** tới khi đạt ngưỡng, nên bảng màu vẫn
+  là của Mercury Lines. Muốn kiểm lại: tính tỷ lệ theo công thức WCAG 2 (độ chói tương đối)
+  cho từng biến `--text-*` và `--tone-*-text` so với nền tương ứng.
+
 ### Phông chữ: bộ nhớ đệm một năm, nên đổi phông là đổi TÊN tệp
 
 `next.config.ts` trả `Cache-Control: max-age=31536000, immutable` cho `/fonts/*`. Lý do:

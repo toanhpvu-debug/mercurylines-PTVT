@@ -118,7 +118,7 @@ export default function ConsumablePdfReader({
           <summary className="cursor-pointer select-none text-brand-700 hover:underline dark:text-brand-300">
             {t("consumables.xemChuDoc")}
           </summary>
-          <pre className="mt-1 max-h-56 overflow-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-2 font-mono text-[11px] whitespace-pre-wrap text-[var(--text-secondary)]">
+          <pre className="mt-1 max-h-56 overflow-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-raised)] p-2 font-mono text-xs whitespace-pre-wrap text-[var(--text-secondary)]">
             {chu}
           </pre>
         </details>

@@ -79,6 +79,17 @@
   --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
 
   /*
+   * Cỡ chữ nhỏ nhất dùng để làm việc: 13px thay vì 12px mặc định của Tailwind.
+   * Đo trên trang danh mục: 1.593 phần tử chữ ở 12px — cỡ áp đảo của app (nhãn ô
+   * nhập, đầu cột bảng, nhãn trạng thái, mã vật tư), tức là người dùng đọc 12px
+   * cả ngày. Đổi biến này là đổi cả 208 chỗ dùng text-xs cùng lúc, vì Tailwind 4
+   * phát ra `font-size: var(--text-xs)`. Chứng từ in vẫn giữ 12px để đúng khổ
+   * giấy — xem .print-area và @media print bên dưới.
+   */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: calc(1.125 / 0.8125);
+
+  /*
    * Bảng màu đo từ ảnh hero của mercurylines.com.vn: #0b1117 (navy gần đen) là
    * màu chủ đạo; các lớp trung gian ở hue 258–269 (xanh ngả tím), KHÔNG phải xám
    * trung tính; #0296c7 là màu nhấn, trùng nút Contact trên trang chủ.
@@ -116,8 +127,8 @@
   --surface-overlay: #ffffff;
   --border-subtle: #d6deea;
   --text-primary: #0b1117;
-  --text-secondary: #4e596a;
-  --text-muted: #5f6977;
+  --text-secondary: #404957;
+  --text-muted: #4d5560;
   --avatar-bg: 0.9 0.055;
   --avatar-fg: 0.4 0.115;
   --motif-color: #8ea3c4;
@@ -126,27 +137,27 @@
   /* Nhãn trạng thái: nền ĐẶC, không phải màng bán trong suốt — để tỷ lệ tương
      phản không đổi theo thứ nằm dưới nhãn (thẻ trắng hay hàng kẻ sọc). */
   --tone-neutral-bg: #ecf8ff;
-  --tone-neutral-text: #66717c;
+  --tone-neutral-text: #565f68;
   --tone-brand-bg: #d5fdff;
-  --tone-brand-text: #24779b;
+  --tone-brand-text: #1e6482;
   --tone-success-bg: #d8ffeb;
-  --tone-success-text: #2d7d5b;
+  --tone-success-text: #26694c;
   --tone-warning-bg: #fff4d4;
-  --tone-warning-text: #936619;
+  --tone-warning-text: #7b5615;
   --tone-danger-bg: #ffecee;
-  --tone-danger-text: #a9515a;
+  --tone-danger-text: #8e444c;
   --tone-info-bg: #eaf8ff;
-  --tone-info-text: #576dae;
+  --tone-info-text: #495c92;
   --tone-muted-bg: #eef7ff;
-  --tone-muted-text: #69707c;
+  --tone-muted-text: #585e68;
 
   --chart-series: #006f9e;
 
   /* Chữ trạng thái inline trong bảng (không có nền riêng). */
-  --text-success: #1d7653;
-  --text-warning: #8d5e00;
-  --text-danger: #a64b56;
-  --text-info: #5065a5;
+  --text-success: #175c41;
+  --text-warning: #6f4a00;
+  --text-danger: #813a43;
+  --text-info: #3e4f81;
 }
 
 /* Chế độ TỐI — mặc định, khớp ảnh hero của hãng */
@@ -157,34 +168,34 @@
   --surface-overlay: #1f2c45;
   --border-subtle: #31405c;
   --text-primary: #e6edf7;
-  --text-secondary: #aab4c6;
-  --text-muted: #8591a5;
+  --text-secondary: #bcc4d2;
+  --text-muted: #a0a9b9;
   --avatar-bg: 0.32 0.045;
   --avatar-fg: 0.84 0.085;
   --motif-color: #31405c;
   --motif-opacity: 0.3;
 
   --tone-neutral-bg: #212a33;
-  --tone-neutral-text: #88939f;
+  --tone-neutral-text: #9fa8b1;
   --tone-brand-bg: #002e41;
-  --tone-brand-text: #4c9bc0;
+  --tone-brand-text: #72b0cd;
   --tone-success-bg: #023220;
-  --tone-success-text: #54a27e;
+  --tone-success-text: #78b699;
   --tone-warning-bg: #3a2400;
-  --tone-warning-text: #b78841;
+  --tone-warning-text: #c5a067;
   --tone-danger-bg: #421b1f;
-  --tone-danger-text: #d1757d;
+  --tone-danger-text: #da9197;
   --tone-info-bg: #1d2746;
-  --tone-info-text: #778ed2;
+  --tone-info-text: #92a5db;
   --tone-muted-bg: #232933;
-  --tone-muted-text: #8a929e;
+  --tone-muted-text: #a0a7b0;
 
   --chart-series: #2ca8da;
 
-  --text-success: #429671;
-  --text-warning: #af7e32;
-  --text-danger: #c96a73;
-  --text-info: #6e85c8;
+  --text-success: #6faf93;
+  --text-warning: #c19c61;
+  --text-danger: #d68f96;
+  --text-info: #8fa1d5;
 }
 
 html,
@@ -310,6 +321,9 @@ html {
 .print-area {
   /* Tờ giấy trắng thì điều khiển gốc bên trong cũng phải sáng. */
   color-scheme: light;
+  /* Chứng từ giữ đúng khổ giấy: text-xs trở lại 12px như bản gốc. */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: calc(1 / 0.75);
   --surface: #ffffff;
   --surface-raised: #ffffff;
   --surface-sunken: #f2f4f7;
@@ -334,6 +348,8 @@ html {
   :root,
   :root.dark {
     color-scheme: light;
+    --text-xs: 0.75rem;
+    --text-xs--line-height: calc(1 / 0.75);
     --surface: #ffffff;
     --surface-raised: #ffffff;
     --surface-sunken: #f2f4f7;

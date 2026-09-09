@@ -551,7 +551,7 @@ export default async function InventoryPage({
                                       <tr>
                                         <td
                                           colSpan={7}
-                                          className="border-b border-[var(--border-subtle)] bg-[var(--surface-sunken)]/60 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]"
+                                          className="border-b border-[var(--border-subtle)] bg-[var(--surface-sunken)]/60 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]"
                                         >
                                           <Wrench className="mr-1 inline size-3" />
                                           {t("inventory.phuTungThietBi", {

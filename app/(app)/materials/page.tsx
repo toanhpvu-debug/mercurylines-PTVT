@@ -681,7 +681,7 @@ export default async function MaterialsPage({
                                   <tr>
                                     <td
                                       colSpan={colCount}
-                                      className="bg-[var(--surface-sunken)]/60 px-4 py-1.5 text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]"
+                                      className="bg-[var(--surface-sunken)]/60 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]"
                                     >
                                       <Wrench className="mr-1 inline size-3" />
                                       {equip === THIET_BI_CHUA_RO

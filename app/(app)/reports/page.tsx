@@ -167,6 +167,22 @@ export default async function ReportsPage({
 
   const fmtDate = (d: Date | null) => (d ? ngay(d) : "");
 
+  // Cột "Ký hiệu / Spare part No." trên MLS-11-01 là chỗ ghi SỐ CỦA HÃNG: phụ
+  // tùng -> Part No. của nhà sản xuất, vật tư -> mã IMPA. KHÔNG in mã nội bộ
+  // (E-SPR-0001…): mã đó do app tự cấp để quản lý và tra cứu, hãng, đại lý và
+  // cảng không biết nó — in ra là người nhận báo cáo tra không ra món hàng.
+  // Thiếu cả hai thì để trống, đúng như form viết tay; phiếu yêu cầu in ra
+  // (/requests/[id]) và xuất kiểm kê MLS-11-06 cũng theo đúng lệ này.
+  const soHieuHang = (m: {
+    materialType: string;
+    partNumber: string | null;
+    impa: string | null;
+  }) => {
+    const partNo = (m.partNumber ?? "").trim();
+    const impa = (m.impa ?? "").trim();
+    return m.materialType === "SPARE" ? partNo || impa : impa || partNo;
+  };
+
   return (
     <div className="space-y-5">
       <div className="no-print">
@@ -357,7 +373,7 @@ export default async function ReportsPage({
                       {row.material!.nameEn ? ` (${row.material!.nameEn})` : ""}
                     </td>
                     <td className="border border-black p-1">
-                      {row.material!.code}
+                      {soHieuHang(row.material!)}
                     </td>
                     <td className="border border-black p-1">
                       {row.material!.uom}

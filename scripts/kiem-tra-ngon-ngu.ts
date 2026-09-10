@@ -55,7 +55,7 @@ function kiemTra(ten: string, thuc: unknown, mong: unknown) {
 kiemTra("tra vi", tra("vi", "chung.luu"), "Lưu");
 kiemTra("tra en", tra("en", "chung.luu"), "Save");
 kiemTra("tham so", tra("en", "dashboard.nCanhBao", { n: 3 }), "3 alerts");
-kiemTra("tham so thieu giu nguyen", tra("vi", "dashboard.vatTuSo"), "Vật tư #{id}");
+kiemTra("tham so thieu giu nguyen", tra("vi", "dashboard.vatTuSo"), "Mặt hàng #{id}");
 kiemTra("thieu khoa -> tra ve khoa", tra("en", "chung.khongCoKhoaNay"), "chung.khongCoKhoaNay");
 kiemTra("sai khong gian ten -> tra ve khoa", tra("en", "xyz.abc"), "xyz.abc");
 

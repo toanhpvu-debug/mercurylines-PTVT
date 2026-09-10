@@ -567,6 +567,29 @@ phải sửa toàn bộ liên kết, chuyển hướng và bộ chặn cửa `pr
 công ty** (MLS-11-05A/B, MLS-11-06…) — các mẫu đó vốn đã song ngữ cố định theo bản gốc giấy,
 đổi chữ trên đó là sai chứng từ.
 
+### Quy ước gọi tên: "vật tư & phụ tùng" · "vật tư" · "phụ tùng" · "mặt hàng"
+
+Trước đây cùng một chữ **"vật tư"** mang hai nghĩa: lúc là nhãn bao trùm cả mô-đun (menu
+"Vật tư", "Yêu cầu vật tư", KPI "Vật tư danh mục"), lúc lại là **một loại** đối lập với phụ tùng
+("Vật tư (Store) — MLS-11-05B" cạnh "Phụ tùng (Spare) — MLS-11-05A"). Người đọc không biết
+"Yêu cầu vật tư" trên menu có gồm phụ tùng hay không. Từ 10/09/2026 dùng đúng bốn từ, theo
+đúng cách công ty tách hai biểu mẫu:
+
+| Từ | Nghĩa | Dùng ở |
+|---|---|---|
+| **vật tư & phụ tùng** | nhãn bao trùm, gồm cả hai loại | tên mục trên menu, tiêu đề / phụ đề trang, KPI, tab lọc "tất cả", liên kết tới trang |
+| **vật tư** (Store) | một loại — biểu mẫu MLS-11-05B, mã IMPA | nhãn loại (`labels.type_STORE`), tab lọc theo loại, tên biểu mẫu |
+| **phụ tùng** (Spare) | loại còn lại — biểu mẫu MLS-11-05A, Part No, gắn thiết bị | nhãn loại (`labels.type_SPARE`), "Kiểm soát phụ tùng thiết yếu" |
+| **mặt hàng** | một dòng bất kể loại | nhãn ô chọn, đầu cột "Tên mặt hàng", "Thêm / Sửa mặt hàng", câu đếm "{n} mặt hàng" |
+
+Hai điều cố ý **không** đổi: tên biểu mẫu và phòng ban của công ty giữ nguyên chữ ("Báo cáo
+nhận và sử dụng vật tư — MLS-11-01", "Phòng Kỹ thuật – Vật tư"), và câu văn dài (mô tả vai trò,
+thông báo lỗi, nhật ký) vẫn dùng "vật tư" theo nghĩa thông thường — thêm "& phụ tùng" vào
+từng câu chỉ làm rườm chứ không rõ hơn. Tên mục trên menu là **chủ ngữ của tiêu đề trang**:
+menu "Vật tư & phụ tùng" → trang "Danh mục vật tư & phụ tùng"; menu "Yêu cầu vật tư & phụ
+tùng" → trang cùng tên. Tiếng Anh theo đúng cặp: *stores & spare parts* · *stores* · *spare
+parts* · *item*.
+
 ### Thêm chữ mới vào từ điển
 
 Từ điển là mã nguồn TypeScript, mỗi module một file trong `lib/i18n/dict/` (xem quy ước ở
@@ -900,7 +923,7 @@ Biến môi trường: `SESSION_SECRET` (bắt buộc — Docker tự sinh và l
 
 Danh mục và yêu cầu vật tư được dựng theo 3 mẫu Excel của công ty (MLS-11-05A/05B/11-06):
 
-- **Danh mục vật tư** (`/materials`) xếp theo **bộ phận tàu** như form công ty:
+- **Danh mục vật tư & phụ tùng** (`/materials`) xếp theo **bộ phận tàu** như form công ty:
   🛳 Boong → ⚙️ Máy → ⚡ Điện → 🧺 Phục vụ/Tiêu hao → 🦺 An toàn. Trong mỗi bộ phận, vật tư
   (Store) đứng trước, phụ tùng (Spare) xếp sau và **gom theo từng thiết bị** — Máy chính,
   Máy đèn, Air Compressor, Oil Separator, BWMS… Cùng cách phân nhóm với trang Tồn kho
@@ -911,10 +934,10 @@ Danh mục và yêu cầu vật tư được dựng theo 3 mẫu Excel của cô
   ở cột "Nhóm" chứ không phải trường riêng; và phụ tùng không đoán được bộ phận thì xếp vào
   **Máy** chứ không phải "Khác", vì trên tàu phụ tùng gần như luôn thuộc buồng máy.
 
-- **Danh mục vật tư** (`/materials`) phân biệt **Vật tư (Store)** và **Phụ tùng (Spare part)** — có tab lọc; phụ tùng gắn với **Thiết bị/máy** (Equipment) và có Part No, Maker; vật tư có Mã IMPA. ADMIN thêm/sửa với đầy đủ trường theo form. Xóa/ngừng sử dụng: ADMIN có nút **Ngừng sử dụng** (giữ lịch sử, ẩn khỏi yêu cầu mới) và **Xóa vĩnh viễn** (chỉ khi vật tư chưa có tồn kho và chưa dùng trong yêu cầu nào).
+- **Danh mục vật tư & phụ tùng** (`/materials`) phân biệt **Vật tư (Store)** và **Phụ tùng (Spare part)** — có tab lọc; phụ tùng gắn với **Thiết bị/máy** (Equipment) và có Part No, Maker; vật tư có Mã IMPA. ADMIN thêm/sửa với đầy đủ trường theo form. Xóa/ngừng sử dụng: ADMIN có nút **Ngừng sử dụng** (giữ lịch sử, ẩn khỏi yêu cầu mới) và **Xóa vĩnh viễn** (chỉ khi vật tư chưa có tồn kho và chưa dùng trong yêu cầu nào).
   - **Danh mục riêng từng tàu:** có **bộ chọn tàu** — chọn *Danh mục gốc (toàn đội)* để quản lý định nghĩa chung, hoặc chọn một **tàu** để xem/hiệu chỉnh danh mục riêng của tàu đó (thêm/gỡ vật tư mà tàu dùng). Thuyền viên/thuyền trưởng có gán tàu bị khóa vào đúng tàu mình; ADMIN và thuyền trưởng văn phòng chọn được mọi tàu. Gỡ vật tư khỏi tàu **không** xóa định nghĩa gốc hay tồn kho — chỉ bỏ khỏi danh sách của tàu đó.
   - **Khai mặt hàng mới ngay tại tàu** (mục *＋ Chưa có trong danh mục gốc?* dưới ô chọn): thuyền trưởng / đại phó / máy trưởng đúng tàu, hoặc ADMIN. Thứ tự khai: **chức danh giữ** → bộ phận tự theo chức danh (chỉ mở thêm bộ phận *kiêm nhiệm*: máy hai giữ được hàng Điện, thuyền trưởng giữ được hàng Phục vụ) → Vật tư / Phụ tùng → tên, thiết bị (bắt buộc với phụ tùng), IMPA · Part No · Maker, nhóm thiết bị, ĐVT, tồn tối thiểu, critical. **Mã tự cấp** đúng khuôn `[bộ phận]-IMPA/SPR-####` vào khối của nhóm (cùng bộ đếm với nhập file, có khóa chống hai người cấp trùng); ghi sẵn `department` + `responsibleRank` nên cột *Giữ bởi* và bộ lọc chức danh nhận ngay. Mặt hàng vào danh mục gốc (từ điển chung) nhưng **chỉ gắn vào tàu đang khai**. **Chống trùng** theo đúng ba tiêu chí của bước nhập file — trùng IMPA, Part No, hoặc tên + thiết bị — thì báo mã sẵn có và chỉ sang ô chọn, không tạo bản thứ hai. Chọn nhóm có quy ước người giữ (máy chính → Máy hai…) mà khai chức danh khác thì form nhắc, không chặn.
-- **Yêu cầu vật tư** (`/requests`) có 2 dạng theo mẫu:
+- **Yêu cầu vật tư & phụ tùng** (`/requests`) có 2 dạng theo mẫu:
   - **Yêu cầu vật tư — MLS-11-05B**: Mô tả · Mã IMPA · Đơn vị · ROB (tồn) · SL yêu cầu · SL duyệt.
   - **Yêu cầu phụ tùng — MLS-11-05A**: gắn thiết bị/Maker/Serial; Tên phụ tùng · Hạng mục · Part No · Đơn vị · ROB · SL yêu cầu · SL duyệt.
   - **Vật tư có sẵn hoặc vật tư mới:** mỗi dòng yêu cầu chọn *Có sẵn* (lấy từ danh mục) hoặc *Mới (ngoài danh mục)* — nhập tay Tên, Mã (IMPA cho vật tư / Part No cho phụ tùng), Đơn vị. Một yêu cầu có thể trộn cả hai; bản in ra đúng mẫu, vật tư mới có nhãn "(mới)". Vật tư mới không tự thêm vào danh mục gốc (giống dòng viết tay trên form giấy).

@@ -7,7 +7,7 @@ export const requests = tuDien(
     tieuDe: "Yêu cầu vật tư & phụ tùng",
     moTaDoi:
       "Tạo yêu cầu theo mẫu MLS-11-05B (vật tư) / MLS-11-05A (phụ tùng), duyệt và in",
-    moTaTau: "Yêu cầu vật tư / phụ tùng của tàu bạn phụ trách",
+    moTaTau: "Yêu cầu vật tư & phụ tùng của tàu bạn phụ trách",
     chuaGanTau:
       "Bạn chưa được gán tàu phụ trách nên chưa tạo được yêu cầu vật tư. Vui lòng liên hệ quản trị viên.",
     danhSach: "Danh sách yêu cầu ({n})",
@@ -122,7 +122,7 @@ export const requests = tuDien(
     tieuDe: "Stores & spare parts requisitions",
     moTaDoi:
       "Raise requisitions on forms MLS-11-05B (stores) / MLS-11-05A (spare parts), approve and print",
-    moTaTau: "Stores and spare parts requisitions for the vessels you cover",
+    moTaTau: "Stores & spare parts requisitions for the vessels you cover",
     chuaGanTau:
       "You have not been assigned to a vessel, so you cannot raise requisitions yet. Please contact the administrator.",
     danhSach: "Requisitions ({n})",

@@ -215,7 +215,10 @@ export default function AppShell({
       <div className="app-motif" aria-hidden="true" />
 
       {/* Thanh bên — màn hình lớn */}
-      <aside className="surface sticky top-0 z-10 hidden h-screen w-64 shrink-0 flex-col border-r px-4 py-5 lg:flex">
+      {/* w-72 (288px) — cùng bề rộng với ngăn kéo mobile bên dưới, và đủ cho nhãn dài
+          nhất ("Yêu cầu vật tư & phụ tùng", "Dầu · Dầu nhờn · Hóa chất") nằm trên
+          MỘT dòng ở cỡ chữ 14px. w-64 làm hai nhãn đó gãy thành hai dòng. */}
+      <aside className="surface sticky top-0 z-10 hidden h-screen w-72 shrink-0 flex-col border-r px-4 py-5 lg:flex">
         <Link href="/dashboard" className="px-2">
           <LogoLockup height={30} />
         </Link>

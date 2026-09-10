@@ -39,7 +39,9 @@ export const chung = tuDien(
     duLieuKhongHopLe: "Dữ liệu không hợp lệ.",
     batBuoc: "bắt buộc",
     tuyChon: "tùy chọn",
-    vatTu: "Vật tư",
+    // "Mặt hàng" = một dòng bất kể loại (nhãn ô chọn, đầu cột) — xem quy ước
+    // gọi tên trong README. Loại Store/Spare tra labels.type_*.
+    vatTu: "Mặt hàng",
     phuTung: "Phụ tùng",
     ma: "Mã",
     ten: "Tên",
@@ -95,7 +97,7 @@ export const chung = tuDien(
     duLieuKhongHopLe: "Invalid data.",
     batBuoc: "required",
     tuyChon: "optional",
-    vatTu: "Stores",
+    vatTu: "Item",
     phuTung: "Spare parts",
     ma: "Code",
     ten: "Name",

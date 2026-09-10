@@ -8,9 +8,13 @@ export const menu = tuDien(
     dashboard: "Dashboard",
     doiTau: "Đội tàu",
     tatCaDoiTau: "Tất cả đội tàu →",
-    vatTu: "Vật tư",
+    // Quy ước gọi tên (xem README, mục "Quy ước gọi tên"): "vật tư & phụ tùng"
+    // là nhãn bao trùm cho mọi mục gồm cả hai loại; "vật tư" một mình chỉ loại
+    // Store (MLS-11-05B), "phụ tùng" chỉ loại Spare (MLS-11-05A); "mặt hàng" là
+    // một dòng bất kể loại. Tên mục ở menu = chủ ngữ của tiêu đề trang.
+    vatTu: "Vật tư & phụ tùng",
     tonKho: "Tồn kho",
-    yeuCau: "Yêu cầu vật tư",
+    yeuCau: "Yêu cầu vật tư & phụ tùng",
     muaSam: "Mua sắm (Purchasing)",
     baoCao: "Báo cáo vật tư",
     son: "Quản lý sơn",
@@ -39,9 +43,9 @@ export const menu = tuDien(
     dashboard: "Dashboard",
     doiTau: "Fleet",
     tatCaDoiTau: "All vessels →",
-    vatTu: "Materials",
+    vatTu: "Stores & spare parts",
     tonKho: "Inventory",
-    yeuCau: "Material requests",
+    yeuCau: "Stores & spares requisitions",
     muaSam: "Purchasing",
     baoCao: "Material reports",
     son: "Paint management",

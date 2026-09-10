@@ -19,18 +19,18 @@ export const materials = tuDien(
     banLa: "Bạn là",
     phanBanQuanLy: "— phần vật tư & phụ tùng bạn quản lý:",
     dangXemPhanCuaBan: "Đang xem phần của bạn ({n} mặt hàng)",
-    xemVatTuToiQuanLy: "Xem vật tư tôi quản lý",
+    xemVatTuToiQuanLy: "Xem vật tư & phụ tùng tôi quản lý",
     moiChucDanh: "Mọi chức danh",
     timGoiY: "Tìm tên, mã, IMPA, Part No, hãng...",
     chuaGanTauKhongXem:
       "Bạn chưa được gán tàu phụ trách nên chưa xem được danh mục. Vui lòng liên hệ quản trị viên.",
-    themVaoDanhMucTau: "Thêm vật tư vào danh mục {tau}",
-    vatTuLayTuGoc: "Vật tư lấy từ danh mục gốc toàn đội.",
+    themVaoDanhMucTau: "Thêm mặt hàng vào danh mục {tau}",
+    vatTuLayTuGoc: "Mặt hàng lấy từ danh mục gốc toàn đội.",
     themVaoDanhMucGoc: "Thêm vật tư / phụ tùng (danh mục gốc)",
-    vatTuCuaTau: "Vật tư của {tau} ({n})",
+    vatTuCuaTau: "Vật tư & phụ tùng của {tau} ({n})",
     danhMucGocN: "Danh mục gốc ({n})",
-    tauChuaCoVatTu: "Tàu chưa có vật tư nào trong danh mục.",
-    chuaCoVatTu: "Chưa có vật tư nào.",
+    tauChuaCoVatTu: "Tàu chưa có mặt hàng nào trong danh mục.",
+    chuaCoVatTu: "Chưa có mặt hàng nào.",
     cotTenPhuTung: "Tên phụ tùng",
     cotGiuBoi: "Giữ bởi",
     loai: "Loại",
@@ -45,7 +45,7 @@ export const materials = tuDien(
     trangSeNangHon: "(trang sẽ nặng hơn).",
 
     // Trang nhập danh mục từ file
-    quayLaiDanhMuc: "Quay lại danh mục vật tư",
+    quayLaiDanhMuc: "Quay lại danh mục vật tư & phụ tùng",
     nhapMoTa:
       "Upload file kiểm kê / danh mục theo form công ty — vật tư & phụ tùng được tự động thêm vào danh mục của tàu đã chọn (kèm tồn kho nếu file có cột R.O.B), giúp kiểm soát nhanh toàn bộ vật tư đội tàu.",
     mauTieuDe: "Chưa có file danh mục? Tải file mẫu về cho tàu điền",
@@ -74,14 +74,14 @@ export const materials = tuDien(
     tonToiThieu: "Tồn tối thiểu",
     tonToiDa: "Tồn tối đa",
     vatTuQuanTrong: "Vật tư quan trọng / critical",
-    nutThemVatTu: "Thêm vật tư",
+    nutThemVatTu: "Thêm mặt hàng",
 
     // Sửa / ngừng dùng / xóa một dòng (MaterialRowActions)
     nutNgungDung: "Ngừng sử dụng",
     nutDungLai: "Dùng lại",
     xacNhanXoa:
       "Xóa vĩnh viễn vật tư {ma}? Chỉ xóa được khi chưa có tồn kho và chưa dùng trong yêu cầu nào.",
-    suaVatTu: "Sửa vật tư",
+    suaVatTu: "Sửa mặt hàng",
     tenTiengViet: "Tên tiếng Việt",
     tenTiengAnh: "Tên tiếng Anh",
     chiDungChoPhuTung: "— chỉ dùng cho phụ tùng",
@@ -93,9 +93,9 @@ export const materials = tuDien(
     luuThayDoi: "Lưu thay đổi",
 
     // Danh mục riêng của tàu (VesselCatalogActions)
-    optChonTuGoc: "Chọn vật tư từ danh mục gốc để thêm vào tàu",
+    optChonTuGoc: "Chọn mặt hàng từ danh mục gốc để thêm vào tàu",
     nutThemVaoTau: "Thêm vào tàu",
-    tauDaCoDu: "Tàu đã có tất cả vật tư trong danh mục gốc.",
+    tauDaCoDu: "Tàu đã có tất cả mặt hàng trong danh mục gốc.",
     xacNhanGo:
       "Gỡ \"{ma}\" khỏi danh mục tàu này? (Định nghĩa gốc và tồn kho không bị xóa.)",
     nutGoKhoiTau: "Gỡ khỏi tàu",
@@ -182,7 +182,7 @@ export const materials = tuDien(
     themVaoDanhMucTau: "Add an item to the catalogue of {tau}",
     vatTuLayTuGoc: "Items come from the fleet master catalogue.",
     themVaoDanhMucGoc: "Add stores / spare part (master catalogue)",
-    vatTuCuaTau: "Items of {tau} ({n})",
+    vatTuCuaTau: "Stores & spare parts of {tau} ({n})",
     danhMucGocN: "Master catalogue ({n})",
     tauChuaCoVatTu: "This vessel has no item in its catalogue yet.",
     chuaCoVatTu: "No item yet.",
@@ -200,7 +200,7 @@ export const materials = tuDien(
     xemTatCaNDong: "show all {n} rows",
     trangSeNangHon: "(the page will be heavier).",
 
-    quayLaiDanhMuc: "Back to the materials catalogue",
+    quayLaiDanhMuc: "Back to the stores & spare parts catalogue",
     nhapMoTa:
       "Upload a stocktake / catalogue file in the company format — stores & spare parts are added automatically to the catalogue of the selected vessel (with stock on hand when the file has an R.O.B column), for quick control of the whole fleet inventory.",
     mauTieuDe:

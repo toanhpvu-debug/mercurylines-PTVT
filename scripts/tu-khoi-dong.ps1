@@ -60,13 +60,17 @@ switch ($ViecCanLam) {
 
     $caiDat = New-ScheduledTaskSettingsSet `
         -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
-        -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero)
+        -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) `
+        -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
     # ExecutionTimeLimit mặc định của Windows là 3 NGÀY: quá hạn thì Task
     # Scheduler tự giết tiến trình. Với một web server chạy liên tục thì đó là
     # "cứ ba ngày app tự tắt một lần" — kiểu lỗi rất khó lần ra vì nó không để
     # lại lỗi nào trong log của app. [TimeSpan]::Zero nghĩa là không giới hạn.
     # MultipleInstances IgnoreNew: khóa màn hình rồi đăng nhập lại không dựng
     # thêm một bản thứ hai tranh cổng 3000 với bản đang chạy.
+    # RestartCount/RestartInterval: chính PowerShell chủ chết (bị giết, lỗi lạ)
+    # thì Task Scheduler chạy lại việc sau 1 phút, tối đa 3 lần. Đây là lưới
+    # thứ hai; lưới thứ nhất — node chết thì chạy lại — nằm trong chay-app.ps1.
 
     Register-ScheduledTask -TaskName $TEN_VIEC -Action $hanhDong -Trigger $moc `
         -Principal $chuThe -Settings $caiDat `

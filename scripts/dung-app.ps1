@@ -15,6 +15,14 @@ if (-not $conns) {
     return
 }
 
+# Đặt cờ "dừng chủ ý" TRƯỚC khi tắt node: chay-app.ps1 chạy server trong vòng
+# tự-chạy-lại (xem cuối file đó). Không có cờ này thì tắt xong 5 giây nó lại
+# lên, và người dùng tưởng dung-app.cmd hỏng. Cờ nằm cạnh app.log, ngoài thư
+# mục dự án, cùng lý do với log (xem chay-nen.ps1).
+$thuMucLog = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "app-logs"
+New-Item -ItemType Directory -Path $thuMucLog -Force | Out-Null
+Set-Content -Path (Join-Path $thuMucLog "dung.flag") -Value (Get-Date -Format s) -Encoding ASCII
+
 $pids = $conns | Select-Object -ExpandProperty OwningProcess -Unique
 foreach ($processId in $pids) {
     $p = Get-Process -Id $processId -ErrorAction SilentlyContinue

@@ -223,7 +223,56 @@ if (-not $KhongMoTrinhDuyet) {
     Write-Host "App chạy tại http://localhost:3000 (chế độ ngầm)" -ForegroundColor Green
 }
 Write-Host ""
+# ─── Chạy, và TỰ CHẠY LẠI khi server chết ────────────────────────────────────
+# Trước đây `next start` chạy đúng một lần: node chết (hết bộ nhớ, lỗi chưa bắt,
+# bị giết nhầm trong Task Manager) là app nằm đó tới lần đăng nhập Windows sau —
+# và vì chạy ngầm nên không ai biết. Nay chạy trong vòng lặp:
+#   - chết với mã khác 0 → chờ 5, 10, 20, 40, 60 giây (lùi dần) rồi chạy lại;
+#   - chết quá 10 lần trong một giờ → dừng hẳn, để lỗi lặp không quay vô tận;
+#   - dung-app.cmd đặt cờ app-logs\dung.flag TRƯỚC khi tắt node → thấy cờ là
+#     dừng theo ý người dùng, không chạy lại (không thì tắt xong 5 giây lại lên);
+#   - trước mỗi lần chạy lại: bật hộ PostgreSQL nếu nó cũng chết, và bỏ cuộc
+#     nếu cổng 3000 đã có thứ khác chiếm.
 # Cùng lý do như bước build ở trên: chạy ngầm thì stderr là đường ống, mỗi dòng
 # node in ra đó sẽ thành ErrorRecord và giết server ngay lần cảnh báo đầu tiên.
 $ErrorActionPreference = "Continue"
-& $nodeExe $duongDanNext start 2>&1 | ForEach-Object { "$_" }
+$thuMucLog = Join-Path (Split-Path -Parent $proj) "app-logs"
+$coDung = Join-Path $thuMucLog "dung.flag"
+Remove-Item $coDung -Force -ErrorAction SilentlyContinue
+# Trần heap 1 GB cho node: có rò rỉ bộ nhớ thì chết-và-chạy-lại (có dòng log)
+# chứ không âm thầm nuốt hết RAM của máy. Server này bình thường dùng ~130 MB.
+if (-not $env:NODE_OPTIONS) { $env:NODE_OPTIONS = "--max-old-space-size=1024" }
+$batHoPg = Join-Path $PSScriptRoot "postgres-rieng.ps1"
+$coPgRieng = (Test-Path $batHoPg) -and (Test-Path (Join-Path (Split-Path -Parent $proj) "pgdata"))
+$lanChet = @()
+while ($true) {
+    $batDau = Get-Date
+    & $nodeExe $duongDanNext start 2>&1 | ForEach-Object { "$_" }
+    $ma = $LASTEXITCODE
+    if (Test-Path $coDung) {
+        Remove-Item $coDung -Force -ErrorAction SilentlyContinue
+        Write-Host "Dừng theo yêu cầu (dung-app.cmd) — không chạy lại." -ForegroundColor DarkGray
+        break
+    }
+    if ($ma -eq 0) {
+        Write-Host "Server kết thúc bình thường (mã 0) — không chạy lại." -ForegroundColor DarkGray
+        break
+    }
+    $lanChet = @($lanChet | Where-Object { $_ -gt (Get-Date).AddHours(-1) }) + @(Get-Date)
+    if ($lanChet.Count -gt 10) {
+        Loi ("Server chết $($lanChet.Count) lần trong một giờ — dừng chạy lại để không quay vòng vô tận.`n" +
+             "Xem lỗi ở trên; sửa xong bấm đúp chay-app.cmd.")
+        return
+    }
+    $cho = [int][Math]::Min(60, 5 * [Math]::Pow(2, $lanChet.Count - 1))
+    Write-Host ("Server chết (mã {0}) sau {1:N0} giây — chạy lại sau {2} giây (lần {3}/10 trong giờ)." -f `
+        $ma, ((Get-Date) - $batDau).TotalSeconds, $cho, $lanChet.Count) -ForegroundColor Yellow
+    Start-Sleep -Seconds $cho
+    if ($coPgRieng) {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $batHoPg -ViecCanLam chay 2>&1 | ForEach-Object { "$_" }
+    }
+    if (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue) {
+        Loi "Cổng 3000 đã bị thứ khác chiếm trong lúc chờ — không chạy lại. Bấm đúp dung-app.cmd rồi chay-app.cmd."
+        return
+    }
+}

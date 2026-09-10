@@ -151,6 +151,7 @@ Bấm đúp thẳng trong thư mục gốc của app, không cần mở terminal
 | `khoi-dong-postgres.cmd` | Bật bản PostgreSQL riêng của dự án (`../pgsql` + `../pgdata`). `chay-app.cmd` tự gọi khi cần |
 | `dung-postgres.cmd` | Tắt bản PostgreSQL riêng đúng cách trước khi tắt máy hoặc sao lưu `../pgdata` |
 | `doi-chieu-danh-muc.cmd` | Đối chiếu danh mục vật tư từng tàu với file kiểm kê gốc |
+| `don-dep.cmd` | Dọn rác trên máy: cache npm, log đời trước, tệp tạm — **không đụng dữ liệu**. Liệt kê (không tự xóa) thứ to như pgAdmin đi kèm PostgreSQL. Thêm `-CaCacheBuild` để xóa cả cache build |
 | `sao-luu-du-lieu.cmd` | Nén bản chụp PostgreSQL (`pg_dump`) + file upload + `.env` + biểu mẫu thành bản sao lưu, kèm dấu vân tay để đối chiếu |
 | `khoi-phuc-du-lieu.cmd` | Đưa dữ liệu trở lại từ một bản sao lưu — tự chụp đường lùi trước, đối chiếu vân tay sau |
 | `lam-sach-du-lieu-mau.cmd` | Xóa dữ liệu mẫu để bắt đầu nhập dữ liệu thật. **Không có `--dong-y` thì chỉ liệt kê**, không xóa gì |
@@ -213,6 +214,22 @@ Vài lựa chọn ở đây có lý do, đừng rút gọn:
   tắt một lần" — kiểu hỏng rất khó lần ra vì nó không để lại lỗi nào trong log của app.
 - **`MultipleInstances IgnoreNew`.** Khóa màn hình rồi đăng nhập lại không dựng thêm bản thứ
   hai tranh cổng 3000 với bản đang chạy.
+- **Server chết thì tự chạy lại** (cuối `chay-app.ps1`). Trước đây `next start` chạy đúng một
+  lần: node chết (hết bộ nhớ, lỗi chưa bắt, bị giết nhầm trong Task Manager) là app nằm đó tới
+  lần đăng nhập Windows sau — và vì chạy ngầm nên không ai biết. Nay chết với mã khác 0 thì chờ
+  5 → 10 → 20 → 40 → 60 giây rồi chạy lại, bật hộ PostgreSQL nếu nó cũng chết; quá **10 lần
+  trong một giờ** thì dừng hẳn để lỗi lặp không quay vô tận. `dung-app.cmd` đặt cờ
+  `../app-logs/dung.flag` *trước* khi tắt node, nên tắt chủ ý thì không bị bật lại. Hệ quả:
+  **tắt app bằng `dung-app.cmd`**, đừng giết node trong Task Manager — làm thế nó lên lại sau
+  5 giây. Lưới thứ hai: việc trong Task Scheduler có `RestartCount 3 / RestartInterval 1 phút`
+  cho trường hợp chính PowerShell chủ chết.
+- **Trần bộ nhớ 1 GB cho node** (`NODE_OPTIONS=--max-old-space-size=1024`). Server này bình
+  thường dùng ~130 MB; có rò rỉ thì chết-và-chạy-lại (có dòng log) chứ không âm thầm nuốt hết
+  RAM của máy.
+- **Máy văn phòng không được tự ngủ.** Máy ngủ là app lẫn PostgreSQL bị đóng băng giữa chừng —
+  người khác trong mạng mở app thấy "không kết nối được", còn PostgreSQL lần bật sau phải chạy
+  phục hồi. Đây là cài đặt Windows, script không tự đổi; chạy một lần trong PowerShell:
+  `powercfg /change standby-timeout-ac 0` và `powercfg /change hibernate-timeout-ac 0`.
 - **Log mở ở chế độ chia sẻ (`FileShare.ReadWrite`).** Cách viết thông thường
   (`Add-Content`) giữ file độc quyền suốt thời gian app chạy — nghĩa là đúng lúc cần đọc log
   để xem vì sao app không lên thì lại không mở được file ra đọc.

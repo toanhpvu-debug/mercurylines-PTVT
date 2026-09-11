@@ -60,3 +60,7 @@ next-env.d.ts
 
 # Goi dong bo tau <-> van phong: chua du lieu that cua cong ty
 dong-bo/
+
+# Harness (.claude/skills/toi-uu-mercury): san pham trung gian cua cac agent, khong phai ma nguon
+_workspace/
+_workspace_prev/

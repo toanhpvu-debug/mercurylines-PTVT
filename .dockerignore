@@ -9,3 +9,6 @@ prisma/*.db-journal
 npm-debug.log
 Dockerfile
 docker-compose.yml
+.claude
+_workspace
+_workspace_prev

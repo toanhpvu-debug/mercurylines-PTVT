@@ -24,6 +24,24 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // Header bảo mật cho MỌI phản hồi. Không có chúng thì trang nhúng được
+        // vào iframe của site lạ (clickjacking lên nút Duyệt/Xóa/Xuất kho), lần
+        // gõ tay tên miền đầu tiên đi qua HTTP thuần, và đường dẫn nội bộ rò
+        // sang site ngoài qua Referer. Đo trước khi sửa: 0/5 header trên site thật.
+        // CSP cố ý CHƯA bật: Next cần nonce cho style/script, bật vội là vỡ giao
+        // diện — sẽ đi qua Content-Security-Policy-Report-Only trước.
+        // HSTS chỉ có hiệu lực khi phản hồi đi qua HTTPS (site thật); bản
+        // localhost:3000 trên máy văn phòng không bị ảnh hưởng.
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+      {
         // Phông chữ tự host. Mặc định Next trả `Cache-Control: max-age=0` cho
         // mọi thứ trong public/ — trình duyệt phải hỏi lại server 5 tệp phông ở
         // MỖI lần mở trang đầy đủ (đăng nhập, đổi ngôn ngữ, F5), và trong lúc

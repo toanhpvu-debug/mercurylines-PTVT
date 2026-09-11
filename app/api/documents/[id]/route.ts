@@ -47,7 +47,7 @@ export async function GET(
   }
   let data: Buffer;
   try {
-    data = await readFile(path.join(getUploadDir(), doc.storedName));
+    data = await readFile(path.join(getUploadDir(), path.basename(doc.storedName)));
   } catch {
     return NextResponse.json(
       { error: t("actionsModule.fileKhongConTrenMayChu") },

@@ -9,7 +9,6 @@ import {
   coQuanLySon,
   requireActiveRole,
   trongPhamVi,
-  vesselIdWhere,
   vesselScopeDayDu,
 } from "@/lib/auth";
 import type { HamDich } from "@/lib/i18n";
@@ -315,6 +314,13 @@ export async function savePaintArea(
   };
   try {
     if (id > 0) {
+      // Khu vực mang id này phải THUỘC đúng tàu vừa kiểm quyền. Không thì người
+      // quản sơn tàu A gửi vesselId = A kèm id khu vực của tàu B là ghi đè được
+      // dữ liệu tàu B — cùng khuôn với deletePaintArea / savePaintSchemeLayer.
+      const hienCo = await prisma.paintArea.findUnique({ where: { id } });
+      if (!hienCo || hienCo.vesselId !== vesselId) {
+        return { message: t("actionsModule.son_khongTimThayKhuVuc") };
+      }
       await prisma.paintArea.update({ where: { id }, data });
     } else {
       await prisma.paintArea.create({ data: { ...data, vesselId } });
@@ -839,17 +845,6 @@ export async function deletePaintJob(
   return { message: t("actionsModule.son_daXoaNhatKy"), success: true };
 }
 
-// Danh sách tàu theo phạm vi của người dùng — dùng cho trang tổng quan sơn.
-export async function listPaintVessels(user: {
-  role: string;
-  vesselId: number | null;
-}) {
-  const scope = vesselScopeDayDu(user);
-  return prisma.vessel.findMany({
-    where: vesselIdWhere(scope),
-    orderBy: { code: "asc" },
-  });
-}
 
 // ─── Sao chép sơ đồ sơn từ tàu khác ──────────────────────────────────────────
 // Tàu cùng loạt (sister ship) dùng chung hệ sơn — khai lại từ đầu cho từng tàu

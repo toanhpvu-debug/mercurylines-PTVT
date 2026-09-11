@@ -348,8 +348,12 @@ npm run start
 docker compose up -d --build
 ```
 
-`docker compose` dựng hai container: `db` (PostgreSQL 17) và `web` (app). App chạy tại
-`http://localhost:3000`. Dữ liệu PostgreSQL nằm trong volume `mercury-db` nên **không mất
+Trước đó đặt hai biến trong `.env` cạnh `docker-compose.yml`: `POSTGRES_PASSWORD` (mật khẩu
+container `db`) và `SEED_PASSWORD` (mật khẩu 3 tài khoản mẫu) — thiếu một trong hai là compose
+dừng ngay, không âm thầm dùng mật khẩu in sẵn trong repo. `docker compose` dựng hai container:
+`db` (PostgreSQL 17) và `web` (app). App chỉ nghe trên máy chủ tại `http://127.0.0.1:3000` —
+muốn mở ra Internet thì đặt reverse proxy có HTTPS phía trước (xem `deploy/`). Dữ liệu
+PostgreSQL nằm trong volume `mercury-db` nên **không mất
 khi rebuild/restart**; file báo cáo tải lên nằm trong volume `mercury-data`. `web` chỉ khởi
 động sau khi `db` báo khỏe (healthcheck `pg_isready`), lần đầu tự chạy migration + seed.
 
@@ -360,13 +364,14 @@ App cần một PostgreSQL và một thư mục lưu file tải lên. Các lựa
 | Nền tảng | Cách làm |
 |---|---|
 | **Hostinger VPS** | Có sẵn cấu hình + hướng dẫn từng bước ở [`deploy/HOSTINGER.md`](deploy/HOSTINGER.md) (Docker + Caddy tự cấp HTTPS). |
-| **VPS bất kỳ** (đã có Docker) | Copy thư mục dự án lên server → đặt `POSTGRES_PASSWORD` trong `.env` → `docker compose up -d --build`. |
+| **VPS bất kỳ** (đã có Docker) | Copy thư mục dự án lên server → đặt `POSTGRES_PASSWORD` và `SEED_PASSWORD` trong `.env` → `docker compose up -d --build`. |
 | **Railway / Render / Fly.io** | Tạo service Postgres của nền tảng → trỏ `DATABASE_URL` vào đó → deploy `Dockerfile`, mount đĩa cho `UPLOAD_DIR`. |
 | **Vercel** | Chạy được, nhưng phải dùng Postgres hosted (Neon/Supabase/…) và lưu file tải lên ở object storage, vì serverless không có đĩa bền vững. |
 
 Biến môi trường: `DATABASE_URL` (chuỗi kết nối PostgreSQL), `SESSION_SECRET` (xem mục Đăng
 nhập & phân quyền), `UPLOAD_DIR` (thư mục lưu file báo cáo, mặc định Docker `/data/uploads`),
-và `POSTGRES_PASSWORD` khi dùng container `db` của `docker-compose`.
+`SEED_PASSWORD` (bắt buộc cho lần seed đầu), và `POSTGRES_PASSWORD` khi dùng container `db`
+của `docker-compose`.
 
 ## Làm việc khi mất mạng — mỗi tàu một bản, đồng bộ về văn phòng
 
@@ -618,7 +623,7 @@ bảng, và bản tiếng Anh còn sót chữ Việt.
 
 ## Đăng nhập & phân quyền
 
-App yêu cầu đăng nhập (session cookie ký JWT, hạn 7 ngày). Tài khoản seed sẵn dùng chung mật khẩu đặt ở biến môi trường `SEED_PASSWORD`; bỏ trống thì seed dùng tạm `ChangeMe@123` và in cảnh báo — **đổi ngay sau lần đăng nhập đầu tiên**:
+App yêu cầu đăng nhập (session cookie ký JWT, hạn 7 ngày). Tài khoản seed sẵn dùng chung mật khẩu đặt ở biến môi trường `SEED_PASSWORD`; **bắt buộc** — thiếu thì `prisma db seed` dừng ngay chứ không dùng mật khẩu tạm (chuỗi tạm nằm trong repo công khai, ai cũng đọc được). Đổi mật khẩu ngay sau lần đăng nhập đầu tiên:
 
 | Chức danh | Vai trò trong hệ thống | Phạm vi | Quyền |
 |---|---|---|---|

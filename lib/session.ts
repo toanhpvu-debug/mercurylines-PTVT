@@ -10,7 +10,8 @@ export type { SessionPayload };
 const SESSION_COOKIE = "session";
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
-function cookieSecure() {
+/** Dùng chung cho mọi cookie của app (phiên, ngôn ngữ) — một chỗ quyết, không lệch nhau. */
+export function cookieSecure() {
   if (process.env.COOKIE_SECURE) {
     return process.env.COOKIE_SECURE === "true";
   }

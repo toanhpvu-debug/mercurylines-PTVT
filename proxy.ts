@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { decrypt } from "@/lib/session-crypto";
+import { ipThat } from "@/lib/ipThat";
 import { prisma } from "@/lib/prisma";
 import { ghiNhatKy } from "@/lib/audit";
 
@@ -144,9 +145,7 @@ async function nhatKyRequest(
     // thường (API route, submit form).
     action: action ?? request.headers.get("next-action") ?? "request",
     ketQua,
-    ip:
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      request.headers.get("x-real-ip"),
+    ip: ipThat(request.headers.get("x-forwarded-for"), request.headers.get("x-real-ip")),
     userAgent: request.headers.get("user-agent"),
   });
 }

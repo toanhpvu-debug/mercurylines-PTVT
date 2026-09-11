@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIE_NGON_NGU, docNgonNgu } from "@/lib/i18n/ngonNgu";
+import { cookieSecure } from "@/lib/session";
 
 /**
  * Đổi ngôn ngữ giao diện: GET /api/ngon-ngu?lang=en&next=/materials
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest) {
     maxAge: 60 * 60 * 24 * 365,
     sameSite: "lax",
     httpOnly: true,
+    secure: cookieSecure(),
   });
   return res;
 }

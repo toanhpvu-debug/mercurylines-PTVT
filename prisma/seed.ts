@@ -6,11 +6,13 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("Bắt đầu seed dữ liệu mẫu...");
   // Mật khẩu 3 tài khoản mẫu — KHÔNG hardcode trong mã nguồn (repo công khai).
-  // Đặt SEED_PASSWORD trong .env; bỏ trống thì dùng mật khẩu tạm và nhắc đổi ngay.
-  const seedPassword = process.env.SEED_PASSWORD?.trim() || "ChangeMe@123";
-  if (!process.env.SEED_PASSWORD?.trim()) {
-    console.warn(
-      `⚠  Chưa đặt SEED_PASSWORD — dùng tạm "${seedPassword}". Hãy đổi mật khẩu ngay sau khi đăng nhập lần đầu.`
+  // Thiếu SEED_PASSWORD thì DỪNG HẲN, không dùng tạm: chuỗi tạm nằm trong repo
+  // ai cũng đọc được, mà seed có thể chạy lại trên bản thật (entrypoint gọi khi
+  // thấy FormStandard trống) và dựng lại admin@example.com với đúng mật khẩu đó.
+  const seedPassword = process.env.SEED_PASSWORD?.trim();
+  if (!seedPassword) {
+    throw new Error(
+      "Thiếu SEED_PASSWORD — đặt trong .env (máy văn phòng) hoặc Environment của service trên Dokploy, rồi chạy lại."
     );
   }
   const password = await bcrypt.hash(seedPassword, 10);

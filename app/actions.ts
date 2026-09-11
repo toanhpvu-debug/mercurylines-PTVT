@@ -6,6 +6,7 @@ import { unlink, writeFile } from "fs/promises";
 import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ipThat } from "@/lib/ipThat";
 import {
   REQUEST_ALLOWED_FROM,
   REQUEST_STATUS_LABEL,
@@ -144,10 +145,7 @@ export async function login(
   // Lấy IP đúng cách proxy.ts đang lấy: đứng sau reverse proxy thì địa chỉ TCP
   // là của chính proxy, đếm theo nó là gộp cả thế giới vào một khóa.
   const h = await headers();
-  const ip =
-    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    h.get("x-real-ip") ||
-    null;
+  const ip = ipThat(h.get("x-forwarded-for"), h.get("x-real-ip"));
   // Hỏi bộ đếm TRƯỚC khi chạm database và trước bcrypt — xem lib/chanDangNhap.ts.
   // Đặt sau chỗ này thì mỗi lần bị chặn vẫn tốn một truy vấn và một lần bcrypt,
   // tức vẫn còn nguyên cái giá mà bộ đếm sinh ra để khỏi phải trả.
@@ -3237,7 +3235,7 @@ export async function deleteReportDocument(
       `, người nộp #${doc.uploadedById}`,
   });
   try {
-    await unlink(path.join(getUploadDir(), doc.storedName));
+    await unlink(path.join(getUploadDir(), path.basename(doc.storedName)));
   } catch {
     // file đã không còn trên đĩa — bỏ qua
   }

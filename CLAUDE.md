@@ -10,3 +10,6 @@
 | Ngày | Thay đổi | Đối tượng | Lý do |
 |------|----------|-----------|-------|
 | 2026-09-11 | Dựng mới: 6 agent, 7 skill (kèm 10 script đã kiểm chứng), orchestrator | toàn bộ | yêu cầu "dùng harness để tối ưu dự án" |
+| 2026-09-11 | Gỡ địa chỉ máy chủ khỏi repo; 3 script thăm dò đọc `site=` từ `..\dia-chi-may-chu.local.md` | skill bảo mật / vận hành / hiệu năng | commit harness đầu tiên làm lộ IP + URL panel vào repo công khai |
+| 2026-09-11 | `tuong-phan.ps1` đo thêm `--text-brand`, `--meter-*`; chỉ đọc mỗi khối `:root` tới ngoặc đóng | skill giao diện | bảng màu cứng trong `ui.tsx` script không thấy; đọc tràn sang `.print-area` cho số sai |
+| 2026-09-11 | Ghi rõ "Browser pane của subagent không có phiên đăng nhập"; Phase 5 cho phép leader tự chạy QA | agent giao-dien/hieu-nang, orchestrator | 19/20 trang không đo được; agent QA chết giữa chừng vì hết hạn mức phiên |

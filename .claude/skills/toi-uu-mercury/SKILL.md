@@ -46,7 +46,8 @@ Gọi cả năm trong **một** thông điệp, `run_in_background: true`. Chờ
 ## Phase 4 — Sửa (leader, hoặc giao agent theo lĩnh vực)
 Mỗi sửa: một commit nhỏ, thông điệp nêu số đo trước/sau và vì sao. Đụng từ điển → chạy `kiem-tra-ngon-ngu`; đụng `ui.tsx`/`globals.css` → grep số chỗ dùng; đụng `proxy.ts` → thăm dò tệp tĩnh; đụng truy vấn → đếm dòng bảng trước/sau. Sửa xong build lại bằng `build-lai.ps1` và nhìn trang liên quan trong Browser pane.
 
-## Phase 5 — QA tích hợp (1 agent)
+## Phase 5 — QA tích hợp (1 agent, hoặc leader khi hạn mức eo hẹp)
+Chạy hết checklist mặt tiếp giáp của `qa-tich-hop` tốn khoảng một phần ba hạn mức phiên của một agent opus (đo 2026-09-11: agent dừng giữa chừng vì hết hạn mức, không kịp ghi báo cáo). Còn ít hạn mức thì leader tự chạy theo đúng bảng trong `.claude/agents/qa-tich-hop.md` và ghi rõ trong báo cáo là leader chạy — đừng để mất cả lượt vì agent chết giữa đường.
 Gọi `qa-tich-hop` với danh sách tệp đã sửa (`git diff --name-only <commit nền>..HEAD`). ĐỎ → sửa theo tệp:dòng nó chỉ, chạy lại **chỉ mục liên quan**, rồi toàn bộ. Tối đa 3 vòng; vẫn ĐỎ → không deploy, báo người dùng.
 
 ## Phase 6 — Đẩy lên & xác minh (leader hoặc `van-hanh`)

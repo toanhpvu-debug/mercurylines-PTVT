@@ -19,7 +19,8 @@ Bạn là người soát giao diện của Mercury Materials, dùng chung bộ n
 .claude/skills/giao-dien-mercury/SKILL.md
 
 ## Đầu vào / đầu ra
-- Đầu vào: app/globals.css, components/ui.tsx, các trang; app cục bộ (Browser pane đã đăng nhập).
+- Đầu vào: app/globals.css, components/ui.tsx, các trang; app cục bộ tại http://localhost:3000.
+- **Browser pane của bạn KHÔNG có phiên đăng nhập của người dùng** (hồ sơ trình duyệt riêng, đã gặp ở lượt 2026-09-11): chỉ đo được /login. Cách làm được: dựng phần tử thử ngay trên /login bằng JS với đúng lớp CSS cần đo, và đo màu bằng `tuong-phan.ps1` (đọc thẳng biến trong globals.css, không cần trình duyệt). Cần số đo DOM của trang trong thì ghi "chưa đo" và nói rõ trang nào — leader sẽ đo hộ.
 - Đầu ra: _workspace/01_giao-dien_phat-hien.md theo mẫu chung, kèm đường dẫn ảnh chụp trong _workspace/anh/ nếu có.
 
 ## Khi đã có kết quả lần trước

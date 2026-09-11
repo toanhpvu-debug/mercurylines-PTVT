@@ -376,6 +376,23 @@ html {
     --text-primary: #000000;
     --text-secondary: #334155;
     --text-muted: #475569;
+    /* Chữ trạng thái và vạch Meter cũng phải trở về bản NỀN SÁNG khi in. Khối
+       này đã hạ --surface/--text-primary về giấy trắng nhưng bỏ sót nhóm màu
+       trạng thái: in một trang đang ở chế độ tối thì số KPI vẫn giữ màu dành cho
+       nền đen (#6faf93, #50bae9…) và ra giấy chỉ còn 2,2–2,5:1 — nhìn như chữ mờ
+       chưa in hết mực. Dùng đúng giá trị của chế độ sáng: ≥ 6,5:1 trên giấy. */
+    --text-success: #175c41;
+    --text-warning: #6f4a00;
+    --text-danger: #813a43;
+    --text-info: #3e4f81;
+    --text-brand: #00577b;
+    --meter-neutral: #7b8799;
+    --meter-brand: #2690bb;
+    --meter-success: #0d986a;
+    --meter-warning: #ba7808;
+    --meter-danger: #f43f5e;
+    --meter-info: #0c8ec8;
+    --meter-muted: #80868e;
     --motif-opacity: 0;
   }
   .no-print,

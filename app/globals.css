@@ -158,6 +158,16 @@
   --text-warning: #6f4a00;
   --text-danger: #813a43;
   --text-info: #3e4f81;
+  /* Chữ nhấn thương hiệu (số KPI thẻ Stat) — kéo tối tới >= 6,5:1 trên cả ba nền. */
+  --text-brand: #00577b;
+  /* Vạch thanh tiến độ (Meter) trên rãnh --surface-sunken, >= 3:1 (WCAG 1.4.11). */
+  --meter-neutral: #7b8799;
+  --meter-brand: #2690bb;
+  --meter-success: #0d986a;
+  --meter-warning: #ba7808;
+  --meter-danger: #f43f5e;
+  --meter-info: #0c8ec8;
+  --meter-muted: #80868e;
 }
 
 /* Chế độ TỐI — mặc định, khớp ảnh hero của hãng */
@@ -196,6 +206,14 @@
   --text-warning: #c19c61;
   --text-danger: #d68f96;
   --text-info: #8fa1d5;
+  --text-brand: #50bae9;
+  --meter-neutral: #94a3b8;
+  --meter-brand: #2ca8da;
+  --meter-success: #10b981;
+  --meter-warning: #f59e0b;
+  --meter-danger: #f43f5e;
+  --meter-info: #0ea5e9;
+  --meter-muted: #cbd5e1;
 }
 
 html,

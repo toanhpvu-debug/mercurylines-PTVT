@@ -130,7 +130,7 @@ export default function AppShell({
     <nav className="flex flex-col gap-6">
       {nhom.map((g) => (
         <div key={g.label}>
-          <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-widest text-[var(--text-muted)]">
+          <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">
             {g.label}
           </p>
           <div className="flex flex-col gap-0.5">
@@ -174,7 +174,7 @@ export default function AppShell({
                             )}
                           >
                             <Anchor className="size-3 shrink-0 opacity-60" />
-                            <span className="font-display text-[11px] tracking-wide text-[var(--text-muted)]">
+                            <span className="font-display text-xs tracking-wide text-[var(--text-muted)]">
                               {v.code}
                             </span>
                             <span className="truncate">{v.name}</span>
@@ -204,7 +204,7 @@ export default function AppShell({
   );
 
   const chanThanhBen = (
-    <p className="mt-6 px-3 text-[11px] leading-relaxed text-[var(--text-muted)]">
+    <p className="mt-6 px-3 text-xs leading-relaxed text-[var(--text-muted)]">
       ISM · MLS-11 · IMPA
     </p>
   );

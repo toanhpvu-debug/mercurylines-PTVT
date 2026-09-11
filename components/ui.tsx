@@ -126,13 +126,16 @@ export type Tone =
   | "info"
   | "muted";
 
+// Màu số KPI đi qua BIẾN, không phải bảng Tailwind: bảng cũ (emerald-600,
+// amber-600…) chỉ đạt 3,2–4,5:1 trên nền sáng — ngưỡng dự án là 6,5 — và script
+// tuong-phan.ps1 không bao giờ thấy vì nó chỉ đo biến trong globals.css.
 const STAT_ACCENT: Record<Tone, string> = {
   neutral: "text-[var(--text-primary)]",
-  brand: "text-brand-700 dark:text-brand-400",
-  success: "text-emerald-600 dark:text-emerald-400",
-  warning: "text-amber-600 dark:text-amber-400",
-  danger: "text-rose-600 dark:text-rose-400",
-  info: "text-sky-600 dark:text-sky-400",
+  brand: "text-[var(--text-brand)]",
+  success: "text-[var(--text-success)]",
+  warning: "text-[var(--text-warning)]",
+  danger: "text-[var(--text-danger)]",
+  info: "text-[var(--text-info)]",
   muted: "text-[var(--text-secondary)]",
 };
 
@@ -625,14 +628,16 @@ export function Avatar({ name, size = 36 }: { name: string; size?: number }) {
 
 // ── Thanh tiến độ ─────────────────────────────────────────
 
+// Vạch qua biến --meter-*: bảng Tailwind cũ trên rãnh nền sáng chỉ 1,2–2,2:1
+// (muted gần như trùng màu rãnh); biến khai riêng cho hai chế độ, >= 3:1.
 const METER_BAR: Record<Tone, string> = {
-  neutral: "bg-slate-400",
-  brand: "bg-brand-500",
-  success: "bg-emerald-500",
-  warning: "bg-amber-500",
-  danger: "bg-rose-500",
-  info: "bg-sky-500",
-  muted: "bg-slate-300",
+  neutral: "bg-[var(--meter-neutral)]",
+  brand: "bg-[var(--meter-brand)]",
+  success: "bg-[var(--meter-success)]",
+  warning: "bg-[var(--meter-warning)]",
+  danger: "bg-[var(--meter-danger)]",
+  info: "bg-[var(--meter-info)]",
+  muted: "bg-[var(--meter-muted)]",
 };
 
 export function Meter({

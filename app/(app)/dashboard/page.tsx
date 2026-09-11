@@ -473,7 +473,7 @@ export default async function DashboardPage() {
                           <span className="font-medium text-[var(--text-primary)]">
                             {row.materialName}
                           </span>{" "}
-                          <span className="font-display text-[11px] tracking-wide text-[var(--text-muted)]">
+                          <span className="font-display text-xs tracking-wide text-[var(--text-muted)]">
                             {row.materialCode}
                           </span>
                         </p>

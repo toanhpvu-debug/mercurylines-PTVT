@@ -228,6 +228,10 @@ export default async function StockCardPage({
             title={t("inventory.chuaCoGiaoDichMatHang")}
           />
         ) : (
+          // Cùng khuôn 5 chứng từ kia: Table mang min-w-max, thiếu khung cuộn thì
+          // ghi chú dài đẩy tờ thẻ rộng hơn màn hình; khi in @media print đã
+          // mở overflow lại nên giấy không bị cắt dòng.
+          <div className="mt-3 overflow-x-auto">
           <Table dense>
             <thead>
               <tr>
@@ -312,6 +316,7 @@ export default async function StockCardPage({
               </tr>
             </tfoot>
           </Table>
+          </div>
         )}
       </div>
 

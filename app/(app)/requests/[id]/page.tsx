@@ -388,7 +388,7 @@ export default async function RequestDetailPage({
             <p className="border-t border-slate-400 pt-1">
               {request.requestedBy}
             </p>
-            <p className="text-[10px] text-slate-500">
+            <p className="text-xs text-slate-500">
               {request.submittedAt
                 ? `Trình ${request.submittedAt.toLocaleString("vi-VN", {
                     day: "2-digit",
@@ -409,7 +409,7 @@ export default async function RequestDetailPage({
             <p className="border-t border-slate-400 pt-1">
               {request.shipApprovedBy ?? " "}
             </p>
-            <p className="text-[10px] text-slate-500">
+            <p className="text-xs text-slate-500">
               {request.shipApprovedAt
                 ? `${
                     request.shipApprovedRole === "CHIEF_ENGINEER"
@@ -427,7 +427,7 @@ export default async function RequestDetailPage({
             <p className="border-t border-slate-400 pt-1">
               {request.approvedBy ?? " "}
             </p>
-            <p className="text-[10px] text-slate-500">
+            <p className="text-xs text-slate-500">
               {request.approvedAt
                 ? `Duyệt ngày ${request.approvedAt.toLocaleDateString("vi-VN")}`
                 : " "}
@@ -438,7 +438,7 @@ export default async function RequestDetailPage({
             <p className="italic">Phó Giám Đốc</p>
             <div className="mt-12" />
             <p className="border-t border-slate-400 pt-1">&nbsp;</p>
-            <p className="text-[10px] text-slate-500">&nbsp;</p>
+            <p className="text-xs text-slate-500">&nbsp;</p>
           </div>
         </div>
       </div>

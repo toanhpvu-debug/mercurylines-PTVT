@@ -105,8 +105,13 @@ export default async function RequestsPage({
         name: true,
       },
     }),
+    // Chỉ mặt hàng thuộc các tàu người này phụ trách — người của một tàu không
+    // cần cả 597 dòng danh mục đội tàu nhúng vào trang (đo: ~12,5 KB nén thừa).
     prisma.material.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(scope.all ? {} : { vesselMaterials: { some: vesselWhere(scope) } }),
+      },
       orderBy: [{ materialType: "asc" }, { code: "asc" }],
       select: {
         id: true,

@@ -47,10 +47,15 @@ export function lamTron(n: number): number {
  * cột camelCase có ngoặc kép.
  */
 export async function layNhapXuatGanNhat(
-  vesselIds: number[]
+  // null = không khoanh tàu (người toàn đội) — để gọi được ngay trong Promise.all
+  // của trang, không phải đợi truy vấn danh sách tàu về rồi mới hỏi.
+  vesselIds: number[] | null
 ): Promise<Map<string, NhapXuatGanNhat>> {
   const ket = new Map<string, NhapXuatGanNhat>();
-  if (vesselIds.length === 0) return ket;
+  if (vesselIds !== null && vesselIds.length === 0) return ket;
+  const dieuKien = vesselIds === null
+    ? Prisma.empty
+    : Prisma.sql`WHERE "vesselId" IN (${Prisma.join(vesselIds)})`;
 
   const dong = await prisma.$queryRaw<
     Array<{
@@ -66,7 +71,7 @@ export async function layNhapXuatGanNhat(
     SELECT DISTINCT ON ("materialId", "warehouseId", "type")
       "materialId", "warehouseId", "type", "quantity", "note", "occurredAt", "performedBy"
     FROM "InventoryTransaction"
-    WHERE "vesselId" IN (${Prisma.join(vesselIds)})
+    ${dieuKien}
     ORDER BY "materialId", "warehouseId", "type", "occurredAt" DESC, "id" DESC
   `;
 

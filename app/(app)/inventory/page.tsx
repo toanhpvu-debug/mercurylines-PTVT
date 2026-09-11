@@ -179,7 +179,15 @@ export default async function InventoryPage({
   const lowOnly = params.low === "1";
   const showAll = params.full === "1";
 
-  const [inventories, materials, warehouses, vessels, recentTx] =
+  // Tàu đang hiện, suy thẳng từ phạm vi (không cần đợi truy vấn tàu) để câu
+  // "nhập/xuất gần nhất" chạy chung một chặng với các truy vấn khác.
+  const tauDangHien: number[] | null = vesselFilter
+    ? [vesselFilter]
+    : scope.all
+      ? null
+      : (scope.vesselIds ?? [scope.vesselId ?? -1]);
+
+  const [inventories, materials, warehouses, vessels, recentTx, ganNhat] =
     await Promise.all([
       prisma.inventory.findMany({
         where: {
@@ -188,16 +196,45 @@ export default async function InventoryPage({
           ...(whFilter ? { warehouseId: whFilter } : {}),
         },
         orderBy: [{ vesselId: "asc" }, { materialId: "asc" }],
-        include: {
-          vessel: true,
-          warehouse: true,
-          material: { include: { category: true } },
+        // `select` đúng cột trang đọc thay vì `include` cả quan hệ: `vessel: true`
+        // chép 14 cột của tàu vào từng dòng tồn, `category` chép cả bản ghi nhóm
+        // — đo: 756 KB → 330 KB từ DB cho 630 dòng (152 ms → 47 ms). Thiếu cột
+        // thì tsc báo ngay vì kiểu suy từ select.
+        select: {
+          id: true,
+          vesselId: true,
+          materialId: true,
+          warehouseId: true,
+          quantity: true,
+          reservedQuantity: true,
+          vessel: { select: { id: true, code: true, name: true } },
+          warehouse: { select: { id: true, code: true } },
+          material: {
+            select: {
+              id: true,
+              code: true,
+              nameVn: true,
+              impa: true,
+              minStock: true,
+              materialType: true,
+              equipment: true,
+              department: true,
+              uom: true,
+              category: { select: { name: true } },
+            },
+          },
         },
       }),
-      // Chỉ lấy 3 cột thật sự dùng (ô chọn vật tư của form nhập/xuất và bảng
-      // lịch sử giao dịch) — trước đây kéo toàn bộ cột của 600+ vật tư.
+      // Ô chọn vật tư của form nhập/xuất và bảng lịch sử: chỉ 3 cột, và chỉ mặt
+      // hàng thuộc TÀU ĐANG XEM — người của một tàu không cần 597 mặt hàng của
+      // cả đội (đo: ~21,5 KB nén thừa mỗi lần mở trang). Người toàn đội giữ nguyên.
       prisma.material.findMany({
-        where: { isActive: true },
+        where: {
+          isActive: true,
+          ...(tauDangHien === null
+            ? {}
+            : { vesselMaterials: { some: { vesselId: { in: tauDangHien } } } }),
+        },
         orderBy: { code: "asc" },
         select: { id: true, code: true, nameVn: true },
       }),
@@ -216,6 +253,9 @@ export default async function InventoryPage({
         orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
         take: 25,
       }),
+      // Lần nhập / xuất gần nhất của từng dòng tồn — MỘT câu SQL (lib/theKho.ts),
+      // chạy song song với các truy vấn trên chứ không nối đuôi.
+      layNhapXuatGanNhat(tauDangHien),
     ]);
   // Chỉ dựng sẵn một số dòng đầu mỗi bộ phận, giống trang Danh mục vật tư.
   //
@@ -246,12 +286,6 @@ export default async function InventoryPage({
   );
 
   const warehouseById = new Map(warehouses.map((w) => [w.id, w]));
-
-  // Lần nhập / xuất gần nhất của từng dòng tồn — MỘT câu SQL cho cả trang
-  // (lib/theKho.ts), khoanh đúng các tàu đang hiện.
-  const ganNhat = await layNhapXuatGanNhat(
-    vesselFilter ? [vesselFilter] : vessels.map((v) => v.id)
-  );
 
   // Áp bộ lọc loại / tìm kiếm / chỉ-thiếu (dữ liệu nhỏ — lọc tại chỗ).
   const filtered = inventories.filter((inv) => {

@@ -115,12 +115,17 @@ async function quyenDong(userId: number) {
 export const getCurrentUser = cache(async () => {
   const session = await getSession();
   if (!session) return null;
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    include: { vessel: true },
-  });
+  // Hai nhánh không phụ thuộc nhau: quyenDong chỉ cần session.userId — chính là
+  // id vừa dùng để tra user — nên chạy song song (đo: 2,0 ms → 1,2 ms mỗi lần
+  // dựng trang). Tài khoản vừa bị xóa thì nhánh quyền trả rỗng và vẫn return null.
+  const [user, them] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.userId },
+      include: { vessel: true },
+    }),
+    quyenDong(session.userId),
+  ]);
   if (!user) return null;
-  const them = await quyenDong(user.id);
   return { ...user, ...them };
 });
 

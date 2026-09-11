@@ -52,17 +52,17 @@ if (Get-Command node -ErrorAction SilentlyContinue) {
 }
 if (-not $nodeExe) {
     Loi "Không tìm thấy Node.js trên máy.`nCài Node.js LTS tại https://nodejs.org rồi chạy lại file này."
-    return
+    exit 1
 }
 
 # ─── Kiểm tra điều kiện trước khi chạy ───────────────────────────────────────
 if (-not (Test-Path (Join-Path $proj "node_modules\next"))) {
     Loi "Thiếu thư mục node_modules.`nGiải nén lại từ mercury-materials.7z, hoặc chạy: npm install"
-    return
+    exit 1
 }
 if (-not (Test-Path (Join-Path $proj ".env"))) {
     Loi "Thiếu file .env (chứa SESSION_SECRET và thông tin công ty).`nChép từ .env.example rồi điền giá trị."
-    return
+    exit 1
 }
 # Database nay la PostgreSQL chu khong con la file prisma\dev.db — kiem tra
 # xem MAY CHU co tra loi khong. Kiem tra file cu vua bo sot may chu tat (app
@@ -73,7 +73,7 @@ try {
     $kn = Doc-KetNoi -DuAn $proj
 } catch {
     Loi "Không đọc được DATABASE_URL trong .env.`n$($_.Exception.Message)"
-    return
+    exit 1
 }
 $tcp = New-Object System.Net.Sockets.TcpClient
 try {
@@ -110,7 +110,7 @@ if (-not $kip) {
          "Bản PostgreSQL riêng của dự án: bấm đúp khoi-dong-postgres.cmd`n" +
          "Bản cài dạng dịch vụ Windows: mở PowerShell quyền quản trị rồi chạy   Start-Service postgresql-x64-17`n" +
          "Chưa cài PostgreSQL: xem mục ""Cài PostgreSQL trên máy Windows"" trong README.md")
-    return
+    exit 1
 }
 
 # ─── Cổng 3000 có đang bị chiếm không ────────────────────────────────────────
@@ -122,7 +122,7 @@ if ($busy) {
     Write-Host "Có thể app đã chạy sẵn — thử mở http://localhost:3000 trước." -ForegroundColor Yellow
     Write-Host "Muốn tắt tiến trình đó để chạy lại: bấm đúp dung-app.cmd" -ForegroundColor Yellow
     Write-Host ""
-    return
+    exit 1
 }
 
 # Đường dẫn tới bộ chạy của Next, dùng cho cả bước build lẫn bước chạy.
@@ -196,7 +196,7 @@ if ($needBuild) {
         # nao chi ve lan build that bai.
         Remove-Item (Join-Path $proj ".next\BUILD_ID") -Force -ErrorAction SilentlyContinue
         Loi "Build thất bại — xem lỗi ở trên. Lan chay sau se tu build lai."
-        return
+        exit 1
     }
     Write-Host ("Build xong sau {0:N0} giây." -f $sw.Elapsed.TotalSeconds) -ForegroundColor Green
 }
@@ -262,17 +262,27 @@ while ($true) {
     if ($lanChet.Count -gt 10) {
         Loi ("Server chết $($lanChet.Count) lần trong một giờ — dừng chạy lại để không quay vòng vô tận.`n" +
              "Xem lỗi ở trên; sửa xong bấm đúp chay-app.cmd.")
-        return
+        exit 1
     }
     $cho = [int][Math]::Min(60, 5 * [Math]::Pow(2, $lanChet.Count - 1))
     Write-Host ("Server chết (mã {0}) sau {1:N0} giây — chạy lại sau {2} giây (lần {3}/10 trong giờ)." -f `
         $ma, ((Get-Date) - $batDau).TotalSeconds, $cho, $lanChet.Count) -ForegroundColor Yellow
-    Start-Sleep -Seconds $cho
+    # Chờ theo từng giây và nhìn cờ dừng: dung-app.cmd bấm trong lúc này phải
+    # dừng được ngay, không phải đợi hết 60 giây rồi app lại lên.
+    for ($i = 0; $i -lt $cho; $i++) {
+        Start-Sleep -Seconds 1
+        if (Test-Path $coDung) { break }
+    }
+    if (Test-Path $coDung) {
+        Remove-Item $coDung -Force -ErrorAction SilentlyContinue
+        Write-Host "Dừng theo yêu cầu (dung-app.cmd) trong lúc chờ — không chạy lại." -ForegroundColor DarkGray
+        break
+    }
     if ($coPgRieng) {
         & powershell -NoProfile -ExecutionPolicy Bypass -File $batHoPg -ViecCanLam chay 2>&1 | ForEach-Object { "$_" }
     }
     if (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue) {
         Loi "Cổng 3000 đã bị thứ khác chiếm trong lúc chờ — không chạy lại. Bấm đúp dung-app.cmd rồi chay-app.cmd."
-        return
+        exit 1
     }
 }

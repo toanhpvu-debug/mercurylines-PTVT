@@ -52,6 +52,7 @@ $fs = [System.IO.File]::Open($log, [System.IO.FileMode]::Append,
 $ghi = New-Object System.IO.StreamWriter($fs, (New-Object System.Text.UTF8Encoding($true)))
 $ghi.AutoFlush = $true   # không đệm: log phải đúng hiện tại, không phải đúng lúc app tắt
 
+$maThoat = 1
 try {
     $ghi.WriteLine("")
     $ghi.WriteLine("=== $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss') — khởi động ngầm ===")
@@ -62,8 +63,13 @@ try {
     & powershell -NoProfile -ExecutionPolicy Bypass `
         -File (Join-Path $PSScriptRoot "chay-app.ps1") -KhongMoTrinhDuyet *>&1 |
         ForEach-Object { $ghi.WriteLine($_.ToString()) }
+    # Mã thoát của powershell con — đường ống ở trên nuốt mất nếu không lưu lại.
+    $maThoat = $LASTEXITCODE
 }
 finally {
     $ghi.Dispose()
     $fs.Dispose()
 }
+# Trả đúng mã cho Task Scheduler: khác 0 thì RestartOnFailure mới kích hoạt,
+# và `trang-thai` mới không trấn an "xong, không lỗi" khi app đã bỏ cuộc.
+exit $maThoat

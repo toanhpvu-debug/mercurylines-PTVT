@@ -8,20 +8,23 @@
 Write-Host ""
 Write-Host "=== TẮT MERCURY MATERIALS ===" -ForegroundColor Cyan
 
-$conns = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue
-if (-not $conns) {
-    Write-Host "Cổng 3000 đang trống — app không chạy." -ForegroundColor Green
-    Write-Host ""
-    return
-}
-
-# Đặt cờ "dừng chủ ý" TRƯỚC khi tắt node: chay-app.ps1 chạy server trong vòng
-# tự-chạy-lại (xem cuối file đó). Không có cờ này thì tắt xong 5 giây nó lại
-# lên, và người dùng tưởng dung-app.cmd hỏng. Cờ nằm cạnh app.log, ngoài thư
+# Đặt cờ "dừng chủ ý" TRƯỚC MỌI THỨ — kể cả trước khi nhìn cổng 3000. chay-app.ps1
+# chạy server trong vòng tự-chạy-lại (xem cuối file đó): node vừa chết thì cổng
+# trống trong 5–60 giây, nếu thấy cổng trống mà bỏ đi không đặt cờ thì hết giờ
+# chờ app lại lên, người dùng tưởng dung-app.cmd hỏng và quay sang giết node trong
+# Task Manager — đúng thứ thiết kế này cố tránh. Cờ nằm cạnh app.log, ngoài thư
 # mục dự án, cùng lý do với log (xem chay-nen.ps1).
 $thuMucLog = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "app-logs"
 New-Item -ItemType Directory -Path $thuMucLog -Force | Out-Null
 Set-Content -Path (Join-Path $thuMucLog "dung.flag") -Value (Get-Date -Format s) -Encoding ASCII
+
+$conns = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue
+if (-not $conns) {
+    Write-Host "Cổng 3000 đang trống — không có node nào để tắt." -ForegroundColor Green
+    Write-Host "Đã đặt cờ dừng: nếu vòng tự-chạy-lại đang chờ, nó sẽ dừng ở nhịp kế tiếp." -ForegroundColor DarkGray
+    Write-Host ""
+    return
+}
 
 $pids = $conns | Select-Object -ExpandProperty OwningProcess -Unique
 foreach ($processId in $pids) {

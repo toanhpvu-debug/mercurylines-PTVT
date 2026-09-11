@@ -4,7 +4,7 @@ import { tuDien } from "./_kieu";
 export const chung = tuDien(
   {
     tenApp: "Mercury Lines Materials",
-    moTaApp: "Hệ thống quản lý vật tư đội tàu Mercury Lines",
+    moTaApp: "Hệ thống quản lý vật tư & phụ tùng đội tàu Mercury Lines",
     luu: "Lưu",
     dangLuu: "Đang lưu...",
     huy: "Hủy",
@@ -62,7 +62,7 @@ export const chung = tuDien(
   },
   {
     tenApp: "Mercury Lines Materials",
-    moTaApp: "Mercury Lines fleet materials management system",
+    moTaApp: "Mercury Lines fleet stores & spare parts management system",
     luu: "Save",
     dangLuu: "Saving...",
     huy: "Cancel",

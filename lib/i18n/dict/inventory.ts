@@ -62,13 +62,13 @@ export const inventory = tuDien(
       "Mặt hàng này chưa có lần nhập / xuất nào tại kho này.",
     ghiChoMatHangNay: "Ghi nhập / xuất cho mặt hàng này",
     ghiChoMatHangNayMoTa:
-      "Vật tư và kho đã chọn sẵn — chỉ cần loại, số lượng, ngày thực hiện và ghi chú.",
+      "Mặt hàng và kho đã chọn sẵn — chỉ cần loại, số lượng, ngày thực hiện và ghi chú.",
     tongNhap: "Tổng nhập",
     tongXuat: "Tổng xuất",
     inLuc: "In lúc",
 
     // --- Form nhập / xuất kho ---
-    chonVatTu: "Chọn vật tư",
+    chonVatTu: "Chọn mặt hàng",
     chonKho: "Chọn kho",
     optNhapKho: "Nhập kho",
     optXuatKho: "Xuất kho",

@@ -316,7 +316,7 @@ export const vessels = tuDien(
     dangHienTruoc: "Showing {n} of",
     dangHienSau: "rows.",
     xemDayDuTonKho: "See the full list on the Inventory page",
-    yeuCauCuaTau: "Stores & spares requisitions of {ten}",
+    yeuCauCuaTau: "Stores & spare parts requisitions of {ten}",
     taoDuyetYeuCau: "Create / approve requests",
     chuaCoYeuCau: "No requisition yet.",
     cotSoHieuYeuCau: "Request No.",
@@ -379,7 +379,7 @@ export const vessels = tuDien(
     canDatMuaBoSung: "To be ordered ({n} items):",
     canNChiec: "{n} more needed to reach standard out-fitting",
     dungTrangTruoc: "Use the",
-    trangYeuCauVatTu: "Stores & spares requisitions",
+    trangYeuCauVatTu: "Stores & spare parts requisitions",
     dungTrangSau: "page to raise a purchase request for the items above.",
 
     nguoiDungTieuDe: "Users & permissions",

@@ -1,6 +1,6 @@
 # Dokploy — đọc trạng thái và bấm Deploy tay (Browser pane, bấm bằng JS)
 
-Trang app: `http://187.127.120.10:3000/dashboard/project/qDm3kknV4hnz7GAggXuyA/environment/YA6GfGDSmSO-XZnEUJ62b/services/application/vWrs0r9lycrR_0cGp4nqm` (hoặc `/dashboard/projects` → bấm thẻ dự án → mục `mercury-app`).
+Trang app: mở panel (địa chỉ và đường dẫn service trong `..\dia-chi-may-chu.local.md`, ngoài repo) — hoặc `/dashboard/projects` → bấm thẻ dự án → mục `mercury-app`. Panel chỉ nên vào qua SSH tunnel (`ssh -L 3000:localhost:3000 root@<ip>` rồi mở `http://localhost:3000`) sau khi cổng 3000 đã đóng với Internet.
 
 ## Đọc lượt deploy mới nhất
 1. `find "Deployments"` → lấy ref của **tab** "Deployments" (không phải link ở sidebar) → `left_click` bằng ref (bấm `[role=tab]` bằng JS `.click()` không đổi tab).

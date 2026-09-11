@@ -26,8 +26,9 @@ Cách xếp mức cho dự án này:
 
 ## 2. Chặn cửa: thăm dò thật, không đọc mã suông
 ```powershell
-powershell -NoProfile -File .claude/skills/kiem-toan-bao-mat-mercury/scripts/tham-do-chan-cua.ps1 -Goc https://srv1964387.hstgr.cloud
+powershell -NoProfile -File .claude/skills/kiem-toan-bao-mat-mercury/scripts/tham-do-chan-cua.ps1
 ```
+(Mặc định thăm dò site thật — địa chỉ đọc từ `..\dia-chi-may-chu.local.md`, ngoài repo; `-Goc http://localhost:3000` cho bản cục bộ.)
 Mọi trang trong `app/(app)/` phải 307 về `/login?next=…`; mọi `app/api/*` phải 401/307; tệp tĩnh (`/fonts/*.woff2`, `/motif-ring.svg`, `/favicon.svg`) phải 200. Thêm route mới → thêm vào danh sách trong script.
 
 Bộ chặn cửa là `proxy.ts` với `matcher` loại trừ tệp tĩnh theo đuôi. Thiếu đuôi = tệp bị chuyển hướng về login (đã gặp với `.woff2`: trang đăng nhập rơi về phông hệ thống). Thêm loại tệp tĩnh mới thì thêm đuôi vào matcher.

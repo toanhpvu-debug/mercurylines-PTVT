@@ -1,6 +1,16 @@
 ﻿# Xac minh site that sau deploy. Khong can dang nhap. Tra exit 1 neu co muc lech.
-# Dung: powershell -NoProfile -File kiem-tra-site-that.ps1 [-Goc https://srv1964387.hstgr.cloud]
-param([string]$Goc = "https://srv1964387.hstgr.cloud")
+# Dung: powershell -NoProfile -File kiem-tra-site-that.ps1 [-Goc <goc>]
+#   Mac dinh: site that, dia chi doc tu dong "site=" trong ..\dia-chi-may-chu.local.md
+#   (tep cuc bo NGOAI repo vi repo cong khai). -Goc http://localhost:3000 cho ban cuc bo.
+param([string]$Goc = "")
+if (-not $Goc) {
+    $tepDiaChi = Join-Path $PSScriptRoot "..\..\..\..\..\dia-chi-may-chu.local.md"
+    if (Test-Path $tepDiaChi) {
+        $dong = Get-Content $tepDiaChi | Where-Object { $_ -like 'site=*' } | Select-Object -First 1
+        if ($dong) { $Goc = $dong.Substring(5).Trim() }
+    }
+    if (-not $Goc) { $Goc = "http://localhost:3000" }
+}
 $script:lech = 0
 function Ma($u) { curl.exe -sS -o NUL -w "%{http_code}" "$Goc$u" 2>$null }
 function Hd($u) { (curl.exe -sS -o NUL -D - --compressed "$Goc$u" 2>$null) -join "`n" }

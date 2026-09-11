@@ -32,7 +32,7 @@ Leader (phiên chính) gộp, quyết, sửa. Thư mục `_workspace/` nằm ở
 
 ## Phase 2 — Kiểm toán song song (5 agent, cùng một lượt gọi)
 Prompt chung cho mỗi agent (điền `{ten}`):
-> Bạn là agent `{ten}` của Mercury Materials. Đọc `.claude/agents/{ten}.md` rồi skill nó chỉ định, rồi mẫu `.claude/skills/toi-uu-mercury/references/mau-phat-hien.md`. Thư mục dự án: `D:\mercurylines code\mercury-materials` (app tại http://localhost:3000, Browser pane đã đăng nhập; site thật https://srv1964387.hstgr.cloud). Phạm vi người dùng: `_workspace/00_yeu-cau.md`. **Chỉ đo và ghi phát hiện, không sửa mã.** Ghi vào `_workspace/01_{ten}_phat-hien.md`. Nếu có `_workspace_prev/01_{ten}_phat-hien.md`, ghi trạng thái từng mục cũ. Không in bí mật. Xong thì trả lời bằng 5 dòng tóm tắt: số P1/P2/P3 và mục đáng làm nhất.
+> Bạn là agent `{ten}` của Mercury Materials. Đọc `.claude/agents/{ten}.md` rồi skill nó chỉ định, rồi mẫu `.claude/skills/toi-uu-mercury/references/mau-phat-hien.md`. Thư mục dự án: `D:\mercurylines code\mercury-materials` (app tại http://localhost:3000, Browser pane đã đăng nhập; site thật: địa chỉ trong `..\dia-chi-may-chu.local.md`, ngoài repo). Phạm vi người dùng: `_workspace/00_yeu-cau.md`. **Chỉ đo và ghi phát hiện, không sửa mã.** Ghi vào `_workspace/01_{ten}_phat-hien.md`. Nếu có `_workspace_prev/01_{ten}_phat-hien.md`, ghi trạng thái từng mục cũ. Không in bí mật. Xong thì trả lời bằng 5 dòng tóm tắt: số P1/P2/P3 và mục đáng làm nhất.
 
 Gọi cả năm trong **một** thông điệp, `run_in_background: true`. Chờ thông báo hoàn tất; agent nào chết/không ra tệp → gọi lại một lần; vẫn không → ghi "thiếu kiểm toán {ten}" trong tổng hợp và đi tiếp.
 

@@ -6,7 +6,7 @@ model: opus
 
 # van-hanh — Vận hành máy văn phòng & triển khai Dokploy
 
-Bạn là người vận hành hai bản cài của Mercury Materials: bản ngầm trên máy văn phòng Windows (Task Scheduler MercuryMaterials → scripts/chay-nen.ps1 → chay-app.ps1, PostgreSQL xách tay ở ..\pgsql + ..\pgdata) và bản trên VPS Hostinger qua Dokploy (https://srv1964387.hstgr.cloud, tự deploy khi push lên main).
+Bạn là người vận hành hai bản cài của Mercury Materials: bản ngầm trên máy văn phòng Windows (Task Scheduler MercuryMaterials → scripts/chay-nen.ps1 → chay-app.ps1, PostgreSQL xách tay ở ..\pgsql + ..\pgdata) và bản trên VPS Hostinger qua Dokploy (địa chỉ site, IP, panel ghi ở `..\dia-chi-may-chu.local.md` — cố ý để ngoài repo; tự deploy khi push lên main).
 
 ## Nguyên tắc làm việc
 - **Dừng app bằng cờ, không giết node trần**: scripts/dung-app.ps1 đặt ..\app-logs\dung.flag rồi mới tắt; vòng tự-chạy-lại trong chay-app.ps1 thấy cờ mới chịu dừng. Giết node trần thì 5 giây sau nó lên lại và KHÔNG build lại.

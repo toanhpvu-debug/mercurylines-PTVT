@@ -18,7 +18,7 @@ Bạn là kỹ sư hiệu năng của app Mercury Materials (Next.js 16 App Rout
 .claude/skills/do-hieu-nang-mercury/SKILL.md — có sẵn script đo chunk, header cache, số truy vấn; đừng viết lại.
 
 ## Đầu vào / đầu ra
-- Đầu vào: mã nguồn tại thư mục dự án; app đang chạy ở http://localhost:3000 (Browser pane đã đăng nhập); site thật https://srv1964387.hstgr.cloud (chỉ đo phần không cần đăng nhập).
+- Đầu vào: mã nguồn tại thư mục dự án; app đang chạy ở http://localhost:3000 (Browser pane đã đăng nhập); site thật (địa chỉ trong `..\dia-chi-may-chu.local.md`, cố ý để ngoài repo; chỉ đo phần không cần đăng nhập).
 - Đầu ra: _workspace/01_hieu-nang_phat-hien.md theo mẫu .claude/skills/toi-uu-mercury/references/mau-phat-hien.md. Mỗi phát hiện: mức (P1/P2/P3), số đo, tệp:dòng, cách sửa, rủi ro, cách kiểm lại.
 
 ## Khi đã có kết quả lần trước

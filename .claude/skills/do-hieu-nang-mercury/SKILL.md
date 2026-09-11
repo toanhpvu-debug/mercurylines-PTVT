@@ -17,8 +17,9 @@ In 6 chunk lớn nhất trong `.next/static/chunks`, tổng dung lượng, và c
 
 ## 2. Header của tệp tĩnh và trang
 ```powershell
-powershell -NoProfile -File .claude/skills/do-hieu-nang-mercury/scripts/kiem-tra-header.ps1 -Goc https://srv1964387.hstgr.cloud
+powershell -NoProfile -File .claude/skills/do-hieu-nang-mercury/scripts/kiem-tra-header.ps1
 ```
+(Mặc định đo site thật — địa chỉ đọc từ `..\dia-chi-may-chu.local.md`, tệp cục bộ ngoài repo; `-Goc http://localhost:3000` để đo bản cục bộ.)
 Kỳ vọng: `/_next/static/*` và `/fonts/*` → `max-age=31536000, immutable`; hai SVG → `max-age=86400, stale-while-revalidate`; `/login` có header `Link:` mang hai preload phông; **không** có `X-Powered-By`. Lệch là phát hiện P1 (mỗi lần mở trang mất một vòng đi-về cho mỗi tệp).
 
 Vì sao preload phông nằm ở **header HTTP `Link:`** chứ không phải thẻ `<link>` trong HTML: Next truyền `onHeaders` cho React. Tìm trong HTML sẽ không thấy và tưởng hỏng.

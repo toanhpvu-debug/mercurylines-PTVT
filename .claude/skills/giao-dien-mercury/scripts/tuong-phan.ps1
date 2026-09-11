@@ -9,12 +9,15 @@ function Mix($hex, $toward, $k) { $h = $hex.TrimStart('#'); $t = $toward.TrimSta
 function Fit($hex, $bgs, $target, $toward) { for ($k = 0.0; $k -le 1.0; $k += 0.01) { $c = Mix $hex $toward $k; $ok = $true; foreach ($bg in $bgs) { if ((CR $c $bg) -lt $target) { $ok = $false; break } }; if ($ok) { return $c } }; return $toward }
 function Tokens($block) { $m = @{}; foreach ($x in [regex]::Matches($block, '--([a-z-]+):\s*(#[0-9a-fA-F]{6})')) { $m[$x.Groups[1].Value] = $x.Groups[2].Value }; return $m }
 $iRoot = $css.IndexOf(":root {"); $iDark = $css.IndexOf(":root.dark {", $iRoot)
-$light = Tokens ($css.Substring($iRoot, $iDark - $iRoot)); $dark = Tokens ($css.Substring($iDark, [Math]::Min(3000, $css.Length - $iDark)))
-$nguong = @{ "text-secondary" = 7.5; "text-muted" = 7.0; "text-success" = 6.5; "text-warning" = 6.5; "text-danger" = 6.5; "text-info" = 6.5 }
+# Chi doc DEN DAU NGOAC DONG cua tung khoi: khoi .print-area phia sau khai lai
+# --surface-sunken/--text-* cho giay trang, doc qua ranh gioi la do nham mau in.
+$iRootEnd = $css.IndexOf("`n}", $iRoot); $iDarkEnd = $css.IndexOf("`n}", $iDark)
+$light = Tokens ($css.Substring($iRoot, $iRootEnd - $iRoot)); $dark = Tokens ($css.Substring($iDark, $iDarkEnd - $iDark))
+$nguong = @{ "text-secondary" = 7.5; "text-muted" = 7.0; "text-success" = 6.5; "text-warning" = 6.5; "text-danger" = 6.5; "text-info" = 6.5; "text-brand" = 6.5 }
 foreach ($theme in @(@{n="SANG"; t=$light; mutedMin=6.2}, @{n="TOI"; t=$dark; mutedMin=7.0})) {
     $T = $theme.t
     "=== $($theme.n): chu / nen (AA thuong >= 4.5; nguong du an trong ngoac) ==="
-    foreach ($txt in @("text-primary","text-secondary","text-muted","text-success","text-warning","text-danger","text-info")) {
+    foreach ($txt in @("text-primary","text-secondary","text-muted","text-success","text-warning","text-danger","text-info","text-brand")) {
         $min = if ($txt -eq "text-muted") { $theme.mutedMin } elseif ($nguong.ContainsKey($txt)) { $nguong[$txt] } else { 7.0 }
         $row = "{0,-16} (>= {1,4})" -f $txt, $min; $xau = $false
         foreach ($bg in @("surface","surface-raised","surface-sunken")) { $r = CR $T[$txt] $T[$bg]; if ($r -lt $min) { $xau = $true }; $row += "  {0}={1,5}" -f $bg.Replace("surface-",""), $r }
@@ -22,5 +25,7 @@ foreach ($theme in @(@{n="SANG"; t=$light; mutedMin=6.2}, @{n="TOI"; t=$dark; mu
     }
     "--- nhan trang thai: tone-*-text tren tone-*-bg (>= 6.0) ---"
     foreach ($tone in @("neutral","brand","success","warning","danger","info","muted")) { $r = CR $T["tone-$tone-text"] $T["tone-$tone-bg"]; "{0,-10} {1,5}  ({2} / {3}){4}" -f $tone, $r, $T["tone-$tone-text"], $T["tone-$tone-bg"], $(if ($r -lt 6.0) { "  <-- DUOI NGUONG" } else { "" }) }
+    "--- vach Meter: meter-* tren surface-sunken (>= 3.0, WCAG 1.4.11 thanh phan phi van ban) ---"
+    foreach ($tone in @("neutral","brand","success","warning","danger","info","muted")) { $r = CR $T["meter-$tone"] $T["surface-sunken"]; "{0,-10} {1,5}  ({2} / {3}){4}" -f $tone, $r, $T["meter-$tone"], $T["surface-sunken"], $(if ($r -lt 3.0) { "  <-- DUOI NGUONG" } else { "" }) }
 }
 "Goi y mau moi dat nguong: dot-source file nay roi goi  Fit '#8591a5' @('#0b1117','#141e30','#060a13') 7.0 '#ffffff'"

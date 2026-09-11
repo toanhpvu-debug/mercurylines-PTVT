@@ -1,6 +1,16 @@
 ﻿# Kiem tra header cache/preload cua trang va tep tinh. Khong can dang nhap.
-# Dung: powershell -NoProfile -File kiem-tra-header.ps1 -Goc https://srv1964387.hstgr.cloud
-param([string]$Goc = "http://localhost:3000")
+# Dung: powershell -NoProfile -File kiem-tra-header.ps1 [-Goc <goc>]
+#   Mac dinh: site that, dia chi doc tu dong "site=" trong ..\dia-chi-may-chu.local.md
+#   (tep cuc bo NGOAI repo vi repo cong khai). -Goc http://localhost:3000 cho ban cuc bo.
+param([string]$Goc = "")
+if (-not $Goc) {
+    $tepDiaChi = Join-Path $PSScriptRoot "..\..\..\..\..\dia-chi-may-chu.local.md"
+    if (Test-Path $tepDiaChi) {
+        $dong = Get-Content $tepDiaChi | Where-Object { $_ -like 'site=*' } | Select-Object -First 1
+        if ($dong) { $Goc = $dong.Substring(5).Trim() }
+    }
+    if (-not $Goc) { $Goc = "http://localhost:3000" }
+}
 function Hd($u) { (curl.exe -sS -o NUL -D - --compressed "$Goc$u" 2>$null) -join "`n" }
 function Lay($hd, $ten) { $m = [regex]::Match($hd, "(?im)^$ten\s*:\s*(.+)$"); if ($m.Success) { $m.Groups[1].Value.Trim() } else { "(khong co)" } }
 $h = (curl.exe -sS --compressed "$Goc/login" 2>$null) -join "`n"

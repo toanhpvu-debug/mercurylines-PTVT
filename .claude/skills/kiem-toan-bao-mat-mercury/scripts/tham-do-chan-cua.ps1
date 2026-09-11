@@ -1,6 +1,16 @@
 ﻿# Tham do chan cua khi CHUA dang nhap: trang -> 307 ve /login, API -> 401/307, tep tinh -> 200.
-# Dung: powershell -NoProfile -File tham-do-chan-cua.ps1 -Goc https://srv1964387.hstgr.cloud
-param([string]$Goc = "http://localhost:3000")
+# Dung: powershell -NoProfile -File tham-do-chan-cua.ps1 [-Goc <goc>]
+#   Mac dinh: site that, dia chi doc tu dong "site=" trong ..\dia-chi-may-chu.local.md
+#   (tep cuc bo NGOAI repo vi repo cong khai). -Goc http://localhost:3000 cho ban cuc bo.
+param([string]$Goc = "")
+if (-not $Goc) {
+    $tepDiaChi = Join-Path $PSScriptRoot "..\..\..\..\..\dia-chi-may-chu.local.md"
+    if (Test-Path $tepDiaChi) {
+        $dong = Get-Content $tepDiaChi | Where-Object { $_ -like 'site=*' } | Select-Object -First 1
+        if ($dong) { $Goc = $dong.Substring(5).Trim() }
+    }
+    if (-not $Goc) { $Goc = "http://localhost:3000" }
+}
 $trang = @("/dashboard","/vessels","/vessels/1","/materials","/materials/import","/inventory","/inventory/stock-card?material=1&wh=1",
            "/requests","/requests/1","/purchasing","/purchasing/new","/purchasing/direct","/purchasing/forms","/purchasing/suppliers",
            "/paint","/paint/1","/paint/products","/paint/import","/consumables","/consumables/1","/consumables/products",

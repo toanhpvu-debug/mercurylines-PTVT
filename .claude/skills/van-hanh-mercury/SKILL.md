@@ -22,7 +22,7 @@ Nó dừng bằng cờ → chờ việc về `Ready` → `schtasks /Run` → ch�
 - `don-dep.cmd`: cache npm (`_cacache`, không đụng `_npx`), log đời trước, tệp tạm; `-CaCacheBuild` xóa `.next\cache`. Không tự xóa pgAdmin (673 MB) hay tệp .rar cũ — chỉ liệt kê.
 - Khôi phục dữ liệu lên server: `D:\mercurylines code\khoi-phuc-len-server.cmd` (người dùng chạy, gõ mật khẩu SSH).
 
-## Triển khai Dokploy (VPS 187.127.120.10, site https://srv1964387.hstgr.cloud)
+## Triển khai Dokploy (VPS Hostinger — IP, site, panel, webhook ghi ở `..\dia-chi-may-chu.local.md`, CỐ Ý để ngoài repo vì repo công khai)
 - **Push lên `main` là tự deploy** (webhook GitHub → Dokploy, ~1 phút 40). Không bấm Deploy sau push: nút xám nghĩa là đang build; bấm thêm chỉ xếp hàng lượt hai.
 - Xác minh site thật:
 ```powershell

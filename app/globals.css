@@ -168,6 +168,30 @@
   --meter-danger: #f43f5e;
   --meter-info: #0c8ec8;
   --meter-muted: #80868e;
+
+  /*
+   * NÉT CHỮ — nền sáng dày hơn nền tối đúng một nấc.
+   *
+   * Cùng một font ở cùng một số cân nặng KHÔNG đọc ra như nhau trên hai nền:
+   * chữ sáng trên nền tối bị loang ra (halation) nên trông dày hơn thực tế, còn
+   * chữ tối trên nền sáng thì ngược lại — trông mảnh đi. App này mặc định nền
+   * tối nên toàn bộ bảng cân nặng được chọn theo nền tối, và người làm việc ở
+   * nền sáng cả ngày thấy chữ mỏng. Nâng cả thang lên một nấc cho nền sáng
+   * (thay vì chỉ nâng chữ thường) để giữ nguyên trật tự: thường < nhấn < tiêu đề
+   * < đậm, không dồn bốn cấp thành hai.
+   *
+   * Sửa được bằng BIẾN vì Tailwind 4 phát ra `font-weight: var(--font-weight-medium)`
+   * cho .font-medium chứ không phải số cứng — đổi ở đây là đổi cả 194 chỗ dùng
+   * font-medium/semibold/bold trong mã, không phải sửa từng tệp.
+   *
+   * Manrope là font biến thiên phủ 400–800 nên 650/750 là nét THẬT, không phải
+   * nét giả do trình duyệt bôi đậm. Michroma thì chỉ có một nét — xem quy tắc
+   * .font-display bên dưới.
+   */
+  --font-weight-normal: 500;
+  --font-weight-medium: 600;
+  --font-weight-semibold: 650;
+  --font-weight-bold: 750;
 }
 
 /* Chế độ TỐI — mặc định, khớp ảnh hero của hãng */
@@ -214,6 +238,13 @@
   --meter-danger: #f43f5e;
   --meter-info: #0ea5e9;
   --meter-muted: #cbd5e1;
+
+  /* Thang gốc. Khai lại thay vì để rơi về mặc định của Tailwind: đọc khối này
+     là thấy ngay nền tối nhẹ hơn nền sáng một nấc, không phải đi tra nơi khác. */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
 }
 
 html,
@@ -225,7 +256,24 @@ body {
   background: var(--surface);
   color: var(--text-primary);
   font-family: var(--font-sans);
+  /* Không có dòng này thì chữ thường lấy "normal" = 400 của trình duyệt và
+     không bao giờ nghe theo --font-weight-normal ở trên. */
+  font-weight: var(--font-weight-normal);
   -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Michroma (font tiêu đề của hãng, dùng cho mã tàu / mã vật tư / số chứng từ)
+ * chỉ có MỘT nét: 400. Xin trình duyệt nét nào khác thì nó tự bôi đậm bằng cách
+ * kéo giãn đường viền chữ — chữ nhòe và mất đúng cái dáng hình học là lý do
+ * chọn font này. Ghim về 400 và tắt hẳn nét giả. (Hệ quả: mã chứng từ nằm trong
+ * tiêu đề trang — vốn thừa hưởng font-semibold của h1 — nay là nét thật 400,
+ * nhìn sắc hơn và mảnh hơn một chút so với trước.) Có ngày bổ sung tệp Michroma
+ * đậm thật thì bỏ hai dòng này.
+ */
+.font-display {
+  font-weight: 400;
+  font-synthesis-weight: none;
 }
 
 html {
@@ -393,6 +441,15 @@ html {
     --meter-danger: #f43f5e;
     --meter-info: #0c8ec8;
     --meter-muted: #80868e;
+    /* Giấy giữ NGUYÊN thang nét gốc, cố ý không theo chế độ sáng: nét dày hơn
+       thì mỗi chữ cũng rộng hơn, mà các biểu mẫu công ty (MLS-11-05A/B, PO,
+       RFQ) đã được căn vừa khít khổ A4 ngang — nới nét chữ là nong cả cột và có
+       thể đẩy tràn sang trang sau. Màn hình dễ đọc hơn không đáng đổi bằng một
+       tờ chứng từ sai khổ. Đây cũng đúng bằng cái đang in ra hôm nay. */
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
     --motif-opacity: 0;
   }
   .no-print,

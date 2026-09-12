@@ -174,7 +174,11 @@ export default function AppShell({
                             )}
                           >
                             <Anchor className="size-3 shrink-0 opacity-60" />
-                            <span className="font-display text-xs tracking-wide text-[var(--text-muted)]">
+                            {/* shrink-0: thiếu nó thì tàu nào có tên dài (TC MESSENGER)
+                                bóp luôn ô mã bên cạnh và "ML-007" gãy làm hai dòng —
+                                chỉ đúng một tàu bị, nên nhìn như lỗi dữ liệu. Tên đã có
+                                truncate lo phần cắt bớt. */}
+                            <span className="font-display text-xs tracking-wide whitespace-nowrap text-[var(--text-muted)] shrink-0">
                               {v.code}
                             </span>
                             <span className="truncate">{v.name}</span>

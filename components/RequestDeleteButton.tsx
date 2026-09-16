@@ -12,27 +12,44 @@ export default function RequestDeleteButton({
   returnTo,
   size = "md",
   className,
+  soDongDonMua = 0,
 }: {
   id: number;
   requestNo: string;
   returnTo?: string;
   size?: "sm" | "md";
   className?: string;
+  /**
+   * Số dòng đơn mua đang hiệu lực trỏ vào yêu cầu này. Khác 0 thì xóa sẽ cắt
+   * đứt đường lần từ đơn mua về yêu cầu gốc (khóa ngoại đặt ON DELETE SET NULL),
+   * nên câu hỏi xác nhận phải nói thẳng ra thay vì hỏi chung chung "chắc chưa".
+   */
+  soDongDonMua?: number;
 }) {
   const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(deleteMaterialRequest, {
     message: "",
   });
+  const vuongDonMua = soDongDonMua > 0;
   return (
     <form
       action={formAction}
       onSubmit={(e) => {
-        if (!window.confirm(t("requests.xacNhanXoa", { ma: requestNo }))) {
+        const hoi = vuongDonMua
+          ? t("requests.xacNhanXoaKemDonMua", {
+              ma: requestNo,
+              so: String(soDongDonMua),
+            })
+          : t("requests.xacNhanXoa", { ma: requestNo });
+        if (!window.confirm(hoi)) {
           e.preventDefault();
         }
       }}
     >
       <input type="hidden" name="id" value={id} />
+      {vuongDonMua && (
+        <input type="hidden" name="goLienKetDonMua" value="1" />
+      )}
       {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
       <Button
         variant="danger"

@@ -45,7 +45,17 @@ export const REQUEST_ALLOWED_FROM: Record<string, string[]> = {
   PARTIALLY_DELIVERED: ["IN_PROCUREMENT"],
   FULLY_DELIVERED: ["IN_PROCUREMENT", "PARTIALLY_DELIVERED"],
   CLOSED: ["FULLY_DELIVERED"],
-  CANCELLED: ["DRAFT", "PENDING_MASTER", "PENDING_OFFICE", "APPROVED"],
+  // Hủy được cả khi ĐÃ chuyển mua sắm: "chuyển mua sắm" mới chỉ là đánh dấu,
+  // đơn mua có thể chưa lập dòng nào. Trường hợp đã có dòng đơn mua trỏ vào thì
+  // updateRequestStatus chặn riêng và bảo hủy đơn mua trước — luật đó phải nằm
+  // ở server action vì phải hỏi database, không suy ra từ bảng này được.
+  CANCELLED: [
+    "DRAFT",
+    "PENDING_MASTER",
+    "PENDING_OFFICE",
+    "APPROVED",
+    "IN_PROCUREMENT",
+  ],
 };
 
 /** Cấp duyệt kế tiếp của một yêu cầu, null nếu không còn ở khâu phê duyệt. */

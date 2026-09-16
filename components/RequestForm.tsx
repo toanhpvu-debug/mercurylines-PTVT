@@ -42,6 +42,30 @@ type RequestItem = {
   note: string;
 };
 
+/**
+ * Bản yêu cầu đang được sửa. Vắng mặt = form đang ở chế độ LẬP MỚI.
+ *
+ * Cùng một form cho cả lập và sửa vì hai việc đó nhìn thấy và gõ vào đúng những
+ * ô như nhau — tách ra thành hai form là mở đường cho chúng lệch nhau (thêm ô
+ * mới ở form lập, quên ở form sửa) đúng kiểu lỗi không ai phát hiện cho tới khi
+ * người dùng hỏi "sao sửa xong mất mục Nhà sản xuất".
+ */
+export type YeuCauDangSua = {
+  id: number;
+  requestNo: string;
+  kind: "STORE" | "SPARE";
+  vesselId: number;
+  department: string;
+  priority: string;
+  /** yyyy-mm-dd, chuỗi rỗng nếu chưa đặt. */
+  requiredDate: string;
+  purpose: string;
+  equipment: string;
+  maker: string;
+  serialNo: string;
+  items: RequestItem[];
+};
+
 const blankItem = (): RequestItem => ({
   mode: "existing",
   materialId: "",
@@ -64,34 +88,41 @@ export default function RequestForm({
   materials,
   defaultVesselId,
   nguoiLap,
+  dangSua,
 }: {
   vessels: VesselOption[];
   materials: MaterialOption[];
   defaultVesselId?: number;
   /** Người đang đăng nhập — tên và chức danh đi thẳng vào yêu cầu. */
   nguoiLap: { name: string; role: string };
+  /** Có = sửa bản đã lập; không có = lập mới. */
+  dangSua?: YeuCauDangSua;
 }) {
   const { t, tTuDo } = useNgonNgu();
   const router = useRouter();
+  const laSua = Boolean(dangSua);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [kind, setKind] = useState<"STORE" | "SPARE">("STORE");
+  const [kind, setKind] = useState<"STORE" | "SPARE">(dangSua?.kind ?? "STORE");
   const [vesselId, setVesselId] = useState(
-    defaultVesselId ? String(defaultVesselId) : ""
+    dangSua ? String(dangSua.vesselId) : defaultVesselId ? String(defaultVesselId) : ""
   );
   // Bộ phận chọn sẵn theo chức danh: Máy 2 mở form là đã ở bộ phận Máy, Phó 3
   // là ở Boong. Chọn nhầm bộ phận nghĩa là yêu cầu đi lạc sang người duyệt khác.
+  // Khi SỬA thì lấy đúng bộ phận của chứng từ, không đoán lại theo người đang mở.
   const [department, setDepartment] = useState(
-    boPhanCuaChucDanh(nguoiLap.role) ?? "ENGINE"
+    dangSua?.department ?? boPhanCuaChucDanh(nguoiLap.role) ?? "ENGINE"
   );
-  const [requiredDate, setRequiredDate] = useState("");
-  const [priority, setPriority] = useState("NORMAL");
-  const [purpose, setPurpose] = useState("");
-  const [equipment, setEquipment] = useState("");
-  const [maker, setMaker] = useState("");
-  const [serialNo, setSerialNo] = useState("");
-  const [items, setItems] = useState<RequestItem[]>([blankItem()]);
+  const [requiredDate, setRequiredDate] = useState(dangSua?.requiredDate ?? "");
+  const [priority, setPriority] = useState(dangSua?.priority ?? "NORMAL");
+  const [purpose, setPurpose] = useState(dangSua?.purpose ?? "");
+  const [equipment, setEquipment] = useState(dangSua?.equipment ?? "");
+  const [maker, setMaker] = useState(dangSua?.maker ?? "");
+  const [serialNo, setSerialNo] = useState(dangSua?.serialNo ?? "");
+  const [items, setItems] = useState<RequestItem[]>(
+    dangSua?.items.length ? dangSua.items : [blankItem()]
+  );
 
   const filteredMaterials = useMemo(
     () => materials.filter((m) => m.materialType === kind),
@@ -162,16 +193,28 @@ export default function RequestForm({
         setLoading(false);
         return;
       }
-      const res = await fetch("/api/material-requests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        dangSua ? `/api/material-requests/${dangSua.id}` : "/api/material-requests",
+        {
+          method: dangSua ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
       if (!res.ok) {
         const data = await res.json();
         setMessage(data.error || t("requests.coLoi"));
         setIsError(true);
         setLoading(false);
+        return;
+      }
+      if (dangSua) {
+        // Về thẳng trang chứng từ: người sửa xong muốn xem lại tờ vừa sửa, chứ
+        // không phải ngồi tiếp trước một form đã lưu rồi. refresh() trước push()
+        // để trang đích dựng lại từ dữ liệu mới chứ không lấy bản đệm cũ.
+        setMessage(t("requests.suaThanhCong"));
+        router.refresh();
+        router.push(`/requests/${dangSua.id}`);
         return;
       }
       setMessage(
@@ -197,32 +240,50 @@ export default function RequestForm({
       <CardHeader
         icon={<ClipboardList className="size-4" />}
         title={
-          isSpare
-            ? t("requests.taoYeuCauPhuTung")
-            : t("requests.taoYeuCauVatTu")
+          laSua
+            ? isSpare
+              ? t("requests.suaYeuCauPhuTung")
+              : t("requests.suaYeuCauVatTu")
+            : isSpare
+              ? t("requests.taoYeuCauPhuTung")
+              : t("requests.taoYeuCauVatTu")
         }
+        subtitle={laSua ? t("requests.suaMoTa") : undefined}
       />
       <form onSubmit={submit} className="space-y-4">
+        {/* Đổi loại là xóa sạch các dòng đã gõ (vật tư và phụ tùng dùng hai danh
+            mục khác nhau). Khi SỬA thì loại đã khóa — số yêu cầu mã hóa nó —
+            nên hai nút này tắt hẳn thay vì để bấm rồi mất hết dòng vô ích. */}
         <div className="inline-flex gap-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-1">
           <button
             type="button"
+            disabled={laSua}
             onClick={() => {
               setKind("STORE");
               setItems([blankItem()]);
             }}
             aria-pressed={!isSpare}
-            className={cn(SEG_BTN, !isSpare ? SEG_ON : SEG_OFF)}
+            className={cn(
+              SEG_BTN,
+              !isSpare ? SEG_ON : SEG_OFF,
+              laSua && "cursor-not-allowed opacity-60"
+            )}
           >
             {t("requests.nutLoaiVatTu")}
           </button>
           <button
             type="button"
+            disabled={laSua}
             onClick={() => {
               setKind("SPARE");
               setItems([blankItem()]);
             }}
             aria-pressed={isSpare}
-            className={cn(SEG_BTN, isSpare ? SEG_ON : SEG_OFF)}
+            className={cn(
+              SEG_BTN,
+              isSpare ? SEG_ON : SEG_OFF,
+              laSua && "cursor-not-allowed opacity-60"
+            )}
           >
             {t("requests.nutLoaiPhuTung")}
           </button>
@@ -232,6 +293,7 @@ export default function RequestForm({
             <Select
               value={vesselId}
               onChange={(e) => setVesselId(e.target.value)}
+              disabled={laSua}
               required
             >
               <option value="">{t("chung.chonTau")}</option>
@@ -483,7 +545,13 @@ export default function RequestForm({
             loading={loading}
             icon={<Send className="size-4" />}
           >
-            {loading ? t("chung.dangXuLy") : t("requests.nutTaoYeuCau")}
+            {loading
+              ? laSua
+                ? t("requests.dangLuuThayDoi")
+                : t("chung.dangXuLy")
+              : laSua
+                ? t("requests.luuThayDoi")
+                : t("requests.nutTaoYeuCau")}
           </Button>
         </div>
         {message && (

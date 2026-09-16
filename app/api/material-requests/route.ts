@@ -7,6 +7,12 @@ import {
 } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
 import { LAP_YEU_CAU } from "@/lib/roles";
+import {
+  chupROB,
+  docDongYeuCau,
+  duVatTuTrongDanhMuc,
+  maVatTuCoSan,
+} from "@/lib/yeuCauVatTu";
 
 export const dynamic = "force-dynamic";
 
@@ -85,81 +91,23 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    type ParsedItem = {
-      materialId: number | null;
-      itemName: string | null;
-      itemCode: string | null;
-      itemUom: string | null;
-      quantity: number;
-      note: string | null;
-    };
-    const items: ParsedItem[] = body.items
-      .map((item: Record<string, unknown>): ParsedItem | null => {
-        const quantity = Number(item.quantity);
-        if (!Number.isFinite(quantity) || quantity <= 0) return null;
-        const note = item.note ? String(item.note).trim() : null;
-        const isNew = item.isNew === true || !item.materialId;
-        if (isNew) {
-          const itemName = String(item.itemName || "").trim();
-          if (!itemName) return null; // vật tư mới bắt buộc có tên
-          return {
-            materialId: null,
-            itemName,
-            itemCode: item.itemCode ? String(item.itemCode).trim() : null,
-            itemUom: item.itemUom ? String(item.itemUom).trim() || "PCS" : "PCS",
-            quantity,
-            note,
-          };
-        }
-        const materialId = Number(item.materialId);
-        if (!Number.isFinite(materialId) || materialId <= 0) return null;
-        return {
-          materialId,
-          itemName: null,
-          itemCode: null,
-          itemUom: null,
-          quantity,
-          note,
-        };
-      })
-      .filter((x: ParsedItem | null): x is ParsedItem => x !== null);
+    // Đọc dòng bằng HÀM DÙNG CHUNG với đường sửa (PATCH .../[id]) — xem
+    // lib/yeuCauVatTu.ts về lý do không được chép đôi đoạn này.
+    const items = docDongYeuCau(body.items);
     if (!items.length) {
       return NextResponse.json(
         { error: t("actionsModule.yeuCau_danhSachKhongHopLe") },
         { status: 400 }
       );
     }
-    // Chụp ROB (còn tồn trên tàu) cho từng vật tư có sẵn tại thời điểm yêu cầu
-    const materialIds = [
-      ...new Set(
-        items
-          .map((i) => i.materialId)
-          .filter((x): x is number => x !== null)
-      ),
-    ];
-    // Xác nhận mọi vật tư "có sẵn" thực sự tồn tại (tránh lỗi khóa ngoại 500).
-    if (materialIds.length) {
-      const existing = await prisma.material.findMany({
-        where: { id: { in: materialIds } },
-        select: { id: true },
-      });
-      if (existing.length !== materialIds.length) {
-        return NextResponse.json(
-          { error: t("actionsModule.yeuCau_vatTuKhongTonTai") },
-          { status: 400 }
-        );
-      }
+    const materialIds = maVatTuCoSan(items);
+    if (!(await duVatTuTrongDanhMuc(materialIds))) {
+      return NextResponse.json(
+        { error: t("actionsModule.yeuCau_vatTuKhongTonTai") },
+        { status: 400 }
+      );
     }
-    const robGroups = materialIds.length
-      ? await prisma.inventory.groupBy({
-          by: ["materialId"],
-          where: { vesselId, materialId: { in: materialIds } },
-          _sum: { quantity: true },
-        })
-      : [];
-    const robByMaterial = new Map(
-      robGroups.map((g) => [g.materialId, Number(g._sum.quantity ?? 0)])
-    );
+    const robByMaterial = await chupROB(vesselId, materialIds);
     // Số yêu cầu theo quy ước chứng từ: <MR|SR>-<mã tàu>-<năm 2 số>-<số thứ tự>.
     // VD MR-MLS001-26-0007. Số cũ dạng timestamp không tra cứu hay đối chiếu được.
     const prefix = kind === "SPARE" ? "SR" : "MR";

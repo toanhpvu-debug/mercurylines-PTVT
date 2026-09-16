@@ -220,6 +220,11 @@ export const actionsModule = tuDien(
     yeuCau_danhSachKhongHopLe: "Danh sách vật tư không hợp lệ.",
     yeuCau_vatTuKhongTonTai: "Có vật tư không tồn tại trong danh mục.",
     yeuCau_khongTaoDuoc: "Không thể tạo yêu cầu.",
+    yeuCau_khongSuaDuocOTrangThaiNay:
+      "Yêu cầu ở trạng thái này không sửa được nội dung nữa. Đã duyệt rồi thì dùng Hủy yêu cầu để giữ lại vết, hoặc nhờ quản trị xử lý.",
+    yeuCau_daVaoDonMuaKhongSua:
+      "Yêu cầu đã có dòng nằm trong đơn mua nên không sửa được nội dung. Hãy hủy đơn mua đó trước.",
+    yeuCau_khongSuaDuoc: "Không lưu được thay đổi.",
 
     // ── Tải tài liệu · xuất biểu mẫu (các route trả file) ────────────────────
     taiLieu_khongXemDuocBanGoc: "Bạn không có quyền xem bản gốc phiếu này.",
@@ -445,6 +450,11 @@ export const actionsModule = tuDien(
     yeuCau_danhSachKhongHopLe: "The item list is invalid.",
     yeuCau_vatTuKhongTonTai: "Some items do not exist in the catalogue.",
     yeuCau_khongTaoDuoc: "The request could not be created.",
+    yeuCau_khongSuaDuocOTrangThaiNay:
+      "This requisition can no longer be edited at its current status. Once approved, cancel it instead so the record is kept, or ask an administrator.",
+    yeuCau_daVaoDonMuaKhongSua:
+      "This requisition already has lines on a purchase order, so its contents cannot be edited. Cancel that purchase order first.",
+    yeuCau_khongSuaDuoc: "The changes could not be saved.",
 
     taiLieu_khongXemDuocBanGoc:
       "You do not have permission to view the original of this receipt.",

@@ -1516,6 +1516,27 @@ export async function updateRequestStatus(
           );
         }
       }
+      // Hủy một yêu cầu ĐÃ chuyển mua sắm chỉ được phép khi chưa có dòng đơn mua
+      // nào còn sống trỏ vào nó. "Chuyển mua sắm" mới là đánh dấu chuyển bàn —
+      // rất thường chưa lập đơn nào — nên chặn tất là bắt người ta ôm mãi một
+      // yêu cầu bỏ đi. Nhưng khi đơn mua đã có dòng lấy từ yêu cầu này thì hủy ở
+      // đây làm hai chứng từ nói ngược nhau: yêu cầu bảo "đã hủy" còn đơn mua vẫn
+      // đang đặt hàng. Thứ tự đúng là hủy đơn mua trước. Đơn đã hủy không tính.
+      if (status === "CANCELLED" && before.status === "IN_PROCUREMENT") {
+        const soDongDonMua = await tx.purchaseOrderItem.count({
+          where: {
+            requestItem: { requestId: id },
+            po: { status: { not: "CANCELLED" } },
+          },
+        });
+        if (soDongDonMua > 0) {
+          throw new ActionError(
+            t("actions.yeuCau_daCoDonMuaHuyDonTruoc", {
+              so: String(soDongDonMua),
+            })
+          );
+        }
+      }
       const result = await tx.materialRequest.updateMany({
         where: {
           id,
@@ -1623,6 +1644,32 @@ export async function deleteMaterialRequest(
   ) {
     return { message: t("actions.yeuCau_chiQuanTriXoaDuoc") };
   }
+  // Đơn mua đang trỏ vào yêu cầu này thì KHÔNG xóa.
+  //
+  // Xóa không làm dòng đơn mua biến mất — quan hệ requestItemId là tùy chọn nên
+  // Prisma chỉ gỡ liên kết thành null. Đơn mua vẫn đặt hàng, vẫn nhận hàng, chỉ
+  // là không còn đường lần về lý do nó tồn tại, và không còn gì trên màn hình nói
+  // rằng đã từng có. Mất dấu kiểu đó chỉ lộ ra lúc đối chiếu sổ sách nhiều tháng
+  // sau. Việc cần làm là hủy đơn mua trước, hoặc hủy yêu cầu (giữ lại vết) thay
+  // vì xóa. Đơn đã hủy không tính vì chúng không còn cam kết gì.
+  const soDongDonMua = await prisma.purchaseOrderItem.count({
+    where: {
+      requestItem: { requestId: id },
+      po: { status: { not: "CANCELLED" } },
+    },
+  });
+  // Quản trị VẪN xóa được, nhưng phải đi qua một lời xác nhận nói thẳng hậu quả
+  // — nút gửi kèm cờ này chỉ sau khi người dùng đọc và đồng ý. Chặn cứng thì
+  // đúng về dữ liệu mà sai về việc: người chịu trách nhiệm cao nhất lại là người
+  // duy nhất không dọn được rác, và họ sẽ đi đường vòng qua database.
+  const goLienKet = String(formData.get("goLienKetDonMua") || "") === "1";
+  if (soDongDonMua > 0 && !(actor.role === "ADMIN" && goLienKet)) {
+    return {
+      message: t("actions.yeuCau_daCoDonMuaKhongXoa", {
+        so: String(soDongDonMua),
+      }),
+    };
+  }
   try {
     await prisma.materialRequest.delete({ where: { id } });
   } catch (error) {
@@ -1644,7 +1691,12 @@ export async function deleteMaterialRequest(
     detail:
       `Xóa yêu cầu #${id} (${request.requestNo}) — trạng thái ` +
       `${REQUEST_STATUS_LABEL[request.status] ?? request.status}` +
-      `, người lập ${request.requestedBy}`,
+      `, người lập ${request.requestedBy}` +
+      // Ghi rõ đã gỡ mấy dòng đơn mua: sau này đối chiếu sổ thấy một dòng PO
+      // không có yêu cầu gốc thì đây là chỗ duy nhất giải thích được vì sao.
+      (soDongDonMua > 0
+        ? `, ĐÃ GỠ LIÊN KẾT ${soDongDonMua} dòng đơn mua`
+        : ""),
   });
   revalidatePath("/requests");
   revalidatePath(returnTo);

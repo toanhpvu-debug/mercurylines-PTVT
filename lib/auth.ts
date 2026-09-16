@@ -10,6 +10,7 @@ import { getSession } from "@/lib/session";
 // giữ nguyên.
 export type { NguoiThaoTac, UyQuyen, VesselScope } from "@/lib/roles";
 export {
+  canEditRequest,
   canManageVesselCatalog,
   capDuyetChiTiet,
   capDuyetChoPhep,

@@ -7,12 +7,14 @@ import {
   ClipboardCheck,
   History,
   ListChecks,
+  Pencil,
   Send,
   ShoppingCart,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   canDeleteRequest,
+  canEditRequest,
   capDuyetChoPhep,
   requireScopedUser,
   trongPhamVi,
@@ -25,15 +27,18 @@ import {
   khoaViSaoKhongDuyet,
   nguoiDuyetCapTau,
 } from "@/lib/roles";
+import { REQUEST_ALLOWED_FROM } from "@/lib/requestStatus";
 import { layT } from "@/lib/i18n/server";
 import { cn } from "@/lib/cn";
 import PrintButton from "@/components/PrintButton";
 import RequestStatusForm from "@/components/RequestStatusForm";
 import RequestApprovalForm from "@/components/RequestApprovalForm";
 import RequestDeleteButton from "@/components/RequestDeleteButton";
+import RequestCancelForm from "@/components/RequestCancelForm";
 import RequestRejectForm from "@/components/RequestRejectForm";
 import {
   Badge,
+  buttonClass,
   Card,
   CardHeader,
   EmptyState,
@@ -80,6 +85,13 @@ export default async function RequestDetailPage({
   if (!trongPhamVi(scope, request.vesselId)) {
     notFound();
   }
+  // Xem ghi chú ở trang danh sách: nút Xóa hỏi câu khác khi đơn mua đang trỏ vào.
+  const soDongDonMua = await prisma.purchaseOrderItem.count({
+    where: {
+      requestItem: { requestId: request.id },
+      po: { status: { not: "CANCELLED" } },
+    },
+  });
   const isSpare = request.kind === "SPARE";
   const formCode = isSpare ? "MLS-11-05A" : "MLS-11-05B";
   // Hiển thị dòng: dùng vật tư có sẵn nếu có, ngược lại dùng dữ liệu nhập tay (vật tư mới).
@@ -185,11 +197,29 @@ export default async function RequestDetailPage({
               <Badge tone={TONE_YEU_CAU[request.status] ?? "neutral"} dot>
                 {tTuDo(`labels.reqStatus_${request.status}`)}
               </Badge>
+              {canEditRequest(user, request) && (
+                <Link
+                  href={`/requests/${request.id}/edit`}
+                  className={buttonClass("secondary")}
+                >
+                  <Pencil className="size-4" />
+                  {t("requests.nutSua")}
+                </Link>
+              )}
+              {canModerate &&
+                REQUEST_ALLOWED_FROM.CANCELLED.includes(request.status) && (
+                  <RequestCancelForm
+                    id={request.id}
+                    requestNo={request.requestNo}
+                    returnTo={`/requests/${request.id}`}
+                  />
+                )}
               {canDeleteRequest(user, request) && (
                 <RequestDeleteButton
                   id={request.id}
                   requestNo={request.requestNo}
                   returnTo="/requests"
+                  soDongDonMua={soDongDonMua}
                 />
               )}
               <PrintButton label={`${t("chung.in")} ${formCode}`} />

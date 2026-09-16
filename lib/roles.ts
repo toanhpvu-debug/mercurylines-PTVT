@@ -235,6 +235,60 @@ export const LAP_YEU_CAU: readonly string[] = [
   ...SI_QUAN,
 ];
 
+/**
+ * Trạng thái còn SỬA được nội dung yêu cầu.
+ *
+ * Mốc chia là lúc duyệt. Từ APPROVED trở đi, số lượng duyệt từng dòng đã được
+ * chốt và các dòng đơn mua trỏ thẳng vào từng dòng yêu cầu (PurchaseOrderItem.
+ * requestItemId) — sửa nội dung sau mốc đó là làm lệch hồ sơ mua sắm một cách
+ * âm thầm: người duyệt ký một đằng, chứng từ in ra một nẻo. Sau mốc đó dùng
+ * HỦY (giữ nguyên vết trong nhật ký) chứ không sửa.
+ *
+ * Quản trị được sửa thêm hai trạng thái đang chờ duyệt, vì yêu cầu nộp nhầm bộ
+ * phận hay sai số lượng thì hiện chỉ còn cách từ chối rồi bắt lập lại từ đầu.
+ */
+export const REQUEST_EDITABLE_TRUOC_DUYET: readonly string[] = [
+  "DRAFT",
+  "REJECTED",
+];
+export const REQUEST_EDITABLE_BY_ADMIN: readonly string[] = [
+  "DRAFT",
+  "REJECTED",
+  "PENDING_MASTER",
+  "PENDING_OFFICE",
+];
+
+/**
+ * Ai được sửa nội dung một yêu cầu vật tư.
+ *
+ *   ADMIN            — mọi yêu cầu trong phạm vi, tới hết bước chờ công ty duyệt.
+ *   MASTER / MÁY TRƯỞNG — bản nháp và bản bị từ chối của tàu mình, kể cả do sĩ
+ *                     quan dưới quyền lập: họ chịu trách nhiệm chứng từ của tàu.
+ *   Sĩ quan khác     — chỉ yêu cầu do CHÍNH MÌNH lập (so theo requestedById,
+ *                     không so theo tên — hai người trùng tên là thủng quyền).
+ *
+ * Yêu cầu cũ không có requestedById (lập trước khi có cột này) thì sĩ quan
+ * thường không sửa được — thà chặt hơn là cho nhầm người sửa chứng từ.
+ */
+export function canEditRequest(
+  user: NguoiThaoTac & { id?: number },
+  request: { vesselId: number; status: string; requestedById?: number | null }
+) {
+  const scope = vesselScopeDayDu(user);
+  if (!trongPhamVi(scope, request.vesselId)) return false;
+  if (!LAP_YEU_CAU.includes(user.role)) return false;
+  if (user.role === "ADMIN") {
+    return REQUEST_EDITABLE_BY_ADMIN.includes(request.status);
+  }
+  if (!REQUEST_EDITABLE_TRUOC_DUYET.includes(request.status)) return false;
+  if (CHI_HUY_TAU.includes(user.role)) return true;
+  return (
+    typeof user.id === "number" &&
+    typeof request.requestedById === "number" &&
+    user.id === request.requestedById
+  );
+}
+
 /** Bộ phận thuộc quyền máy trưởng. */
 const BO_PHAN_CUA_MAY_TRUONG = ["ENGINE", "ELECTRICAL", "ELEC"];
 

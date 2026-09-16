@@ -4,17 +4,23 @@ import {
   Check,
   ClipboardList,
   Filter,
+  Pencil,
   Printer,
   Send,
   ShoppingCart,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { REQUEST_STATUS_LABEL } from "@/lib/requestStatus";
+import {
+  REQUEST_ALLOWED_FROM,
+  REQUEST_STATUS_LABEL,
+} from "@/lib/requestStatus";
 import RequestForm from "@/components/RequestForm";
 import RequestStatusForm from "@/components/RequestStatusForm";
+import RequestCancelForm from "@/components/RequestCancelForm";
 import RequestDeleteButton from "@/components/RequestDeleteButton";
 import {
   canDeleteRequest,
+  canEditRequest,
   capDuyetChoPhep,
   chonDuocTau,
   danhTinhHieuLuc,
@@ -124,6 +130,23 @@ export default async function RequestsPage({
       },
     }),
   ]);
+  // Dòng đơn mua CÒN HIỆU LỰC trỏ vào từng yêu cầu. Nút Xóa cần con số này để
+  // hỏi đúng câu thay vì hỏi chung chung (xem RequestDeleteButton). Một truy vấn
+  // cho cả trang, không phải mỗi dòng một lần.
+  const dongDonMua = requests.length
+    ? await prisma.purchaseOrderItem.findMany({
+        where: {
+          requestItem: { requestId: { in: requests.map((r) => r.id) } },
+          po: { status: { not: "CANCELLED" } },
+        },
+        select: { requestItem: { select: { requestId: true } } },
+      })
+    : [];
+  const soDonMuaTheoYeuCau = new Map<number, number>();
+  for (const d of dongDonMua) {
+    const rid = d.requestItem?.requestId;
+    if (rid) soDonMuaTheoYeuCau.set(rid, (soDonMuaTheoYeuCau.get(rid) ?? 0) + 1);
+  }
   const dangLoc = Boolean(vesselFilter || statusFilter);
   return (
     <div className="space-y-5">
@@ -336,6 +359,30 @@ export default async function RequestsPage({
                             className="w-full"
                           />
                         )}
+                        {canEditRequest(user, request) && (
+                          <Link
+                            href={`/requests/${request.id}/edit`}
+                            className={buttonClass("secondary", "sm")}
+                          >
+                            <Pencil className="size-4" />
+                            {t("requests.nutSua")}
+                          </Link>
+                        )}
+                        {/* Hủy đứng TRƯỚC Xóa vì gần như lúc nào cũng là việc
+                            đúng hơn: chứng từ ở lại trong sổ kèm nhật ký ai
+                            duyệt lúc nào, thay vì biến mất không dấu vết. */}
+                        {canModerate &&
+                          REQUEST_ALLOWED_FROM.CANCELLED.includes(
+                            request.status
+                          ) && (
+                            <RequestCancelForm
+                              id={request.id}
+                              requestNo={request.requestNo}
+                              returnTo="/requests"
+                              size="sm"
+                              className="w-full"
+                            />
+                          )}
                         {canDeleteRequest(user, request) && (
                           <RequestDeleteButton
                             id={request.id}
@@ -343,6 +390,7 @@ export default async function RequestsPage({
                             returnTo="/requests"
                             size="sm"
                             className="w-full"
+                            soDongDonMua={soDonMuaTheoYeuCau.get(request.id) ?? 0}
                           />
                         )}
                       </div>

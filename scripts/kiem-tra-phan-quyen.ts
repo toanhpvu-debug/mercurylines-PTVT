@@ -27,6 +27,8 @@ import {
   coQuanLyNhienLieu,
   coQuanLySon,
   coXinCapNhienLieu,
+  LAP_YEU_CAU,
+  canEditRequest,
   nguoiDuyetCapTau,
   trinhThangLenCongTy,
   vesselScope,
@@ -606,6 +608,92 @@ console.log("\n=== TRANG THAI UY QUYEN ===");
       bayGio
     ),
     "CHUA_TOI"
+  );
+}
+
+// ─── Quyền SỬA nội dung yêu cầu ──────────────────────────────────────────────
+// Kỳ vọng viết tay theo quy định, không suy ra từ canEditRequest:
+//   - Ngoài phạm vi tàu: không ai sửa được, kể cả quản trị.
+//   - Ngoài nhóm lập yêu cầu (kho, mua hàng, thuyền viên thường...): không sửa.
+//   - ADMIN: DRAFT, REJECTED, PENDING_MASTER, PENDING_OFFICE.
+//   - MASTER / CHIEF_ENGINEER: DRAFT, REJECTED của tàu mình, ai lập cũng được.
+//   - Sĩ quan khác: DRAFT, REJECTED và PHẢI do chính mình lập.
+//   - Từ APPROVED trở đi: không ai sửa (đơn mua đã bám vào từng dòng).
+{
+  const TRANG_THAI_SUA = [
+    "DRAFT",
+    "REJECTED",
+    "PENDING_MASTER",
+    "PENDING_OFFICE",
+    "APPROVED",
+    "IN_PROCUREMENT",
+    "FULLY_DELIVERED",
+    "CLOSED",
+    "CANCELLED",
+  ] as const;
+  const TRUOC_DUYET = ["DRAFT", "REJECTED"];
+  const CHO_DUYET = ["PENDING_MASTER", "PENDING_OFFICE"];
+
+  function mongDoiSua(
+    vaiTro: string,
+    trangThai: string,
+    cungTau: boolean,
+    tuLap: boolean
+  ): boolean {
+    if (!cungTau && vaiTro !== "ADMIN" && vaiTro !== "TECH_MANAGER") return false;
+    if (!LAP_YEU_CAU.includes(vaiTro)) return false;
+    if (vaiTro === "ADMIN") {
+      return TRUOC_DUYET.includes(trangThai) || CHO_DUYET.includes(trangThai);
+    }
+    if (!TRUOC_DUYET.includes(trangThai)) return false;
+    if (vaiTro === "MASTER" || vaiTro === "CHIEF_ENGINEER") return true;
+    return tuLap;
+  }
+
+  for (const vaiTro of VAI_TRO) {
+    for (const trangThai of TRANG_THAI_SUA) {
+      for (const cungTau of [true, false]) {
+        for (const tuLap of [true, false]) {
+          // Người toàn đội (ADMIN, TECH_MANAGER) không gắn tàu nên "khác tàu"
+          // với họ vẫn nằm trong phạm vi — dựng dữ liệu đúng như thực tế.
+          const toanDoi = vaiTro === "ADMIN" || vaiTro === "TECH_MANAGER";
+          const user = {
+            id: 7,
+            role: vaiTro,
+            vesselId: toanDoi ? null : 1,
+          };
+          const request = {
+            vesselId: cungTau || toanDoi ? 1 : 2,
+            status: trangThai,
+            requestedById: tuLap ? 7 : 99,
+          };
+          kiemTra(
+            `sua ${vaiTro}/${trangThai}/${cungTau ? "cungTau" : "khacTau"}/${tuLap ? "tuLap" : "nguoiKhacLap"}`,
+            canEditRequest(user, request),
+            mongDoiSua(vaiTro, trangThai, cungTau, tuLap)
+          );
+        }
+      }
+    }
+  }
+
+  // Yêu cầu cũ không có requestedById: sĩ quan thường không sửa được, chỉ huy
+  // tàu và quản trị vẫn sửa được.
+  kiemTra(
+    "sua yeu cau cu (khong co requestedById) — si quan thuong",
+    canEditRequest(
+      { id: 7, role: "SECOND_ENGINEER", vesselId: 1 },
+      { vesselId: 1, status: "DRAFT", requestedById: null }
+    ),
+    false
+  );
+  kiemTra(
+    "sua yeu cau cu (khong co requestedById) — may truong",
+    canEditRequest(
+      { id: 7, role: "CHIEF_ENGINEER", vesselId: 1 },
+      { vesselId: 1, status: "DRAFT", requestedById: null }
+    ),
+    true
   );
 }
 

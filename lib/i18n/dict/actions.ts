@@ -112,6 +112,10 @@ export const actions = tuDien(
     yeuCau_chiQuanTriXoaDuoc:
       "Yêu cầu đã được duyệt/chuyển mua sắm nên chỉ quản trị viên mới xóa được.",
     yeuCau_daBiXoa: "Yêu cầu đã bị xóa.",
+    yeuCau_daCoDonMuaHuyDonTruoc:
+      "Yêu cầu này đã có {so} dòng nằm trong đơn mua đang hiệu lực nên chưa hủy được. Hãy hủy đơn mua đó trước.",
+    yeuCau_daCoDonMuaKhongXoa:
+      "Yêu cầu này đã có {so} dòng nằm trong đơn mua đang hiệu lực nên không xóa được — xóa đi thì đơn mua mất đường lần về yêu cầu gốc. Hãy hủy đơn mua trước, hoặc dùng Hủy yêu cầu để giữ lại vết.",
 
     // Biểu mẫu chứng từ
     bieuMau_khongHopLe: "Biểu mẫu không hợp lệ.",
@@ -349,6 +353,10 @@ export const actions = tuDien(
     yeuCau_chiQuanTriXoaDuoc:
       "This requisition has been approved or moved to purchasing, so only an administrator can delete it.",
     yeuCau_daBiXoa: "The requisition has already been deleted.",
+    yeuCau_daCoDonMuaHuyDonTruoc:
+      "This requisition has {so} line(s) on an active purchase order and cannot be cancelled yet. Cancel that purchase order first.",
+    yeuCau_daCoDonMuaKhongXoa:
+      "This requisition has {so} line(s) on an active purchase order and cannot be deleted — deleting it would leave the purchase order with no link back. Cancel the purchase order first, or cancel the requisition to keep the record.",
 
     bieuMau_khongHopLe: "Invalid form standard.",
     bieuMau_maTenDiaChiBatBuoc:

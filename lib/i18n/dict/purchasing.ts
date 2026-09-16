@@ -136,6 +136,15 @@ export const purchasing = tuDien(
     nutDungLai: "Dùng lại",
 
     // Biểu mẫu chứng từ theo tàu
+    bieuMauTep_tieuDe: "Tệp biểu mẫu Excel {ma}",
+    bieuMauTep_moTa:
+      "Nút Xuất kiểm kê điền dữ liệu vào chính tệp Excel gốc của công ty để giữ nguyên logo, bố cục và khối chữ ký. Tệp là tài liệu nội bộ nên không nằm trong mã nguồn — tải lên đây một lần, bản tải lên nằm trong database nên còn nguyên sau mỗi lần cập nhật máy chủ.",
+    bieuMauTep_chuaCo:
+      "Chưa có biểu mẫu trên hệ thống — nút Xuất kiểm kê MLS-11-06 ở trang Tồn kho sẽ báo thiếu cho tới khi tải lên.",
+    bieuMauTep_daCo: "{kb} KB · {nguoi} tải lên lúc {luc}",
+    bieuMauTep_chonFile: "Chọn tệp biểu mẫu (.xlsx)",
+    bieuMauTep_taiLen: "Tải lên",
+    bieuMauTep_thayThe: "Thay bằng tệp mới",
     tieuDeBieuMau: "Biểu mẫu chứng từ theo tàu",
     moTaBieuMau:
       "Quản lý danh sách biểu mẫu (công ty quản lý) và gán cho từng tàu — quyết định đầu & chữ ký của Yêu cầu báo giá (RFQ), Đơn mua hàng (PO).",
@@ -282,6 +291,15 @@ export const purchasing = tuDien(
     nutNgungDung: "Deactivate",
     nutDungLai: "Reactivate",
 
+    bieuMauTep_tieuDe: "{ma} Excel form file",
+    bieuMauTep_moTa:
+      "The inventory export fills the company's own Excel file so the logo, layout and signature block stay intact. That file is an internal document and is not part of the source code — upload it once here; the copy is kept in the database so it survives every server update.",
+    bieuMauTep_chuaCo:
+      "No form file loaded yet — the MLS-11-06 export button on the Inventory page will report it missing until one is uploaded.",
+    bieuMauTep_daCo: "{kb} KB · uploaded by {nguoi} at {luc}",
+    bieuMauTep_chonFile: "Choose the form file (.xlsx)",
+    bieuMauTep_taiLen: "Upload",
+    bieuMauTep_thayThe: "Replace with a new file",
     tieuDeBieuMau: "Document form standards by vessel",
     moTaBieuMau:
       "Manage the list of form standards (owned by the company) and assign one to each vessel — it drives the letterhead and signature block of the request for quotation (RFQ) and the purchase order (PO).",

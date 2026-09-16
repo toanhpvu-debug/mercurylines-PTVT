@@ -9,6 +9,7 @@ import {
   vesselScopeDayDu,
 } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
+import { MA_BIEU_MAU_KIEM_KE } from "@/lib/bieuMau";
 import { LAP_YEU_CAU } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -129,17 +130,34 @@ export async function GET(request: Request) {
       (a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name)
     );
 
-  // Điền vào template gốc MLS-11-06 (giữ nguyên định dạng form công ty).
-  // Template là tài liệu riêng của công ty nên KHÔNG nằm trong repo — xem templates/README.md.
-  const templatePath = path.join(process.cwd(), "templates", "MLS-11-06.xlsx");
-  let templateBuffer: Buffer;
-  try {
-    templateBuffer = await readFile(templatePath);
-  } catch {
-    return NextResponse.json(
-      { error: t("actionsModule.taiLieu_thieuBieuMau") },
-      { status: 500 }
-    );
+  // Điền vào biểu mẫu gốc MLS-11-06 (giữ nguyên định dạng, logo và khối chữ ký
+  // của công ty).
+  //
+  // Tìm ở DATABASE trước, đĩa sau. Biểu mẫu là tài liệu nội bộ nên nằm trong
+  // .gitignore, nghĩa là nó KHÔNG BAO GIỜ đi vào bản dựng Docker — trên máy văn
+  // phòng nút này chạy tốt còn trên bản chạy thật thì luôn báo thiếu biểu mẫu,
+  // đúng kiểu lỗi chỉ xảy ra ở một nơi nên khó lần ra nhất. Bản trong database
+  // (quản trị tải lên ở Mua sắm → Biểu mẫu) sống qua mỗi lần dựng lại container
+  // và nằm trong bản sao lưu hằng ngày. Đường đĩa giữ lại làm lối lùi cho máy
+  // văn phòng đã có sẵn tệp trong templates/.
+  const banTrongDb = await prisma.bieuMauTep.findUnique({
+    where: { code: MA_BIEU_MAU_KIEM_KE },
+    select: { data: true },
+  });
+  let templateBuffer: Buffer | null = banTrongDb
+    ? Buffer.from(banTrongDb.data)
+    : null;
+  if (!templateBuffer) {
+    try {
+      templateBuffer = await readFile(
+        path.join(process.cwd(), "templates", "MLS-11-06.xlsx")
+      );
+    } catch {
+      return NextResponse.json(
+        { error: t("actionsModule.taiLieu_thieuBieuMau") },
+        { status: 500 }
+      );
+    }
   }
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(templateBuffer as unknown as ArrayBuffer);

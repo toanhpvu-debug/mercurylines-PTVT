@@ -8,11 +8,11 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String
-  role      String   @default("CREW")
+  id                  Int               @id @default(autoincrement())
+  email               String            @unique
+  password            String
+  name                String
+  role                String            @default("CREW")
   // CHỨC DANH GIỮ VẬT TƯ (mã trong lib/maVatTu.ts: BSN, 2E, ETO, CCK...).
   //
   // Khác với `role` ở trên: `role` là quyền đăng nhập, còn cột này là "trên tàu
@@ -21,17 +21,18 @@ model User {
   // kho khác hẳn. Không có cột này thì bốn người đó vào app đều thấy y như nhau.
   //
   // Để trống thì hệ thống tự suy từ `role` (máy hai → 2E, đại phó → CO...).
-  rankCode  String?
-  isActive  Boolean  @default(true)
-  vesselId  Int?
-  vessel    Vessel?  @relation(fields: [vesselId], references: [id], onDelete: SetNull)
-  documents ReportDocument[]
+  rankCode            String?
+  isActive            Boolean           @default(true)
+  vesselId            Int?
+  vessel              Vessel?           @relation(fields: [vesselId], references: [id], onDelete: SetNull)
+  documents           ReportDocument[]
   // Tàu được phân công (chỉ dùng cho tài khoản bờ) và ủy quyền có thời hạn.
   fleetAssignments    FleetAssignment[]
   delegationsGiven    Delegation[]      @relation("DelegationFrom")
   delegationsReceived Delegation[]      @relation("DelegationTo")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
   @@index([vesselId])
 }
 
@@ -53,43 +54,44 @@ model ReportDocument {
   uploadedById Int
   uploadedBy   User     @relation(fields: [uploadedById], references: [id])
   createdAt    DateTime @default(now())
+
   @@index([vesselId])
   @@index([uploadedById])
 }
 
 model Vessel {
-  id               Int               @id @default(autoincrement())
-  code             String            @unique
-  name             String
-  imo              String?
-  flag             String?
-  vesselType       String?
-  status           String            @default("ACTIVE")
+  id                     Int                     @id @default(autoincrement())
+  code                   String                  @unique
+  name                   String
+  imo                    String?
+  flag                   String?
+  vesselType             String?
+  status                 String                  @default("ACTIVE")
   // Chuẩn biểu mẫu công ty quản lý tàu (MLS / NAVIS) — quyết định đầu chứng từ PO, RFQ, Service Order.
-  formStandard     String            @default("MLS")
-  hullNo           String?
+  formStandard           String                  @default("MLS")
+  hullNo                 String?
   // HỌ MÁY CHÍNH của tàu: "BME" (MAN B&W) hoặc "UEC" (Mitsubishi UEC) — xem
   // NHOM_THIET_BI trong lib/maVatTu.ts. Đội tàu chạy cả hai họ, mà hai họ gần
   // như không dùng chung chi tiết nào; biết tàu nào máy gì thì mới xếp được
   // phụ tùng máy chính vào đúng nhóm và mới lọc đúng khi dự trù.
-  mainEngineGroup  String?
+  mainEngineGroup        String?
   // Model cụ thể để in lên chứng từ đặt hàng: "6UEC50LSII", "6S50MC-C"...
-  mainEngineModel  String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  warehouses       Warehouse[]
-  inventories      Inventory[]
-  materialRequests MaterialRequest[]
-  users            User[]
-  lashingGears     LashingGear[]
-  lashingReports   LashingReport[]
-  documents        ReportDocument[]
-  vesselMaterials  VesselMaterial[]
-  purchaseOrders   PurchaseOrder[]
-  paintAreas        PaintArea[]
-  paintStocks       PaintStock[]
-  paintJobs         PaintJob[]
-  paintTransactions PaintTransaction[]
+  mainEngineModel        String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  warehouses             Warehouse[]
+  inventories            Inventory[]
+  materialRequests       MaterialRequest[]
+  users                  User[]
+  lashingGears           LashingGear[]
+  lashingReports         LashingReport[]
+  documents              ReportDocument[]
+  vesselMaterials        VesselMaterial[]
+  purchaseOrders         PurchaseOrder[]
+  paintAreas             PaintArea[]
+  paintStocks            PaintStock[]
+  paintJobs              PaintJob[]
+  paintTransactions      PaintTransaction[]
   consumableStocks       ConsumableStock[]
   consumableReceipts     ConsumableReceipt[]
   consumableTransactions ConsumableTransaction[]
@@ -106,6 +108,7 @@ model Warehouse {
   inventories   Inventory[]
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+
   @@index([vesselId])
 }
 
@@ -119,17 +122,17 @@ model Category {
 }
 
 model Material {
-  id           Int                   @id @default(autoincrement())
-  code         String                @unique
-  nameVn       String
-  nameEn       String?
-  impa         String?
-  issa         String?
-  partNumber   String?
-  manufacturer String?
-  uom          String                @default("PCS")
-  materialType String                @default("STORE") // STORE = vật tư (MLS-11-05B), SPARE = phụ tùng (MLS-11-05A)
-  equipment    String?               // thiết bị/máy gắn với phụ tùng
+  id              Int                   @id @default(autoincrement())
+  code            String                @unique
+  nameVn          String
+  nameEn          String?
+  impa            String?
+  issa            String?
+  partNumber      String?
+  manufacturer    String?
+  uom             String                @default("PCS")
+  materialType    String                @default("STORE") // STORE = vật tư (MLS-11-05B), SPARE = phụ tùng (MLS-11-05A)
+  equipment       String? // thiết bị/máy gắn với phụ tùng
   // Ba cột dưới đây là ba phân đoạn của mã vật tư (xem lib/maVatTu.ts):
   //   department      D = Boong, E = Máy
   //   equipGroup      BME, UEC, AEG, PUR, LSH... — null với hàng đi theo IMPA
@@ -140,18 +143,19 @@ model Material {
   department      String?
   equipGroup      String?
   responsibleRank String?
-  categoryId   Int?
-  category     Category?             @relation(fields: [categoryId], references: [id])
-  minStock     Float                 @default(0)
-  maxStock     Float                 @default(0)
-  isCritical   Boolean               @default(false)
-  isActive     Boolean               @default(true)
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
-  inventories  Inventory[]
-  requestItems MaterialRequestItem[]
+  categoryId      Int?
+  category        Category?             @relation(fields: [categoryId], references: [id])
+  minStock        Float                 @default(0)
+  maxStock        Float                 @default(0)
+  isCritical      Boolean               @default(false)
+  isActive        Boolean               @default(true)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  inventories     Inventory[]
+  requestItems    MaterialRequestItem[]
   vesselMaterials VesselMaterial[]
-  poItems      PurchaseOrderItem[]
+  poItems         PurchaseOrderItem[]
+
   @@index([categoryId])
   @@index([materialType])
   @@index([isActive])
@@ -220,6 +224,7 @@ model InventoryTransaction {
   performedBy String?
   // Thời điểm ghi sổ vào hệ thống (audit).
   createdAt   DateTime @default(now())
+
   @@index([vesselId])
   @@index([materialId])
   @@index([warehouseId])
@@ -227,33 +232,33 @@ model InventoryTransaction {
 }
 
 model MaterialRequest {
-  id           Int                   @id @default(autoincrement())
-  requestNo    String                @unique
-  kind         String                @default("STORE") // STORE = yêu cầu vật tư (MLS-11-05B), SPARE = yêu cầu phụ tùng (MLS-11-05A)
-  vesselId     Int
-  vessel       Vessel                @relation(fields: [vesselId], references: [id])
-  requestedBy  String
+  id               Int                    @id @default(autoincrement())
+  requestNo        String                 @unique
+  kind             String                 @default("STORE") // STORE = yêu cầu vật tư (MLS-11-05B), SPARE = yêu cầu phụ tùng (MLS-11-05A)
+  vesselId         Int
+  vessel           Vessel                 @relation(fields: [vesselId], references: [id])
+  requestedBy      String
   // Chức danh của người lập, lấy từ tài khoản lúc lập (Đại phó, Máy 2...).
   // Chép lại chứ không tra ngược qua User: sĩ quan hết hạn hợp đồng rời tàu,
   // đổi chức danh hay bị xóa tài khoản thì chứng từ đã in vẫn phải đúng.
-  requestedByRole String?
+  requestedByRole  String?
   // Id tài khoản người lập — dùng để chặn TỰ DUYỆT yêu cầu của chính mình.
   // Không so bằng tên: hai người trùng tên là quyền kiểm soát thủng ngay.
   // Không có khóa ngoại tới User: xóa tài khoản thì chứng từ vẫn phải giữ
   // nguyên vết ai đã lập.
-  requestedById   Int?
-  department   String
-  status       String                @default("DRAFT")
-  priority     String                @default("NORMAL")
-  requiredDate DateTime?
-  purpose      String?
-  notes        String?
+  requestedById    Int?
+  department       String
+  status           String                 @default("DRAFT")
+  priority         String                 @default("NORMAL")
+  requiredDate     DateTime?
+  purpose          String?
+  notes            String?
   // Thông tin thiết bị cho yêu cầu phụ tùng (MLS-11-05A)
-  equipment    String?
-  maker        String?
-  serialNo     String?
-  items        MaterialRequestItem[]
-  events       MaterialRequestEvent[]
+  equipment        String?
+  maker            String?
+  serialNo         String?
+  items            MaterialRequestItem[]
+  events           MaterialRequestEvent[]
   // Vết phê duyệt — in lên ô ký của biểu mẫu MLS-11-05 và tra cứu nhanh.
   // Hai cấp riêng biệt: tàu duyệt trước (thuyền trưởng / máy trưởng), rồi công
   // ty duyệt (quản lý kỹ thuật). Ghi tách ra vì là hai ô ký khác nhau trên
@@ -265,11 +270,12 @@ model MaterialRequest {
   shipApprovedAt   DateTime?
   approvedBy       String?
   approvedAt       DateTime?
-  rejectedBy      String?
-  rejectedAt      DateTime?
-  rejectionReason String?
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
+  rejectedBy       String?
+  rejectedAt       DateTime?
+  rejectionReason  String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
   @@index([vesselId])
   @@index([status])
 }
@@ -286,6 +292,7 @@ model MaterialRequestEvent {
   actorRole  String
   note       String?
   createdAt  DateTime        @default(now())
+
   @@index([requestId])
 }
 
@@ -316,6 +323,7 @@ model LashingReport {
   lines      LashingReportLine[]
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
+
   @@index([vesselId])
 }
 
@@ -332,26 +340,28 @@ model LashingReportLine {
   standardQty Float         @default(0)
   inOrder     Float         @default(0)
   outOfOrder  Float         @default(0)
+
   @@index([reportId])
   @@index([gearId])
 }
 
 model MaterialRequestItem {
-  id               Int              @id @default(autoincrement())
+  id               Int                 @id @default(autoincrement())
   requestId        Int
-  request          MaterialRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  request          MaterialRequest     @relation(fields: [requestId], references: [id], onDelete: Cascade)
   // materialId trống = vật tư MỚI ngoài danh mục, nhập tay ở các trường item* bên dưới.
   materialId       Int?
-  material         Material?        @relation(fields: [materialId], references: [id])
+  material         Material?           @relation(fields: [materialId], references: [id])
   itemName         String? // Tên vật tư / phụ tùng mới
   itemCode         String? // Mã IMPA (vật tư) hoặc Part No (phụ tùng) cho vật tư mới
   itemUom          String? // Đơn vị cho vật tư mới
   quantity         Float // SL yêu cầu (REQ)
-  robSnapshot      Float            @default(0) // Còn tồn trên tàu tại thời điểm yêu cầu (ROB)
-  approvedQuantity Float            @default(0) // SL duyệt (APP)
-  suppliedQuantity Float            @default(0) // SL đã nhận về (từ mua sắm)
+  robSnapshot      Float               @default(0) // Còn tồn trên tàu tại thời điểm yêu cầu (ROB)
+  approvedQuantity Float               @default(0) // SL duyệt (APP)
+  suppliedQuantity Float               @default(0) // SL đã nhận về (từ mua sắm)
   note             String?
   poItems          PurchaseOrderItem[]
+
   @@index([requestId])
   @@index([materialId])
 }
@@ -373,28 +383,29 @@ model Supplier {
 
 // Đơn mua hàng (Purchase Order)
 model PurchaseOrder {
-  id           Int                 @id @default(autoincrement())
-  poNo         String              @unique
-  supplierId   Int
-  supplier     Supplier            @relation(fields: [supplierId], references: [id])
-  vesselId     Int
-  vessel       Vessel              @relation(fields: [vesselId], references: [id])
+  id              Int                 @id @default(autoincrement())
+  poNo            String              @unique
+  supplierId      Int
+  supplier        Supplier            @relation(fields: [supplierId], references: [id])
+  vesselId        Int
+  vessel          Vessel              @relation(fields: [vesselId], references: [id])
   // DRAFT, SENT, CONFIRMED, PARTIALLY_RECEIVED, RECEIVED, CLOSED, CANCELLED
-  status       String              @default("DRAFT")
-  currency     String              @default("USD")
-  orderDate    DateTime?
-  expectedDate DateTime?
-  notes        String?
+  status          String              @default("DRAFT")
+  currency        String              @default("USD")
+  orderDate       DateTime?
+  expectedDate    DateTime?
+  notes           String?
   // Các trường theo biểu mẫu PO/RFQ công ty
   subject         String?
   supplierRef     String? // Y/ref của nhà cung cấp
-  discountPercent Float   @default(0)
-  transportFee    Float   @default(0)
-  deliveryFee     Float   @default(0)
-  createdBy    String
-  items        PurchaseOrderItem[]
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  discountPercent Float               @default(0)
+  transportFee    Float               @default(0)
+  deliveryFee     Float               @default(0)
+  createdBy       String
+  items           PurchaseOrderItem[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
   @@index([vesselId])
   @@index([supplierId])
   @@index([status])
@@ -416,6 +427,7 @@ model PurchaseOrderItem {
   unitPrice        Float                @default(0)
   quantityReceived Float                @default(0)
   warehouseId      Int? // kho đã nhập khi nhận hàng (không FK, giống InventoryTransaction)
+
   @@index([poId])
   @@index([requestItemId])
   @@index([materialId])
@@ -427,23 +439,23 @@ model PurchaseOrderItem {
 
 // Danh mục sơn dùng chung toàn đội (giống Material — định nghĩa một lần).
 model PaintProduct {
-  id       Int    @id @default(autoincrement())
-  code     String @unique
-  name     String
-  maker    String?
+  id         Int      @id @default(autoincrement())
+  code       String   @unique
+  name       String
+  maker      String?
   // PRIMER, ANTI_CORROSIVE, ANTI_FOULING, TOPCOAT, DECK, TANK, OTHER
-  paintType String @default("OTHER")
-  colorCode String?
-  colorName String?
-  uom       String @default("L")
+  paintType  String   @default("OTHER")
+  colorCode  String?
+  colorName  String?
+  uom        String   @default("L")
   // Dung tích một lon/thùng (lít) — để quy đổi khi nhập theo lon.
-  packSize  Float  @default(0)
+  packSize   Float    @default(0)
   // Độ phủ lý thuyết (m²/lít) tại chiều dày khô khuyến nghị.
-  coverage  Float  @default(0)
+  coverage   Float    @default(0)
   // Chiều dày màng khô khuyến nghị mỗi lớp (micron).
-  dftPerCoat Float @default(0)
+  dftPerCoat Float    @default(0)
   thinner    String?
-  isActive   Boolean @default(true)
+  isActive   Boolean  @default(true)
   notes      String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -456,13 +468,13 @@ model PaintProduct {
 
 // Khu vực sơn của từng tàu — do người dùng tự khai báo (không seed sẵn).
 model PaintArea {
-  id        Int    @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   vesselId  Int
-  vessel    Vessel @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  vessel    Vessel   @relation(fields: [vesselId], references: [id], onDelete: Cascade)
   name      String
   // Diện tích khu vực (m²) — dùng để ước lượng lượng sơn cần.
-  areaM2    Float  @default(0)
-  sortOrder Int    @default(0)
+  areaM2    Float    @default(0)
+  sortOrder Int      @default(0)
   notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -481,12 +493,13 @@ model PaintSchemeLayer {
   productId Int
   product   PaintProduct @relation(fields: [productId], references: [id])
   // Thứ tự lớp: 1 = lớp lót trong cùng.
-  layerNo   Int   @default(1)
-  coats     Int   @default(1)
-  dft       Float @default(0)
+  layerNo   Int          @default(1)
+  coats     Int          @default(1)
+  dft       Float        @default(0)
   notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
   @@index([areaId])
   @@index([productId])
 }
@@ -498,10 +511,10 @@ model PaintStock {
   vessel    Vessel       @relation(fields: [vesselId], references: [id], onDelete: Cascade)
   productId Int
   product   PaintProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
-  quantity  Float @default(0)
-  minQty    Float @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  quantity  Float        @default(0)
+  minQty    Float        @default(0)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   @@unique([vesselId, productId])
   @@index([productId])
@@ -509,21 +522,22 @@ model PaintStock {
 
 // Nhập / xuất sơn — giữ vết mọi thay đổi tồn, kể cả do thi công.
 model PaintTransaction {
-  id        Int          @id @default(autoincrement())
-  vesselId  Int
-  vessel    Vessel       @relation(fields: [vesselId], references: [id], onDelete: Cascade)
-  productId Int
-  product   PaintProduct @relation(fields: [productId], references: [id])
+  id          Int          @id @default(autoincrement())
+  vesselId    Int
+  vessel      Vessel       @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  productId   Int
+  product     PaintProduct @relation(fields: [productId], references: [id])
   // IN = nhận sơn lên tàu, OUT = xuất dùng (thi công hoặc hao hụt)
-  type      String
-  quantity  Float
+  type        String
+  quantity    Float
   // Nếu phát sinh từ một lần thi công thì gắn với công việc đó.
-  jobId     Int?
-  job       PaintJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  jobId       Int?
+  job         PaintJob?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
   note        String?
-  occurredAt  DateTime @default(now())
+  occurredAt  DateTime     @default(now())
   performedBy String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime     @default(now())
+
   @@index([vesselId])
   @@index([productId])
   @@index([jobId])
@@ -532,15 +546,15 @@ model PaintTransaction {
 
 // Một lần thi công sơn.
 model PaintJob {
-  id         Int        @id @default(autoincrement())
-  vesselId   Int
-  vessel     Vessel     @relation(fields: [vesselId], references: [id], onDelete: Cascade)
-  areaId     Int?
-  area       PaintArea? @relation(fields: [areaId], references: [id], onDelete: SetNull)
-  jobDate    DateTime
+  id          Int        @id @default(autoincrement())
+  vesselId    Int
+  vessel      Vessel     @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  areaId      Int?
+  area        PaintArea? @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  jobDate     DateTime
   // Diện tích thực sơn đợt này (m²) và số lớp đã phủ.
-  paintedM2  Float @default(0)
-  coats      Int   @default(1)
+  paintedM2   Float      @default(0)
+  coats       Int        @default(1)
   // Điều kiện thi công — ảnh hưởng chất lượng màng sơn, cần cho hồ sơ.
   weather     String?
   airTemp     Float?
@@ -548,11 +562,12 @@ model PaintJob {
   surfaceTemp Float?
   performedBy String?
   notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   lines        PaintJobLine[]
   transactions PaintTransaction[]
+
   @@index([vesselId])
   @@index([areaId])
 }
@@ -566,6 +581,7 @@ model PaintJobLine {
   product   PaintProduct @relation(fields: [productId], references: [id])
   quantity  Float
   note      String?
+
   @@index([jobId])
   @@index([productId])
 }
@@ -576,29 +592,41 @@ model PaintJobLine {
 // dùng chung mới về.
 
 model SyncState {
-  id Int @id @default(autoincrement())
-  /** "GUI_DI" = tàu gửi lên văn phòng, "NHAN_VE" = nhận từ văn phòng. */
-  huong String
-  /** Mã tàu của bản cài này; văn phòng để trống. */
+  id         Int      @id @default(autoincrement())
+  /**
+   * "GUI_DI" = tàu gửi lên văn phòng, "NHAN_VE" = nhận từ văn phòng.
+   */
+  huong      String
+  /**
+   * Mã tàu của bản cài này; văn phòng để trống.
+   */
   vesselCode String?
-  /** Mốc thời gian của lần đồng bộ gần nhất — lần sau chỉ lấy thay đổi sau mốc này. */
+  /**
+   * Mốc thời gian của lần đồng bộ gần nhất — lần sau chỉ lấy thay đổi sau mốc này.
+   */
   lastSyncAt DateTime
-  /** Số bản ghi của lần gần nhất, để đối chiếu khi có nghi ngờ. */
-  lastCount Int      @default(0)
-  note      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  /**
+   * Số bản ghi của lần gần nhất, để đối chiếu khi có nghi ngờ.
+   */
+  lastCount  Int      @default(0)
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([huong, vesselCode])
 }
 
 // Bản cài này là của tàu nào (hoặc là văn phòng). Chỉ có đúng một dòng.
 model SiteConfig {
-  id Int @id @default(1)
-  /** Mã tàu nếu là bản cài trên tàu; để trống nghĩa là bản văn phòng. */
-  vesselCode String?
-  /** Dải id dành riêng cho bản cài này, tránh trùng id khi gộp dữ liệu. */
-  idRangeStart BigInt @default(0)
+  id           Int      @id @default(1)
+  /**
+   * Mã tàu nếu là bản cài trên tàu; để trống nghĩa là bản văn phòng.
+   */
+  vesselCode   String?
+  /**
+   * Dải id dành riêng cho bản cài này, tránh trùng id khi gộp dữ liệu.
+   */
+  idRangeStart BigInt   @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -615,8 +643,8 @@ model SiteConfig {
 // — thay vì bảng riêng cho mỗi nhóm.
 
 model ConsumableProduct {
-  id       Int    @id @default(autoincrement())
-  code     String @unique
+  id       Int     @id @default(autoincrement())
+  code     String  @unique
   name     String
   nameEn   String?
   // FUEL = dầu đốt, LUBE = dầu nhờn, CHEMICAL = hóa chất
@@ -624,18 +652,18 @@ model ConsumableProduct {
   // FUEL: HFO, VLSFO, ULSFO, MGO, MDO
   // LUBE: CYL (xy-lanh), SYS (hệ thống), AE, HYD, GEAR, GREASE
   // CHEMICAL: BOILER, COOLING, FUEL_TREAT, CLEANING, SEWAGE, OTHER
-  grade    String @default("OTHER")
+  grade    String  @default("OTHER")
   maker    String?
-  uom      String @default("MT")
+  uom      String  @default("MT")
   // Dung tích một thùng/can (L) — để quy đổi khi nhận theo thùng.
-  packSize Float  @default(0)
+  packSize Float   @default(0)
 
   // Đặc tính DANH NGHĨA của mặt hàng. Đặc tính THỰC của từng lô nằm ở
   // ConsumableReceipt — hai lô cùng mặt hàng có thể khác nhau.
-  sulphurMax Float? // % m/m, dầu đốt
-  viscosity  Float? // cSt @50°C (dầu đốt) hoặc @100°C (dầu nhờn)
-  density    Float? // kg/m³ @15°C
-  bnValue    Float? // TBN — dầu nhờn xy-lanh
+  sulphurMax      Float? // % m/m, dầu đốt
+  viscosity       Float? // cSt @50°C (dầu đốt) hoặc @100°C (dầu nhờn)
+  density         Float? // kg/m³ @15°C
+  bnValue         Float? // TBN — dầu nhờn xy-lanh
   // Hóa chất
   hazardClass     String? // phân loại nguy hiểm IMDG/GHS
   shelfLifeMonths Int? // hạn dùng kể từ ngày sản xuất/nhận
@@ -660,10 +688,10 @@ model ConsumableStock {
   vessel    Vessel            @relation(fields: [vesselId], references: [id], onDelete: Cascade)
   productId Int
   product   ConsumableProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
-  quantity  Float @default(0)
-  minQty    Float @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  quantity  Float             @default(0)
+  minQty    Float             @default(0)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
 
   @@unique([vesselId, productId])
   @@index([productId])
@@ -723,11 +751,11 @@ model ConsumableReceipt {
 }
 
 model ConsumableTransaction {
-  id        Int               @id @default(autoincrement())
+  id        Int                @id @default(autoincrement())
   vesselId  Int
-  vessel    Vessel            @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  vessel    Vessel             @relation(fields: [vesselId], references: [id], onDelete: Cascade)
   productId Int
-  product   ConsumableProduct @relation(fields: [productId], references: [id])
+  product   ConsumableProduct  @relation(fields: [productId], references: [id])
   // IN = nhận lên tàu, OUT = xuất/trả/hao hụt, CONSUME = tiêu thụ
   type      String
   quantity  Float
@@ -808,28 +836,54 @@ model Delegation {
 // chứng, nên ở đây chỉ chụp lại userId, email, chức danh tại THỜI ĐIỂM thao
 // tác — sau này người đó đổi chức danh cũng không làm sai lịch sử.
 model AuditLog {
-  id        Int      @id @default(autoincrement())
-  at        DateTime @default(now())
-  userId    Int?
-  email     String?
-  role      String?
+  id           Int      @id @default(autoincrement())
+  at           DateTime @default(now())
+  userId       Int?
+  email        String?
+  role         String?
   // Tàu liên quan, nếu biết. Không FK vì cùng lý do với userId.
-  vesselId  Int?
-  method    String
-  path      String
+  vesselId     Int?
+  method       String
+  path         String
   // Tên nghiệp vụ khi server action tự ghi ("duyet-yeu-cau"), hoặc mã server
   // action do Next gửi kèm khi ghi tự động từ proxy.
-  action    String?
+  action       String?
   // OK · TU_CHOI (chặn vì thiếu quyền) · LOI
-  ketQua    String   @default("OK")
+  ketQua       String   @default("OK")
   // Ký thay ai, nếu thao tác dùng quyền ủy quyền.
   onBehalfOfId Int?
-  detail    String?
-  ip        String?
-  userAgent String?
+  detail       String?
+  ip           String?
+  userAgent    String?
 
   @@index([at])
   @@index([userId])
   @@index([vesselId])
   @@index([action])
+}
+
+/**
+ * Tệp biểu mẫu Excel gốc của công ty, lưu THẲNG trong database.
+ * Trước đây chức năng "Xuất kiểm kê MLS-11-06" đọc tệp từ thư mục templates/ trên
+ * đĩa. Tệp ấy là tài liệu nội bộ nên nằm trong .gitignore — nghĩa là nó không bao
+ * giờ đi vào bản dựng Docker, và trên bản chạy thật nút xuất luôn báo thiếu biểu
+ * mẫu, trong khi trên máy văn phòng thì chạy tốt. Lỗi chỉ xuất hiện ở một nơi là
+ * kiểu khó lần ra nhất.
+ * Để trong database vì đó là thứ DUY NHẤT vừa bền qua mỗi lần dựng lại container,
+ * vừa nằm trong bản sao lưu hằng ngày, vừa không phải đưa tài liệu công ty lên
+ * repo công khai. Tệp cỡ 40 KB nên không đáng phải dựng riêng chỗ chứa đối tượng.
+ */
+model BieuMauTep {
+  id         Int      @id @default(autoincrement())
+  // Mã biểu mẫu: "MLS-11-06". Duy nhất — mỗi biểu mẫu chỉ giữ bản mới nhất.
+  code       String   @unique
+  fileName   String
+  mimeType   String
+  size       Int
+  // Băm nội dung để đối chiếu bản trên máy chủ với bản trong tay người quản trị.
+  sha256     String
+  data       Bytes
+  uploadedBy String?
+  uploadedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }

@@ -120,6 +120,12 @@ export const actions = tuDien(
     // Biểu mẫu chứng từ
     bieuMau_khongHopLe: "Biểu mẫu không hợp lệ.",
     bieuMau_maTenDiaChiBatBuoc: "Mã, tên công ty và địa chỉ là bắt buộc.",
+    bieuMauTep_chiNhanXlsx: "Chỉ nhận file Excel .xlsx (bản biểu mẫu gốc của công ty).",
+    bieuMauTep_fileQuaLon: "File biểu mẫu quá lớn — biểu mẫu trống chỉ vài chục KB, tối đa 5MB.",
+    bieuMauTep_khongDocDuoc:
+      "Không đọc được file này như một bảng tính Excel. Kiểm tra lại đúng file .xlsx gốc chưa.",
+    bieuMauTep_daLuu:
+      'Đã lưu biểu mẫu "{ten}" (sha256 {bam}). Nút Xuất kiểm kê MLS-11-06 dùng được ngay, trên mọi máy.',
     bieuMau_maDaTonTai: 'Mã biểu mẫu "{ma}" đã tồn tại.',
     bieuMau_daThem: 'Đã thêm biểu mẫu "{ma}".',
     bieuMau_khongTimThay: "Không tìm thấy biểu mẫu.",
@@ -361,6 +367,12 @@ export const actions = tuDien(
     bieuMau_khongHopLe: "Invalid form standard.",
     bieuMau_maTenDiaChiBatBuoc:
       "Code, company name and address are required.",
+    bieuMauTep_chiNhanXlsx: "Only .xlsx Excel files are accepted (the original company form).",
+    bieuMauTep_fileQuaLon: "The form file is too large — a blank form is a few dozen KB; the limit is 5MB.",
+    bieuMauTep_khongDocDuoc:
+      "This file could not be read as an Excel workbook. Check that it is the original .xlsx form.",
+    bieuMauTep_daLuu:
+      'Saved the form "{ten}" (sha256 {bam}). The MLS-11-06 inventory export now works everywhere.',
     bieuMau_maDaTonTai: 'Form standard code "{ma}" already exists.',
     bieuMau_daThem: 'Form standard "{ma}" added.',
     bieuMau_khongTimThay: "Form standard not found.",

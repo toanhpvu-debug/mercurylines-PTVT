@@ -8,6 +8,8 @@ import {
   vesselScopeDayDu,
 } from "@/lib/auth";
 import VesselFormStandardRow from "@/components/VesselFormStandardRow";
+import BieuMauTepManager from "@/components/BieuMauTepManager";
+import { MA_BIEU_MAU_KIEM_KE } from "@/lib/bieuMau";
 import {
   FormStandardAddForm,
   FormStandardEditForm,
@@ -31,18 +33,30 @@ export const dynamic = "force-dynamic";
 
 export default async function VesselFormsPage() {
   const user = await requireScopedUser();
-  const { t } = await layT();
+  const { t, ngayGio } = await layT();
   const scope = vesselScopeDayDu(user);
   const canManage = user.role === "ADMIN";
   if (!["ADMIN", "MASTER"].includes(user.role)) {
     redirect("/purchasing");
   }
-  const [vessels, allStandards] = await Promise.all([
+  const [vessels, allStandards, bieuMauTep] = await Promise.all([
     prisma.vessel.findMany({
       where: vesselIdWhere(scope),
       orderBy: { code: "asc" },
     }),
     prisma.formStandard.findMany({ orderBy: { code: "asc" } }),
+    // Tệp biểu mẫu Excel gốc — KHÔNG kéo cột `data` (40 KB nhị phân) về chỉ để
+    // hiện vài dòng thông tin; khi xuất kiểm kê mới đọc tới nó.
+    prisma.bieuMauTep.findUnique({
+      where: { code: MA_BIEU_MAU_KIEM_KE },
+      select: {
+        fileName: true,
+        size: true,
+        sha256: true,
+        uploadedBy: true,
+        uploadedAt: true,
+      },
+    }),
   ]);
   const activeStandards = allStandards.filter((s) => s.isActive);
   const stdByCode = new Map(allStandards.map((s) => [s.code, s]));
@@ -73,6 +87,23 @@ export default async function VesselFormsPage() {
           subtitle={t("purchasing.moTaBieuMau")}
         />
       </div>
+
+      {/* Tệp biểu mẫu Excel gốc — chỉ quản trị mới tải lên được. */}
+      {canManage && (
+        <BieuMauTepManager
+          hienCo={
+            bieuMauTep
+              ? {
+                  fileName: bieuMauTep.fileName,
+                  size: bieuMauTep.size,
+                  sha256: bieuMauTep.sha256,
+                  uploadedBy: bieuMauTep.uploadedBy,
+                  uploadedAt: ngayGio(bieuMauTep.uploadedAt),
+                }
+              : null
+          }
+        />
+      )}
 
       {/* Quản lý danh sách biểu mẫu */}
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">

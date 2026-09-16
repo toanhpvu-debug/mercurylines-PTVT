@@ -139,6 +139,10 @@ export function khoangIdRieng(dauDai: number): { dau: number; cuoi: number } {
  *   thao tác nên lớn nhanh nhất hệ thống; nhét vào gói .json gửi qua email thì
  *   gói phình lên vì thứ không ai đọc hằng ngày. Cần nhật ký của tàu thì lấy
  *   trong bản sao lưu của tàu đó.
+ * - BieuMauTep: tệp Excel biểu mẫu gốc, nội dung NHỊ PHÂN ~40 KB. Gói đồng bộ là
+ *   .json gửi qua email nên nhị phân phải mã hóa base64, phình thêm một phần ba,
+ *   và đi kèm MỌI gói dù biểu mẫu cả năm không đổi một lần. Đây là thứ khai một
+ *   lần cho mỗi bản cài: quản trị vào Mua sắm → Biểu mẫu tải lên, mất mấy giây.
  */
 export const BANG_KHONG_DONG_BO = [
   "User",
@@ -148,6 +152,7 @@ export const BANG_KHONG_DONG_BO = [
   "FleetAssignment",
   "Delegation",
   "AuditLog",
+  "BieuMauTep",
 ] as const;
 
 /** Tên bảng trong Prisma → tên bảng trong PostgreSQL. */

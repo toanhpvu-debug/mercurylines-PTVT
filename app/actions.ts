@@ -57,6 +57,13 @@ import {
   fileExtension,
   getUploadDir,
 } from "@/lib/uploads";
+import ExcelJS from "exceljs";
+import {
+  DUOI_BIEU_MAU,
+  MA_BIEU_MAU_KIEM_KE,
+  MAX_BIEU_MAU_BYTES,
+  MIME_BIEU_MAU,
+} from "@/lib/bieuMau";
 import type { HamDich } from "@/lib/i18n";
 import { layT } from "@/lib/i18n/server";
 
@@ -3148,6 +3155,93 @@ export async function deleteLashingGear(
 }
 
 const REPORT_TYPES = ["MLS-11-01", "MLS-11-04", "MLS-11-13", "KHÁC"];
+
+/**
+ * Tải tệp biểu mẫu Excel gốc của công ty lên, lưu thẳng vào database.
+ *
+ * Vì sao không để trên đĩa như hồ sơ báo cáo: biểu mẫu phải có mặt ở MỌI bản cài,
+ * kể cả bản chạy trong container vừa dựng lại từ repo sạch. Đĩa của container thì
+ * mất sau mỗi lần dựng, còn thư mục templates/ thì nằm trong .gitignore nên không
+ * đi vào ảnh Docker — đó đúng là lý do nút "Xuất kiểm kê MLS-11-06" chạy được ở
+ * máy văn phòng mà luôn báo thiếu biểu mẫu trên bản chạy thật.
+ *
+ * Mỗi mã biểu mẫu chỉ giữ MỘT bản: tải lên lần nữa là thay bản cũ. Không giữ lịch
+ * sử phiên bản vì biểu mẫu là form trống, cần bản nào thì công ty phát bản ấy.
+ */
+export async function uploadBieuMauTep(
+  _prevState: { message: string; success?: boolean },
+  formData: FormData
+): Promise<{ message: string; success?: boolean }> {
+  const { t } = await layT();
+  const actor = await requireActiveRole(["ADMIN"]);
+  if (!actor) {
+    return { message: t("chung.khongCoQuyen") };
+  }
+  const code = String(formData.get("code") || "").trim();
+  if (code !== MA_BIEU_MAU_KIEM_KE) {
+    return { message: t("chung.duLieuKhongHopLe") };
+  }
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { message: t("actions.hoSo_vuiLongChonFile") };
+  }
+  if (fileExtension(file.name) !== DUOI_BIEU_MAU) {
+    return { message: t("actions.bieuMauTep_chiNhanXlsx") };
+  }
+  if (file.size > MAX_BIEU_MAU_BYTES) {
+    return { message: t("actions.bieuMauTep_fileQuaLon") };
+  }
+  const buffer = Buffer.from(await file.arrayBuffer());
+  // Đọc thử bằng đúng thư viện mà lúc xuất sẽ dùng. Nhận bừa rồi để vỡ lúc xuất
+  // thì người bấm nút xuất mới biết, mà họ không phải người tải lên và cũng không
+  // sửa được gì — lỗi phải nổ ngay trước mặt người đang cầm tệp.
+  try {
+    const thu = new ExcelJS.Workbook();
+    await thu.xlsx.load(buffer as unknown as ArrayBuffer);
+    if (!thu.worksheets.length) {
+      return { message: t("actions.bieuMauTep_khongDocDuoc") };
+    }
+  } catch {
+    return { message: t("actions.bieuMauTep_khongDocDuoc") };
+  }
+  const sha256 = createHash("sha256").update(buffer).digest("hex");
+  await prisma.bieuMauTep.upsert({
+    where: { code },
+    create: {
+      code,
+      fileName: file.name,
+      mimeType: MIME_BIEU_MAU,
+      size: file.size,
+      sha256,
+      data: buffer,
+      uploadedBy: actor.name,
+    },
+    update: {
+      fileName: file.name,
+      mimeType: MIME_BIEU_MAU,
+      size: file.size,
+      sha256,
+      data: buffer,
+      uploadedBy: actor.name,
+      uploadedAt: new Date(),
+    },
+  });
+  await ghiNhatKyNguoiDung(actor, {
+    action: "tai-bieu-mau",
+    path: "/purchasing/forms",
+    vesselId: null,
+    detail: `Tải biểu mẫu ${code} — "${file.name}", ${file.size} byte, sha256 ${sha256.slice(0, 16)}`,
+  });
+  revalidatePath("/purchasing/forms");
+  revalidatePath("/inventory");
+  return {
+    message: t("actions.bieuMauTep_daLuu", {
+      ten: file.name,
+      bam: sha256.slice(0, 16),
+    }),
+    success: true,
+  };
+}
 
 export async function uploadReportDocument(
   _prevState: {

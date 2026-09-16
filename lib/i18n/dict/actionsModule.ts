@@ -230,7 +230,7 @@ export const actionsModule = tuDien(
     taiLieu_khongXemDuocBanGoc: "Bạn không có quyền xem bản gốc phiếu này.",
     taiLieu_thieuTau: "Thiếu tàu.",
     taiLieu_thieuBieuMau:
-      "Chưa có file biểu mẫu templates/MLS-11-06.xlsx. Hãy chép biểu mẫu Excel của công ty vào thư mục templates/ (xem templates/README.md).",
+      "Chưa có biểu mẫu MLS-11-06 trên hệ thống. Quản trị vào Mua sắm → Biểu mẫu để tải file Excel gốc của công ty lên — tải một lần là dùng mãi.",
   },
   {
     chuaDangNhap: "You are not signed in.",
@@ -460,6 +460,6 @@ export const actionsModule = tuDien(
       "You do not have permission to view the original of this receipt.",
     taiLieu_thieuTau: "The vessel is missing.",
     taiLieu_thieuBieuMau:
-      "The form file templates/MLS-11-06.xlsx is missing. Copy the company Excel form into the templates/ folder (see templates/README.md).",
+      "The MLS-11-06 form has not been loaded yet. An administrator can upload the company Excel form at Purchasing → Forms — once uploaded it stays.",
   }
 );

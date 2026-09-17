@@ -96,6 +96,7 @@ export default async function AppLayout({
         dongMenu: t("menu.dongMenu"),
         cheDoSang: t("menu.cheDoSang"),
         cheDoToi: t("menu.cheDoToi"),
+        quetQr: t("menu.quetQr"),
       }}
       chuDeBanDau={docChuDe(kho.get(COOKIE_CHU_DE)?.value)}
       logout={logout}

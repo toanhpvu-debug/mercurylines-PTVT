@@ -38,7 +38,13 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          // camera=(self): CHO PHÉP chính trang này dùng máy ảnh — màn Quét mã QR
+          // (/quet) gọi getUserMedia. Trước đây là camera=() (cấm hẳn) và đó là
+          // lý do trình duyệt từ chối mở máy ảnh dù người dùng đã bấm Cho phép:
+          // header này thắng cả quyền người dùng cấp. Micro và định vị vẫn cấm
+          // vì app không dùng. Trang nhúng từ site lạ vẫn không mượn được máy
+          // ảnh — "self" chỉ mở cho tài liệu cùng nguồn.
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
         ],
       },
       {

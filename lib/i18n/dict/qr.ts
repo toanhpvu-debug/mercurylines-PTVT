@@ -58,6 +58,14 @@ export const qr = tuDien(
       "Nhãn in từ bản cài nào thì ghi địa chỉ của bản cài đó; camera điện thoại quét sẽ mở đúng địa chỉ ấy. Màn Quét mã trong app thì đọc mã ở nhãn in từ bất kỳ bản cài nào.",
     nutInNhanMatHang: "In nhãn QR",
     nutQuetMa: "Quét mã QR",
+    chupAnh: "Chụp ảnh nhãn để đọc",
+    chupAnhThayThe:
+      "Bấm \"Chụp ảnh nhãn để đọc\": ứng dụng Camera của điện thoại mở ra, chụp nhãn một tấm, trang tự đọc mã trong ảnh. Cách này chạy ở mọi địa chỉ, không cần cấp quyền.",
+    dangDocAnh: "Đang đọc mã trong ảnh...",
+    anhKhongCoMa:
+      "Không thấy mã QR trong ảnh. Chụp lại gần hơn, để nhãn nằm gọn trong khung và đủ sáng, tránh lóa.",
+    thuMoCameraLai: "Thử mở camera lại",
+    chonCamera: "Camera",
   },
   {
     quetTieuDe: "Scan QR code",
@@ -112,5 +120,13 @@ export const qr = tuDien(
       "Labels carry the address of the installation that printed them; a phone camera opens that address. The in-app Scan screen reads labels printed from any installation.",
     nutInNhanMatHang: "Print QR label",
     nutQuetMa: "Scan QR code",
+    chupAnh: "Take a photo of the label",
+    chupAnhThayThe:
+      "Tap \"Take a photo of the label\": the phone's Camera app opens, take one shot of the label, and the page reads the code from the photo. This works on any address and needs no permission.",
+    dangDocAnh: "Reading the code in the photo...",
+    anhKhongCoMa:
+      "No QR code found in the photo. Retake it closer, with the label fully inside the frame and well lit, avoiding glare.",
+    thuMoCameraLai: "Try opening the camera again",
+    chonCamera: "Camera",
   }
 );

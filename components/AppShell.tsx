@@ -115,6 +115,7 @@ export default function AppShell({
     dongMenu: string;
     cheDoSang: string;
     cheDoToi: string;
+    quetQr: string;
   };
   chuDeBanDau: ChuDe;
   logout: () => Promise<void>;
@@ -305,6 +306,21 @@ export default function AppShell({
         <main className="relative z-10 min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
           {children}
         </main>
+
+        {/* Nút Quét nổi ở góc dưới phải trên ĐIỆN THOẠI: người cầm máy đứng ở kệ
+            phải tới được màn quét bằng một cú bấm từ bất kỳ trang nào, không mở
+            menu ngăn kéo. Máy tính (lg trở lên) có menu bên nên không cần; đang ở
+            màn quét thì thôi. Nền brand-700 để chữ trắng đạt tương phản. */}
+        {pathname !== "/quet" && (
+          <Link
+            href="/quet"
+            aria-label={nhan.quetQr}
+            className="no-print fixed right-4 bottom-4 z-40 inline-flex items-center gap-2 rounded-full bg-brand-700 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-brand-800 lg:hidden"
+          >
+            <QrCode className="size-5" />
+            {nhan.quetQr}
+          </Link>
+        )}
       </div>
     </div>
   );

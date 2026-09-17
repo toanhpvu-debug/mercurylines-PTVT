@@ -373,6 +373,33 @@ nhập & phân quyền), `UPLOAD_DIR` (thư mục lưu file báo cáo, mặc đ�
 `SEED_PASSWORD` (bắt buộc cho lần seed đầu), và `POSTGRES_PASSWORD` khi dùng container `db`
 của `docker-compose`.
 
+## Mã QR gắn từng mặt hàng — quét bằng camera điện thoại
+
+Mỗi mặt hàng có một nhãn QR. Quét nhãn là mở thẳng **thẻ kho** của mặt hàng đó trên tàu của
+người quét: thấy tồn, nhập, xuất, xem lịch sử ngay tại kệ.
+
+| Việc | Ở đâu |
+|---|---|
+| In nhãn cho cả tàu (lọc theo loại / nhóm / tìm) | Tồn kho → **In nhãn QR** (`/inventory/nhan-qr`) |
+| In lại một nhãn | Thẻ kho → **In nhãn QR** |
+| Quét bằng camera trong app | Menu **Quét mã QR** (`/quet`), hoặc gõ mã tay ngay dưới khung camera |
+| Quét bằng ứng dụng Camera có sẵn của điện thoại | Chĩa vào nhãn, bấm địa chỉ hiện ra — không cần mở app trước |
+
+Nội dung trong mã là một **địa chỉ web** (`<địa chỉ bản cài>/qr/<mã mặt hàng>`) chứ không phải
+mã trần, để camera điện thoại nhận ra và mở được. Nhãn in từ bản cài nào ghi địa chỉ của bản cài
+đó (văn phòng → site trên mạng; tàu → địa chỉ nội bộ của tàu). Màn Quét mã trong app chỉ bóc lấy
+mã mặt hàng nên đọc được nhãn in từ bất kỳ bản cài nào.
+
+Sau khi quét: mặt hàng có đúng một dòng tồn trong phạm vi tàu của bạn → vào thẳng thẻ kho; ở nhiều
+kho → chọn kho; chưa có dòng tồn → ghi phiếu nhập đầu tiên ngay tại chỗ; mã lạ → báo rõ và cho tìm
+trong danh mục. Mỗi lần quét ghi một dòng vào nhật ký (`quet-qr`).
+
+Giới hạn cần biết: trình duyệt chỉ mở camera trên địa chỉ **https hoặc localhost**. Bản cài trên
+tàu mở qua `http://<ip nội bộ>` thì màn Quét mã trong app không bật được camera — dùng ứng dụng
+Camera của điện thoại quét nhãn thay thế (vẫn mở đúng trang). Mã QR sinh trên máy chủ, giải mã
+trên máy (BarcodeDetector của trình duyệt, hoặc thư viện jsQR nằm trong bản cài) — không gọi dịch
+vụ ngoài, tàu không có mạng vẫn dùng được.
+
 ## Làm việc khi mất mạng — mỗi tàu một bản, đồng bộ về văn phòng
 
 Tàu đi biển không có internet ổn định, nên app **không** phụ thuộc vào mạng: mỗi tàu chạy một

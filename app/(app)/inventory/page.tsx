@@ -19,6 +19,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import { QrCode, Tag } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   sortWithinDepartment,
@@ -356,6 +357,21 @@ export default async function InventoryPage({
       <PageHeader
         title={scope.all ? t("inventory.tieuDeDoi") : t("inventory.tieuDeTau")}
         subtitle={t("inventory.moTa")}
+        action={
+          <>
+            <Link href="/quet" className={buttonClass("secondary")}>
+              <QrCode className="size-4" />
+              {t("qr.nutQuetMa")}
+            </Link>
+            <Link
+              href={`/inventory/nhan-qr${vesselFilter ? `?vessel=${vesselFilter}` : ""}`}
+              className={buttonClass("secondary")}
+            >
+              <Tag className="size-4" />
+              {t("qr.nhanTieuDe")}
+            </Link>
+          </>
+        }
       />
 
       {scope.unassigned && (

@@ -23,6 +23,7 @@ import {
   Warehouse,
   X,
 } from "lucide-react";
+import { QrCode } from "lucide-react";
 import ChonNgonNgu from "@/components/ChonNgonNgu";
 import DoiChuDe from "@/components/DoiChuDe";
 import { LogoLockup } from "@/components/MercuryLogo";
@@ -54,7 +55,8 @@ export type TenIcon =
   | "lashing"
   | "documents"
   | "users"
-  | "audit";
+  | "audit"
+  | "qr";
 
 const ICON: Record<TenIcon, ReactNode> = {
   dashboard: <LayoutDashboard className="size-4" />,
@@ -70,6 +72,7 @@ const ICON: Record<TenIcon, ReactNode> = {
   documents: <FileText className="size-4" />,
   users: <Users className="size-4" />,
   audit: <History className="size-4" />,
+  qr: <QrCode className="size-4" />,
 };
 
 export type MucMenu = {

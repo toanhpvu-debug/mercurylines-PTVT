@@ -37,6 +37,7 @@ export default async function AppLayout({
         { href: "/vessels", label: t("menu.doiTau"), icon: "fleet", doiTau: true },
         { href: "/materials", label: t("menu.vatTu"), icon: "materials" },
         { href: "/inventory", label: t("menu.tonKho"), icon: "inventory" },
+        { href: "/quet", label: t("menu.quetQr"), icon: "qr" },
       ],
     },
     {

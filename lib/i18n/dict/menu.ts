@@ -14,6 +14,7 @@ export const menu = tuDien(
     // một dòng bất kể loại. Tên mục ở menu = chủ ngữ của tiêu đề trang.
     vatTu: "Vật tư & phụ tùng",
     tonKho: "Tồn kho",
+    quetQr: "Quét mã QR",
     yeuCau: "Yêu cầu vật tư & phụ tùng",
     muaSam: "Mua sắm (Purchasing)",
     baoCao: "Báo cáo nhận & sử dụng",
@@ -45,6 +46,7 @@ export const menu = tuDien(
     tatCaDoiTau: "All vessels →",
     vatTu: "Stores & spare parts",
     tonKho: "Inventory",
+    quetQr: "Scan QR code",
     yeuCau: "Requisitions",
     muaSam: "Purchasing",
     baoCao: "Receipt & consumption report",

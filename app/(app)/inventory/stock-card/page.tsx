@@ -9,6 +9,7 @@ import {
   Boxes,
   History,
 } from "lucide-react";
+import { QrCode } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   danhTinhHieuLuc,
@@ -148,6 +149,13 @@ export default async function StockCardPage({
             >
               <ArrowLeft className="size-4" />
               {t("inventory.quayLaiTonKho")}
+            </Link>
+            <Link
+              href={`/inventory/nhan-qr?material=${material.id}`}
+              className={buttonClass("secondary")}
+            >
+              <QrCode className="size-4" />
+              {t("qr.nutInNhanMatHang")}
             </Link>
             <PrintButton label={t("inventory.inTheKho")} />
           </>

@@ -11,6 +11,7 @@ import { materials } from "./dict/materials";
 import { menu } from "./dict/menu";
 import { paint } from "./dict/paint";
 import { purchasing } from "./dict/purchasing";
+import { qr } from "./dict/qr";
 import { requests } from "./dict/requests";
 import { vessels } from "./dict/vessels";
 
@@ -31,6 +32,7 @@ export const TU_DIEN = {
   inventory,
   requests,
   purchasing,
+  qr,
   paint,
   consumables,
   vessels,

@@ -582,9 +582,18 @@ export default function QuetQr() {
 
       {/* Khung hình: đầy đủ khi đang quét, thu thành dải mỏng khi bảng ghi mở để
           form nằm trọn trong màn hình điện thoại — camera vẫn chạy bên dưới. */}
+      {/* Điện thoại: khung DỌC (3:4) tràn hai mép, cao tối đa 62% màn hình để các nút
+          bên dưới vẫn với tới bằng ngón cái; máy tính: 4:3 trong khung bo góc.
+          Bảng ghi mở thì thu thành dải mỏng — camera vẫn chạy để mở lại tức thì. */}
       {!cameraHong && (
-        <div className={`relative overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-black transition-all ${bangMo ? "h-16" : ""}`}>
-          <video ref={video} className={`block w-full object-cover ${bangMo ? "h-16" : "aspect-[4/3]"}`} muted playsInline autoPlay />
+        <div className={`relative overflow-hidden bg-black transition-all sm:rounded-xl sm:border sm:border-[var(--border-subtle)] ${bangMo ? "h-14" : ""}`}>
+          <video
+            ref={video}
+            className={`block w-full object-cover ${bangMo ? "h-14" : "aspect-[3/4] max-h-[62vh] sm:aspect-[4/3] sm:max-h-none"}`}
+            muted
+            playsInline
+            autoPlay
+          />
           {dangChay && !bangMo && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="size-[60%] max-w-[320px] rounded-lg border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
@@ -606,8 +615,46 @@ export default function QuetQr() {
               <Flashlight className="size-5" />
             </button>
           )}
+          {/* Đổi camera bằng một chạm ngay trên khung — điện thoại có 2–3 ống sau,
+              trình duyệt hay chọn ống rộng làm nhãn nhỏ không nét. */}
+          {mayAnh.length > 1 && dangChay && !bangMo && (
+            <button
+              type="button"
+              onClick={() => {
+                const i = mayAnh.findIndex((m) => m.deviceId === mayAnhDangDung);
+                doiCamera(mayAnh[(i + 1) % mayAnh.length].deviceId);
+              }}
+              aria-label={t("qr.chonCamera")}
+              className="absolute top-2 left-2 rounded-full bg-black/50 p-2 text-white"
+            >
+              <SwitchCamera className="size-5" />
+            </button>
+          )}
+          {/* Dải trạng thái nằm ĐÈ lên đáy khung hình thay vì chiếm một dòng bên
+              dưới: người quét nhìn vào đúng một chỗ, và khung hình vẫn ở trên cùng. */}
+          {!bangMo && (goiY || cam.kieu === "dangMo" || cam.kieu === "dangQuet" || cam.kieu === "dangDocAnh") && (
+            <div
+              className={`absolute inset-x-0 bottom-0 px-3 py-2 text-center text-sm font-medium text-white ${goiY?.tone === "warning" ? "bg-amber-600/85" : "bg-black/55"}`}
+              aria-live="polite"
+            >
+              {goiY ? (
+                goiY.chu
+              ) : cam.kieu === "dangMo" ? (
+                t("qr.dangMoCamera")
+              ) : cam.kieu === "dangDocAnh" ? (
+                t("qr.dangDocAnh")
+              ) : (
+                <span className="inline-flex items-center gap-2">
+                  <ScanLine className="size-4" /> {t("qr.dangQuet")}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
+
+      {/* Từ đây xuống: có lề hai bên trên điện thoại (khung hình ở trên thì tràn). */}
+      <div className="space-y-4 px-4 sm:px-6 lg:px-0">
 
       {/* ── Bảng ghi ngay tại chỗ ──────────────────────────────────────────── */}
       {bang?.kieu === "dangTai" && <Notice tone="info">{t("qr.dangTaiMatHang", { ma: bang.ma })}</Notice>}
@@ -796,17 +843,7 @@ export default function QuetQr() {
         </div>
       )}
 
-      {/* ── Trạng thái camera / gợi ý ──────────────────────────────────────── */}
-      {!bangMo && cam.kieu === "dangMo" && <Notice tone="info">{t("qr.dangMoCamera")}</Notice>}
-      {!bangMo && cam.kieu === "dangQuet" && !goiY && (
-        <Notice tone="brand">
-          <span className="inline-flex items-center gap-2">
-            <ScanLine className="size-4" /> {t("qr.dangQuet")}
-          </span>
-        </Notice>
-      )}
-      {!bangMo && cam.kieu === "dangDocAnh" && <Notice tone="info">{t("qr.dangDocAnh")}</Notice>}
-      {!bangMo && goiY && <Notice tone={goiY.tone}>{goiY.chu}</Notice>}
+      {/* ── Camera hỏng: nói lý do và chỉ sang chụp ảnh ────────────────────── */}
       {cameraHong && (
         <Notice tone="warning">
           <p>{t(`qr.${cam.khoa}`, cam.loi ? { loi: cam.loi } : undefined)}</p>
@@ -854,7 +891,7 @@ export default function QuetQr() {
       )}
 
       {!bangMo && mayAnh.length > 1 && !cameraHong && (
-        <label className="flex flex-wrap items-center gap-2 text-sm">
+        <label className="hidden flex-wrap items-center gap-2 text-sm sm:flex">
           <span className="inline-flex items-center gap-1.5 text-[var(--text-secondary)]">
             <SwitchCamera className="size-4" /> {t("qr.chonCamera")}
           </span>
@@ -930,6 +967,7 @@ export default function QuetQr() {
       </div>
 
       {!bangMo && <p className="text-xs text-[var(--text-muted)]">{t("qr.meoCameraDienThoai")}</p>}
+      </div>
     </div>
   );
 }

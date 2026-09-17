@@ -11,9 +11,9 @@ import {
 import { layT } from "@/lib/i18n/server";
 import { MA_BIEU_MAU_KIEM_KE } from "@/lib/bieuMau";
 import {
-  DONG_DU_LIEU_DAU,
-  SO_DONG_CHUA_SAN,
+  dienDongKiemKe,
   dungBieuMauKiemKe,
+  ghiChuBanTuDung,
 } from "@/lib/bieuMauKiemKe";
 import { LAP_YEU_CAU } from "@/lib/roles";
 
@@ -173,14 +173,14 @@ export async function GET(request: Request) {
     // nạp tệp gốc ở Mua sắm → Biểu mẫu thì bản in trở lại đúng form chính thức.
     const chuan = await prisma.formStandard.findUnique({
       where: { code: vessel.formStandard },
-      select: { companyName: true, address: true },
+      select: { companyName: true },
     });
     workbook = dungBieuMauKiemKe({
       companyName: chuan?.companyName ?? "",
-      address: chuan?.address ?? "",
       maBieuMau: MA_BIEU_MAU_KIEM_KE,
     });
   }
+  const laBanTuDung = !templateBuffer;
   const ws = workbook.worksheets[0];
 
   const typeLabels: Record<string, string> = {
@@ -197,30 +197,13 @@ export async function GET(request: Request) {
   ws.getCell("C8").value = typeLabels[type];
   ws.getCell("H8").value = `Tháng ${now.getMonth() + 1}/${now.getFullYear()}`;
 
-  // Biểu mẫu chừa sẵn 25 dòng dữ liệu (13..37), chữ ký ở 38-39 — thiếu thì chèn
-  // thêm dòng. Hai hằng số này dùng CHUNG với bản tự dựng (lib/bieuMauKiemKe.ts)
-  // để hai đường đi không bao giờ lệch nhau về chỗ đặt khối chữ ký.
-  const FIRST_DATA_ROW = DONG_DU_LIEU_DAU;
-  const TEMPLATE_SLOTS = SO_DONG_CHUA_SAN;
-  if (rows.length > TEMPLATE_SLOTS) {
-    ws.insertRows(
-      FIRST_DATA_ROW + TEMPLATE_SLOTS - 1,
-      Array.from({ length: rows.length - TEMPLATE_SLOTS }, () => []),
-      "i"
-    );
-  }
-  rows.forEach((row, index) => {
-    const r = ws.getRow(FIRST_DATA_ROW + index);
-    r.getCell(1).value = index + 1; // S.No
-    r.getCell(2).value = row.group; // Group
-    r.getCell(3).value = row.name; // Description
-    r.getCell(5).value = row.impa; // IMPA Code
-    r.getCell(6).value = row.uom; // Unit
-    r.getCell(7).value = row.lastRob; // Last R.O.B
-    r.getCell(8).value = row.received; // Receive
-    r.getCell(9).value = row.consumed; // Cons.
-    r.getCell(10).value = row.rob; // R.O.B
-  });
+  // Điền dòng bằng hàm dùng chung với bản tự dựng (lib/bieuMauKiemKe.ts): nó
+  // biết biểu mẫu chừa sẵn 24 dòng, tự dời khối chữ ký khi bảng dài hơn, và ép
+  // mọi dòng — kể cả dòng thêm — về cùng một kiểu viền/phông lấy từ dòng mẫu.
+  // Cách cũ dùng insertRows cho ra dòng thêm không viền và ô gộp chữ ký đứng
+  // nguyên chỗ cũ.
+  const { dongChuKyCuoi } = dienDongKiemKe(ws, rows);
+  if (laBanTuDung) ghiChuBanTuDung(ws, dongChuKyCuoi);
 
   const buffer = await workbook.xlsx.writeBuffer();
   const dateStr = now.toISOString().slice(0, 10);

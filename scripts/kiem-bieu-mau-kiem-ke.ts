@@ -25,7 +25,7 @@ const O_NHAN = {
   H8: "Kỳ báo cáo",
 };
 const FIRST_DATA_ROW = 13;
-const TEMPLATE_SLOTS = 25;
+const TEMPLATE_SLOTS = 24; // dòng 13..36; dòng 37 là dòng đệm trống
 
 function chu(v: unknown): string {
   if (v === null || v === undefined) return "";

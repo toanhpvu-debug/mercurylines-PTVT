@@ -44,10 +44,11 @@ Thiếu cả hai đường thì mọi chức năng khác vẫn chạy bình thư
 | `C8` | Loại vật tư (Tất cả / Store / Spare) |
 | `H8` | Kỳ báo cáo |
 | Dòng 11–12 | Tiêu đề bảng (biểu mẫu có sẵn, code không ghi đè) |
-| Từ dòng 13 | Các dòng dữ liệu: Stt · Nhóm · Mô tả · Mã IMPA · Đơn vị · Còn tồn đợt trước · Nhận trong kỳ · Tiêu thụ trong kỳ · Tồn trên tàu |
+| Dòng 13–36 | 24 dòng dữ liệu chừa sẵn: Stt · Nhóm · Mô tả · Mã IMPA · Đơn vị · Còn tồn đợt trước · Nhận trong kỳ · Tiêu thụ trong kỳ · Tồn trên tàu |
+| Dòng 37 | Dòng đệm trống |
 | Dòng 38–39 | Khối chữ ký (Máy trưởng/Đại phó · Sỹ quan · Phòng Kỹ thuật Vật tư · Thuyền trưởng) |
 
-Quá 25 dòng thì code tự chèn thêm dòng và đẩy khối chữ ký xuống.
+Quá 24 dòng thì code viết tiếp xuống dưới, ép mọi dòng về cùng kiểu viền/phông của dòng mẫu, rồi dựng lại dòng đệm và khối chữ ký ngay sau dòng cuối (không dùng insertRows — nó làm dòng thêm mất viền và để ô gộp chữ ký đứng nguyên chỗ cũ).
 
 Biểu mẫu của công ty đổi bố cục thì soi lại bằng:
 

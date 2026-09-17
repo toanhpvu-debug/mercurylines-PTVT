@@ -10,6 +10,11 @@ import {
 } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
 import { MA_BIEU_MAU_KIEM_KE } from "@/lib/bieuMau";
+import {
+  DONG_DU_LIEU_DAU,
+  SO_DONG_CHUA_SAN,
+  dungBieuMauKiemKe,
+} from "@/lib/bieuMauKiemKe";
 import { LAP_YEU_CAU } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -153,14 +158,29 @@ export async function GET(request: Request) {
         path.join(process.cwd(), "templates", "MLS-11-06.xlsx")
       );
     } catch {
-      return NextResponse.json(
-        { error: t("actionsModule.taiLieu_thieuBieuMau") },
-        { status: 500 }
-      );
+      templateBuffer = null;
     }
   }
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(templateBuffer as unknown as ArrayBuffer);
+  let workbook: ExcelJS.Workbook;
+  if (templateBuffer) {
+    workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(templateBuffer as unknown as ArrayBuffer);
+  } else {
+    // KHÔNG còn báo lỗi ở đây nữa. Trước đây thiếu tệp là trả về một trang trắng
+    // in mỗi dòng chữ lỗi — mà "thiếu tệp" lại là trạng thái MẶC ĐỊNH của mọi
+    // bản cài mới, vì tệp biểu mẫu là tài liệu nội bộ nên không đi theo mã nguồn.
+    // Nay tự dựng bảng có cùng bố cục để người dùng vẫn lấy được số liệu ngay;
+    // nạp tệp gốc ở Mua sắm → Biểu mẫu thì bản in trở lại đúng form chính thức.
+    const chuan = await prisma.formStandard.findUnique({
+      where: { code: vessel.formStandard },
+      select: { companyName: true, address: true },
+    });
+    workbook = dungBieuMauKiemKe({
+      companyName: chuan?.companyName ?? "",
+      address: chuan?.address ?? "",
+      maBieuMau: MA_BIEU_MAU_KIEM_KE,
+    });
+  }
   const ws = workbook.worksheets[0];
 
   const typeLabels: Record<string, string> = {
@@ -177,9 +197,11 @@ export async function GET(request: Request) {
   ws.getCell("C8").value = typeLabels[type];
   ws.getCell("H8").value = `Tháng ${now.getMonth() + 1}/${now.getFullYear()}`;
 
-  // Template có sẵn 25 dòng dữ liệu (13..37), chữ ký ở 38-39 — thiếu thì chèn thêm dòng.
-  const FIRST_DATA_ROW = 13;
-  const TEMPLATE_SLOTS = 25;
+  // Biểu mẫu chừa sẵn 25 dòng dữ liệu (13..37), chữ ký ở 38-39 — thiếu thì chèn
+  // thêm dòng. Hai hằng số này dùng CHUNG với bản tự dựng (lib/bieuMauKiemKe.ts)
+  // để hai đường đi không bao giờ lệch nhau về chỗ đặt khối chữ ký.
+  const FIRST_DATA_ROW = DONG_DU_LIEU_DAU;
+  const TEMPLATE_SLOTS = SO_DONG_CHUA_SAN;
   if (rows.length > TEMPLATE_SLOTS) {
     ws.insertRows(
       FIRST_DATA_ROW + TEMPLATE_SLOTS - 1,

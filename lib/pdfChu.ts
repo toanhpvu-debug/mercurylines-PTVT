@@ -28,6 +28,20 @@ const KHE_COT = 9;
 
 type Mau = { x: number; cuoi: number; s: string };
 
+/** Đếm trang (null nếu file không phải PDF) — để bộ đọc AI chia cụm trang khi phiếu dài. */
+export async function demTrangPdf(buffer: Buffer): Promise<number | null> {
+  try {
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const task = pdfjs.getDocument({ data: new Uint8Array(buffer), verbosity: 0 });
+    const doc = await task.promise;
+    const n = doc.numPages;
+    await task.destroy().catch(() => undefined);
+    return n;
+  } catch {
+    return null;
+  }
+}
+
 export async function docChuTuPdf(buffer: Buffer, soTrangToiDa = 8): Promise<KetQuaDocChu> {
   let pdfjs: typeof import("pdfjs-dist/legacy/build/pdf.mjs");
   try {

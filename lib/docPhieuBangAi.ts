@@ -4,18 +4,22 @@
  * Hai nhà cung cấp:
  *   - "claude": Anthropic Messages API — ép JSON đúng khuôn bằng tool_choice.
  *   - "gemini": Google AI Studio / Gemini API (generateContent) — ép JSON bằng
- *     responseSchema.
+ *     responseSchema, độ phân giải ảnh cao, bật "suy nghĩ" cho dòng flash.
  *
- * Vì sao dùng AI thay cho OCR thường: OCR chỉ trả về chữ rời, còn phải đoán
- * cột nào là số lượng, cột nào là IMPA; bản scan nghiêng, mờ, bảng nhiều trang
- * thì đoán sai nhiều. Mô hình nhìn cả trang như người đọc: hiểu tiêu đề cột,
- * nhóm thiết bị, dòng gạch bỏ. Và nó chạy ở mọi nơi — kể cả container Linux
- * của máy chủ, nơi không có Windows.Media.Ocr.
+ * Bốn việc làm cho kết quả CHÍNH XÁC hơn một lần gọi đơn thuần:
+ *   1. Lượt KIỂM LẠI (chế độ "ky"): gửi lại tài liệu kèm bảng lượt 1, bắt mô
+ *      hình đối chiếu từng dòng — sửa số đọc sai, thêm dòng sót. Dòng bị đổi
+ *      hay thêm được ĐÁNH DẤU để người duyệt soi.
+ *   2. Đọc theo CỤM TRANG (phiếu > 4 trang, mỗi cụm 3 trang): mô hình tập
+ *      trung vào ít trang thì ít sót dòng, và không vướng giới hạn đầu ra.
+ *   3. Bộ SOÁT sau đọc: số lượng 0, đơn vị lạ, dòng trùng, chữ mờ "(?)", chỗ
+ *      mô hình tự nhận không chắc → cảnh báo trên từng dòng.
+ *   4. Tách tên tiếng Anh / tiếng Việt trên phiếu song ngữ, ghi số trang của
+ *      từng dòng để trang duyệt nhảy tới đúng chỗ trên bản scan.
  *
  * Kết quả vẫn chỉ là ĐIỀN SẴN: người duyệt đối chiếu với bản scan rồi mới
- * duyệt (xem app/phieu-giao-actions.ts). Cấu hình (nhà cung cấp, khóa, mô
- * hình) do lib/cauHinhAi.ts cấp — nhập trong app tại /cai-dat/ai hoặc biến môi
- * trường. Khóa không bao giờ được ghi log hay trả về giao diện.
+ * duyệt (xem app/phieu-giao-actions.ts). Cấu hình do lib/cauHinhAi.ts cấp.
+ * Khóa không bao giờ được ghi log hay trả về giao diện.
  *
  * File này KHÔNG đụng database (chỉ nhận cấu hình đã giải) để kiểm thử được
  * bằng fetch giả: scripts/kiem-tra-doc-ai.ts.
@@ -24,6 +28,9 @@ import { chuanDonVi, type DongPhieuGiao } from "@/lib/phieuGiaoParse";
 
 export type NhaCungCapAi = "claude" | "gemini";
 export const NHA_CUNG_CAP_AI: readonly NhaCungCapAi[] = ["claude", "gemini"];
+/** "ky" = 2 lượt (đọc + kiểm lại), "nhanh" = 1 lượt. */
+export type CheDoDocAi = "nhanh" | "ky";
+export const CHE_DO_DOC_AI: readonly CheDoDocAi[] = ["nhanh", "ky"];
 export const MODEL_MAC_DINH: Record<NhaCungCapAi, string> = {
   claude: "claude-sonnet-5",
   gemini: "gemini-2.5-pro",
@@ -32,6 +39,9 @@ export const TEN_NHA_CUNG_CAP: Record<NhaCungCapAi, string> = {
   claude: "Claude (Anthropic)",
   gemini: "Gemini (Google AI Studio)",
 };
+/** Phiếu dài hơn NGUONG_CHIA_CUM trang thì đọc từng cụm TRANG_MOI_CUM trang. */
+export const TRANG_MOI_CUM = 3;
+export const NGUONG_CHIA_CUM = 4;
 
 /** Cấu hình đã giải mã, sẵn sàng gọi. */
 export type CauHinhAi = {
@@ -40,6 +50,7 @@ export type CauHinhAi = {
   model: string;
   /** "db" = quản trị nhập trong app; "env" = biến môi trường. */
   nguon: "db" | "env";
+  cheDo?: CheDoDocAi;
 };
 
 export const DIA_CHI_CLAUDE = "https://api.anthropic.com/v1/messages";
@@ -48,18 +59,32 @@ export const DIA_CHI_GEMINI = "https://generativelanguage.googleapis.com/v1beta"
 /** Gemini nhận PDF gửi kèm (inline) tới ~20 MB cả gói; base64 phình 4/3 nên chặn ở 14 MB. */
 export const GEMINI_PDF_TOI_DA = 14 * 1024 * 1024;
 
-export type DocAiThanhCong = {
-  ok: true;
-  dong: DongPhieuGiao[];
+/** Dòng do AI đọc: dòng của bộ tách + tên tiếng Anh, trang, cảnh báo. */
+export type DongAi = DongPhieuGiao & {
+  tenEn: string | null;
+  trang: number | null;
+  canhBao: string | null;
+};
+
+export type DauPhieu = {
   nhaCungCap: string | null;
   soPhieu: string | null;
   ngayGiao: string | null;
   tau: string | null;
+};
+
+export type DocAiThanhCong = DauPhieu & {
+  ok: true;
+  dong: DongAi[];
   /** Bản chữ tóm tắt những gì AI đọc — hiện ở ô "Chữ đọc được" cho người duyệt soi. */
   chuTomTat: string;
   model: string;
   tokenVao: number;
   tokenRa: number;
+  soLuotGoi: number;
+  soDongCanKiem: number;
+  /** Lỗi không chặn kết quả (VD lượt kiểm lại hỏng, đã dùng lượt 1). */
+  loiPhu: string[];
 };
 export type KetQuaDocAi = DocAiThanhCong | { ok: false; loi: string };
 
@@ -76,12 +101,14 @@ export const CONG_CU_GHI_PHIEU = {
       tau: { type: ["string", "null"], description: "Tên tàu ghi trên phiếu (Vessel / M/V)." },
       dong: {
         type: "array",
-        description: "Mọi dòng hàng trên phiếu, theo thứ tự xuất hiện, qua hết các trang.",
+        description: "Mọi dòng hàng trên phiếu, theo thứ tự xuất hiện, qua hết các trang được yêu cầu.",
         items: {
           type: "object",
           properties: {
             stt: { type: ["integer", "null"], description: "Số thứ tự in trên phiếu nếu có." },
-            ten: { type: "string", description: "Tên / mô tả hàng đúng như in trên phiếu: không dịch, không rút gọn, không sửa." },
+            ten: { type: "string", description: "Mô tả hàng ĐÚNG NHƯ IN trên phiếu, giữ cả hai ngôn ngữ nếu song ngữ: không dịch, không rút gọn, không sửa." },
+            tenEn: { type: ["string", "null"], description: "Phần tên TIẾNG ANH trong mô tả (nếu phiếu in tiếng Anh hoặc song ngữ); không có thì null." },
+            tenVi: { type: ["string", "null"], description: "Phần tên TIẾNG VIỆT trong mô tả (thường trong ngoặc hoặc dòng dưới); không có thì null. Không tự dịch." },
             partNo: { type: ["string", "null"], description: "Part No. / mã của nhà sản xuất (KHÔNG phải IMPA)." },
             impa: { type: ["string", "null"], description: "Mã IMPA đúng 6 chữ số nếu phiếu có cột IMPA." },
             soLuong: { type: ["number", "null"], description: "Số lượng GIAO (delivered / Q'ty), là số." },
@@ -95,6 +122,9 @@ export const CONG_CU_GHI_PHIEU = {
               type: ["string", "null"],
               description: "Thiết bị / máy hoặc bộ phận mà dòng thuộc về, lấy từ tiêu đề nhóm trên phiếu (MAIN ENGINE, A/E No.2, DECK DEPARTMENT...). Không có thì null.",
             },
+            trang: { type: ["integer", "null"], description: "Số trang của tài liệu (đánh từ 1) mà dòng này nằm." },
+            canKiem: { type: ["boolean", "null"], description: "true nếu chỗ này mờ, bị che, sửa tay hay bạn KHÔNG CHẮC đã đọc đúng." },
+            lyDoKiem: { type: ["string", "null"], description: "Khi canKiem = true: nói ngắn vì sao (chữ mờ, số bị gạch sửa, cột không rõ...)." },
             ghiChu: { type: ["string", "null"], description: "Ghi chú riêng của dòng nếu phiếu có (giao thiếu, thay thế, gạch bỏ...)." },
           },
           required: ["ten", "loai"],
@@ -105,24 +135,31 @@ export const CONG_CU_GHI_PHIEU = {
   },
 } as const;
 
-export const HUONG_DAN_HE_THONG = `Bạn là nhân viên nhập liệu kho của tàu biển. Nhiệm vụ: đọc phiếu giao hàng (delivery note / packing list / invoice kèm hàng) của nhà cung cấp — có thể là bản scan nghiêng, mờ, nhiều trang, tiếng Anh hoặc tiếng Việt — rồi ghi lại theo đúng cấu trúc yêu cầu.
+export const HUONG_DAN_HE_THONG = `Bạn là nhân viên nhập liệu kho của tàu biển, tỉ mỉ và không bao giờ đoán bừa. Nhiệm vụ: đọc phiếu giao hàng (delivery note / packing list / invoice kèm hàng) của nhà cung cấp — có thể là bản scan nghiêng, mờ, nhiều trang, tiếng Anh hoặc tiếng Việt — rồi ghi lại theo đúng cấu trúc yêu cầu.
 
 Quy tắc:
-1. MỖI dòng hàng trên phiếu là MỘT phần tử trong "dong", kể cả dòng số lượng giao bằng 0 hay bị gạch bỏ (ghi vào ghiChu). Không gộp, không bỏ sót, không bịa thêm. Đọc hết mọi trang.
-2. "ten" giữ nguyên như in trên phiếu: không dịch, không sửa chính tả, không rút gọn. Chỗ mờ không đọc được thì ghi phần đọc được kèm "(?)".
-3. IMPA là mã 6 chữ số của danh mục ship stores; Part No. là mã của nhà sản xuất. Đừng lẫn hai cột; không có thì null.
-4. "soLuong" là số lượng THỰC GIAO. Phiếu có cả cột đặt (ordered/req.) và cột giao (delivered/supplied) thì lấy cột giao; chỉ có một cột số lượng thì lấy cột đó.
+1. MỖI dòng hàng trên phiếu là MỘT phần tử trong "dong", kể cả dòng số lượng giao bằng 0 hay bị gạch bỏ (ghi vào ghiChu). Không gộp, không bỏ sót, không bịa thêm. Đọc hết các trang được yêu cầu, kể cả bảng tiếp trang sau; dòng cuối mỗi trang và dòng đầu trang sau hay bị sót — kiểm kỹ.
+2. "ten" giữ nguyên như in trên phiếu: không dịch, không sửa chính tả, không rút gọn. Phiếu in song ngữ (VD "Abrasive discs (Đĩa mài)") thì tách thêm tenEn = "Abrasive discs", tenVi = "Đĩa mài"; phiếu chỉ tiếng Anh thì tenEn = ten, tenVi = null; chỉ tiếng Việt thì tenVi = ten, tenEn = null. Không tự dịch để điền phần thiếu.
+3. IMPA là mã 6 chữ số của danh mục ship stores; Part No. là mã của nhà sản xuất. Đừng lẫn hai cột; không có thì null. Đọc số cẩn thận: 0/6/8, 1/7, 3/8 hay lẫn trên bản scan — chỗ không chắc đặt canKiem = true.
+4. "soLuong" là số lượng THỰC GIAO. Phiếu có cả cột đặt (ordered / req.) và cột giao (delivered / supplied) thì lấy cột giao; chỉ có một cột số lượng thì lấy cột đó. Số thập phân giữ nguyên.
 5. "donVi" ghi đúng cột đơn vị trên phiếu (PCS, SET, KG, LTR, M, BOX, ROLL, PAIR, CAN, DRUM, BTL...).
 6. "loai": STORE cho vật tư tiêu hao / ship stores (hàng theo IMPA, boong, buồng, bếp, dụng cụ, hóa chất vệ sinh); SPARE cho phụ tùng máy móc, thiết bị (piston ring, bearing, gasket, filter element, valve...).
-7. "thietBi": nếu phiếu chia nhóm theo máy / thiết bị / bộ phận (MAIN ENGINE, A/E No.2, DECK DEPARTMENT...), ghi tên nhóm vào từng dòng thuộc nhóm đó; không chia thì null.
-8. Không ghi dòng tổng cộng, chữ ký, điều khoản, địa chỉ vào "dong".
-9. Đầu phiếu: nhaCungCap, soPhieu, ngayGiao (dd/mm/yyyy), tau — không rõ thì null.`;
+7. "thietBi": nếu phiếu chia nhóm theo máy / thiết bị / bộ phận (MAIN ENGINE, A/E No.2, DECK DEPARTMENT, ENGINE DEPARTMENT...), ghi tên nhóm vào từng dòng thuộc nhóm đó; không chia thì null.
+8. "trang": số trang (đánh từ 1) mà dòng nằm. "canKiem" = true ở bất kỳ chỗ nào chữ mờ, số bị che, sửa tay, hoặc bạn không chắc — thà đánh dấu thừa còn hơn để lọt số sai; nói lý do ở lyDoKiem.
+9. Không ghi dòng tổng cộng, chữ ký, điều khoản, địa chỉ vào "dong".
+10. Đầu phiếu: nhaCungCap, soPhieu, ngayGiao (dd/mm/yyyy), tau — không rõ thì null.
+
+Ví dụ một dòng in "12 | Wire rope clip M12 (Kẹp cáp M12) | 232052 | PCS | 20" trên trang 2, nhóm DECK DEPARTMENT →
+{"stt":12,"ten":"Wire rope clip M12 (Kẹp cáp M12)","tenEn":"Wire rope clip M12","tenVi":"Kẹp cáp M12","partNo":null,"impa":"232052","soLuong":20,"donVi":"PCS","loai":"STORE","thietBi":"DECK DEPARTMENT","trang":2,"canKiem":false,"lyDoKiem":null,"ghiChu":null}`;
 
 const LOI_NHAC_NGUOI_DUNG = "Đọc phiếu giao hàng trong tài liệu đính kèm và ghi TOÀN BỘ dòng hàng theo đúng cấu trúc yêu cầu.";
 
 /** Khuôn JSON nhắc thêm cho Gemini — để khi phải bỏ responseSchema (API từ chối khuôn) mô hình vẫn trả đúng dạng. */
 const KHUON_JSON_GOI_Y =
-  'Trả về DUY NHẤT một JSON dạng: {"nhaCungCap": string|null, "soPhieu": string|null, "ngayGiao": "dd/mm/yyyy"|null, "tau": string|null, "dong": [{"stt": number|null, "ten": string, "partNo": string|null, "impa": "6 chữ số"|null, "soLuong": number|null, "donVi": string|null, "loai": "STORE"|"SPARE", "thietBi": string|null, "ghiChu": string|null}]}';
+  'Trả về DUY NHẤT một JSON dạng: {"nhaCungCap": string|null, "soPhieu": string|null, "ngayGiao": "dd/mm/yyyy"|null, "tau": string|null, "dong": [{"stt": number|null, "ten": string, "tenEn": string|null, "tenVi": string|null, "partNo": string|null, "impa": "6 chữ số"|null, "soLuong": number|null, "donVi": string|null, "loai": "STORE"|"SPARE", "thietBi": string|null, "trang": number|null, "canKiem": boolean, "lyDoKiem": string|null, "ghiChu": string|null}]}';
+
+/** Đơn vị bộ chuẩn hóa biết — ngoài danh sách này là "đơn vị lạ", cần người duyệt xem. */
+const DON_VI_BIET = new Set(["PCS", "SET", "KG", "G", "LTR", "ML", "M", "MM", "CM", "BOX", "PACK", "ROLL", "BAG", "CAN", "DRUM", "PAIR", "BTL", "TUBE", "CTN", "SHT"]);
 
 /**
  * Chuyển JSON Schema của công cụ sang khuôn responseSchema của Gemini: kiểu viết
@@ -154,15 +191,28 @@ export function schemaGemini(schema: unknown): Record<string, unknown> {
   return ra;
 }
 
+/** Chia phiếu dài thành các cụm trang [từ, đến]; null = đọc cả tài liệu một lần. */
+export function chiaTrang(soTrang: number | null, moiCum = TRANG_MOI_CUM, nguong = NGUONG_CHIA_CUM): ([number, number] | null)[] {
+  if (!soTrang || soTrang <= nguong) return [null];
+  const ra: [number, number][] = [];
+  for (let a = 1; a <= soTrang; a += moiCum) ra.push([a, Math.min(soTrang, a + moiCum - 1)]);
+  return ra;
+}
+
 type DongTho = {
   stt?: unknown;
   ten?: unknown;
+  tenEn?: unknown;
+  tenVi?: unknown;
   partNo?: unknown;
   impa?: unknown;
   soLuong?: unknown;
   donVi?: unknown;
   loai?: unknown;
   thietBi?: unknown;
+  trang?: unknown;
+  canKiem?: unknown;
+  lyDoKiem?: unknown;
   ghiChu?: unknown;
 };
 
@@ -172,22 +222,32 @@ const chuoi = (v: unknown, toiDa = 200): string | null => {
   return s ? s : null;
 };
 
+const themCanhBao = (cu: string | null, moi: string) => (cu ? `${cu}; ${moi}` : moi);
+const khoaDong = (d: { ten: string; partNo: string | null; impa: string | null }) =>
+  `${d.ten.normalize("NFC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "")}|${(d.partNo ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "")}|${d.impa ?? ""}`;
+
 /**
  * Làm sạch kết quả AI trả về thành dòng của bộ tách (cùng kiểu với lớp chữ /
  * OCR) — thuần chuỗi. Mô hình đôi khi trả số lượng dạng chuỗi, IMPA kèm chữ
  * "IMPA", đơn vị viết thường... nên chuẩn hóa ở đây thay vì tin mù vào JSON.
+ * Tên hiển thị = tenVi nếu phiếu có tiếng Việt, không thì như in.
  */
-export function chuanHoaKetQuaAi(input: unknown): Omit<DocAiThanhCong, "ok" | "model" | "tokenVao" | "tokenRa"> {
+export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; chuTomTat: string } {
   const o = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
-  const nhaCungCap = chuoi(o.nhaCungCap);
-  const soPhieu = chuoi(o.soPhieu, 80);
-  const ngayGiao = chuoi(o.ngayGiao, 20);
-  const tau = chuoi(o.tau, 80);
-  const dong: DongPhieuGiao[] = [];
+  const dau: DauPhieu = {
+    nhaCungCap: chuoi(o.nhaCungCap),
+    soPhieu: chuoi(o.soPhieu, 80),
+    ngayGiao: chuoi(o.ngayGiao, 20),
+    tau: chuoi(o.tau, 80),
+  };
+  const dong: DongAi[] = [];
   const tho = Array.isArray(o.dong) ? (o.dong as DongTho[]) : [];
   for (let i = 0; i < tho.length; i++) {
     const d = tho[i] && typeof tho[i] === "object" ? tho[i] : {};
-    const ten = chuoi(d.ten);
+    const tenIn = chuoi(d.ten);
+    const tenVi = chuoi(d.tenVi);
+    const tenEn = chuoi(d.tenEn);
+    const ten = tenVi ?? tenIn ?? tenEn;
     if (!ten || ten.length < 2) continue;
     let partNo = chuoi(d.partNo, 80);
     let impa: string | null = null;
@@ -206,20 +266,91 @@ export function chuanHoaKetQuaAi(input: unknown): Omit<DocAiThanhCong, "ok" | "m
     const loai: "STORE" | "SPARE" = loaiTho === "STORE" || loaiTho === "SPARE" ? loaiTho : impa ? "STORE" : "SPARE";
     const thietBi = chuoi(d.thietBi, 120);
     const ghiChu = chuoi(d.ghiChu, 200);
+    const trangSo = Number(d.trang);
+    const trang = Number.isInteger(trangSo) && trangSo > 0 ? trangSo : null;
+    const canKiem = d.canKiem === true || String(d.canKiem).toLowerCase() === "true";
+    const canhBao = canKiem ? `AI không chắc: ${chuoi(d.lyDoKiem, 160) ?? "chữ khó đọc"}` : null;
     const stt = Number.isInteger(d.stt) ? Number(d.stt) : i + 1;
-    const chuGoc = `${stt}. ${ten}${partNo ? ` · P/N ${partNo}` : ""}${impa ? ` · IMPA ${impa}` : ""} — ${soLuong} ${donVi}${
+    const chuGoc = `${stt}. ${tenIn ?? ten}${partNo ? ` · P/N ${partNo}` : ""}${impa ? ` · IMPA ${impa}` : ""} — ${soLuong} ${donVi}${
       thietBi ? ` · ${thietBi}` : ""
-    }${ghiChu ? ` (${ghiChu})` : ""}`;
-    dong.push({ chuGoc: chuGoc.slice(0, 500), ten, partNo, impa, soLuong, donVi, loai, thietBi });
+    }${trang ? ` · tr.${trang}` : ""}${ghiChu ? ` (${ghiChu})` : ""}`;
+    dong.push({
+      chuGoc: chuGoc.slice(0, 500),
+      ten,
+      tenEn: tenEn && tenEn !== ten ? tenEn : tenEn === ten && tenVi ? tenEn : tenEn && !tenVi ? null : tenEn,
+      partNo,
+      impa,
+      soLuong,
+      donVi,
+      loai,
+      thietBi,
+      trang,
+      canhBao: ghiChu && /gạch|thiếu|hủy|cancel|short|miss|thay/i.test(ghiChu) ? themCanhBao(canhBao, `Ghi chú trên phiếu: ${ghiChu}`) : canhBao,
+    });
   }
-  const dau = [
-    nhaCungCap ? `Nhà cung cấp: ${nhaCungCap}` : null,
-    soPhieu ? `Số phiếu: ${soPhieu}` : null,
-    ngayGiao ? `Ngày giao: ${ngayGiao}` : null,
-    tau ? `Tàu: ${tau}` : null,
+  return { ...dau, dong, chuTomTat: tomTat(dau, dong, []) };
+}
+
+/** Bản chữ cho ô "Chữ đọc được". */
+export function tomTat(dau: DauPhieu, dong: DongAi[], loiPhu: string[]): string {
+  const dauDong = [
+    dau.nhaCungCap ? `Nhà cung cấp: ${dau.nhaCungCap}` : null,
+    dau.soPhieu ? `Số phiếu: ${dau.soPhieu}` : null,
+    dau.ngayGiao ? `Ngày giao: ${dau.ngayGiao}` : null,
+    dau.tau ? `Tàu: ${dau.tau}` : null,
   ].filter(Boolean);
-  const chuTomTat = [...dau, `— ${dong.length} dòng hàng —`, ...dong.map((d) => d.chuGoc)].join("\n");
-  return { dong, nhaCungCap, soPhieu, ngayGiao, tau, chuTomTat };
+  const canKiem = dong.filter((d) => d.canhBao).length;
+  return [
+    ...dauDong,
+    `— ${dong.length} dòng hàng${canKiem ? ` · ${canKiem} dòng cần kiểm` : ""} —`,
+    ...dong.map((d) => `${d.chuGoc}${d.canhBao ? ` ⚠ ${d.canhBao}` : ""}`),
+    ...loiPhu.map((l) => `! ${l}`),
+  ].join("\n");
+}
+
+/**
+ * Gộp lượt 1 và lượt kiểm lại: lấy lượt 2 làm chuẩn nhưng ĐÁNH DẤU dòng bị
+ * sửa số lượng / đơn vị, dòng mới thêm; dòng lượt 1 mà lượt 2 không còn thì
+ * vẫn giữ (kèm cảnh báo) — thà thừa một dòng để bỏ tick còn hơn mất hàng.
+ */
+export function gopLuot(luot1: DongAi[], luot2: DongAi[]): DongAi[] {
+  const conLai = new Map<string, DongAi[]>();
+  for (const d of luot1) {
+    const k = khoaDong(d);
+    conLai.set(k, [...(conLai.get(k) ?? []), d]);
+  }
+  const ra: DongAi[] = luot2.map((d) => {
+    const cu = conLai.get(khoaDong(d))?.shift();
+    if (!cu) return { ...d, canhBao: themCanhBao(d.canhBao, "Lượt kiểm lại thêm hoặc đổi tên dòng này") };
+    if (cu.soLuong !== d.soLuong || cu.donVi !== d.donVi) {
+      return { ...d, canhBao: themCanhBao(d.canhBao, `Lượt kiểm lại sửa số lượng/đơn vị (lượt 1: ${cu.soLuong} ${cu.donVi})`) };
+    }
+    return d;
+  });
+  for (const ds of conLai.values()) {
+    for (const cu of ds) ra.push({ ...cu, canhBao: themCanhBao(cu.canhBao, "Lượt kiểm lại không thấy dòng này trên phiếu — xác nhận, thừa thì bỏ tick") });
+  }
+  return ra;
+}
+
+/** Bộ soát sau đọc: gắn cảnh báo cho dòng đáng ngờ. Không sửa dữ liệu, chỉ đánh dấu. */
+export function soatDong(dong: DongAi[]): DongAi[] {
+  const dauTien = new Map<string, number>();
+  dong.forEach((d, i) => {
+    const k = khoaDong(d);
+    if (!dauTien.has(k)) dauTien.set(k, i);
+  });
+  return dong.map((d, i) => {
+    const lyDo: string[] = [];
+    if (!(d.soLuong > 0)) lyDo.push("Số lượng 0 hoặc trống");
+    if (!DON_VI_BIET.has(d.donVi)) lyDo.push(`Đơn vị lạ "${d.donVi}"`);
+    if (d.ten.length < 3) lyDo.push("Tên quá ngắn");
+    if (/\(\?\)/.test(d.ten) || /\(\?\)/.test(d.partNo ?? "")) lyDo.push("Có chỗ mờ (?)");
+    const truoc = dauTien.get(khoaDong(d));
+    if (truoc !== undefined && truoc !== i) lyDo.push(`Trùng với dòng ${truoc + 1}`);
+    if (!lyDo.length) return d;
+    return { ...d, canhBao: lyDo.reduce((acc, l) => themCanhBao(acc, l), d.canhBao) };
+  });
 }
 
 export type FetchGia = (url: string, init: RequestInit) => Promise<Response>;
@@ -231,6 +362,8 @@ type TuyChonDocAi = {
   fetchFn?: FetchGia;
   /** Thời gian chờ trước mỗi lần thử lại (ms) — kiểm thử đặt ngắn. */
   choThuLaiMs?: number[];
+  /** Số trang của PDF (nơi gọi đếm bằng pdfjs) — để chia cụm; không biết thì đọc một lần. */
+  soTrang?: number | null;
 };
 
 /** Hết hạn mức (429) hay quá tải (529/5xx): chờ 5 s rồi 15 s — hạn mức phút của gói miễn phí thường mở lại trong khoảng đó. */
@@ -295,7 +428,9 @@ async function goiCoThuLai(
   return { ok: false, loi: loiCuoi || "Không rõ lỗi.", status: statusCuoi };
 }
 
-async function docBangClaude(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, fetchFn: FetchGia, timeoutMs: number): Promise<KetQuaDocAi> {
+type KetQuaTho = { ok: true; input: unknown; tokenVao: number; tokenRa: number } | { ok: false; loi: string };
+
+async function goiClaude(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, text: string, fetchFn: FetchGia, timeoutMs: number): Promise<KetQuaTho> {
   const body = (maxTokens: number) =>
     JSON.stringify({
       model: ch.model,
@@ -312,7 +447,7 @@ async function docBangClaude(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, fetch
               source: { type: "base64", media_type: "application/pdf", data: pdf.toString("base64") },
               title: tc.fileName?.slice(0, 200) || "phieu-giao.pdf",
             },
-            { type: "text", text: LOI_NHAC_NGUOI_DUNG },
+            { type: "text", text },
           ],
         },
       ],
@@ -343,20 +478,15 @@ async function docBangClaude(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, fetch
   if (!congCu) {
     return { ok: false, loi: `AI không trả về kết quả có cấu trúc (stop_reason: ${json?.stop_reason ?? "?"}).` };
   }
-  return {
-    ok: true,
-    ...chuanHoaKetQuaAi(congCu.input),
-    model: ch.model,
-    tokenVao: json?.usage?.input_tokens ?? 0,
-    tokenRa: json?.usage?.output_tokens ?? 0,
-  };
+  return { ok: true, input: congCu.input, tokenVao: json?.usage?.input_tokens ?? 0, tokenRa: json?.usage?.output_tokens ?? 0 };
 }
 
-async function docBangGemini(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, fetchFn: FetchGia, timeoutMs: number): Promise<KetQuaDocAi> {
+async function goiGemini(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, text: string, fetchFn: FetchGia, timeoutMs: number): Promise<KetQuaTho> {
   if (pdf.length > GEMINI_PDF_TOI_DA) {
     return { ok: false, loi: `PDF ${Math.round(pdf.length / 1024 / 1024)} MB quá lớn cho Gemini (tối đa 14 MB) — nén bản scan hoặc dùng Claude.` };
   }
-  const body = (coSchema: boolean) =>
+  // Ba mức: đủ đồ (khuôn + độ phân giải cao + suy nghĩ cho flash) → chỉ khuôn → chỉ JSON.
+  const body = (muc: 0 | 1 | 2) =>
     JSON.stringify({
       systemInstruction: { parts: [{ text: HUONG_DAN_HE_THONG }] },
       contents: [
@@ -364,67 +494,152 @@ async function docBangGemini(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, fetch
           role: "user",
           parts: [
             { inlineData: { mimeType: "application/pdf", data: pdf.toString("base64") } },
-            { text: `${LOI_NHAC_NGUOI_DUNG}${tc.fileName ? ` (tệp: ${tc.fileName.slice(0, 200)})` : ""}\n${KHUON_JSON_GOI_Y}` },
+            { text: `${text}${tc.fileName ? ` (tệp: ${tc.fileName.slice(0, 200)})` : ""}\n${KHUON_JSON_GOI_Y}` },
           ],
         },
       ],
       generationConfig: {
         temperature: 0,
         responseMimeType: "application/json",
-        ...(coSchema ? { responseSchema: schemaGemini(CONG_CU_GHI_PHIEU.input_schema) } : {}),
+        ...(muc <= 1 ? { responseSchema: schemaGemini(CONG_CU_GHI_PHIEU.input_schema) } : {}),
+        // Bản scan chữ nhỏ: độ phân giải cao đọc số rõ hơn; dòng flash mặc định
+        // không "suy nghĩ" — cấp ngân sách để nó đối chiếu cột kỹ hơn.
+        ...(muc === 0 ? { mediaResolution: "MEDIA_RESOLUTION_HIGH" } : {}),
+        ...(muc === 0 && /flash/i.test(ch.model) ? { thinkingConfig: { thinkingBudget: 4096 } } : {}),
       },
     });
   const url = `${DIA_CHI_GEMINI}/models/${encodeURIComponent(ch.model)}:generateContent`;
-  const goi = (coSchema: boolean) =>
+  const goi = (muc: 0 | 1 | 2) =>
     goiCoThuLai(
       fetchFn,
       url,
-      { method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": ch.apiKey }, body: body(coSchema) },
+      { method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": ch.apiKey }, body: body(muc) },
       timeoutMs,
       moTaLoiGemini,
       tc.choThuLaiMs
     );
-  let r = await goi(true);
-  // Phiên bản API / mô hình không nhận khuôn responseSchema (400 nhắc schema,
-  // "Unknown name", "Invalid JSON payload"): gọi lại chỉ với chế độ JSON + khuôn
-  // gợi ý trong lời nhắc — kết quả vẫn qua chuanHoaKetQuaAi nên không tin mù.
-  if (!r.ok && r.status === 400 && /schema|unknown name|invalid json payload|nullable|format/i.test(r.loi)) r = await goi(false);
+  let r = await goi(0);
+  // Phiên bản API / mô hình không nhận mediaResolution / thinkingConfig → bỏ đồ thêm.
+  if (!r.ok && r.status === 400 && /media|thinking|unknown name|invalid json payload|not supported|unsupported/i.test(r.loi)) r = await goi(1);
+  // Không nhận cả responseSchema → chỉ chế độ JSON + khuôn gợi ý trong lời nhắc.
+  if (!r.ok && r.status === 400 && /schema|unknown name|invalid json payload|nullable|format/i.test(r.loi)) r = await goi(2);
   if (!r.ok) return r;
   const json = r.json as {
-    candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
+    candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[];
     promptFeedback?: { blockReason?: string };
     usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
   } | null;
   const ung = json?.candidates?.[0];
-  const text = (ung?.content?.parts ?? []).map((p) => p.text ?? "").join("");
-  if (!text.trim()) {
+  const textRa = (ung?.content?.parts ?? [])
+    .filter((p) => !p.thought)
+    .map((p) => p.text ?? "")
+    .join("");
+  if (!textRa.trim()) {
     const lyDo = json?.promptFeedback?.blockReason ?? ung?.finishReason ?? "?";
     return { ok: false, loi: `AI không trả về nội dung (lý do: ${lyDo}).` };
   }
   let input: unknown;
   try {
-    input = JSON.parse(text);
+    input = JSON.parse(textRa);
   } catch {
     return { ok: false, loi: `AI trả về JSON hỏng (finishReason: ${ung?.finishReason ?? "?"}).` };
   }
-  return {
-    ok: true,
-    ...chuanHoaKetQuaAi(input),
-    model: ch.model,
-    tokenVao: json?.usageMetadata?.promptTokenCount ?? 0,
-    tokenRa: json?.usageMetadata?.candidatesTokenCount ?? 0,
-  };
+  return { ok: true, input, tokenVao: json?.usageMetadata?.promptTokenCount ?? 0, tokenRa: json?.usageMetadata?.candidatesTokenCount ?? 0 };
 }
 
-/** Đọc phiếu bằng cấu hình đã giải (null = chưa cấu hình → ok:false, không gọi mạng). */
+/** Lời nhắc cho một lượt: phạm vi trang (nếu chia cụm) và bảng lượt 1 (nếu là lượt kiểm lại). */
+export function loiNhac(pham: [number, number] | null, luot1: DongAi[] | null): string {
+  let s = LOI_NHAC_NGUOI_DUNG;
+  if (pham) {
+    s += `\nCHỈ đọc các trang ${pham[0]} đến ${pham[1]} (đánh số từ 1) của tài liệu; bỏ hẳn các trang khác.${
+      pham[0] > 1 ? " Thông tin đầu phiếu (nhà cung cấp, số phiếu, ngày, tàu) để null." : ""
+    }`;
+  }
+  if (luot1) {
+    const gon = luot1.map((d) => ({
+      ten: d.ten,
+      tenEn: d.tenEn,
+      partNo: d.partNo,
+      impa: d.impa,
+      soLuong: d.soLuong,
+      donVi: d.donVi,
+      loai: d.loai,
+      thietBi: d.thietBi,
+      trang: d.trang,
+    }));
+    s +=
+      `\n\nĐây là bảng đã đọc ở LƯỢT 1 (JSON). Hãy ĐỐI CHIẾU LẠI TỪNG DÒNG với tài liệu: sửa chỗ đọc sai (số lượng, đơn vị, mã IMPA / Part No., tên), thêm dòng bị sót, xóa dòng không có trên phiếu, giữ nguyên dòng đã đúng. Chú ý số hay lẫn (0/6/8, 1/7, 3/8) và dòng ở mép trang. Trả về bảng ĐẦY ĐỦ đã sửa (không chỉ phần sửa), cùng cấu trúc, cùng thứ tự trên phiếu.\nLƯỢT 1:\n` +
+      JSON.stringify(gon);
+  }
+  return s;
+}
+
+/**
+ * Đọc phiếu bằng cấu hình đã giải (null = chưa cấu hình → ok:false, không gọi
+ * mạng). Chế độ "ky" (mặc định) đọc hai lượt; phiếu dài đọc theo cụm trang.
+ */
 export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null, tuyChon: TuyChonDocAi = {}): Promise<KetQuaDocAi> {
   if (!cauHinh || !cauHinh.apiKey.trim()) return { ok: false, loi: "Chưa cấu hình bộ đọc AI." };
   const fetchFn = tuyChon.fetchFn ?? ((url: string, init: RequestInit) => fetch(url, init));
   const timeoutMs = tuyChon.timeoutMs ?? 180_000;
-  const ch = { ...cauHinh, apiKey: cauHinh.apiKey.trim(), model: cauHinh.model.trim() || MODEL_MAC_DINH[cauHinh.nhaCungCap] };
-  return ch.nhaCungCap === "gemini"
-    ? docBangGemini(pdf, ch, tuyChon, fetchFn, timeoutMs)
-    : docBangClaude(pdf, ch, tuyChon, fetchFn, timeoutMs);
+  const ch: CauHinhAi = { ...cauHinh, apiKey: cauHinh.apiKey.trim(), model: cauHinh.model.trim() || MODEL_MAC_DINH[cauHinh.nhaCungCap] };
+  const cheDo: CheDoDocAi = ch.cheDo ?? "ky";
+  const goi = (text: string) =>
+    ch.nhaCungCap === "gemini" ? goiGemini(pdf, ch, tuyChon, text, fetchFn, timeoutMs) : goiClaude(pdf, ch, tuyChon, text, fetchFn, timeoutMs);
+
+  const cac = chiaTrang(tuyChon.soTrang ?? null);
+  let tokenVao = 0;
+  let tokenRa = 0;
+  let soLuotGoi = 0;
+  const loiPhu: string[] = [];
+  const dau: DauPhieu = { nhaCungCap: null, soPhieu: null, ngayGiao: null, tau: null };
+  const dongTatCa: DongAi[] = [];
+  for (const pham of cac) {
+    const tenPham = pham ? `trang ${pham[0]}–${pham[1]}` : "cả phiếu";
+    const r1 = await goi(loiNhac(pham, null));
+    soLuotGoi++;
+    if (!r1.ok) return { ok: false, loi: cac.length > 1 ? `${r1.loi} (${tenPham})` : r1.loi };
+    tokenVao += r1.tokenVao;
+    tokenRa += r1.tokenRa;
+    let chuan = chuanHoaKetQuaAi(r1.input);
+    if (cheDo === "ky") {
+      const r2 = await goi(loiNhac(pham, chuan.dong));
+      soLuotGoi++;
+      if (r2.ok) {
+        tokenVao += r2.tokenVao;
+        tokenRa += r2.tokenRa;
+        const c2 = chuanHoaKetQuaAi(r2.input);
+        chuan = {
+          ...c2,
+          nhaCungCap: c2.nhaCungCap ?? chuan.nhaCungCap,
+          soPhieu: c2.soPhieu ?? chuan.soPhieu,
+          ngayGiao: c2.ngayGiao ?? chuan.ngayGiao,
+          tau: c2.tau ?? chuan.tau,
+          dong: gopLuot(chuan.dong, c2.dong),
+        };
+      } else {
+        loiPhu.push(`Lượt kiểm lại (${tenPham}) không chạy được, dùng lượt 1: ${r2.loi}`);
+      }
+    }
+    dau.nhaCungCap ??= chuan.nhaCungCap;
+    dau.soPhieu ??= chuan.soPhieu;
+    dau.ngayGiao ??= chuan.ngayGiao;
+    dau.tau ??= chuan.tau;
+    dongTatCa.push(...chuan.dong);
+  }
+  const dong = soatDong(dongTatCa);
+  return {
+    ok: true,
+    ...dau,
+    dong,
+    chuTomTat: tomTat(dau, dong, loiPhu),
+    model: ch.model,
+    tokenVao,
+    tokenRa,
+    soLuotGoi,
+    soDongCanKiem: dong.filter((d) => d.canhBao).length,
+    loiPhu,
+  };
 }
 
 export type KetQuaKiemTraAi =

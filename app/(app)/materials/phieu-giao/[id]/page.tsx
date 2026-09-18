@@ -28,7 +28,7 @@ export default async function PhieuGiaoChiTietPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ doc?: string; nguon?: string; ai?: string }>;
+  searchParams: Promise<{ doc?: string; kiem?: string; nguon?: string; ai?: string }>;
 }) {
   const user = await requireScopedUser();
   const { t, tTuDo } = await layT();
@@ -63,7 +63,9 @@ export default async function PhieuGiaoChiTietPage({
   let thongBaoDoc: { tone: "info" | "warning" | "success"; text: string } | null = null;
   if (sp.doc !== undefined) {
     const n = Number(sp.doc) || 0;
-    if (n > 0) thongBaoDoc = { tone: "success", text: t("phieuGiao.daDocN", { n }) };
+    const k = Number(sp.kiem) || 0;
+    if (n > 0 && k > 0) thongBaoDoc = { tone: "warning", text: t("phieuGiao.daDocNKiem", { n, k }) };
+    else if (n > 0) thongBaoDoc = { tone: "success", text: t("phieuGiao.daDocN", { n }) };
     else if (phieu.loiAi || sp.ai === "loi") thongBaoDoc = null; // báo bằng lỗi nguyên văn bên dưới
     else if (sp.nguon === "TAY" && !phieu.chuDoc) thongBaoDoc = { tone: "warning", text: t("phieuGiao.ocrChiWindows") };
     else thongBaoDoc = { tone: "warning", text: t("phieuGiao.docKhongRaDong") };
@@ -88,6 +90,9 @@ export default async function PhieuGiaoChiTietPage({
     thietBi: d.thietBi ?? "",
     materialId: d.materialId,
     chuGoc: d.chuGoc,
+    tenEn: d.tenEn,
+    trang: d.trang,
+    canhBao: d.canhBao,
     materialLabel: d.material ? `${d.material.code} — ${d.material.nameVn}` : null,
   }));
   const TONE: Record<string, "warning" | "success" | "danger"> = { CHO_DUYET: "warning", DA_DUYET: "success", TU_CHOI: "danger" };

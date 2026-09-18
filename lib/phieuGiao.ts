@@ -27,6 +27,12 @@ export type DongNhap = {
   thietBi: string;
   materialId: number | null;
   chuGoc?: string | null;
+  /** Tên tiếng Anh tách từ phiếu song ngữ (bộ đọc AI) — vào nameEn của mặt hàng khi duyệt. */
+  tenEn?: string | null;
+  /** Trang trên bản scan mà dòng này nằm (bộ đọc AI) — để nhảy tới khi đối chiếu. */
+  trang?: number | null;
+  /** Lý do dòng này đáng ngờ (AI hoặc bộ soát) — người duyệt soi kỹ; sửa ô là xóa cảnh báo. */
+  canhBao?: string | null;
 };
 
 export type ThongTinPhieuNhap = {
@@ -48,6 +54,9 @@ export type DongSach = {
   thietBi: string | null;
   materialId: number | null;
   chuGoc: string | null;
+  tenEn: string | null;
+  trang: number | null;
+  canhBao: string | null;
 };
 
 const cat = (s: unknown, toiDa = 200) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, toiDa);
@@ -80,6 +89,9 @@ export function kiemTraDongNhap(
       thietBi: hoacNull(cat(d.thietBi, 120)),
       materialId: Number.isInteger(d.materialId) && (d.materialId as number) > 0 ? (d.materialId as number) : null,
       chuGoc: d.chuGoc ? cat(d.chuGoc, 500) : null,
+      tenEn: hoacNull(cat(d.tenEn, 200)),
+      trang: Number.isInteger(d.trang) && (d.trang as number) > 0 ? (d.trang as number) : null,
+      canhBao: hoacNull(cat(d.canhBao, 300)),
     });
   }
   return { ok: true, dong: ra };

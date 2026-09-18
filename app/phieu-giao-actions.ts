@@ -27,7 +27,7 @@ import {
   type ThongTinPhieuNhap,
 } from "@/lib/phieuGiao";
 import type { ImportedItem } from "@/lib/materialImport";
-import type { DongPhieuGiao } from "@/lib/phieuGiaoParse";
+import type { DongAi } from "@/lib/docPhieuBangAi";
 
 /*
  * PHIẾU GIAO HÀNG → HÀNG CHỜ DUYỆT → DANH MỤC + TỒN KHO.
@@ -83,13 +83,17 @@ async function khopMatHang(
 type KetQuaDocDong = {
   chuDoc: string | null;
   nguonChu: "AI" | "TEXT" | "OCR" | "TAY";
-  dong: DongPhieuGiao[];
+  dong: DongAi[];
   nhaCungCap: string | null;
   soPhieu: string | null;
   ngayGiao: string | null;
   /** AI đã cấu hình nhưng đọc hỏng (mạng, hạn mức...) — ghi nhật ký và báo người dùng. */
   loiAi: string | null;
+  /** Dòng bộ đọc AI / bộ soát đánh dấu cần kiểm kỹ. */
+  soDongCanKiem: number;
 };
+
+const dongThuong = (d: Omit<DongAi, "tenEn" | "trang" | "canhBao">): DongAi => ({ ...d, tenEn: null, trang: null, canhBao: null });
 
 /**
  * Lấy dòng hàng từ PDF theo thứ tự ưu tiên:
@@ -104,7 +108,9 @@ async function docDongTuPdf(buffer: Buffer, fullPath: string, fileName: string):
   const cauHinh = await layCauHinhAi();
   if (cauHinh) {
     const { docPhieuGiaoBangAi } = await import("@/lib/docPhieuBangAi");
-    const ai = await docPhieuGiaoBangAi(buffer, cauHinh, { fileName });
+    const { demTrangPdf } = await import("@/lib/pdfChu");
+    const soTrang = await demTrangPdf(buffer);
+    const ai = await docPhieuGiaoBangAi(buffer, cauHinh, { fileName, soTrang });
     if (ai.ok) {
       return {
         chuDoc: ai.chuTomTat,
@@ -114,6 +120,7 @@ async function docDongTuPdf(buffer: Buffer, fullPath: string, fileName: string):
         soPhieu: ai.soPhieu,
         ngayGiao: ai.ngayGiao,
         loiAi: null,
+        soDongCanKiem: ai.soDongCanKiem,
       };
     }
     loiAi = ai.loi;
@@ -140,11 +147,12 @@ async function docDongTuPdf(buffer: Buffer, fullPath: string, fileName: string):
   return {
     chuDoc,
     nguonChu,
-    dong: doc?.dong ?? [],
+    dong: (doc?.dong ?? []).map(dongThuong),
     nhaCungCap: doc?.nhaCungCap ?? null,
     soPhieu: doc?.soPhieu ?? null,
     ngayGiao: doc?.ngayGiao ?? null,
     loiAi,
+    soDongCanKiem: 0,
   };
 }
 
@@ -215,6 +223,9 @@ export async function taoPhieuGiaoTuPdf(
           donVi: d.donVi.slice(0, 20),
           loai: d.loai,
           thietBi: d.thietBi?.slice(0, 120) ?? null,
+          tenEn: d.tenEn?.slice(0, 200) ?? null,
+          trang: d.trang ?? null,
+          canhBao: d.canhBao?.slice(0, 300) ?? null,
           materialId: khop[i] ?? null,
         })),
       },
@@ -226,12 +237,14 @@ export async function taoPhieuGiaoTuPdf(
     action: "phieu-giao-tai-len",
     path: `/materials/phieu-giao/${phieu.id}`,
     vesselId,
-    detail: `Tải phiếu giao ${soPhieu ?? file.name} (${vessel.code}) — ${dong.length} dòng, nguồn ${nguonChu}${
+    detail: `Tải phiếu giao ${soPhieu ?? file.name} (${vessel.code}) — ${dong.length} dòng (${doc.soDongCanKiem} cần kiểm), nguồn ${nguonChu}${
       doc.loiAi ? ` — AI lỗi: ${doc.loiAi.slice(0, 160)}` : ""
     }`,
   });
   revalidatePath("/materials/phieu-giao");
-  redirect(`/materials/phieu-giao/${phieu.id}?doc=${dong.length}&nguon=${nguonChu}${doc.loiAi ? "&ai=loi" : ""}`);
+  redirect(
+    `/materials/phieu-giao/${phieu.id}?doc=${dong.length}&kiem=${doc.soDongCanKiem}&nguon=${nguonChu}${doc.loiAi ? "&ai=loi" : ""}`
+  );
 }
 
 // ─── 2. Sửa dòng (hàng chờ) ──────────────────────────────────────────────────
@@ -295,7 +308,8 @@ export async function docLaiPhieuGiaoBangAi(phieuId: number): Promise<KetQuaDocL
     return { message: t("phieuGiao.tepKhongCon") };
   }
   const tenPhieu = phieu.soPhieu ?? phieu.fileName;
-  const ai = await docPhieuGiaoBangAi(buffer, cauHinh, { fileName: phieu.fileName });
+  const { demTrangPdf } = await import("@/lib/pdfChu");
+  const ai = await docPhieuGiaoBangAi(buffer, cauHinh, { fileName: phieu.fileName, soTrang: await demTrangPdf(buffer) });
   if (!ai.ok) {
     console.error(`[phieu-giao] Bộ đọc AI (${cauHinh.nhaCungCap} · ${cauHinh.model}) lỗi khi đọc lại phiếu #${phieu.id}: ${ai.loi}`);
     await prisma.phieuGiaoNhan.update({ where: { id: phieu.id }, data: { loiAi: ai.loi.slice(0, 500) } });
@@ -341,6 +355,9 @@ export async function docLaiPhieuGiaoBangAi(phieuId: number): Promise<KetQuaDocL
           donVi: d.donVi.slice(0, 20),
           loai: d.loai,
           thietBi: d.thietBi?.slice(0, 120) ?? null,
+          tenEn: d.tenEn?.slice(0, 200) ?? null,
+          trang: d.trang ?? null,
+          canhBao: d.canhBao?.slice(0, 300) ?? null,
           materialId: khop[i] ?? null,
         })),
       });
@@ -355,12 +372,16 @@ export async function docLaiPhieuGiaoBangAi(phieuId: number): Promise<KetQuaDocL
     action: "phieu-giao-doc-lai-ai",
     path: `/materials/phieu-giao/${phieu.id}`,
     vesselId: phieu.vesselId,
-    detail: `AI (${ai.model}) đọc lại phiếu ${tenPhieu}: ${ai.dong.length} dòng, token ${ai.tokenVao}/${ai.tokenRa}`,
+    detail: `AI (${ai.model}, ${ai.soLuotGoi} lượt) đọc lại phiếu ${tenPhieu}: ${ai.dong.length} dòng (${ai.soDongCanKiem} cần kiểm), token ${ai.tokenVao}/${ai.tokenRa}${
+      ai.loiPhu.length ? ` — ${ai.loiPhu.join(" | ").slice(0, 200)}` : ""
+    }`,
   });
   revalidatePath("/materials/phieu-giao");
   revalidatePath(`/materials/phieu-giao/${phieu.id}`);
   return {
-    message: t("phieuGiao.daDocLaiAi", { n: ai.dong.length }),
+    message:
+      t("phieuGiao.daDocLaiAi", { n: ai.dong.length }) +
+      (ai.soDongCanKiem ? ` ${t("phieuGiao.soDongCanKiem", { k: ai.soDongCanKiem })}` : ""),
     success: true,
     thongTin,
     dong: dongDb.map((d) => ({
@@ -375,6 +396,9 @@ export async function docLaiPhieuGiaoBangAi(phieuId: number): Promise<KetQuaDocL
       thietBi: d.thietBi ?? "",
       materialId: d.materialId,
       chuGoc: d.chuGoc,
+      tenEn: d.tenEn,
+      trang: d.trang,
+      canhBao: d.canhBao,
       materialLabel: d.material ? `${d.material.code} — ${d.material.nameVn}` : null,
     })),
   };
@@ -416,6 +440,9 @@ async function ghiDong(
           donVi: d.donVi,
           loai: d.loai,
           thietBi: d.thietBi,
+          tenEn: d.tenEn,
+          trang: d.trang,
+          canhBao: d.canhBao,
           materialId: d.materialId !== null && coThat.has(d.materialId) ? d.materialId : null,
           chon: d.chon,
         })),
@@ -501,6 +528,7 @@ export async function duyetPhieuGiao(
       partNumber: d.partNo,
       uom: d.donVi,
       equipment: d.thietBi,
+      nameEn: d.tenEn,
       group: null,
       minStock: 0,
       rob: null,

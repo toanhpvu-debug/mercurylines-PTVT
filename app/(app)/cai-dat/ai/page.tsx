@@ -24,7 +24,7 @@ function ngayGio(d: Date) {
 export default async function CauHinhAiPage() {
   const user = await requireScopedUser();
   if (user.role !== "ADMIN") redirect("/dashboard");
-  const { t } = await layT();
+  const { t, tTuDo } = await layT();
   const tt = await trangThaiCauHinhAi();
 
   return (
@@ -49,7 +49,8 @@ export default async function CauHinhAiPage() {
         {tt.bat && (
           <p className="text-sm text-[var(--text-secondary)]">
             {tt.nhaCungCap ? TEN_NHA_CUNG_CAP[tt.nhaCungCap] : ""} · <span className="font-mono">{tt.model}</span> ·{" "}
-            <span className="font-mono">{tt.duoiKhoa}</span> · {tt.nguon === "db" ? t("cauHinhAi.nguonDb") : t("cauHinhAi.nguonEnv")}
+            <span className="font-mono">{tt.duoiKhoa}</span> · {tTuDo(`cauHinhAi.cheDo_${tt.cheDo}`)} ·{" "}
+            {tt.nguon === "db" ? t("cauHinhAi.nguonDb") : t("cauHinhAi.nguonEnv")}
             {tt.nguon === "db" && tt.updatedBy && tt.updatedAt ? (
               <>
                 {" · "}
@@ -77,6 +78,7 @@ export default async function CauHinhAiPage() {
             nguon: tt.nguon,
             nhaCungCap: tt.nhaCungCap,
             model: tt.model,
+            cheDo: tt.cheDo,
             duoiKhoa: tt.duoiKhoa,
             loiGiaiMa: tt.loiGiaiMa,
             coEnv: tt.coEnv,

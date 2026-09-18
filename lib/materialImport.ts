@@ -24,6 +24,8 @@ export type ImportedItem = {
   // ApplyImportResult.resolved) — phiếu giao hàng cần biết dòng nào thành mặt
   // hàng nào để cộng tồn. Bộ đọc Excel/Word không đặt.
   ref?: string;
+  // Tên tiếng Anh nếu nguồn có (phiếu giao song ngữ đọc bằng AI) → Material.nameEn.
+  nameEn?: string | null;
 };
 
 // Tóm tắt từng sheet, để báo cho người dùng biết file được đọc ra sao.

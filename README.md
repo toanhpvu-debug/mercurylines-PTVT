@@ -1555,7 +1555,14 @@ Thứ tự ưu tiên lúc tải lên: **AI → lớp chữ PDF → OCR Windows �
 khi bật AI thì mở trang duyệt, bấm **Đọc lại bằng AI**. Kết quả vẫn phải đối chiếu với bản
 scan rồi mới duyệt: AI đọc tốt hơn OCR nhiều nhưng không phải 100 %.
 
-- Khóa được **mã hóa** (AES-256-GCM, khóa dẫn xuất từ `SESSION_SECRET`) rồi mới ghi vào bảng
+- Độ chính xác: chế độ **Kỹ** (mặc định) đọc hai lượt — lượt 2 gửi lại tài liệu kèm bảng lượt 1
+  để mô hình đối chiếu từng dòng; dòng bị sửa / thêm / mất được **đánh dấu**. Phiếu dài hơn 4
+  trang đọc theo **cụm 3 trang** (ít sót dòng, không vướng giới hạn đầu ra). Sau đọc, bộ soát
+  gắn cảnh báo: số lượng 0, đơn vị lạ, dòng trùng, chữ mờ "(?)", chỗ mô hình tự nhận không chắc.
+  Gemini gửi ở độ phân giải ảnh cao, dòng flash được cấp ngân sách "suy nghĩ"; API nào không nhận
+  tùy chọn thì tự hạ mức. Mỗi dòng mang **số trang** (nút "tr.N" mở đúng trang bản scan) và tên
+  tiếng Anh tách riêng trên phiếu song ngữ → ``Material.nameEn`` khi duyệt, cũng là chìa khóa ghép
+  mặt hàng có sẵn. Chọn chế độ trong trang cấu hình (biến ``PHIEU_GIAO_AI_CHE_DO`` nếu dùng env).- Khóa được **mã hóa** (AES-256-GCM, khóa dẫn xuất từ `SESSION_SECRET`) rồi mới ghi vào bảng
   `CauHinhHeThong` (`lib/maHoaBiMat.ts`, `lib/cauHinhAi.ts`); không ghi log, không trả về
   trình duyệt (trang chỉ hiện 4 ký tự cuối), không đi qua gói đồng bộ tàu ↔ bờ. Đổi
   `SESSION_SECRET` thì trang báo "không giải mã được" và bảo dán lại.

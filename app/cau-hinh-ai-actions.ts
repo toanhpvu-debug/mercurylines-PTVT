@@ -10,6 +10,7 @@ import {
   TEN_NHA_CUNG_CAP,
   docPhieuGiaoBangAi,
   kiemTraKetNoiAi,
+  type CheDoDocAi,
   type NhaCungCapAi,
 } from "@/lib/docPhieuBangAi";
 import { layCauHinhAi, luuCauHinhAi, xoaCauHinhAi } from "@/lib/cauHinhAi";
@@ -37,15 +38,16 @@ function docForm(formData: FormData) {
     : "gemini";
   const apiKey = String(formData.get("apiKey") || "").trim();
   const model = String(formData.get("model") || "").trim().slice(0, 100);
-  return { nhaCungCap, apiKey, model };
+  const cheDo: CheDoDocAi = String(formData.get("cheDo") || "") === "nhanh" ? "nhanh" : "ky";
+  return { nhaCungCap, apiKey, model, cheDo };
 }
 
 export async function luuCauHinhAiAction(_prev: KetQuaCauHinhAi, formData: FormData): Promise<KetQuaCauHinhAi> {
   const { t } = await layT();
   const actor = await requireActiveRole(["ADMIN"]);
   if (!actor) return { message: t("chung.khongCoQuyen") };
-  const { nhaCungCap, apiKey, model } = docForm(formData);
-  const r = await luuCauHinhAi({ nhaCungCap, apiKey, model }, actor.name);
+  const { nhaCungCap, apiKey, model, cheDo } = docForm(formData);
+  const r = await luuCauHinhAi({ nhaCungCap, apiKey, model, cheDo }, actor.name);
   if (!r.ok) {
     const khoa = r.loi === "thieuKhoa" ? "loiThieuKhoa" : r.loi === "khoaSai" ? "loiKhoaSai" : "loiKhongMaHoaDuoc";
     return { message: t(`cauHinhAi.${khoa}`) };
@@ -55,7 +57,7 @@ export async function luuCauHinhAiAction(_prev: KetQuaCauHinhAi, formData: FormD
     action: "cau-hinh-ai-luu",
     path: "/cai-dat/ai",
     vesselId: null,
-    detail: `${TEN_NHA_CUNG_CAP[nhaCungCap]} · ${modelDung}${apiKey ? ` · khóa ${duoiKhoa(apiKey)}` : " · giữ khóa cũ"}`,
+    detail: `${TEN_NHA_CUNG_CAP[nhaCungCap]} · ${modelDung} · chế độ ${cheDo}${apiKey ? ` · khóa ${duoiKhoa(apiKey)}` : " · giữ khóa cũ"}`,
   });
   revalidatePath("/cai-dat/ai");
   revalidatePath("/materials/phieu-giao");
@@ -107,7 +109,7 @@ export async function thuDocThatAction(_prev: KetQuaCauHinhAi, formData: FormDat
   const { t } = await layT();
   const actor = await requireActiveRole(["ADMIN"]);
   if (!actor) return { message: t("chung.khongCoQuyen") };
-  const { nhaCungCap, model } = docForm(formData);
+  const { nhaCungCap, model, cheDo } = docForm(formData);
   let { apiKey } = docForm(formData);
   if (!apiKey) {
     const luu = await layCauHinhAi();
@@ -116,9 +118,10 @@ export async function thuDocThatAction(_prev: KetQuaCauHinhAi, formData: FormDat
   }
   const modelDung = model || MODEL_MAC_DINH[nhaCungCap];
   const bd = Date.now();
-  const kq = await docPhieuGiaoBangAi(taoPdfMauPhieuGiao(), { nhaCungCap, apiKey, model: modelDung, nguon: "db" }, {
+  const kq = await docPhieuGiaoBangAi(taoPdfMauPhieuGiao(), { nhaCungCap, apiKey, model: modelDung, cheDo, nguon: "db" }, {
     fileName: "phieu-giao-mau.pdf",
     timeoutMs: 120_000,
+    soTrang: 1,
   });
   const giay = ((Date.now() - bd) / 1000).toFixed(1);
   if (!kq.ok) {

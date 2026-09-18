@@ -949,6 +949,12 @@ model PhieuGiaoNhanDong {
   donVi      String        @default("PCS")
   loai       String        @default("SPARE")
   thietBi    String?
+  // Tên tiếng Anh tách từ phiếu song ngữ (bộ đọc AI) → Material.nameEn khi duyệt.
+  tenEn      String?
+  // Trang trên bản scan mà dòng này nằm (bộ đọc AI) — nhảy tới khi đối chiếu.
+  trang      Int?
+  // Dòng đáng ngờ: lý do từ AI (chữ mờ...) hoặc bộ soát (đơn vị lạ, trùng, lượt kiểm lại sửa).
+  canhBao    String?
   // Khớp mặt hàng có sẵn (đặt lúc đọc hoặc lúc duyệt); null = tạo mới khi duyệt.
   materialId Int?
   material   Material?     @relation(fields: [materialId], references: [id], onDelete: SetNull)

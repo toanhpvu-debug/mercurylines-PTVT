@@ -49,13 +49,21 @@ kiemTra("duoi khoa ngan", duoiKhoa("ab"), "••••");
 // 2) Cấu hình từ biến môi trường.
 const K = "x".repeat(30);
 kiemTra("env trong -> null", cauHinhTuEnv({}), null);
-kiemTra("env claude", cauHinhTuEnv({ ANTHROPIC_API_KEY: ` ${K} ` }), { nhaCungCap: "claude", apiKey: K, model: "claude-sonnet-5", nguon: "env" });
-kiemTra("env gemini + model", cauHinhTuEnv({ GOOGLE_AI_API_KEY: K, PHIEU_GIAO_AI_MODEL: "gemini-2.5-flash" }), {
+kiemTra("env claude", cauHinhTuEnv({ ANTHROPIC_API_KEY: ` ${K} ` }), {
+  nhaCungCap: "claude",
+  apiKey: K,
+  model: "claude-sonnet-5",
+  cheDo: "ky",
+  nguon: "env",
+});
+kiemTra("env gemini + model + che do", cauHinhTuEnv({ GOOGLE_AI_API_KEY: K, PHIEU_GIAO_AI_MODEL: "gemini-2.5-flash", PHIEU_GIAO_AI_CHE_DO: "nhanh" }), {
   nhaCungCap: "gemini",
   apiKey: K,
   model: "gemini-2.5-flash",
+  cheDo: "nhanh",
   nguon: "env",
 });
+kiemTra("env che do la -> ky", cauHinhTuEnv({ GOOGLE_AI_API_KEY: K, PHIEU_GIAO_AI_CHE_DO: "sieu" })?.cheDo, "ky");
 kiemTra("env GEMINI_API_KEY cung nhan", cauHinhTuEnv({ GEMINI_API_KEY: K })?.nhaCungCap, "gemini");
 kiemTra("env ca hai -> claude", cauHinhTuEnv({ ANTHROPIC_API_KEY: K, GOOGLE_AI_API_KEY: K })?.nhaCungCap, "claude");
 kiemTra("env khoa rong -> null", cauHinhTuEnv({ ANTHROPIC_API_KEY: "   " }), null);

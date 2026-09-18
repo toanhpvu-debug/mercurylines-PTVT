@@ -17,6 +17,12 @@ export const phieuGiao = tuDien(
     nutTaiLen: "Tải lên & đọc dòng hàng",
     dangDoc: "Đang đọc phiếu...",
     daDocN: "Đã đọc {n} dòng hàng từ phiếu. Mở trang duyệt để đối chiếu.",
+    daDocNKiem:
+      "Đã đọc {n} dòng hàng, trong đó {k} dòng cần kiểm kỹ (tô vàng, có lý do dưới tên hàng). Đối chiếu với bản scan rồi mới lưu / duyệt.",
+    soDongCanKiem: "{k} dòng cần kiểm kỹ (tô vàng).",
+    canhBaoGoiY:
+      "Lý do ghi dưới tên hàng; bấm \"tr.N\" để mở đúng trang trên bản scan. Sửa một ô là cảnh báo của dòng đó được gỡ.",
+    nhayTrang: "Mở trang {n} của bản scan",
     docKhongRaDong:
       "Không nhận ra dòng hàng nào. Phiếu đã lưu — mở trang duyệt để gõ tay các dòng.",
     nguon_TEXT: "Lớp chữ PDF",
@@ -113,6 +119,12 @@ export const phieuGiao = tuDien(
     nutTaiLen: "Upload & read lines",
     dangDoc: "Reading the note...",
     daDocN: "Read {n} item lines from the note. Open the review page to check them.",
+    daDocNKiem:
+      "Read {n} item lines, {k} of which need a close check (highlighted, reason shown under the item name). Compare with the scan before saving / approving.",
+    soDongCanKiem: "{k} lines need a close check (highlighted).",
+    canhBaoGoiY:
+      "The reason is shown under the item name; click \"tr.N\" to open that page of the scan. Editing a cell clears that line's warning.",
+    nhayTrang: "Open page {n} of the scan",
     docKhongRaDong: "No item lines recognised. The note is saved — open the review page to type the lines.",
     nguon_TEXT: "PDF text layer",
     nguon_OCR: "Text recognition (OCR)",

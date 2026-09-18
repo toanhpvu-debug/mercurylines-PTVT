@@ -98,6 +98,11 @@ export async function applyMaterialImport(
       .map((m) => [norm(m.partNumber as string), m])
   );
   const byName = new Map(existing.map((m) => [nameKey(m.nameVn, m.equipment), m]));
+  // Tên tiếng Anh cũng là chìa khóa ghép: phiếu giao của nhà cung cấp nước
+  // ngoài chỉ in tiếng Anh, còn danh mục ghi tiếng Việt ở nameVn.
+  const byNameEn = new Map(
+    existing.filter((m) => m.nameEn).map((m) => [nameKey(m.nameEn as string, m.equipment), m])
+  );
 
   // Sinh mã không trùng, theo KHUÔN ĐANG DÙNG của lib/maVatTu.ts:
   //
@@ -169,6 +174,8 @@ export async function applyMaterialImport(
         (item.impa && byImpa.get(norm(item.impa))) ||
         (item.partNumber && byPn.get(norm(item.partNumber))) ||
         byName.get(nameKey(item.name, item.equipment)) ||
+        byNameEn.get(nameKey(item.name, item.equipment)) ||
+        (item.nameEn && byNameEn.get(nameKey(item.nameEn, item.equipment))) ||
         null;
       // Nhận nuôi bản ghi cũ: trước đây cột "Nhóm" không được đổ vào ô thiết bị
       // nên phụ tùng đã nhập đang mang equipment = null. Không có nhánh này thì
@@ -236,6 +243,7 @@ export async function applyMaterialImport(
             code: nextCode(boPhan, loaiHang, categoryId),
             department: boPhan,
             nameVn: item.name,
+            nameEn: item.nameEn?.trim() || null,
             impa: item.impa,
             partNumber: item.partNumber,
             uom: item.uom || "PCS",
@@ -246,6 +254,7 @@ export async function applyMaterialImport(
           },
         });
         byName.set(nameKey(item.name, item.equipment), material);
+        if (item.nameEn) byNameEn.set(nameKey(item.nameEn, item.equipment), material);
         if (item.impa) byImpa.set(norm(item.impa), material);
         if (item.partNumber) byPn.set(norm(item.partNumber), material);
         createdCount++;

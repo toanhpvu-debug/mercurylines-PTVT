@@ -12,19 +12,32 @@
  */
 import { prisma } from "@/lib/prisma";
 import { duoiKhoa, giaiMa, maHoa } from "@/lib/maHoaBiMat";
-import { MODEL_MAC_DINH, NHA_CUNG_CAP_AI, type CauHinhAi, type NhaCungCapAi } from "@/lib/docPhieuBangAi";
+import {
+  CHE_DO_DOC_AI,
+  MODEL_MAC_DINH,
+  NHA_CUNG_CAP_AI,
+  type CauHinhAi,
+  type CheDoDocAi,
+  type NhaCungCapAi,
+} from "@/lib/docPhieuBangAi";
 
-export type { CauHinhAi, NhaCungCapAi };
+export type { CauHinhAi, CheDoDocAi, NhaCungCapAi };
 
 const KHOA_NCC = "ai.nhaCungCap";
 const KHOA_API = "ai.apiKey";
 const KHOA_MODEL = "ai.model";
+const KHOA_CHE_DO = "ai.cheDo";
+
+function laCheDo(s: unknown): s is CheDoDocAi {
+  return typeof s === "string" && (CHE_DO_DOC_AI as readonly string[]).includes(s);
+}
 
 export type TrangThaiCauHinhAi = {
   bat: boolean;
   nguon: "db" | "env" | null;
   nhaCungCap: NhaCungCapAi | null;
   model: string | null;
+  cheDo: CheDoDocAi;
   duoiKhoa: string | null;
   updatedBy: string | null;
   updatedAt: Date | null;
@@ -44,20 +57,22 @@ export function cauHinhTuEnv(env: Record<string, string | undefined> = process.e
   const gemini = (env.GOOGLE_AI_API_KEY ?? env.GEMINI_API_KEY)?.trim();
   const nhaCungCap: NhaCungCapAi | null = claude ? "claude" : gemini ? "gemini" : null;
   if (!nhaCungCap) return null;
+  const cheDoEnv = env.PHIEU_GIAO_AI_CHE_DO?.trim();
   return {
     nhaCungCap,
     apiKey: (nhaCungCap === "claude" ? claude : gemini) as string,
     model: env.PHIEU_GIAO_AI_MODEL?.trim() || MODEL_MAC_DINH[nhaCungCap],
+    cheDo: laCheDo(cheDoEnv) ? cheDoEnv : "ky",
     nguon: "env",
   };
 }
 
 async function docDb() {
   const rows = await prisma.cauHinhHeThong.findMany({
-    where: { khoa: { in: [KHOA_NCC, KHOA_API, KHOA_MODEL] } },
+    where: { khoa: { in: [KHOA_NCC, KHOA_API, KHOA_MODEL, KHOA_CHE_DO] } },
   });
   const m = new Map(rows.map((r) => [r.khoa, r]));
-  return { ncc: m.get(KHOA_NCC), api: m.get(KHOA_API), model: m.get(KHOA_MODEL) };
+  return { ncc: m.get(KHOA_NCC), api: m.get(KHOA_API), model: m.get(KHOA_MODEL), cheDo: m.get(KHOA_CHE_DO) };
 }
 
 export async function layCauHinhAi(): Promise<CauHinhAi | null> {
@@ -69,6 +84,7 @@ export async function layCauHinhAi(): Promise<CauHinhAi | null> {
         nhaCungCap: db.ncc!.giaTri as NhaCungCapAi,
         apiKey,
         model: db.model?.giaTri?.trim() || MODEL_MAC_DINH[db.ncc!.giaTri as NhaCungCapAi],
+        cheDo: laCheDo(db.cheDo?.giaTri) ? db.cheDo!.giaTri : "ky",
         nguon: "db",
       };
     }
@@ -94,6 +110,7 @@ export async function trangThaiCauHinhAi(): Promise<TrangThaiCauHinhAi> {
         nguon: "db",
         nhaCungCap,
         model: db.model?.giaTri?.trim() || MODEL_MAC_DINH[nhaCungCap],
+        cheDo: laCheDo(db.cheDo?.giaTri) ? db.cheDo!.giaTri : "ky",
         duoiKhoa: duoiKhoa(apiKey),
         updatedBy: db.api.updatedBy,
         updatedAt: db.api.updatedAt,
@@ -106,6 +123,7 @@ export async function trangThaiCauHinhAi(): Promise<TrangThaiCauHinhAi> {
       nguon: env ? "env" : null,
       nhaCungCap: env?.nhaCungCap ?? nhaCungCap,
       model: env?.model ?? null,
+      cheDo: env?.cheDo ?? "ky",
       duoiKhoa: env ? duoiKhoa(env.apiKey) : null,
       updatedBy: db.api.updatedBy,
       updatedAt: db.api.updatedAt,
@@ -118,6 +136,7 @@ export async function trangThaiCauHinhAi(): Promise<TrangThaiCauHinhAi> {
     nguon: env ? "env" : null,
     nhaCungCap: env?.nhaCungCap ?? null,
     model: env?.model ?? null,
+    cheDo: env?.cheDo ?? "ky",
     duoiKhoa: env ? duoiKhoa(env.apiKey) : null,
     updatedBy: null,
     updatedAt: null,
@@ -132,11 +151,12 @@ export async function trangThaiCauHinhAi(): Promise<TrangThaiCauHinhAi> {
  * dùng được cho Gemini và ngược lại.
  */
 export async function luuCauHinhAi(
-  input: { nhaCungCap: NhaCungCapAi; apiKey: string; model: string },
+  input: { nhaCungCap: NhaCungCapAi; apiKey: string; model: string; cheDo?: CheDoDocAi },
   actorName: string
 ): Promise<{ ok: true } | { ok: false; loi: "thieuKhoa" | "khoaSai" | "khongMaHoaDuoc" }> {
   const apiKey = input.apiKey.trim();
   const model = input.model.trim().slice(0, 100) || MODEL_MAC_DINH[input.nhaCungCap];
+  const cheDo: CheDoDocAi = laCheDo(input.cheDo) ? input.cheDo : "ky";
   const db = await docDb();
   const nccCu = laNhaCungCap(db.ncc?.giaTri) ? (db.ncc!.giaTri as NhaCungCapAi) : null;
   const khoaCuConDoc = db.api ? giaiMa(db.api.giaTri) !== null : false;
@@ -159,11 +179,12 @@ export async function luuCauHinhAi(
   await prisma.$transaction([
     ghi(KHOA_NCC, input.nhaCungCap, false),
     ghi(KHOA_MODEL, model, false),
+    ghi(KHOA_CHE_DO, cheDo, false),
     ...(giaTriKhoa ? [ghi(KHOA_API, giaTriKhoa, true)] : []),
   ]);
   return { ok: true };
 }
 
 export async function xoaCauHinhAi(): Promise<void> {
-  await prisma.cauHinhHeThong.deleteMany({ where: { khoa: { in: [KHOA_NCC, KHOA_API, KHOA_MODEL] } } });
+  await prisma.cauHinhHeThong.deleteMany({ where: { khoa: { in: [KHOA_NCC, KHOA_API, KHOA_MODEL, KHOA_CHE_DO] } } });
 }

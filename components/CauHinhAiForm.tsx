@@ -4,7 +4,7 @@ import { startTransition, useActionState, useState, useTransition } from "react"
 import { useRouter } from "next/navigation";
 import { FileSearch, KeyRound, PlugZap, Save, Trash2 } from "lucide-react";
 import { kiemTraKetNoiAiAction, luuCauHinhAiAction, thuDocThatAction, xoaCauHinhAiAction } from "@/app/cau-hinh-ai-actions";
-import type { NhaCungCapAi } from "@/lib/docPhieuBangAi";
+import type { CheDoDocAi, NhaCungCapAi } from "@/lib/docPhieuBangAi";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Button, Field, Input, Notice, Select } from "@/components/ui";
 
@@ -13,6 +13,7 @@ export type TrangThaiHienThi = {
   nguon: "db" | "env" | null;
   nhaCungCap: NhaCungCapAi | null;
   model: string | null;
+  cheDo: CheDoDocAi;
   duoiKhoa: string | null;
   loiGiaiMa: boolean;
   coEnv: boolean;
@@ -36,6 +37,7 @@ export default function CauHinhAiForm({
   const [nhaCungCap, setNhaCungCap] = useState<NhaCungCapAi>(trangThai.nhaCungCap ?? "gemini");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState(trangThai.nguon === "db" ? (trangThai.model ?? "") : "");
+  const [cheDo, setCheDo] = useState<CheDoDocAi>(trangThai.cheDo);
   const [luu, luuAction, dangLuu] = useActionState(luuCauHinhAiAction, { message: "" });
   const [kiem, kiemAction, dangKiem] = useActionState(kiemTraKetNoiAiAction, { message: "" });
   const [thu, thuAction, dangThu] = useActionState(thuDocThatAction, { message: "" });
@@ -49,6 +51,7 @@ export default function CauHinhAiForm({
     fd.set("nhaCungCap", nhaCungCap);
     fd.set("apiKey", apiKey);
     fd.set("model", model);
+    fd.set("cheDo", cheDo);
     return fd;
   };
   const guiLuu = () =>
@@ -82,7 +85,7 @@ export default function CauHinhAiForm({
       }}
       className="space-y-4"
     >
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <Field label={t("cauHinhAi.nhaCungCap")}>
           <Select
             value={nhaCungCap}
@@ -103,6 +106,12 @@ export default function CauHinhAiForm({
               <option key={m} value={m} />
             ))}
           </datalist>
+        </Field>
+        <Field label={t("cauHinhAi.cheDoDoc")} hint={t("cauHinhAi.cheDoMoTa")}>
+          <Select value={cheDo} onChange={(e) => setCheDo(e.target.value === "nhanh" ? "nhanh" : "ky")} disabled={pending}>
+            <option value="ky">{t("cauHinhAi.cheDo_ky")}</option>
+            <option value="nhanh">{t("cauHinhAi.cheDo_nhanh")}</option>
+          </Select>
         </Field>
       </div>
       <Field label={t("cauHinhAi.khoaApi")}>

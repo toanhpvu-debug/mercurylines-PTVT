@@ -143,6 +143,11 @@ export function khoangIdRieng(dauDai: number): { dau: number; cuoi: number } {
  *   .json gửi qua email nên nhị phân phải mã hóa base64, phình thêm một phần ba,
  *   và đi kèm MỌI gói dù biểu mẫu cả năm không đổi một lần. Đây là thứ khai một
  *   lần cho mỗi bản cài: quản trị vào Mua sắm → Biểu mẫu tải lên, mất mấy giây.
+ * - PhieuGiaoNhan, PhieuGiaoNhanDong: hàng chờ duyệt của phiếu giao hàng, gắn
+ *   với một tệp PDF nằm trên đĩa của bản cài đã tải lên — gói .json không mang
+ *   tệp, nên bên nhận sẽ có phiếu mà không có bản scan để đối chiếu. Duyệt ở
+ *   đúng bản cài đã tải; KẾT QUẢ duyệt (mặt hàng, dòng nhập kho) thì đồng bộ
+ *   bình thường qua Material / VesselMaterial / InventoryTransaction.
  */
 export const BANG_KHONG_DONG_BO = [
   "User",
@@ -153,6 +158,8 @@ export const BANG_KHONG_DONG_BO = [
   "Delegation",
   "AuditLog",
   "BieuMauTep",
+  "PhieuGiaoNhan",
+  "PhieuGiaoNhanDong",
 ] as const;
 
 /** Tên bảng trong Prisma → tên bảng trong PostgreSQL. */

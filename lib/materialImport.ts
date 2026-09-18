@@ -20,6 +20,10 @@ export type ImportedItem = {
   rob: number | null; // tồn trên tàu (R.O.B) nếu file có
   sheet: string | null; // sheet Excel chứa dòng này
   materialType: "STORE" | "SPARE" | null; // suy từ tên sheet; null = để người dùng quyết
+  // Nhãn tùy ý của nơi gọi để nhận lại id mặt hàng sau khi nhập (xem
+  // ApplyImportResult.resolved) — phiếu giao hàng cần biết dòng nào thành mặt
+  // hàng nào để cộng tồn. Bộ đọc Excel/Word không đặt.
+  ref?: string;
 };
 
 // Tóm tắt từng sheet, để báo cho người dùng biết file được đọc ra sao.

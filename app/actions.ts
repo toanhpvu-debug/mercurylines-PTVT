@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ipThat } from "@/lib/ipThat";
+import { KHOA_TON_KHO_ADVISORY, khoaAdvisoryDongTon } from "@/lib/theKho";
 import {
   REQUEST_ALLOWED_FROM,
   REQUEST_STATUS_LABEL,
@@ -1061,7 +1062,7 @@ export async function unassignMaterialFromVessel(
 // không gian khóa (int, int) dùng chung cho cả tiến trình, nên phải đặt số vùng
 // riêng cho từng nghiệp vụ; trùng vùng với chỗ khác thì hai việc chẳng liên quan
 // gì lại chặn nhau.
-const KHOA_TON_KHO = 811001;
+const KHOA_TON_KHO = KHOA_TON_KHO_ADVISORY;
 
 /**
  * Gộp (vật tư, kho) thành một số int32 làm chìa khóa thứ hai.
@@ -1071,7 +1072,7 @@ const KHOA_TON_KHO = 811001;
  * lúc trên một dòng tồn mới sẽ cùng INSERT và một bên vỡ vì trùng khóa.
  */
 function khoaDongTon(materialId: number, warehouseId: number) {
-  return (Math.imul(materialId, 100003) + warehouseId) | 0;
+  return khoaAdvisoryDongTon(materialId, warehouseId);
 }
 
 export async function createInventoryTransaction(

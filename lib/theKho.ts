@@ -22,6 +22,24 @@ export function khoaDongTon(materialId: number, warehouseId: number): string {
   return `${materialId}|${warehouseId}`;
 }
 
+/**
+ * Vùng khóa tư vấn (advisory lock) của TỒN KHO trong PostgreSQL. Postgres chỉ có
+ * một không gian khóa (int, int) chung cho cả tiến trình nên mỗi nghiệp vụ một
+ * số vùng riêng. Mọi chỗ ghi tồn (phiếu nhập xuất tay, duyệt phiếu giao hàng,
+ * nhận đơn mua) PHẢI xin cùng vùng này với cùng cách băm bên dưới — hai chỗ
+ * dùng hai vùng khác nhau thì chúng không xếp hàng với nhau và hai phiếu cùng
+ * lúc trên một dòng tồn mới lại cùng INSERT.
+ */
+export const KHOA_TON_KHO_ADVISORY = 811001;
+
+/**
+ * Gộp (vật tư, kho) thành một số int32 làm chìa khóa thứ hai. Đụng độ băm chỉ
+ * khiến hai dòng tồn khác nhau chờ nhau một nhịp, không bao giờ sai số liệu.
+ */
+export function khoaAdvisoryDongTon(materialId: number, warehouseId: number): number {
+  return (Math.imul(materialId, 100003) + warehouseId) | 0;
+}
+
 /** Đường dẫn thẻ kho của một mặt hàng tại một kho. */
 export function duongDanTheKho(materialId: number, warehouseId: number): string {
   return `/inventory/stock-card?material=${materialId}&wh=${warehouseId}`;

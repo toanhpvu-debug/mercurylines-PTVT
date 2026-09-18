@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, Download, FileSpreadsheet, FileText } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
@@ -84,6 +84,28 @@ export default async function MaterialImportPage() {
             <Download className="size-4" />
             {t("materials.taiFileMau")}
           </a>
+        </div>
+      </div>
+
+      {/* Đường thứ hai vào danh mục: phiếu giao hàng bản scan của nhà cung cấp.
+          Khác file Excel ở chỗ phải QUA DUYỆT — máy đọc chữ có thể sai. */}
+      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex max-w-2xl items-start gap-3">
+            <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-700 dark:text-brand-400">
+              <FileText className="size-4" />
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
+                {t("phieuGiao.tieuDe")}
+              </h2>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">{t("phieuGiao.lienKetTuNhap")}</p>
+            </div>
+          </div>
+          <Link href="/materials/phieu-giao" className={buttonClass("secondary")}>
+            <FileText className="size-4" />
+            {t("phieuGiao.nutSangTrangPhieuGiao")}
+          </Link>
         </div>
       </div>
 

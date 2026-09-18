@@ -1,11 +1,13 @@
 import { Fragment } from "react";
 import Form from "next/form";
 import Link from "next/link";
+import { NGUOI_TAI_PHIEU_GIAO } from "@/lib/phieuGiao";
 import {
   Anchor,
   ArrowRight,
   Boxes,
   Cog,
+  FileText,
   Filter,
   LifeBuoy,
   Package,
@@ -387,6 +389,12 @@ export default async function MaterialsPage({
               <Link href="/materials/import" className={buttonClass("primary")}>
                 <Upload className="size-4" />
                 {t("materials.nhapDanhMucTuFile")}
+              </Link>
+            )}
+            {NGUOI_TAI_PHIEU_GIAO.includes(user.role) && (
+              <Link href="/materials/phieu-giao" className={buttonClass("secondary")}>
+                <FileText className="size-4" />
+                {t("phieuGiao.nutSangTrangPhieuGiao")}
               </Link>
             )}
           </>

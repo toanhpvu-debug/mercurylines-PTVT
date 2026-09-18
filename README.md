@@ -1510,6 +1510,38 @@ Công cụ dùng **chính parser mà chức năng nhập file dùng**, nên kế
 
 Nút **"⬇ Xuất kiểm kê MLS-11-06"** ở trang Danh mục (chế độ theo tàu, giữ bộ lọc Store/Spare) và trang chi tiết tàu tải về file Excel **điền trên chính template gốc của công ty** (giữ nguyên định dạng, chữ ký): tên tàu, ngày, loại vật tư, và từng dòng Nhóm / Mô tả / IMPA / Đơn vị / **Còn tồn đợt trước / Nhận trong kỳ / Tiêu thụ trong kỳ / Tồn trên tàu** (kỳ = tháng hiện tại, tính từ giao dịch nhập–xuất trong app). Trên 25 dòng thì form tự giãn, khối chữ ký tự dời xuống. Quyền theo phạm vi tàu (thuyền viên chỉ xuất được tàu mình).
 
+### Nhập từ phiếu giao hàng bản scan — qua duyệt mới vào hệ thống (`/materials/phieu-giao`)
+
+Nhà cung cấp giao hàng lên tàu, thuyền viên kiểm xong, thay vì gõ lại từng dòng
+thì tải bản scan phiếu giao (PDF) lên. Đường đi có **ba bước, ba quyền**, và không
+có đường tắt nào cho dòng máy đọc lọt thẳng vào tồn kho:
+
+1. **Tải lên** (sĩ quan tàu, người vận hành kho): máy đọc chữ của PDF và tách các
+   dòng hàng (tên, Part No., IMPA, số lượng, đơn vị, thiết bị) để *điền sẵn*, rồi
+   ghép thử với mặt hàng đã có trong danh mục tàu (Part No. → IMPA → tên). Chưa ghi
+   gì vào danh mục hay tồn.
+2. **Đối chiếu** (`/materials/phieu-giao/<id>`): bảng dòng hàng sửa được nằm cạnh
+   bản scan; bỏ tick dòng rác, thêm dòng thiếu, sửa số. Người tải hoặc người quản lý
+   danh mục tàu đều sửa được khi phiếu còn *Chờ duyệt*.
+3. **Phê duyệt** (thuyền trưởng / quản trị — `canManageVesselCatalog`): lúc này mới
+   đi qua đúng đường nhập danh mục (`lib/materialImportApply.ts`, cùng luật sinh mã,
+   cùng cách ghép trùng như nhập Excel) và, nếu chọn kho nhận, ghi phiếu **NHẬP** cho
+   từng dòng với cùng khóa tồn kho của phiếu nhập tay (`lib/theKho.ts`). Phiếu đã
+   duyệt là chứng từ của các dòng nhập đó — không xóa được. *Từ chối* thì ghi lý do.
+
+Đọc chữ có hai đường: **lớp chữ PDF** (`lib/pdfChu.ts`, pdfjs — PDF số do phần mềm
+nhà cung cấp xuất, chạy ở mọi nơi kể cả container Linux) và **OCR bản scan**
+(`lib/pdfOcr.ts`, Windows.Media.Ocr — chỉ có trên bản cài máy văn phòng). Trên máy
+chủ Linux, bản scan vẫn tải lên được; trang duyệt báo rõ và người duyệt gõ tay các
+dòng (hoặc mở phiếu trên máy văn phòng). Bộ tách dòng (`lib/phieuGiaoParse.ts`) là
+thuần chuỗi, kiểm ở `scripts/kiem-tra-doc-phieu-giao.ts`; `_thu-xuat/thu-pdf-giao.ts`
+dựng một PDF có lớp chữ rồi chạy trọn đường pdfjs → tách.
+
+Dữ liệu: `PhieuGiaoNhan` (một phiếu, tệp PDF trong `uploads/`, chữ đọc được, trạng
+thái `CHO_DUYET · DA_DUYET · TU_CHOI`) và `PhieuGiaoNhanDong` (từng dòng, kèm dòng
+chữ gốc máy đọc để người duyệt thấy máy đọc từ đâu). Hai bảng này **không đồng bộ**
+tàu ↔ văn phòng (tệp PDF nằm trên đĩa của bản cài đã tải); kết quả duyệt thì đồng bộ
+bình thường qua `Material` / `VesselMaterial` / `InventoryTransaction`.
 ## Mua sắm (Purchasing) — quy trình khép kín
 
 Module mua sắm (`/purchasing`) dẫn vật tư từ khi yêu cầu được duyệt cho tới khi nhận hàng xong:

@@ -60,6 +60,8 @@ export type ApplyImportResult = {
    * mà không ai biết để chạy `doi-ma-vat-tu.cmd --theo-nhom`.
    */
   khoiDay?: string[];
+  /** Mỗi dòng đã nhập → id mặt hàng (tạo mới hoặc có sẵn), kèm ref của nơi gọi. */
+  resolved?: { ref?: string; materialId: number; taoMoi: boolean }[];
 };
 
 export async function applyMaterialImport(
@@ -157,6 +159,7 @@ export async function applyMaterialImport(
   let linkedCount = 0;
   let robCount = 0;
   const categoryCache = new Map<string, number>();
+  const resolved: { ref?: string; materialId: number; taoMoi: boolean }[] = [];
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -246,8 +249,10 @@ export async function applyMaterialImport(
         if (item.impa) byImpa.set(norm(item.impa), material);
         if (item.partNumber) byPn.set(norm(item.partNumber), material);
         createdCount++;
+        resolved.push({ ref: item.ref, materialId: material.id, taoMoi: true });
       } else {
         linkedCount++;
+        resolved.push({ ref: item.ref, materialId: material.id, taoMoi: false });
       }
       // 2) Gán vào danh mục tàu
       await tx.vesselMaterial.upsert({
@@ -316,5 +321,6 @@ export async function applyMaterialImport(
     linkedCount,
     robCount,
     khoiDay: [...khoiDayCuaNhom].sort(),
+    resolved,
   };
 }

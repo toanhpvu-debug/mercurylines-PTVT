@@ -48,6 +48,17 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Bản scan phiếu giao hàng được XEM NGAY trong trang duyệt bằng iframe
+        // cùng nguồn (/materials/phieu-giao/<id>). DENY ở trên cấm cả khung cùng
+        // nguồn nên riêng tuyến này hạ xuống SAMEORIGIN; site lạ vẫn không nhúng
+        // được. Rule đứng sau thắng rule "/:path*" khi trùng khóa header.
+        source: "/api/phieu-giao/:id/file",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+        ],
+      },
+      {
         // Phông chữ tự host. Mặc định Next trả `Cache-Control: max-age=0` cho
         // mọi thứ trong public/ — trình duyệt phải hỏi lại server 5 tệp phông ở
         // MỖI lần mở trang đầy đủ (đăng nhập, đổi ngôn ngữ, F5), và trong lúc

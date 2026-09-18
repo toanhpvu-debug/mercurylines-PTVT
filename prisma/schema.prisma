@@ -26,6 +26,7 @@ model User {
   vesselId            Int?
   vessel              Vessel?           @relation(fields: [vesselId], references: [id], onDelete: SetNull)
   documents           ReportDocument[]
+  phieuGiaoTaiLen     PhieuGiaoNhan[]
   // Tàu được phân công (chỉ dùng cho tài khoản bờ) và ủy quyền có thời hạn.
   fleetAssignments    FleetAssignment[]
   delegationsGiven    Delegation[]      @relation("DelegationFrom")
@@ -86,6 +87,7 @@ model Vessel {
   lashingGears           LashingGear[]
   lashingReports         LashingReport[]
   documents              ReportDocument[]
+  phieuGiaoNhan          PhieuGiaoNhan[]
   vesselMaterials        VesselMaterial[]
   purchaseOrders         PurchaseOrder[]
   paintAreas             PaintArea[]
@@ -155,6 +157,7 @@ model Material {
   requestItems    MaterialRequestItem[]
   vesselMaterials VesselMaterial[]
   poItems         PurchaseOrderItem[]
+  phieuGiaoDong   PhieuGiaoNhanDong[]
 
   @@index([categoryId])
   @@index([materialType])
@@ -886,4 +889,70 @@ model BieuMauTep {
   uploadedBy String?
   uploadedAt DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+/**
+ * Phiếu giao hàng của nhà cung cấp (PDF scan / PDF số) — HÀNG CHỜ DUYỆT.
+ *
+ * Thuyền viên kiểm hàng xong tải phiếu lên; hệ thống đọc dòng hàng để điền sẵn
+ * (lib/pdfChu.ts, lib/pdfOcr.ts, lib/phieuGiaoParse.ts). Không dòng nào chạm
+ * vào danh mục hay tồn kho cho tới khi người có quyền (thuyền trưởng / quản
+ * trị) đối chiếu với bản scan và bấm duyệt — lúc đó mới đi qua đúng đường nhập
+ * danh mục (lib/materialImportApply.ts) và ghi phiếu nhập kho.
+ */
+model PhieuGiaoNhan {
+  id           Int                 @id @default(autoincrement())
+  vesselId     Int
+  vessel       Vessel              @relation(fields: [vesselId], references: [id])
+  // Kho cộng tồn khi duyệt — chọn lúc duyệt, null = chỉ vào danh mục.
+  warehouseId  Int?
+  fileName     String
+  storedName   String              @unique
+  mimeType     String              @default("application/pdf")
+  size         Int
+  sha256       String
+  // Cách lấy dòng hàng: TEXT (lớp chữ PDF) · OCR (bản scan, Windows) · TAY.
+  nguonChu     String              @default("TAY")
+  chuDoc       String?
+  nhaCungCap   String?
+  soPhieu      String?
+  ngayGiao     DateTime?
+  ghiChu       String?
+  // CHO_DUYET · DA_DUYET · TU_CHOI
+  status       String              @default("CHO_DUYET")
+  uploadedById Int
+  uploadedBy   User                @relation(fields: [uploadedById], references: [id])
+  approvedBy   String?
+  approvedAt   DateTime?
+  lyDoTuChoi   String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  dong         PhieuGiaoNhanDong[]
+
+  @@index([vesselId])
+  @@index([status])
+}
+
+model PhieuGiaoNhanDong {
+  id         Int           @id @default(autoincrement())
+  phieuId    Int
+  phieu      PhieuGiaoNhan @relation(fields: [phieuId], references: [id], onDelete: Cascade)
+  thuTu      Int
+  // Dòng chữ gốc đọc được — để người duyệt thấy máy đã đọc từ đâu ra.
+  chuGoc     String?
+  ten        String
+  partNo     String?
+  impa       String?
+  soLuong    Float
+  donVi      String        @default("PCS")
+  loai       String        @default("SPARE")
+  thietBi    String?
+  // Khớp mặt hàng có sẵn (đặt lúc đọc hoặc lúc duyệt); null = tạo mới khi duyệt.
+  materialId Int?
+  material   Material?     @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  // Bỏ tick = dòng rác / không nhập.
+  chon       Boolean       @default(true)
+
+  @@index([phieuId])
+  @@index([materialId])
 }

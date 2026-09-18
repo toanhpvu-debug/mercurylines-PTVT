@@ -6,10 +6,10 @@ import {
   ArrowRight,
   Boxes,
   Cog,
+  Filter,
   LifeBuoy,
   Package,
   Plus,
-  Search,
   Upload,
   UtensilsCrossed,
   Warehouse,
@@ -42,6 +42,8 @@ import {
   VesselMaterialRemoveButton,
 } from "@/components/VesselCatalogActions";
 import VatTuMoiChoTauForm from "@/components/VatTuMoiChoTauForm";
+import TimNhanhDanhMuc from "@/components/TimNhanhDanhMuc";
+import NutThuGonNhom from "@/components/NutThuGonNhom";
 import {
   canManageVesselCatalog,
   chonDuocTau,
@@ -57,7 +59,6 @@ import {
   Card,
   CardHeader,
   EmptyState,
-  Input,
   Notice,
   PageHeader,
   Select,
@@ -330,7 +331,9 @@ export default async function MaterialsPage({
     return {
       ...d,
       total: sorted.length,
-      rows: showAll ? sorted : sorted.slice(0, PER_DEPT_LIMIT),
+      // Đang TÌM thì hiện hết dòng khớp: cắt 40 dòng đầu lúc này là giấu đúng
+      // thứ người ta vừa gõ để tìm.
+      rows: showAll || q ? sorted : sorted.slice(0, PER_DEPT_LIMIT),
     };
   }).filter((d) => d.total > 0);
   const hiddenCount = deptGroups.reduce(
@@ -515,31 +518,16 @@ export default async function MaterialsPage({
                 ))}
               </Select>
             </div>
-            <div className="w-64">
-              <Input
-                name="q"
-                defaultValue={qRaw ?? ""}
-                placeholder={t("materials.timGoiY")}
-              />
-            </div>
+            {/* Ô tìm nay nằm ở thanh tìm nhanh dính đầu bảng; ở đây chỉ giữ q để
+                đổi chức danh không làm mất chuỗi đang tìm. */}
+            {q && <input type="hidden" name="q" value={qRaw ?? ""} />}
             <Button
               type="submit"
               variant="primary"
-              icon={<Search className="size-4" />}
+              icon={<Filter className="size-4" />}
             >
-              {t("chung.tim")}
+              {t("chung.loc")}
             </Button>
-            {q && (
-              <Link
-                href={buildHref(filterType, isVesselMode ? vesselKey : null).replace(
-                  /[?&]q=[^&]*/,
-                  ""
-                )}
-                className="text-sm text-[var(--text-secondary)] hover:underline"
-              >
-                {t("chung.xoaTim")}
-              </Link>
-            )}
           </Form>
         </div>
       </Card>
@@ -611,6 +599,16 @@ export default async function MaterialsPage({
                   : t("materials.danhMucGocN", { n: rows.length })
               }
             />
+            <TimNhanhDanhMuc
+              nhom={deptGroups.map((d) => ({
+                key: d.key,
+                label: tTuDo(`labels.dept_${d.key}`),
+                total: d.total,
+                hienThi: d.rows.length,
+              }))}
+              tongDong={rows.length}
+              dangHien={rows.length - hiddenCount}
+            />
             {rows.length === 0 ? (
               <EmptyState
                 icon={<Boxes className="size-5" />}
@@ -647,20 +645,24 @@ export default async function MaterialsPage({
                       )}
                     </tr>
                   </thead>
-                  <tbody>
                     {deptGroups.map((dept) => {
                       // Trong bộ phận, chèn tiêu đề phụ mỗi khi đổi thiết bị
                       // (chỉ với phụ tùng) — VD Máy chính, Máy đèn.
                       let lastEquip: string | null = null;
                       const DeptIcon = DEPT_ICON[dept.key] ?? Package;
                       return (
-                        <Fragment key={dept.key}>
+                        <tbody key={dept.key} id={`bo-phan-${dept.key}`} className="scroll-mt-36">
                           <TrNhom colSpan={colCount}>
-                            <span className="inline-flex items-center gap-2">
-                              <DeptIcon className="size-4 text-[var(--text-muted)]" />
-                              {tTuDo(`labels.dept_${dept.key}`)}
-                              <Badge tone="neutral">{dept.rows.length}</Badge>
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center gap-2">
+                                <DeptIcon className="size-4 text-[var(--text-muted)]" />
+                                {tTuDo(`labels.dept_${dept.key}`)}
+                                <Badge tone={dept.rows.length < dept.total ? "warning" : "neutral"}>
+                                  {dept.rows.length < dept.total ? `${dept.rows.length}/${dept.total}` : dept.total}
+                                </Badge>
+                              </span>
+                              <NutThuGonNhom />
+                            </div>
                           </TrNhom>
                           {dept.rows.map((material) => {
                             const equip = equipmentOf({
@@ -878,10 +880,9 @@ export default async function MaterialsPage({
                               </Fragment>
                             );
                           })}
-                        </Fragment>
+                        </tbody>
                       );
                     })}
-                  </tbody>
                 </Table>
               </TableWrap>
             )}

@@ -303,6 +303,13 @@ html {
   text-rendering: optimizeLegibility;
 }
 
+/* Bảng danh mục: mỗi bộ phận là một <tbody>; nút trong dòng tiêu đề bật
+   data-thu-gon để ẩn mọi dòng trừ dòng tiêu đề (components/NutThuGonNhom.tsx).
+   Đóng mở bằng thuộc tính DOM + CSS thay vì đưa 600 dòng sang client. */
+tbody[data-thu-gon] > tr:not(:first-child) {
+  display: none;
+}
+
 /*
  * Điều khiển gốc của trình duyệt — thanh cuộn, danh sách thả xuống của <select>,
  * ô chọn ngày, nền tự điền — không đọc biến CSS của app; chúng chỉ nghe

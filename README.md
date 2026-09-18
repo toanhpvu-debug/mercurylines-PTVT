@@ -1534,8 +1534,9 @@ nhà cung cấp xuất, chạy ở mọi nơi kể cả container Linux) và **O
 (`lib/pdfOcr.ts`, Windows.Media.Ocr — chỉ có trên bản cài máy văn phòng). Trên máy
 chủ Linux, bản scan vẫn tải lên được; trang duyệt báo rõ và người duyệt gõ tay các
 dòng (hoặc mở phiếu trên máy văn phòng). Bộ tách dòng (`lib/phieuGiaoParse.ts`) là
-thuần chuỗi, kiểm ở `scripts/kiem-tra-doc-phieu-giao.ts`; `_thu-xuat/thu-pdf-giao.ts`
-dựng một PDF có lớp chữ rồi chạy trọn đường pdfjs → tách.
+thuần chuỗi, kiểm ở `scripts/kiem-tra-doc-phieu-giao.ts`; `scripts/kiem-tra-pdf-giao.ts`
+dựng một PDF có lớp chữ rồi chạy trọn đường pdfjs → tách (cả hai nằm trong bộ
+`kiem-chung-nhanh.ps1`).
 
 Dữ liệu: `PhieuGiaoNhan` (một phiếu, tệp PDF trong `uploads/`, chữ đọc được, trạng
 thái `CHO_DUYET · DA_DUYET · TU_CHOI`) và `PhieuGiaoNhanDong` (từng dòng, kèm dòng

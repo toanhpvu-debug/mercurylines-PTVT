@@ -120,9 +120,14 @@ Quy tắc:
 
 const LOI_NHAC_NGUOI_DUNG = "Đọc phiếu giao hàng trong tài liệu đính kèm và ghi TOÀN BỘ dòng hàng theo đúng cấu trúc yêu cầu.";
 
+/** Khuôn JSON nhắc thêm cho Gemini — để khi phải bỏ responseSchema (API từ chối khuôn) mô hình vẫn trả đúng dạng. */
+const KHUON_JSON_GOI_Y =
+  'Trả về DUY NHẤT một JSON dạng: {"nhaCungCap": string|null, "soPhieu": string|null, "ngayGiao": "dd/mm/yyyy"|null, "tau": string|null, "dong": [{"stt": number|null, "ten": string, "partNo": string|null, "impa": "6 chữ số"|null, "soLuong": number|null, "donVi": string|null, "loai": "STORE"|"SPARE", "thietBi": string|null, "ghiChu": string|null}]}';
+
 /**
  * Chuyển JSON Schema của công cụ sang khuôn responseSchema của Gemini: kiểu viết
- * HOA, không nhận mảng kiểu ["string","null"] mà dùng nullable: true.
+ * HOA, không nhận mảng kiểu ["string","null"] mà dùng nullable: true, và enum
+ * trên chuỗi phải kèm format "enum".
  */
 export function schemaGemini(schema: unknown): Record<string, unknown> {
   const s = (schema && typeof schema === "object" ? schema : {}) as Record<string, unknown>;
@@ -135,7 +140,10 @@ export function schemaGemini(schema: unknown): Record<string, unknown> {
   }
   if (typeof kieu === "string") ra.type = kieu.toUpperCase();
   if (typeof s.description === "string") ra.description = s.description;
-  if (Array.isArray(s.enum)) ra.enum = s.enum;
+  if (Array.isArray(s.enum)) {
+    ra.enum = s.enum;
+    if (ra.type === "STRING") ra.format = "enum";
+  }
   if (Array.isArray(s.required)) ra.required = s.required;
   if (s.properties && typeof s.properties === "object") {
     const p: Record<string, unknown> = {};
@@ -221,7 +229,20 @@ type TuyChonDocAi = {
   timeoutMs?: number;
   /** Để kiểm thử thay fetch thật. */
   fetchFn?: FetchGia;
+  /** Thời gian chờ trước mỗi lần thử lại (ms) — kiểm thử đặt ngắn. */
+  choThuLaiMs?: number[];
 };
+
+/** Hết hạn mức (429) hay quá tải (529/5xx): chờ 5 s rồi 15 s — hạn mức phút của gói miễn phí thường mở lại trong khoảng đó. */
+const CHO_THU_LAI_MAC_DINH = [5000, 15000];
+
+function moTaNguyenNhan(e: unknown, timeoutMs: number): string {
+  if (!(e instanceof Error)) return String(e);
+  if (e.name === "AbortError") return `quá ${Math.round(timeoutMs / 1000)} giây không có trả lời`;
+  const cause = (e as Error & { cause?: { code?: string; message?: string } }).cause;
+  const them = cause?.code ?? cause?.message;
+  return them ? `${e.message}: ${them}` : e.message;
+}
 
 function moTaLoiClaude(status: number, json: unknown): string {
   const e = (json as { error?: { type?: string; message?: string } } | null)?.error;
@@ -233,16 +254,25 @@ function moTaLoiGemini(status: number, json: unknown): string {
   return `Gemini API ${status}${e?.status ? ` ${e.status}` : ""}${e?.message ? `: ${e.message}` : ""}`.slice(0, 300);
 }
 
-/** Gọi có thử lại: 429 / 5xx / mất mạng → đợi 3 giây, thử thêm một lần. */
+type KetQuaGoi = { ok: true; json: unknown } | { ok: false; loi: string; status?: number };
+
+/**
+ * Gọi có thử lại: 429 (hết hạn mức) / 529 / 5xx → thử tới 3 lần, chờ theo
+ * choThuLaiMs; mất mạng / quá giờ → thử lại một lần. Lỗi 4xx khác trả ngay kèm
+ * mã để nơi gọi đổi cách gọi (khuôn JSON, giới hạn token).
+ */
 async function goiCoThuLai(
   fetchFn: FetchGia,
   url: string,
   init: RequestInit,
   timeoutMs: number,
-  moTaLoi: (status: number, json: unknown) => string
-): Promise<{ ok: true; json: unknown } | { ok: false; loi: string }> {
+  moTaLoi: (status: number, json: unknown) => string,
+  choThuLaiMs: number[] = CHO_THU_LAI_MAC_DINH
+): Promise<KetQuaGoi> {
   let loiCuoi = "";
-  for (let lan = 1; lan <= 2; lan++) {
+  let statusCuoi: number | undefined;
+  for (let lan = 0; lan <= choThuLaiMs.length; lan++) {
+    if (lan > 0) await new Promise((r) => setTimeout(r, choThuLaiMs[lan - 1]));
     const ac = new AbortController();
     const dongHo = setTimeout(() => ac.abort(), timeoutMs);
     try {
@@ -250,57 +280,59 @@ async function goiCoThuLai(
       const json = await res.json().catch(() => null);
       if (res.ok) return { ok: true, json };
       loiCuoi = moTaLoi(res.status, json);
-      if ((res.status === 429 || res.status >= 500) && lan === 1) {
-        await new Promise((r) => setTimeout(r, 3000));
-        continue;
-      }
-      return { ok: false, loi: loiCuoi };
+      statusCuoi = res.status;
+      if (res.status === 429 || res.status >= 500) continue;
+      return { ok: false, loi: loiCuoi, status: res.status };
     } catch (e) {
-      const thong = e instanceof Error ? (e.name === "AbortError" ? `quá ${Math.round(timeoutMs / 1000)} giây` : e.message) : String(e);
-      loiCuoi = `Không gọi được API (${thong})`.slice(0, 300);
-      if (lan === 1) {
-        await new Promise((r) => setTimeout(r, 3000));
-        continue;
-      }
+      loiCuoi = `Không gọi được API (${moTaNguyenNhan(e, timeoutMs)})`.slice(0, 300);
+      statusCuoi = undefined;
+      if (lan < 1) continue;
+      return { ok: false, loi: loiCuoi };
     } finally {
       clearTimeout(dongHo);
     }
   }
-  return { ok: false, loi: loiCuoi || "Không rõ lỗi." };
+  return { ok: false, loi: loiCuoi || "Không rõ lỗi.", status: statusCuoi };
 }
 
 async function docBangClaude(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, fetchFn: FetchGia, timeoutMs: number): Promise<KetQuaDocAi> {
-  const body = JSON.stringify({
-    model: ch.model,
-    max_tokens: 32_000,
-    system: HUONG_DAN_HE_THONG,
-    tools: [CONG_CU_GHI_PHIEU],
-    tool_choice: { type: "tool", name: CONG_CU_GHI_PHIEU.name },
-    messages: [
+  const body = (maxTokens: number) =>
+    JSON.stringify({
+      model: ch.model,
+      max_tokens: maxTokens,
+      system: HUONG_DAN_HE_THONG,
+      tools: [CONG_CU_GHI_PHIEU],
+      tool_choice: { type: "tool", name: CONG_CU_GHI_PHIEU.name },
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "document",
+              source: { type: "base64", media_type: "application/pdf", data: pdf.toString("base64") },
+              title: tc.fileName?.slice(0, 200) || "phieu-giao.pdf",
+            },
+            { type: "text", text: LOI_NHAC_NGUOI_DUNG },
+          ],
+        },
+      ],
+    });
+  const goi = (maxTokens: number) =>
+    goiCoThuLai(
+      fetchFn,
+      DIA_CHI_CLAUDE,
       {
-        role: "user",
-        content: [
-          {
-            type: "document",
-            source: { type: "base64", media_type: "application/pdf", data: pdf.toString("base64") },
-            title: tc.fileName?.slice(0, 200) || "phieu-giao.pdf",
-          },
-          { type: "text", text: LOI_NHAC_NGUOI_DUNG },
-        ],
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": ch.apiKey, "anthropic-version": "2023-06-01" },
+        body: body(maxTokens),
       },
-    ],
-  });
-  const r = await goiCoThuLai(
-    fetchFn,
-    DIA_CHI_CLAUDE,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": ch.apiKey, "anthropic-version": "2023-06-01" },
-      body,
-    },
-    timeoutMs,
-    moTaLoiClaude
-  );
+      timeoutMs,
+      moTaLoiClaude,
+      tc.choThuLaiMs
+    );
+  let r = await goi(32_000);
+  // Mô hình đời cũ chỉ cho 8192 token ra: API báo 400 nhắc max_tokens → gọi lại với mức đó.
+  if (!r.ok && r.status === 400 && /max_tokens/i.test(r.loi)) r = await goi(8192);
   if (!r.ok) return r;
   const json = r.json as {
     content?: { type: string; name?: string; input?: unknown }[];
@@ -324,32 +356,39 @@ async function docBangGemini(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, fetch
   if (pdf.length > GEMINI_PDF_TOI_DA) {
     return { ok: false, loi: `PDF ${Math.round(pdf.length / 1024 / 1024)} MB quá lớn cho Gemini (tối đa 14 MB) — nén bản scan hoặc dùng Claude.` };
   }
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: HUONG_DAN_HE_THONG }] },
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { inlineData: { mimeType: "application/pdf", data: pdf.toString("base64") } },
-          { text: `${LOI_NHAC_NGUOI_DUNG}${tc.fileName ? ` (tệp: ${tc.fileName.slice(0, 200)})` : ""}` },
-        ],
+  const body = (coSchema: boolean) =>
+    JSON.stringify({
+      systemInstruction: { parts: [{ text: HUONG_DAN_HE_THONG }] },
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { inlineData: { mimeType: "application/pdf", data: pdf.toString("base64") } },
+            { text: `${LOI_NHAC_NGUOI_DUNG}${tc.fileName ? ` (tệp: ${tc.fileName.slice(0, 200)})` : ""}\n${KHUON_JSON_GOI_Y}` },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0,
+        responseMimeType: "application/json",
+        ...(coSchema ? { responseSchema: schemaGemini(CONG_CU_GHI_PHIEU.input_schema) } : {}),
       },
-    ],
-    generationConfig: {
-      temperature: 0,
-      responseMimeType: "application/json",
-      responseSchema: schemaGemini(CONG_CU_GHI_PHIEU.input_schema),
-      maxOutputTokens: 32_000,
-    },
-  });
+    });
   const url = `${DIA_CHI_GEMINI}/models/${encodeURIComponent(ch.model)}:generateContent`;
-  const r = await goiCoThuLai(
-    fetchFn,
-    url,
-    { method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": ch.apiKey }, body },
-    timeoutMs,
-    moTaLoiGemini
-  );
+  const goi = (coSchema: boolean) =>
+    goiCoThuLai(
+      fetchFn,
+      url,
+      { method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": ch.apiKey }, body: body(coSchema) },
+      timeoutMs,
+      moTaLoiGemini,
+      tc.choThuLaiMs
+    );
+  let r = await goi(true);
+  // Phiên bản API / mô hình không nhận khuôn responseSchema (400 nhắc schema,
+  // "Unknown name", "Invalid JSON payload"): gọi lại chỉ với chế độ JSON + khuôn
+  // gợi ý trong lời nhắc — kết quả vẫn qua chuanHoaKetQuaAi nên không tin mù.
+  if (!r.ok && r.status === 400 && /schema|unknown name|invalid json payload|nullable|format/i.test(r.loi)) r = await goi(false);
   if (!r.ok) return r;
   const json = r.json as {
     candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
@@ -409,7 +448,8 @@ export async function kiemTraKetNoiAi(cauHinh: CauHinhAi, tuyChon: TuyChonDocAi 
       `${DIA_CHI_GEMINI}/models?pageSize=200`,
       { method: "GET", headers: { "x-goog-api-key": apiKey } },
       timeoutMs,
-      moTaLoiGemini
+      moTaLoiGemini,
+      tuyChon.choThuLaiMs
     );
     if (!r.ok) return r;
     const json = r.json as { models?: { name?: string; supportedGenerationMethods?: string[] }[] } | null;
@@ -423,7 +463,8 @@ export async function kiemTraKetNoiAi(cauHinh: CauHinhAi, tuyChon: TuyChonDocAi 
       DIA_CHI_CLAUDE_MODELS,
       { method: "GET", headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01" } },
       timeoutMs,
-      moTaLoiClaude
+      moTaLoiClaude,
+      tuyChon.choThuLaiMs
     );
     if (!r.ok) return r;
     const json = r.json as { data?: { id?: string }[] } | null;

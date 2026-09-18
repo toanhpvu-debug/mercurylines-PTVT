@@ -918,6 +918,8 @@ model PhieuGiaoNhan {
   soPhieu      String?
   ngayGiao     DateTime?
   ghiChu       String?
+  // Lỗi nguyên văn của bộ đọc AI ở lần đọc gần nhất; null = không lỗi.
+  loiAi        String?
   // CHO_DUYET · DA_DUYET · TU_CHOI
   status       String              @default("CHO_DUYET")
   uploadedById Int

@@ -117,6 +117,8 @@ async function docDongTuPdf(buffer: Buffer, fullPath: string, fileName: string):
       };
     }
     loiAi = ai.loi;
+    // Ra log máy chủ (Dokploy → Logs) để tra được khi người dùng chỉ thấy câu tóm tắt.
+    console.error(`[phieu-giao] Bộ đọc AI (${cauHinh.nhaCungCap} · ${cauHinh.model}) lỗi khi đọc "${fileName}": ${ai.loi}`);
   }
   let chuDoc: string | null = null;
   let nguonChu: KetQuaDocDong["nguonChu"] = "TAY";
@@ -200,6 +202,7 @@ export async function taoPhieuGiaoTuPdf(
       soPhieu: soPhieu?.slice(0, 80) ?? null,
       ngayGiao,
       ghiChu,
+      loiAi: doc.loiAi ? doc.loiAi.slice(0, 500) : null,
       uploadedById: actor.id,
       dong: {
         create: dong.map((d, i) => ({
@@ -294,11 +297,13 @@ export async function docLaiPhieuGiaoBangAi(phieuId: number): Promise<KetQuaDocL
   const tenPhieu = phieu.soPhieu ?? phieu.fileName;
   const ai = await docPhieuGiaoBangAi(buffer, cauHinh, { fileName: phieu.fileName });
   if (!ai.ok) {
+    console.error(`[phieu-giao] Bộ đọc AI (${cauHinh.nhaCungCap} · ${cauHinh.model}) lỗi khi đọc lại phiếu #${phieu.id}: ${ai.loi}`);
+    await prisma.phieuGiaoNhan.update({ where: { id: phieu.id }, data: { loiAi: ai.loi.slice(0, 500) } });
     await ghiNhatKyNguoiDung(actor, {
       action: "phieu-giao-ai-loi",
       path: `/materials/phieu-giao/${phieu.id}`,
       vesselId: phieu.vesselId,
-      detail: `AI đọc lại phiếu ${tenPhieu} lỗi: ${ai.loi.slice(0, 200)}`,
+      detail: `AI (${cauHinh.nhaCungCap} · ${cauHinh.model}) đọc lại phiếu ${tenPhieu} lỗi: ${ai.loi.slice(0, 200)}`,
     });
     return { message: t("phieuGiao.aiLoi", { loi: ai.loi }) };
   }
@@ -315,6 +320,7 @@ export async function docLaiPhieuGiaoBangAi(phieuId: number): Promise<KetQuaDocL
       where: { id: phieu.id },
       data: {
         nguonChu: "AI",
+        loiAi: null,
         chuDoc: ai.chuTomTat.slice(0, 60000),
         nhaCungCap: thongTin.nhaCungCap.slice(0, 200) || null,
         soPhieu: thongTin.soPhieu.slice(0, 80) || null,

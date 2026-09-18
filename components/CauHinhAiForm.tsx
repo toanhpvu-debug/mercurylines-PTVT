@@ -2,8 +2,8 @@
 
 import { startTransition, useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, PlugZap, Save, Trash2 } from "lucide-react";
-import { kiemTraKetNoiAiAction, luuCauHinhAiAction, xoaCauHinhAiAction } from "@/app/cau-hinh-ai-actions";
+import { FileSearch, KeyRound, PlugZap, Save, Trash2 } from "lucide-react";
+import { kiemTraKetNoiAiAction, luuCauHinhAiAction, thuDocThatAction, xoaCauHinhAiAction } from "@/app/cau-hinh-ai-actions";
 import type { NhaCungCapAi } from "@/lib/docPhieuBangAi";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Button, Field, Input, Notice, Select } from "@/components/ui";
@@ -38,10 +38,11 @@ export default function CauHinhAiForm({
   const [model, setModel] = useState(trangThai.nguon === "db" ? (trangThai.model ?? "") : "");
   const [luu, luuAction, dangLuu] = useActionState(luuCauHinhAiAction, { message: "" });
   const [kiem, kiemAction, dangKiem] = useActionState(kiemTraKetNoiAiAction, { message: "" });
+  const [thu, thuAction, dangThu] = useActionState(thuDocThatAction, { message: "" });
   const [xoaPending, startXoa] = useTransition();
   const [thongBaoXoa, setThongBaoXoa] = useState<string | null>(null);
   const daCoKhoa = trangThai.nguon === "db" && !trangThai.loiGiaiMa && trangThai.nhaCungCap === nhaCungCap;
-  const pending = dangLuu || dangKiem || xoaPending;
+  const pending = dangLuu || dangKiem || dangThu || xoaPending;
 
   const goiForm = () => {
     const fd = new FormData();
@@ -57,6 +58,10 @@ export default function CauHinhAiForm({
   const guiKiem = () =>
     startTransition(() => {
       kiemAction(goiForm());
+    });
+  const guiThu = () =>
+    startTransition(() => {
+      thuAction(goiForm());
     });
   const xoa = () => {
     if (!window.confirm(t("cauHinhAi.xacNhanXoa"))) return;
@@ -141,11 +146,19 @@ export default function CauHinhAiForm({
         </Notice>
       )}
       {luu.message && <Notice tone={luu.success ? "success" : "danger"}>{luu.message}</Notice>}
+      {dangThu ? (
+        <Notice tone="info">{t("cauHinhAi.dangThuDoc")}</Notice>
+      ) : thu.message ? (
+        <Notice tone={thu.success ? "success" : "danger"}>{thu.message}</Notice>
+      ) : null}
       {thongBaoXoa && <Notice tone="info">{thongBaoXoa}</Notice>}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" onClick={guiKiem} loading={dangKiem} disabled={pending} icon={<PlugZap className="size-4" />}>
           {dangKiem ? t("cauHinhAi.dangKiemTra") : t("cauHinhAi.nutKiemTra")}
+        </Button>
+        <Button type="button" onClick={guiThu} loading={dangThu} disabled={pending} icon={<FileSearch className="size-4" />} title={t("cauHinhAi.thuDocMoTa")}>
+          {t("cauHinhAi.nutThuDoc")}
         </Button>
         <Button type="submit" variant="primary" loading={dangLuu} disabled={pending} icon={<Save className="size-4" />}>
           {t("cauHinhAi.nutLuu")}
@@ -157,6 +170,7 @@ export default function CauHinhAiForm({
         ) : null}
         <span className="text-xs text-[var(--text-muted)]">{tTuDo(`cauHinhAi.ncc_${nhaCungCap}`)}</span>
       </div>
+      <p className="text-xs text-[var(--text-muted)]">{t("cauHinhAi.thuDocMoTa")}</p>
     </form>
   );
 }

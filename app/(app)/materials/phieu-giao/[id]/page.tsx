@@ -64,9 +64,15 @@ export default async function PhieuGiaoChiTietPage({
   if (sp.doc !== undefined) {
     const n = Number(sp.doc) || 0;
     if (n > 0) thongBaoDoc = { tone: "success", text: t("phieuGiao.daDocN", { n }) };
-    else if (sp.ai === "loi") thongBaoDoc = { tone: "warning", text: t("phieuGiao.aiLoiLucTai") };
+    else if (phieu.loiAi || sp.ai === "loi") thongBaoDoc = null; // báo bằng lỗi nguyên văn bên dưới
     else if (sp.nguon === "TAY" && !phieu.chuDoc) thongBaoDoc = { tone: "warning", text: t("phieuGiao.ocrChiWindows") };
     else thongBaoDoc = { tone: "warning", text: t("phieuGiao.docKhongRaDong") };
+  }
+  // Lỗi NGUYÊN VĂN của nhà cung cấp AI ở lần đọc gần nhất — hiện ở mọi lần mở
+  // trang khi phiếu còn chờ duyệt, để người dùng biết phải sửa gì (khóa, mô
+  // hình, hạn mức) thay vì câu chung chung.
+  if (!thongBaoDoc && phieu.loiAi && phieu.nguonChu !== "AI" && phieu.status === "CHO_DUYET") {
+    thongBaoDoc = { tone: "warning", text: `${t("phieuGiao.aiLoi", { loi: phieu.loiAi })} ${t("phieuGiao.aiLoiGoiY")}` };
   }
   const aiBat = await aiDaCauHinh();
 

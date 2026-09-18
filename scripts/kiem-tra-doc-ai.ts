@@ -68,11 +68,13 @@ kiemTra(
   { type: "OBJECT", required: ["a"], properties: { a: { type: "INTEGER" }, b: { type: "ARRAY", items: { type: "NUMBER" } } } }
 );
 const sg = schemaGemini(CONG_CU_GHI_PHIEU.input_schema) as { properties: { dong: { items: { properties: { loai: unknown; partNo: unknown } } } } };
-kiemTra("schema enum giu", sg.properties.dong.items.properties.loai, {
+kiemTra("schema enum giu + format enum", sg.properties.dong.items.properties.loai, {
   type: "STRING",
   description: "STORE = vật tư tiêu hao / ship stores (hàng theo IMPA, boong, buồng, bếp, dụng cụ). SPARE = phụ tùng máy móc, thiết bị.",
   enum: ["STORE", "SPARE"],
+  format: "enum",
 });
+const NHANH = { choThuLaiMs: [10, 10] };
 
 const pdf = Buffer.from("%PDF-1.4 gia");
 const traVe = (status: number, body: unknown) =>
@@ -185,6 +187,52 @@ async function main() {
     },
   });
   kiemTra("gemini pdf qua lon -> ok:false, khong goi", [gTo.ok, soLan], [false, 0]);
+  // Gemini từ chối khuôn responseSchema → gọi lại không khuôn, chỉ chế độ JSON.
+  soLan = 0;
+  let coKhuonLan2: boolean | null = null;
+  const gKhuon = await docPhieuGiaoBangAi(pdf, GEMINI, {
+    ...NHANH,
+    fetchFn: async (_url, init) => {
+      soLan++;
+      if (soLan === 1) {
+        return traVe(400, {
+          error: { code: 400, status: "INVALID_ARGUMENT", message: 'Invalid JSON payload received. Unknown name "nullable" at generation_config.response_schema' },
+        });
+      }
+      coKhuonLan2 = "responseSchema" in JSON.parse(String(init.body)).generationConfig;
+      return traVe(200, ketQuaGemini);
+    },
+  });
+  kiemTra("gemini khuon bi tu choi -> goi lai khong khuon", [gKhuon.ok, soLan, coKhuonLan2], [true, 2, false]);
+  // Hết hạn mức: thử 3 lần rồi mới báo, nguyên văn.
+  soLan = 0;
+  const hetHanMuc = await docPhieuGiaoBangAi(pdf, GEMINI, {
+    ...NHANH,
+    fetchFn: async () => {
+      soLan++;
+      return traVe(429, { error: { code: 429, status: "RESOURCE_EXHAUSTED", message: "Quota exceeded for quota metric" } });
+    },
+  });
+  kiemTra("429 thu 3 lan roi bao", [hetHanMuc.ok, soLan], [false, 3]);
+  if (!hetHanMuc.ok) kiemTra("429 thong bao", hetHanMuc.loi, "Gemini API 429 RESOURCE_EXHAUSTED: Quota exceeded for quota metric");
+  // Claude: mô hình đời cũ chỉ cho 8192 token ra → tự hạ.
+  soLan = 0;
+  let maxTokensLan2 = 0;
+  const cMax = await docPhieuGiaoBangAi(pdf, CLAUDE, {
+    ...NHANH,
+    fetchFn: async (_url, init) => {
+      soLan++;
+      const b = JSON.parse(String(init.body));
+      if (b.max_tokens > 8192) {
+        return traVe(400, {
+          error: { type: "invalid_request_error", message: "max_tokens: 32000 > 8192, which is the maximum allowed number of output tokens for this model" },
+        });
+      }
+      maxTokensLan2 = b.max_tokens;
+      return traVe(200, ketQuaClaude);
+    },
+  });
+  kiemTra("claude max_tokens qua cao -> ha xuong 8192", [cMax.ok, soLan, maxTokensLan2], [true, 2, 8192]);
 
   // 5) Claude lỗi xác thực: báo rõ mã + loại, không thử lại.
   soLan = 0;
@@ -201,6 +249,7 @@ async function main() {
   // Quá tải lần 1 rồi thành công lần 2.
   soLan = 0;
   const lai = await docPhieuGiaoBangAi(pdf, CLAUDE, {
+    ...NHANH,
     fetchFn: async () => {
       soLan++;
       return soLan === 1 ? traVe(529, { error: { type: "overloaded_error", message: "Overloaded" } }) : traVe(200, ketQuaClaude);
@@ -208,14 +257,17 @@ async function main() {
   });
   kiemTra("529 roi ok", [lai.ok, soLan], [true, 2]);
 
-  // Mạng đứt cả hai lần.
+  // Mạng đứt cả hai lần — thông báo mang cả nguyên nhân (mã lỗi DNS/TLS) của Node.
+  soLan = 0;
   const dut = await docPhieuGiaoBangAi(pdf, CLAUDE, {
+    ...NHANH,
     fetchFn: async () => {
-      throw new Error("ECONNRESET");
+      soLan++;
+      throw Object.assign(new Error("fetch failed"), { cause: { code: "ENOTFOUND", message: "getaddrinfo ENOTFOUND api.anthropic.com" } });
     },
   });
-  kiemTra("mang dut -> ok:false", dut.ok, false);
-  if (!dut.ok) kiemTra("mang dut thong bao", dut.loi.includes("ECONNRESET"), true);
+  kiemTra("mang dut -> ok:false, 2 lan", [dut.ok, soLan], [false, 2]);
+  if (!dut.ok) kiemTra("mang dut thong bao", dut.loi, "Không gọi được API (fetch failed: ENOTFOUND)");
 
   // Không có tool_use.
   const khong = await docPhieuGiaoBangAi(pdf, CLAUDE, {

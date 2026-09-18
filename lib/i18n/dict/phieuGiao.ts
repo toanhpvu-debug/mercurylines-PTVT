@@ -24,7 +24,9 @@ export const phieuGiao = tuDien(
     nguon_TAY: "Gõ tay",
     nguon_AI: "Bộ đọc AI (Claude)",
     aiBat:
-      "Bộ đọc AI đang bật: bản scan và ảnh chụp cũng được đọc thành dòng hàng ở mọi máy, kể cả máy chủ. Kết quả vẫn phải đối chiếu với bản scan trước khi duyệt.",
+      "Bộ đọc AI đang bật ({ncc} · {model}): bản scan và ảnh chụp cũng được đọc thành dòng hàng ở mọi máy, kể cả máy chủ. Kết quả vẫn phải đối chiếu với bản scan trước khi duyệt.",
+    aiLoiGoiY:
+      "Bấm \"Đọc lại bằng AI\" để thử lại. Lỗi về khóa, mô hình hay hạn mức thì sửa ở Quản trị → Bộ đọc AI (có nút \"Thử đọc thật\" để kiểm tra ngay).",
     aiChuaCauHinh:
       "Chưa cấu hình bộ đọc AI. Vào menu Quản trị → Bộ đọc AI để dán khóa API của Google AI Studio (Gemini) hoặc Claude; khi đó bản scan được đọc tự động ở mọi máy, kể cả máy chủ.",
     nutDocLaiAi: "Đọc lại bằng AI",
@@ -117,7 +119,9 @@ export const phieuGiao = tuDien(
     nguon_TAY: "Typed",
     nguon_AI: "AI reader (Claude)",
     aiBat:
-      "The AI reader is on: scans and photos are also read into item lines on any machine, including the server. Results must still be checked against the scan before approval.",
+      "The AI reader is on ({ncc} · {model}): scans and photos are also read into item lines on any machine, including the server. Results must still be checked against the scan before approval.",
+    aiLoiGoiY:
+      "Click \"Re-read with AI\" to retry. Key, model or quota errors are fixed under Administration → AI reader (its \"Real read test\" button checks right away).",
     aiChuaCauHinh:
       "The AI reader is not configured. Open Administration → AI reader and paste an API key from Google AI Studio (Gemini) or Claude; scans are then read automatically on any machine, including the server.",
     nutDocLaiAi: "Re-read with AI",

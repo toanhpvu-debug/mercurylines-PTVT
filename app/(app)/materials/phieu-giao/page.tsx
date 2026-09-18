@@ -3,7 +3,8 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser, vesselIdWhere, vesselScopeDayDu, vesselWhere } from "@/lib/auth";
 import { NGUOI_TAI_PHIEU_GIAO } from "@/lib/phieuGiao";
-import { aiDaCauHinh } from "@/lib/cauHinhAi";
+import { layCauHinhAi } from "@/lib/cauHinhAi";
+import { TEN_NHA_CUNG_CAP } from "@/lib/docPhieuBangAi";
 import PhieuGiaoUploadForm from "@/components/PhieuGiaoUploadForm";
 import { layT } from "@/lib/i18n/server";
 import { Badge, Card, CardHeader, Notice, PageHeader, Table, TableWrap, Td, Th, Tr } from "@/components/ui";
@@ -56,7 +57,8 @@ export default async function PhieuGiaoPage() {
     }),
   ]);
   const duocTai = NGUOI_TAI_PHIEU_GIAO.includes(user.role);
-  const aiBat = await aiDaCauHinh();
+  const cauHinhAi = await layCauHinhAi();
+  const aiBat = cauHinhAi !== null;
 
   return (
     <div className="space-y-5">
@@ -76,9 +78,9 @@ export default async function PhieuGiaoPage() {
           <CardHeader title={t("phieuGiao.theTaiLen")} />
           {/* Bộ đọc AI: bật thì ai cũng cần biết bản scan sẽ được đọc; chưa bật
               thì chỉ quản trị (người đặt được biến môi trường) cần thấy lời nhắc. */}
-          {aiBat ? (
+          {aiBat && cauHinhAi ? (
             <Notice tone="info" className="mb-4">
-              {t("phieuGiao.aiBat")}
+              {t("phieuGiao.aiBat", { ncc: TEN_NHA_CUNG_CAP[cauHinhAi.nhaCungCap], model: cauHinhAi.model })}
             </Notice>
           ) : user.role === "ADMIN" ? (
             <Notice tone="warning" className="mb-4">

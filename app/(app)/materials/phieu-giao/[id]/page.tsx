@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { canManageVesselCatalog, requireScopedUser, vesselScopeDayDu } from "@/lib/auth";
 import { trongPhamVi } from "@/lib/roles";
 import { NGUOI_TAI_PHIEU_GIAO, chuoiNgay } from "@/lib/phieuGiao";
+import { aiDaCauHinh } from "@/lib/docPhieuBangAi";
 import PhieuGiaoDuyet, { type DongHienThi } from "@/components/PhieuGiaoDuyet";
 import { layT } from "@/lib/i18n/server";
 import { Badge, Card, PageHeader } from "@/components/ui";
@@ -27,7 +28,7 @@ export default async function PhieuGiaoChiTietPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ doc?: string; nguon?: string }>;
+  searchParams: Promise<{ doc?: string; nguon?: string; ai?: string }>;
 }) {
   const user = await requireScopedUser();
   const { t, tTuDo } = await layT();
@@ -63,9 +64,11 @@ export default async function PhieuGiaoChiTietPage({
   if (sp.doc !== undefined) {
     const n = Number(sp.doc) || 0;
     if (n > 0) thongBaoDoc = { tone: "success", text: t("phieuGiao.daDocN", { n }) };
+    else if (sp.ai === "loi") thongBaoDoc = { tone: "warning", text: t("phieuGiao.aiLoiLucTai") };
     else if (sp.nguon === "TAY" && !phieu.chuDoc) thongBaoDoc = { tone: "warning", text: t("phieuGiao.ocrChiWindows") };
     else thongBaoDoc = { tone: "warning", text: t("phieuGiao.docKhongRaDong") };
   }
+  const aiBat = aiDaCauHinh();
 
   const dong: DongHienThi[] = phieu.dong.map((d) => ({
     id: d.id,
@@ -128,6 +131,7 @@ export default async function PhieuGiaoChiTietPage({
           coQuyenDuyet={coQuyenDuyet}
           coQuyenSua={coQuyenSua}
           thongBaoDoc={thongBaoDoc}
+          aiBat={aiBat}
         />
       </Card>
     </div>

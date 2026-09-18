@@ -2,7 +2,7 @@
 
 import path from "path";
 import { createHash, randomUUID } from "crypto";
-import { unlink, writeFile } from "fs/promises";
+import { readFile, unlink, writeFile } from "fs/promises";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -27,6 +27,7 @@ import {
   type ThongTinPhieuNhap,
 } from "@/lib/phieuGiao";
 import type { ImportedItem } from "@/lib/materialImport";
+import type { DongPhieuGiao } from "@/lib/phieuGiaoParse";
 
 /*
  * PHIẾU GIAO HÀNG → HÀNG CHỜ DUYỆT → DANH MỤC + TỒN KHO.
@@ -79,6 +80,70 @@ async function khopMatHang(
   });
 }
 
+type KetQuaDocDong = {
+  chuDoc: string | null;
+  nguonChu: "AI" | "TEXT" | "OCR" | "TAY";
+  dong: DongPhieuGiao[];
+  nhaCungCap: string | null;
+  soPhieu: string | null;
+  ngayGiao: string | null;
+  /** AI đã cấu hình nhưng đọc hỏng (mạng, hạn mức...) — ghi nhật ký và báo người dùng. */
+  loiAi: string | null;
+};
+
+/**
+ * Lấy dòng hàng từ PDF theo thứ tự ưu tiên:
+ *   1. Bộ đọc AI (Claude) nếu đã cấu hình khóa — đọc cả bản scan, ở mọi máy.
+ *   2. Lớp chữ PDF (pdfjs) + bộ tách chuỗi — PDF số, không tốn phí.
+ *   3. OCR Windows (máy văn phòng) + bộ tách chuỗi — bản scan khi không có AI.
+ *   4. Không đọc được: phiếu vẫn lưu, người duyệt gõ tay.
+ */
+async function docDongTuPdf(buffer: Buffer, fullPath: string, fileName: string): Promise<KetQuaDocDong> {
+  let loiAi: string | null = null;
+  const { aiDaCauHinh, docPhieuGiaoBangAi } = await import("@/lib/docPhieuBangAi");
+  if (aiDaCauHinh()) {
+    const ai = await docPhieuGiaoBangAi(buffer, { fileName });
+    if (ai.ok) {
+      return {
+        chuDoc: ai.chuTomTat,
+        nguonChu: "AI",
+        dong: ai.dong,
+        nhaCungCap: ai.nhaCungCap,
+        soPhieu: ai.soPhieu,
+        ngayGiao: ai.ngayGiao,
+        loiAi: null,
+      };
+    }
+    loiAi = ai.loi;
+  }
+  let chuDoc: string | null = null;
+  let nguonChu: KetQuaDocDong["nguonChu"] = "TAY";
+  const { docChuTuPdf } = await import("@/lib/pdfChu");
+  const lopChu = await docChuTuPdf(buffer);
+  if (lopChu.ok) {
+    chuDoc = lopChu.text;
+    nguonChu = "TEXT";
+  } else if (process.platform === "win32") {
+    const { docPdfBangOcr } = await import("@/lib/pdfOcr");
+    const ocr = await docPdfBangOcr(fullPath, 4);
+    if (ocr.ok && ocr.text.trim().length >= 10) {
+      chuDoc = ocr.text;
+      nguonChu = "OCR";
+    }
+  }
+  const { docPhieuGiaoTuChu } = await import("@/lib/phieuGiaoParse");
+  const doc = chuDoc ? docPhieuGiaoTuChu(chuDoc) : null;
+  return {
+    chuDoc,
+    nguonChu,
+    dong: doc?.dong ?? [],
+    nhaCungCap: doc?.nhaCungCap ?? null,
+    soPhieu: doc?.soPhieu ?? null,
+    ngayGiao: doc?.ngayGiao ?? null,
+    loiAi,
+  };
+}
+
 // ─── 1. Tải phiếu lên + đọc dòng hàng ────────────────────────────────────────
 
 export async function taoPhieuGiaoTuPdf(
@@ -108,33 +173,15 @@ export async function taoPhieuGiaoTuPdf(
   const fullPath = path.join(dir, storedName);
   await writeFile(fullPath, buffer);
 
-  // Đọc chữ: lớp chữ PDF trước (chạy mọi nơi); bản scan thì thử OCR — chỉ có
-  // trên Windows (máy văn phòng). Không đọc được thì vẫn lưu phiếu, người duyệt
-  // gõ tay: bản scan đã ở trong hệ thống là được việc chính.
-  let chuDoc: string | null = null;
-  let nguonChu: "TEXT" | "OCR" | "TAY" = "TAY";
-  const { docChuTuPdf } = await import("@/lib/pdfChu");
-  const lopChu = await docChuTuPdf(buffer);
-  if (lopChu.ok) {
-    chuDoc = lopChu.text;
-    nguonChu = "TEXT";
-  } else if (process.platform === "win32") {
-    const { docPdfBangOcr } = await import("@/lib/pdfOcr");
-    const ocr = await docPdfBangOcr(fullPath, 4);
-    if (ocr.ok && ocr.text.trim().length >= 10) {
-      chuDoc = ocr.text;
-      nguonChu = "OCR";
-    }
-  }
-
-  const { docPhieuGiaoTuChu } = await import("@/lib/phieuGiaoParse");
-  const doc = chuDoc ? docPhieuGiaoTuChu(chuDoc) : null;
-  const dong = doc?.dong ?? [];
+  // Không đọc được thì vẫn lưu phiếu, người duyệt gõ tay: bản scan đã ở trong
+  // hệ thống là được việc chính.
+  const doc = await docDongTuPdf(buffer, fullPath, file.name);
+  const { chuDoc, nguonChu, dong } = doc;
   const khop = dong.length ? await khopMatHang(vesselId, dong) : [];
 
-  const nhaCungCap = String(formData.get("nhaCungCap") || "").trim() || doc?.nhaCungCap || null;
-  const soPhieu = String(formData.get("soPhieu") || "").trim() || doc?.soPhieu || null;
-  const ngayGiao = ngayTuChuoi(String(formData.get("ngayGiao") || "")) ?? ngayTuChuoi(doc?.ngayGiao);
+  const nhaCungCap = String(formData.get("nhaCungCap") || "").trim() || doc.nhaCungCap || null;
+  const soPhieu = String(formData.get("soPhieu") || "").trim() || doc.soPhieu || null;
+  const ngayGiao = ngayTuChuoi(String(formData.get("ngayGiao") || "")) ?? ngayTuChuoi(doc.ngayGiao);
   const ghiChu = String(formData.get("ghiChu") || "").trim() || null;
 
   const phieu = await prisma.phieuGiaoNhan.create({
@@ -174,10 +221,12 @@ export async function taoPhieuGiaoTuPdf(
     action: "phieu-giao-tai-len",
     path: `/materials/phieu-giao/${phieu.id}`,
     vesselId,
-    detail: `Tải phiếu giao ${soPhieu ?? file.name} (${vessel.code}) — ${dong.length} dòng, nguồn ${nguonChu}`,
+    detail: `Tải phiếu giao ${soPhieu ?? file.name} (${vessel.code}) — ${dong.length} dòng, nguồn ${nguonChu}${
+      doc.loiAi ? ` — AI lỗi: ${doc.loiAi.slice(0, 160)}` : ""
+    }`,
   });
   revalidatePath("/materials/phieu-giao");
-  redirect(`/materials/phieu-giao/${phieu.id}?doc=${dong.length}&nguon=${nguonChu}`);
+  redirect(`/materials/phieu-giao/${phieu.id}?doc=${dong.length}&nguon=${nguonChu}${doc.loiAi ? "&ai=loi" : ""}`);
 }
 
 // ─── 2. Sửa dòng (hàng chờ) ──────────────────────────────────────────────────
@@ -194,12 +243,131 @@ async function timPhieuChoDuyet(id: number) {
       status: true,
       uploadedById: true,
       fileName: true,
+      storedName: true,
       soPhieu: true,
       nhaCungCap: true,
       ngayGiao: true,
+      ghiChu: true,
       vessel: { select: { code: true } },
     },
   });
+}
+
+// ─── 2b. Đọc lại bằng AI (phiếu đã tải, còn chờ duyệt) ───────────────────────
+
+export type KetQuaDocLai = KetQuaPhieuGiao & {
+  dong?: (DongNhap & { materialLabel: string | null })[];
+  thongTin?: ThongTinPhieuNhap;
+};
+
+/**
+ * Cho phiếu đã tải lên mà máy chưa đọc được (bản scan ở máy chủ trước khi bật
+ * AI) hoặc đọc kém: gửi lại bản scan cho AI, THAY toàn bộ dòng hiện có. Trả về
+ * dòng mới để giao diện cập nhật ngay, không phải tải lại trang.
+ */
+export async function docLaiPhieuGiaoBangAi(phieuId: number): Promise<KetQuaDocLai> {
+  const { t, tTuDo } = await layT();
+  const actor = await requireActiveRole([...NGUOI_TAI_PHIEU_GIAO]);
+  if (!actor) return { message: t("chung.khongCoQuyen") };
+  const phieu = await timPhieuChoDuyet(Number(phieuId));
+  if (!phieu || !trongPhamVi(vesselScopeDayDu(actor), phieu.vesselId)) {
+    return { message: t("chung.khongCoQuyen") };
+  }
+  if (phieu.status !== "CHO_DUYET") {
+    return { message: t("phieuGiao.phieuDaXuLy", { trangThai: tTuDo(`phieuGiao.trangThai_${phieu.status}`) }) };
+  }
+  if (phieu.uploadedById !== actor.id && !canManageVesselCatalog(actor, phieu.vesselId)) {
+    return { message: t("chung.khongCoQuyen") };
+  }
+  const { aiDaCauHinh, docPhieuGiaoBangAi } = await import("@/lib/docPhieuBangAi");
+  if (!aiDaCauHinh()) return { message: t("phieuGiao.aiChuaCauHinh") };
+  let buffer: Buffer;
+  try {
+    buffer = await readFile(path.join(getUploadDir(), path.basename(phieu.storedName)));
+  } catch {
+    return { message: t("phieuGiao.tepKhongCon") };
+  }
+  const tenPhieu = phieu.soPhieu ?? phieu.fileName;
+  const ai = await docPhieuGiaoBangAi(buffer, { fileName: phieu.fileName });
+  if (!ai.ok) {
+    await ghiNhatKyNguoiDung(actor, {
+      action: "phieu-giao-ai-loi",
+      path: `/materials/phieu-giao/${phieu.id}`,
+      vesselId: phieu.vesselId,
+      detail: `AI đọc lại phiếu ${tenPhieu} lỗi: ${ai.loi.slice(0, 200)}`,
+    });
+    return { message: t("phieuGiao.aiLoi", { loi: ai.loi }) };
+  }
+  const khop = ai.dong.length ? await khopMatHang(phieu.vesselId, ai.dong) : [];
+  // Đầu phiếu: giữ cái người dùng đã gõ, chỉ điền chỗ trống bằng kết quả AI.
+  const thongTin: ThongTinPhieuNhap = {
+    nhaCungCap: phieu.nhaCungCap ?? ai.nhaCungCap ?? "",
+    soPhieu: phieu.soPhieu ?? ai.soPhieu ?? "",
+    ngayGiao: chuoiNgay(phieu.ngayGiao ?? ngayTuChuoi(ai.ngayGiao)),
+    ghiChu: phieu.ghiChu ?? "",
+  };
+  await prisma.$transaction(async (tx) => {
+    await tx.phieuGiaoNhan.update({
+      where: { id: phieu.id },
+      data: {
+        nguonChu: "AI",
+        chuDoc: ai.chuTomTat.slice(0, 60000),
+        nhaCungCap: thongTin.nhaCungCap.slice(0, 200) || null,
+        soPhieu: thongTin.soPhieu.slice(0, 80) || null,
+        ngayGiao: ngayTuChuoi(thongTin.ngayGiao),
+      },
+    });
+    await tx.phieuGiaoNhanDong.deleteMany({ where: { phieuId: phieu.id } });
+    if (ai.dong.length) {
+      await tx.phieuGiaoNhanDong.createMany({
+        data: ai.dong.map((d, i) => ({
+          phieuId: phieu.id,
+          thuTu: i + 1,
+          chuGoc: d.chuGoc.slice(0, 500),
+          ten: d.ten.slice(0, 200),
+          partNo: d.partNo,
+          impa: d.impa,
+          soLuong: d.soLuong,
+          donVi: d.donVi.slice(0, 20),
+          loai: d.loai,
+          thietBi: d.thietBi?.slice(0, 120) ?? null,
+          materialId: khop[i] ?? null,
+        })),
+      });
+    }
+  });
+  const dongDb = await prisma.phieuGiaoNhanDong.findMany({
+    where: { phieuId: phieu.id },
+    orderBy: { thuTu: "asc" },
+    include: { material: { select: { code: true, nameVn: true } } },
+  });
+  await ghiNhatKyNguoiDung(actor, {
+    action: "phieu-giao-doc-lai-ai",
+    path: `/materials/phieu-giao/${phieu.id}`,
+    vesselId: phieu.vesselId,
+    detail: `AI (${ai.model}) đọc lại phiếu ${tenPhieu}: ${ai.dong.length} dòng, token ${ai.tokenVao}/${ai.tokenRa}`,
+  });
+  revalidatePath("/materials/phieu-giao");
+  revalidatePath(`/materials/phieu-giao/${phieu.id}`);
+  return {
+    message: t("phieuGiao.daDocLaiAi", { n: ai.dong.length }),
+    success: true,
+    thongTin,
+    dong: dongDb.map((d) => ({
+      id: d.id,
+      chon: d.chon,
+      ten: d.ten,
+      partNo: d.partNo ?? "",
+      impa: d.impa ?? "",
+      soLuong: d.soLuong,
+      donVi: d.donVi,
+      loai: d.loai === "STORE" ? "STORE" : "SPARE",
+      thietBi: d.thietBi ?? "",
+      materialId: d.materialId,
+      chuGoc: d.chuGoc,
+      materialLabel: d.material ? `${d.material.code} — ${d.material.nameVn}` : null,
+    })),
+  };
 }
 
 async function ghiDong(

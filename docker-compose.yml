@@ -35,6 +35,9 @@ services:
     environment:
       DATABASE_URL: "postgresql://mercury:${POSTGRES_PASSWORD:?Đặt POSTGRES_PASSWORD trong .env}@db:5432/mercury?schema=public"
       SEED_PASSWORD: "${SEED_PASSWORD:?Đặt SEED_PASSWORD trong .env}"
+      # Bộ đọc AI cho phiếu giao hàng (tùy chọn) — để trống là tắt.
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      PHIEU_GIAO_AI_MODEL: "${PHIEU_GIAO_AI_MODEL:-}"
       # SESSION_SECRET tự sinh và lưu trong volume nếu không đặt ở đây.
       # Truy cập qua HTTP thuần (không HTTPS): bỏ comment dòng dưới để cookie hoạt động.
       # COOKIE_SECURE: "false"

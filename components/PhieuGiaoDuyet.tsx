@@ -2,8 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, ExternalLink, Plus, Save, Trash2, XCircle } from "lucide-react";
-import { duyetPhieuGiao, luuDongPhieuGiao, tuChoiPhieuGiao, xoaPhieuGiao } from "@/app/phieu-giao-actions";
+import { CheckCircle2, ExternalLink, Plus, Save, Sparkles, Trash2, XCircle } from "lucide-react";
+import {
+  docLaiPhieuGiaoBangAi,
+  duyetPhieuGiao,
+  luuDongPhieuGiao,
+  tuChoiPhieuGiao,
+  xoaPhieuGiao,
+} from "@/app/phieu-giao-actions";
 import type { DongNhap, ThongTinPhieuNhap } from "@/lib/phieuGiao";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Button, FIELD, Field, Input, Notice, Select, TableWrap, Textarea } from "@/components/ui";
@@ -37,6 +43,7 @@ export default function PhieuGiaoDuyet({
   coQuyenDuyet,
   coQuyenSua,
   thongBaoDoc,
+  aiBat,
 }: {
   phieu: PhieuHienThi;
   dongBanDau: DongHienThi[];
@@ -44,6 +51,8 @@ export default function PhieuGiaoDuyet({
   coQuyenDuyet: boolean;
   coQuyenSua: boolean;
   thongBaoDoc: { tone: "info" | "warning" | "success"; text: string } | null;
+  /** Máy chủ đã có khóa Claude API — hiện nút "Đọc lại bằng AI". */
+  aiBat: boolean;
 }) {
   const { t, tTuDo } = useNgonNgu();
   const router = useRouter();
@@ -56,7 +65,7 @@ export default function PhieuGiaoDuyet({
     ghiChu: phieu.ghiChu,
   });
   const [warehouseId, setWarehouseId] = useState<string>(warehouses.length === 1 ? String(warehouses[0].id) : "");
-  const [thongBao, setThongBao] = useState<{ tone: "success" | "danger"; text: string } | null>(null);
+  const [thongBao, setThongBao] = useState<{ tone: "success" | "danger" | "info"; text: string } | null>(null);
   const daXuLy = phieu.status !== "CHO_DUYET";
   const khoaSua = daXuLy || !coQuyenSua || pending;
   const tenPhieu = phieu.soPhieu || phieu.fileName;
@@ -124,6 +133,24 @@ export default function PhieuGiaoDuyet({
   const xoaPhieu = () => {
     if (!window.confirm(t("phieuGiao.xacNhanXoaPhieu", { phieu: tenPhieu }))) return;
     chay(() => xoaPhieuGiao(phieu.id));
+  };
+  const docLaiAi = () => {
+    if (!window.confirm(t("phieuGiao.xacNhanDocLaiAi", { phieu: tenPhieu }))) return;
+    startTransition(async () => {
+      // AI đọc bản scan nhiều trang mất tới cả phút — báo để người dùng không bấm lại.
+      setThongBao({ tone: "info", text: t("phieuGiao.aiDangDoc") });
+      try {
+        const r = await docLaiPhieuGiaoBangAi(phieu.id);
+        setThongBao({ tone: r.success ? "success" : "danger", text: r.message });
+        if (r.success && r.dong) {
+          setDong(r.dong);
+          if (r.thongTin) setThongTin(r.thongTin);
+          router.refresh();
+        }
+      } catch (e) {
+        setThongBao({ tone: "danger", text: String((e as Error)?.message ?? e) });
+      }
+    });
   };
 
   const oNho = `${FIELD} px-2 py-1 text-sm`;
@@ -256,6 +283,11 @@ export default function PhieuGiaoDuyet({
               <Button type="button" onClick={luu} loading={pending} icon={<Save className="size-4" />}>
                 {t("phieuGiao.nutLuuDong")}
               </Button>
+              {aiBat && (
+                <Button type="button" onClick={docLaiAi} loading={pending} icon={<Sparkles className="size-4" />}>
+                  {t("phieuGiao.nutDocLaiAi")}
+                </Button>
+              )}
               <Button type="button" onClick={xoaPhieu} disabled={pending} variant="ghost" icon={<Trash2 className="size-4" />}>
                 {t("phieuGiao.nutXoaPhieu")}
               </Button>

@@ -3,9 +3,10 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser, vesselIdWhere, vesselScopeDayDu, vesselWhere } from "@/lib/auth";
 import { NGUOI_TAI_PHIEU_GIAO } from "@/lib/phieuGiao";
+import { aiDaCauHinh } from "@/lib/docPhieuBangAi";
 import PhieuGiaoUploadForm from "@/components/PhieuGiaoUploadForm";
 import { layT } from "@/lib/i18n/server";
-import { Badge, Card, CardHeader, PageHeader, Table, TableWrap, Td, Th, Tr } from "@/components/ui";
+import { Badge, Card, CardHeader, Notice, PageHeader, Table, TableWrap, Td, Th, Tr } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,7 @@ export default async function PhieuGiaoPage() {
     }),
   ]);
   const duocTai = NGUOI_TAI_PHIEU_GIAO.includes(user.role);
+  const aiBat = aiDaCauHinh();
 
   return (
     <div className="space-y-5">
@@ -72,6 +74,17 @@ export default async function PhieuGiaoPage() {
       {duocTai && (
         <Card>
           <CardHeader title={t("phieuGiao.theTaiLen")} />
+          {/* Bộ đọc AI: bật thì ai cũng cần biết bản scan sẽ được đọc; chưa bật
+              thì chỉ quản trị (người đặt được biến môi trường) cần thấy lời nhắc. */}
+          {aiBat ? (
+            <Notice tone="info" className="mb-4">
+              {t("phieuGiao.aiBat")}
+            </Notice>
+          ) : user.role === "ADMIN" ? (
+            <Notice tone="warning" className="mb-4">
+              {t("phieuGiao.aiChuaCauHinh")}
+            </Notice>
+          ) : null}
           <PhieuGiaoUploadForm vessels={vessels.map((v) => ({ id: v.id, label: `${v.code} — ${v.name}` }))} />
         </Card>
       )}

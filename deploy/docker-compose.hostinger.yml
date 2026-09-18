@@ -53,6 +53,9 @@ services:
       # Khóa ký cookie phiên. Bỏ trống thì entrypoint tự sinh và lưu vào volume.
       # Đặt tay nếu muốn giữ nguyên phiên đăng nhập khi đổi sang volume khác.
       SESSION_SECRET: "${SESSION_SECRET:-}"
+      # Bộ đọc AI cho phiếu giao hàng (tùy chọn) — để trống là tắt.
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      PHIEU_GIAO_AI_MODEL: "${PHIEU_GIAO_AI_MODEL:-}"
 
       # Mật khẩu 3 tài khoản mẫu tạo ra ở lần seed đầu tiên. ĐỔI NGAY sau khi đăng nhập.
       SEED_PASSWORD: "${SEED_PASSWORD:?Thiếu SEED_PASSWORD trong deploy/.env}"

@@ -22,6 +22,20 @@ export const phieuGiao = tuDien(
     nguon_TEXT: "Lớp chữ PDF",
     nguon_OCR: "Nhận dạng chữ (OCR)",
     nguon_TAY: "Gõ tay",
+    nguon_AI: "Bộ đọc AI (Claude)",
+    aiBat:
+      "Bộ đọc AI đang bật: bản scan và ảnh chụp cũng được đọc thành dòng hàng ở mọi máy, kể cả máy chủ. Kết quả vẫn phải đối chiếu với bản scan trước khi duyệt.",
+    aiChuaCauHinh:
+      "Chưa cấu hình bộ đọc AI. Quản trị đặt biến môi trường ANTHROPIC_API_KEY (Dokploy → Environment, hoặc .env trên máy văn phòng) rồi khởi động lại app — xem README mục \"Bộ đọc AI cho phiếu giao\". Khi đó bản scan được đọc tự động ở mọi máy.",
+    nutDocLaiAi: "Đọc lại bằng AI",
+    xacNhanDocLaiAi:
+      "Gửi bản scan của phiếu {phieu} cho AI đọc lại? Toàn bộ dòng hiện có (kể cả chỗ sửa chưa lưu) sẽ được thay bằng kết quả mới.",
+    aiDangDoc: "Đang gửi bản scan cho AI đọc — nhiều trang có thể mất tới một phút, đừng bấm lại.",
+    daDocLaiAi: "AI đã đọc {n} dòng hàng. Đối chiếu với bản scan rồi lưu hoặc phê duyệt.",
+    aiLoi: "Bộ đọc AI gặp lỗi: {loi}",
+    aiLoiLucTai:
+      "Bộ đọc AI gặp lỗi lúc tải lên (mạng hoặc hạn mức). Bấm \"Đọc lại bằng AI\" để thử lại, hoặc gõ tay các dòng.",
+    tepKhongCon: "Không tìm thấy tệp bản scan của phiếu này trên máy chủ.",
 
     danhSachTieuDe: "Phiếu giao đã tải lên",
     chuaCoPhieu: "Chưa có phiếu giao nào.",
@@ -101,6 +115,20 @@ export const phieuGiao = tuDien(
     nguon_TEXT: "PDF text layer",
     nguon_OCR: "Text recognition (OCR)",
     nguon_TAY: "Typed",
+    nguon_AI: "AI reader (Claude)",
+    aiBat:
+      "The AI reader is on: scans and photos are also read into item lines on any machine, including the server. Results must still be checked against the scan before approval.",
+    aiChuaCauHinh:
+      "The AI reader is not configured. An administrator sets the ANTHROPIC_API_KEY environment variable (Dokploy → Environment, or .env on the office PC) and restarts the app — see README, \"AI reader for delivery notes\". Scans are then read automatically on any machine.",
+    nutDocLaiAi: "Re-read with AI",
+    xacNhanDocLaiAi:
+      "Send the scan of note {phieu} to the AI again? All current lines (including unsaved edits) will be replaced by the new result.",
+    aiDangDoc: "Sending the scan to the AI — several pages can take up to a minute, please don't click again.",
+    daDocLaiAi: "The AI read {n} item lines. Check them against the scan, then save or approve.",
+    aiLoi: "AI reader error: {loi}",
+    aiLoiLucTai:
+      "The AI reader failed during upload (network or quota). Click \"Re-read with AI\" to retry, or type the lines.",
+    tepKhongCon: "The scan file for this note was not found on the server.",
 
     danhSachTieuDe: "Uploaded delivery notes",
     chuaCoPhieu: "No delivery notes yet.",

@@ -74,7 +74,8 @@ const RE_DONG_TIEU_DE_BANG =
 const RE_SPARE_TU =
   /\b(ring|bearing|valve|gasket|seal|o-?ring|filter\s*element|piston|nozzle|injector|liner|sleeve|spring|shaft|gear|impeller|bush|plate|cover|kit|element|cartridge|belt|hose\s*assy|sensor|switch|relay|contactor|fuse|lamp|bulb|thermostat|bạc|bac|van|gioăng|gioang|phớt|phot|xéc\s*măng|xec\s*mang|vòi\s*phun|voi\s*phun|ống\s*lót|lò\s*xo|lo\s*xo|trục|truc|bánh\s*răng|banh\s*rang|cánh\s*bơm|cảm\s*biến|cam\s*bien|rơ\s*le|ro\s*le|cầu\s*chì|cau\s*chi)\b/i;
 
-function chuanDonVi(dv: string): string {
+/** Đưa đơn vị viết đủ kiểu (pcs, Pieces, cái, bộ...) về mã ngắn dùng trong danh mục. */
+export function chuanDonVi(dv: string): string {
   const s = dv.toLowerCase();
   const bang: Array<[RegExp, string]> = [
     [/^(pcs?|pieces?|pce|ea|each|nos?|units?|cái|cai|chiếc|chiec)$/, "PCS"],

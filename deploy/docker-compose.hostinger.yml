@@ -55,6 +55,7 @@ services:
       SESSION_SECRET: "${SESSION_SECRET:-}"
       # Bộ đọc AI cho phiếu giao hàng (tùy chọn) — để trống là tắt.
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      GOOGLE_AI_API_KEY: "${GOOGLE_AI_API_KEY:-}"
       PHIEU_GIAO_AI_MODEL: "${PHIEU_GIAO_AI_MODEL:-}"
 
       # Mật khẩu 3 tài khoản mẫu tạo ra ở lần seed đầu tiên. ĐỔI NGAY sau khi đăng nhập.

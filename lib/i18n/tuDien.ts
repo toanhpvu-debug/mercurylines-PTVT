@@ -13,6 +13,7 @@ import { paint } from "./dict/paint";
 import { purchasing } from "./dict/purchasing";
 import { qr } from "./dict/qr";
 import { phieuGiao } from "./dict/phieuGiao";
+import { cauHinhAi } from "./dict/cauHinhAi";
 import { requests } from "./dict/requests";
 import { vessels } from "./dict/vessels";
 
@@ -35,6 +36,7 @@ export const TU_DIEN = {
   purchasing,
   qr,
   phieuGiao,
+  cauHinhAi,
   paint,
   consumables,
   vessels,

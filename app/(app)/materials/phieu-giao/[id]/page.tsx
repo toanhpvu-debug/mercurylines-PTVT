@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { canManageVesselCatalog, requireScopedUser, vesselScopeDayDu } from "@/lib/auth";
 import { trongPhamVi } from "@/lib/roles";
 import { NGUOI_TAI_PHIEU_GIAO, chuoiNgay } from "@/lib/phieuGiao";
-import { aiDaCauHinh } from "@/lib/docPhieuBangAi";
+import { aiDaCauHinh } from "@/lib/cauHinhAi";
 import PhieuGiaoDuyet, { type DongHienThi } from "@/components/PhieuGiaoDuyet";
 import { layT } from "@/lib/i18n/server";
 import { Badge, Card, PageHeader } from "@/components/ui";
@@ -68,7 +68,7 @@ export default async function PhieuGiaoChiTietPage({
     else if (sp.nguon === "TAY" && !phieu.chuDoc) thongBaoDoc = { tone: "warning", text: t("phieuGiao.ocrChiWindows") };
     else thongBaoDoc = { tone: "warning", text: t("phieuGiao.docKhongRaDong") };
   }
-  const aiBat = aiDaCauHinh();
+  const aiBat = await aiDaCauHinh();
 
   const dong: DongHienThi[] = phieu.dong.map((d) => ({
     id: d.id,

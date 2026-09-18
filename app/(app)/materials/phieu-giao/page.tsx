@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser, vesselIdWhere, vesselScopeDayDu, vesselWhere } from "@/lib/auth";
 import { NGUOI_TAI_PHIEU_GIAO } from "@/lib/phieuGiao";
-import { aiDaCauHinh } from "@/lib/docPhieuBangAi";
+import { aiDaCauHinh } from "@/lib/cauHinhAi";
 import PhieuGiaoUploadForm from "@/components/PhieuGiaoUploadForm";
 import { layT } from "@/lib/i18n/server";
 import { Badge, Card, CardHeader, Notice, PageHeader, Table, TableWrap, Td, Th, Tr } from "@/components/ui";
@@ -56,7 +56,7 @@ export default async function PhieuGiaoPage() {
     }),
   ]);
   const duocTai = NGUOI_TAI_PHIEU_GIAO.includes(user.role);
-  const aiBat = aiDaCauHinh();
+  const aiBat = await aiDaCauHinh();
 
   return (
     <div className="space-y-5">
@@ -82,7 +82,10 @@ export default async function PhieuGiaoPage() {
             </Notice>
           ) : user.role === "ADMIN" ? (
             <Notice tone="warning" className="mb-4">
-              {t("phieuGiao.aiChuaCauHinh")}
+              {t("phieuGiao.aiChuaCauHinh")}{" "}
+              <Link href="/cai-dat/ai" className="font-medium underline">
+                {t("cauHinhAi.tieuDe")} →
+              </Link>
             </Notice>
           ) : null}
           <PhieuGiaoUploadForm vessels={vessels.map((v) => ({ id: v.id, label: `${v.code} — ${v.name}` }))} />

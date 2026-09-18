@@ -956,3 +956,18 @@ model PhieuGiaoNhanDong {
   @@index([phieuId])
   @@index([materialId])
 }
+
+/**
+ * Cấu hình hệ thống do quản trị đặt NGAY TRONG APP (khóa API bộ đọc AI, mô
+ * hình...). Giá trị đánh dấu biMat được mã hóa bằng khóa dẫn xuất từ
+ * SESSION_SECRET (lib/maHoaBiMat.ts) trước khi ghi — đổi SESSION_SECRET thì phải
+ * nhập lại. Không đồng bộ tàu ↔ bờ: bí mật của bản cài nào ở bản cài đó.
+ */
+model CauHinhHeThong {
+  khoa      String   @id
+  giaTri    String
+  biMat     Boolean  @default(false)
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

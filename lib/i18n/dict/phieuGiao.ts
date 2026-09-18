@@ -26,7 +26,7 @@ export const phieuGiao = tuDien(
     aiBat:
       "Bộ đọc AI đang bật: bản scan và ảnh chụp cũng được đọc thành dòng hàng ở mọi máy, kể cả máy chủ. Kết quả vẫn phải đối chiếu với bản scan trước khi duyệt.",
     aiChuaCauHinh:
-      "Chưa cấu hình bộ đọc AI. Quản trị đặt biến môi trường ANTHROPIC_API_KEY (Dokploy → Environment, hoặc .env trên máy văn phòng) rồi khởi động lại app — xem README mục \"Bộ đọc AI cho phiếu giao\". Khi đó bản scan được đọc tự động ở mọi máy.",
+      "Chưa cấu hình bộ đọc AI. Vào menu Quản trị → Bộ đọc AI để dán khóa API của Google AI Studio (Gemini) hoặc Claude; khi đó bản scan được đọc tự động ở mọi máy, kể cả máy chủ.",
     nutDocLaiAi: "Đọc lại bằng AI",
     xacNhanDocLaiAi:
       "Gửi bản scan của phiếu {phieu} cho AI đọc lại? Toàn bộ dòng hiện có (kể cả chỗ sửa chưa lưu) sẽ được thay bằng kết quả mới.",
@@ -119,7 +119,7 @@ export const phieuGiao = tuDien(
     aiBat:
       "The AI reader is on: scans and photos are also read into item lines on any machine, including the server. Results must still be checked against the scan before approval.",
     aiChuaCauHinh:
-      "The AI reader is not configured. An administrator sets the ANTHROPIC_API_KEY environment variable (Dokploy → Environment, or .env on the office PC) and restarts the app — see README, \"AI reader for delivery notes\". Scans are then read automatically on any machine.",
+      "The AI reader is not configured. Open Administration → AI reader and paste an API key from Google AI Studio (Gemini) or Claude; scans are then read automatically on any machine, including the server.",
     nutDocLaiAi: "Re-read with AI",
     xacNhanDocLaiAi:
       "Send the scan of note {phieu} to the AI again? All current lines (including unsaved edits) will be replaced by the new result.",

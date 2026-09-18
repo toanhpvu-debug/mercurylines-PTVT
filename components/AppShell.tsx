@@ -19,6 +19,7 @@ import {
   Paintbrush,
   Ship,
   ShoppingCart,
+  Sparkles,
   Users,
   Warehouse,
   X,
@@ -56,7 +57,8 @@ export type TenIcon =
   | "documents"
   | "users"
   | "audit"
-  | "qr";
+  | "qr"
+  | "ai";
 
 const ICON: Record<TenIcon, ReactNode> = {
   dashboard: <LayoutDashboard className="size-4" />,
@@ -73,6 +75,7 @@ const ICON: Record<TenIcon, ReactNode> = {
   users: <Users className="size-4" />,
   audit: <History className="size-4" />,
   qr: <QrCode className="size-4" />,
+  ai: <Sparkles className="size-4" />,
 };
 
 export type MucMenu = {

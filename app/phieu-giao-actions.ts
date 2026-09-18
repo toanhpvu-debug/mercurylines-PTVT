@@ -100,9 +100,11 @@ type KetQuaDocDong = {
  */
 async function docDongTuPdf(buffer: Buffer, fullPath: string, fileName: string): Promise<KetQuaDocDong> {
   let loiAi: string | null = null;
-  const { aiDaCauHinh, docPhieuGiaoBangAi } = await import("@/lib/docPhieuBangAi");
-  if (aiDaCauHinh()) {
-    const ai = await docPhieuGiaoBangAi(buffer, { fileName });
+  const { layCauHinhAi } = await import("@/lib/cauHinhAi");
+  const cauHinh = await layCauHinhAi();
+  if (cauHinh) {
+    const { docPhieuGiaoBangAi } = await import("@/lib/docPhieuBangAi");
+    const ai = await docPhieuGiaoBangAi(buffer, cauHinh, { fileName });
     if (ai.ok) {
       return {
         chuDoc: ai.chuTomTat,
@@ -279,8 +281,10 @@ export async function docLaiPhieuGiaoBangAi(phieuId: number): Promise<KetQuaDocL
   if (phieu.uploadedById !== actor.id && !canManageVesselCatalog(actor, phieu.vesselId)) {
     return { message: t("chung.khongCoQuyen") };
   }
-  const { aiDaCauHinh, docPhieuGiaoBangAi } = await import("@/lib/docPhieuBangAi");
-  if (!aiDaCauHinh()) return { message: t("phieuGiao.aiChuaCauHinh") };
+  const { layCauHinhAi } = await import("@/lib/cauHinhAi");
+  const cauHinh = await layCauHinhAi();
+  if (!cauHinh) return { message: t("phieuGiao.aiChuaCauHinh") };
+  const { docPhieuGiaoBangAi } = await import("@/lib/docPhieuBangAi");
   let buffer: Buffer;
   try {
     buffer = await readFile(path.join(getUploadDir(), path.basename(phieu.storedName)));
@@ -288,7 +292,7 @@ export async function docLaiPhieuGiaoBangAi(phieuId: number): Promise<KetQuaDocL
     return { message: t("phieuGiao.tepKhongCon") };
   }
   const tenPhieu = phieu.soPhieu ?? phieu.fileName;
-  const ai = await docPhieuGiaoBangAi(buffer, { fileName: phieu.fileName });
+  const ai = await docPhieuGiaoBangAi(buffer, cauHinh, { fileName: phieu.fileName });
   if (!ai.ok) {
     await ghiNhatKyNguoiDung(actor, {
       action: "phieu-giao-ai-loi",

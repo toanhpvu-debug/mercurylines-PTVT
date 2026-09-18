@@ -64,6 +64,7 @@ export default async function AppLayout({
             items: [
               { href: "/users", label: t("menu.nguoiDung"), icon: "users" as const },
               { href: "/audit", label: t("menu.nhatKy"), icon: "audit" as const },
+              { href: "/cai-dat/ai", label: t("menu.boDocAi"), icon: "ai" as const },
             ],
           },
         ]

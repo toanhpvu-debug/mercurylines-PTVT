@@ -371,8 +371,8 @@ App cần một PostgreSQL và một thư mục lưu file tải lên. Các lựa
 Biến môi trường: `DATABASE_URL` (chuỗi kết nối PostgreSQL), `SESSION_SECRET` (xem mục Đăng
 nhập & phân quyền), `UPLOAD_DIR` (thư mục lưu file báo cáo, mặc định Docker `/data/uploads`),
 `SEED_PASSWORD` (bắt buộc cho lần seed đầu), `POSTGRES_PASSWORD` khi dùng container `db`
-của `docker-compose`, và tùy chọn `ANTHROPIC_API_KEY` (bộ đọc AI cho phiếu giao hàng — xem
-mục *Bộ đọc AI cho phiếu giao*).
+của `docker-compose`, và tùy chọn `ANTHROPIC_API_KEY` / `GOOGLE_AI_API_KEY` (đường dự phòng
+cho bộ đọc AI phiếu giao hàng — khuyên nhập khóa trong app, xem mục *Bộ đọc AI cho phiếu giao*).
 
 ## Mã QR gắn từng mặt hàng — quét bằng camera điện thoại
 
@@ -1546,25 +1546,29 @@ tàu ↔ văn phòng (tệp PDF nằm trên đĩa của bản cài đã tải); 
 bình thường qua `Material` / `VesselMaterial` / `InventoryTransaction`.
 ### Bộ đọc AI cho phiếu giao (tùy chọn — khuyên dùng khi phiếu là bản scan)
 
-Đặt biến môi trường `ANTHROPIC_API_KEY` (khóa Claude API của công ty) thì mọi phiếu giao —
-kể cả bản scan nhiều trang, ngay trên máy chủ Linux — được gửi thẳng cho Claude đọc và trả
-về bảng dòng hàng có cấu trúc (`lib/docPhieuBangAi.ts`; ép trả JSON đúng khuôn bằng
-`tool_choice`, không bóc JSON từ văn xuôi). Thứ tự ưu tiên lúc tải lên: **AI → lớp chữ PDF
-→ OCR Windows → gõ tay**. Phiếu đã tải trước khi bật AI thì mở trang duyệt, bấm **Đọc lại
-bằng AI** — toàn bộ dòng hiện có được thay bằng kết quả mới. Kết quả vẫn phải đối chiếu với
-bản scan rồi mới duyệt: AI đọc tốt hơn OCR nhiều nhưng không phải 100 %.
+Quản trị vào **Quản trị → Bộ đọc AI** (`/cai-dat/ai`), chọn nhà cung cấp — **Gemini (Google
+AI Studio)** hoặc **Claude (Anthropic)** — dán khóa API, bấm *Kiểm tra kết nối* (xác nhận khóa
+và liệt kê mô hình dùng được), rồi *Lưu*. Từ đó mọi phiếu giao — kể cả bản scan nhiều trang,
+ngay trên máy chủ Linux — được gửi thẳng cho mô hình đọc và trả về bảng dòng hàng có cấu trúc
+(`lib/docPhieuBangAi.ts`: Claude ép JSON bằng `tool_choice`, Gemini bằng `responseSchema`).
+Thứ tự ưu tiên lúc tải lên: **AI → lớp chữ PDF → OCR Windows → gõ tay**. Phiếu đã tải trước
+khi bật AI thì mở trang duyệt, bấm **Đọc lại bằng AI**. Kết quả vẫn phải đối chiếu với bản
+scan rồi mới duyệt: AI đọc tốt hơn OCR nhiều nhưng không phải 100 %.
 
-- Mô hình mặc định `claude-sonnet-5`; đổi bằng `PHIEU_GIAO_AI_MODEL`.
+- Khóa được **mã hóa** (AES-256-GCM, khóa dẫn xuất từ `SESSION_SECRET`) rồi mới ghi vào bảng
+  `CauHinhHeThong` (`lib/maHoaBiMat.ts`, `lib/cauHinhAi.ts`); không ghi log, không trả về
+  trình duyệt (trang chỉ hiện 4 ký tự cuối), không đi qua gói đồng bộ tàu ↔ bờ. Đổi
+  `SESSION_SECRET` thì trang báo "không giải mã được" và bảo dán lại.
+- Đường dự phòng bằng biến môi trường: `ANTHROPIC_API_KEY` hoặc `GOOGLE_AI_API_KEY`
+  (`GEMINI_API_KEY` cũng nhận), mô hình `PHIEU_GIAO_AI_MODEL`. Khóa trong app được ưu tiên.
+- Mô hình mặc định: `gemini-2.5-pro` / `claude-sonnet-5`; ô mô hình có gợi ý từ *Kiểm tra kết
+  nối*, gõ tên khác nếu nhà cung cấp đổi tên.
 - Chi phí: một phiếu 3 trang tốn cỡ vài nghìn token vào, vài trăm token ra — tính bằng xu.
-- Bản scan được gửi tới API của Anthropic. Đừng bật nếu công ty không cho phép đưa chứng
-  từ ra dịch vụ ngoài.
-- Khóa chỉ nằm trong biến môi trường (Dokploy → *Environment* của app rồi *Redeploy*; máy
-  văn phòng → `.env`), không lưu database, không ghi log, không trả về trình duyệt. Trang
-  tải lên cho quản trị biết bộ đọc đang bật hay chưa.
-- Thử với PDF thật trước khi tin: `npx tsx scripts/thu-doc-ai.ts "phieu.pdf"` (gọi API
-  thật, in dòng hàng đọc được). Kiểm không cần mạng: `scripts/kiem-tra-doc-ai.ts` (fetch
-  giả — soi đúng nội dung gửi đi và cách xử lý lỗi 401 / quá tải / mất mạng).
-
+  Bản scan được gửi tới máy chủ của nhà cung cấp AI đã chọn — đừng bật nếu công ty không cho
+  phép đưa chứng từ ra dịch vụ ngoài.
+- Kiểm không cần mạng: `scripts/kiem-tra-doc-ai.ts` (fetch giả cho cả hai nhà cung cấp) và
+  `scripts/kiem-tra-cau-hinh-ai.ts` (mã hóa, đọc env). Thử với PDF thật ngoài app:
+  `npx tsx scripts/thu-doc-ai.ts "phieu.pdf"` (dùng khóa từ `.env`, in dòng hàng đọc được).
 ## Mua sắm (Purchasing) — quy trình khép kín
 
 Module mua sắm (`/purchasing`) dẫn vật tư từ khi yêu cầu được duyệt cho tới khi nhận hàng xong:

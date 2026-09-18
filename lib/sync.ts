@@ -148,6 +148,9 @@ export function khoangIdRieng(dauDai: number): { dau: number; cuoi: number } {
  *   tệp, nên bên nhận sẽ có phiếu mà không có bản scan để đối chiếu. Duyệt ở
  *   đúng bản cài đã tải; KẾT QUẢ duyệt (mặt hàng, dòng nhập kho) thì đồng bộ
  *   bình thường qua Material / VesselMaterial / InventoryTransaction.
+ * - CauHinhHeThong: khóa API bộ đọc AI (đã mã hóa bằng SESSION_SECRET của bản
+ *   cài) — bí mật không được rời khỏi bản cài qua gói đồng bộ, và bản cài khác
+ *   cũng không giải mã được vì khác SESSION_SECRET.
  */
 export const BANG_KHONG_DONG_BO = [
   "User",
@@ -160,6 +163,7 @@ export const BANG_KHONG_DONG_BO = [
   "BieuMauTep",
   "PhieuGiaoNhan",
   "PhieuGiaoNhanDong",
+  "CauHinhHeThong",
 ] as const;
 
 /** Tên bảng trong Prisma → tên bảng trong PostgreSQL. */

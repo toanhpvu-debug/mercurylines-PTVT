@@ -35,6 +35,7 @@ export default function MaterialRowActions({
   material,
   categories,
   onlyEdit = false,
+  xoaDuoc = true,
 }: {
   material: EditableMaterial;
   categories: CategoryOption[];
@@ -43,6 +44,8 @@ export default function MaterialRowActions({
    * trên bản ghi dùng chung toàn đội, làm từ danh mục gốc mới đúng ngữ cảnh.
    */
   onlyEdit?: boolean;
+  /** false trên bản cài TÀU: xóa khỏi danh mục dùng chung chỉ làm ở văn phòng (lib/banCai.ts). */
+  xoaDuoc?: boolean;
 }) {
   const { t } = useNgonNgu();
   const [editing, setEditing] = useState(false);
@@ -97,7 +100,7 @@ export default function MaterialRowActions({
           </Button>
         </form>
         )}
-        {!onlyEdit && (
+        {!onlyEdit && xoaDuoc && (
         <form
           action={deleteAction}
           onSubmit={(e) => {

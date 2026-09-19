@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckSquare, ClipboardList, Pencil, Trash2, X } from "lucide-react";
-import { suaVatTuHangLoat, xoaVatTuHangLoat, type PatchHangLoat } from "@/app/vat-tu-hang-loat-actions";
+import { CheckSquare, ClipboardList, Pencil, Trash2, Unlink, X } from "lucide-react";
+import { goVatTuKhoiTauHangLoat, suaVatTuHangLoat, xoaVatTuHangLoat, type PatchHangLoat } from "@/app/vat-tu-hang-loat-actions";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Button, Field, Input, Notice, Select } from "@/components/ui";
 import { Modal } from "@/components/ui-client";
@@ -32,9 +32,17 @@ function docO(el: HTMLInputElement): { id: number; chon: Chon } | null {
 export default function ChonHangLoat({
   quyen,
   categories,
+  vesselId,
 }: {
-  quyen: { yeuCau: boolean; sua: boolean };
+  /**
+   * yeuCau: lập được yêu cầu · sua: sửa hàng loạt bản ghi dùng chung (ADMIN) ·
+   * xoa: xóa khỏi danh mục dùng chung (ADMIN + bản văn phòng) ·
+   * goKhoiTau: gỡ khỏi danh mục tàu đang xem (người quản lý danh mục tàu).
+   */
+  quyen: { yeuCau: boolean; sua: boolean; xoa: boolean; goKhoiTau: boolean };
   categories: CategoryOption[];
+  /** Tàu đang xem (chế độ theo tàu) — cần cho "Gỡ khỏi tàu". */
+  vesselId: number | null;
 }) {
   const { t, tTuDo } = useNgonNgu();
   const router = useRouter();
@@ -131,6 +139,19 @@ export default function ChonHangLoat({
     });
   };
 
+  const goKhoiTau = () => {
+    if (!vesselId || !window.confirm(t("materials.xacNhanGoKhoiTauHangLoat", { n }))) return;
+    startTransition(async () => {
+      setThongBao(null);
+      const r = await goVatTuKhoiTauHangLoat(vesselId, ids);
+      setThongBao({ tone: r.success ? "success" : "danger", text: r.message });
+      if (r.success) {
+        boChon();
+        router.refresh();
+      }
+    });
+  };
+
   const sua = (patch: PatchHangLoat) => {
     startTransition(async () => {
       setThongBao(null);
@@ -172,14 +193,27 @@ export default function ChonHangLoat({
                   </Button>
                 ))}
               {quyen.sua && (
-                <>
-                  <Button type="button" size="sm" onClick={() => setMoSua(true)} disabled={pending} icon={<Pencil className="size-4" />}>
-                    {t("materials.nutSuaHangLoat")}
-                  </Button>
-                  <Button type="button" size="sm" variant="danger" onClick={xoa} loading={pending} icon={<Trash2 className="size-4" />}>
-                    {t("chung.xoa")}
-                  </Button>
-                </>
+                <Button type="button" size="sm" onClick={() => setMoSua(true)} disabled={pending} icon={<Pencil className="size-4" />}>
+                  {t("materials.nutSuaHangLoat")}
+                </Button>
+              )}
+              {quyen.goKhoiTau && vesselId && (
+                <Button type="button" size="sm" onClick={goKhoiTau} loading={pending} icon={<Unlink className="size-4" />}>
+                  {t("materials.nutGoKhoiTauHangLoat")}
+                </Button>
+              )}
+              {quyen.xoa && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="danger"
+                  onClick={xoa}
+                  loading={pending}
+                  icon={<Trash2 className="size-4" />}
+                  title={t("materials.xoaChiVanPhongGoiY")}
+                >
+                  {t("materials.nutXoaHangLoat")}
+                </Button>
               )}
               <Button type="button" size="sm" variant="ghost" onClick={boChon} icon={<X className="size-4" />}>
                 {t("materials.boChon")}

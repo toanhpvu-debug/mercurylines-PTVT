@@ -765,6 +765,11 @@ export async function deleteMaterial(
   if (!Number.isInteger(id) || id <= 0) {
     return { message: t("chung.duLieuKhongHopLe") };
   }
+  // Chỉ bản văn phòng mới xóa được khỏi danh mục dùng chung (xem lib/banCai.ts).
+  const { laBanTau } = await import("@/lib/banCai");
+  if (await laBanTau()) {
+    return { message: t("materials.xoaChiVanPhong") };
+  }
   const [requestItemCount, inventoryCount] = await Promise.all([
     prisma.materialRequestItem.count({ where: { materialId: id } }),
     prisma.inventory.count({ where: { materialId: id } }),

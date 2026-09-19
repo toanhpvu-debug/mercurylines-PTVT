@@ -3,8 +3,10 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireActiveRole } from "@/lib/auth";
+import { canManageVesselCatalog, requireActiveRole } from "@/lib/auth";
+import { VAN_HANH_TAU } from "@/lib/roles";
 import { ghiNhatKy } from "@/lib/audit";
+import { laBanTau } from "@/lib/banCai";
 import { layT } from "@/lib/i18n/server";
 
 /*
@@ -42,6 +44,9 @@ export async function xoaVatTuHangLoat(idsRaw: number[]): Promise<KetQuaXoaHangL
   const { t } = await layT();
   const admin = await requireActiveRole(["ADMIN"]);
   if (!admin) return { message: t("chung.khongCoQuyen"), daXoa: 0, boQua: [] };
+  // Chỉ quản trị TẠI VĂN PHÒNG: bản trên tàu không được xóa khỏi danh mục dùng
+  // chung (xem lib/banCai.ts) — cùng luật với nút Xóa từng dòng.
+  if (await laBanTau()) return { message: t("materials.xoaChiVanPhong"), daXoa: 0, boQua: [] };
   const ids = locIds(idsRaw);
   if (!ids.length) return { message: t("chung.duLieuKhongHopLe"), daXoa: 0, boQua: [] };
 
@@ -90,6 +95,34 @@ export async function xoaVatTuHangLoat(idsRaw: number[]): Promise<KetQuaXoaHangL
     (daXoa.length ? t("materials.hangLoat_daXoa", { n: daXoa.length }) : "") +
     (boQua.length ? ` ${t("materials.hangLoat_boQua", { n: boQua.length, ds: boQua.map((b) => `${b.ma} (${b.lyDo})`).join("; ").slice(0, 600) })}` : "");
   return { message: message.trim(), success: daXoa.length > 0, daXoa: daXoa.length, boQua };
+}
+
+export type KetQuaGoKhoiTau = { message: string; success?: boolean; daGo: number };
+
+/**
+ * Gỡ nhiều mặt hàng khỏi danh mục của MỘT tàu (không đụng bản ghi dùng chung) —
+ * cùng luật với unassignMaterialFromVessel: người quản lý danh mục tàu đó.
+ */
+export async function goVatTuKhoiTauHangLoat(vesselIdRaw: number, idsRaw: number[]): Promise<KetQuaGoKhoiTau> {
+  const { t } = await layT();
+  const actor = await requireActiveRole([...VAN_HANH_TAU]);
+  if (!actor) return { message: t("chung.khongCoQuyen"), daGo: 0 };
+  const vesselId = Number(vesselIdRaw);
+  const ids = locIds(idsRaw);
+  if (!Number.isInteger(vesselId) || vesselId <= 0 || !ids.length) return { message: t("chung.duLieuKhongHopLe"), daGo: 0 };
+  if (!canManageVesselCatalog(actor, vesselId)) return { message: t("chung.khongCoQuyen"), daGo: 0 };
+  const r = await prisma.vesselMaterial.deleteMany({ where: { vesselId, materialId: { in: ids } } });
+  await ghiNhatKy({
+    userId: actor.id,
+    email: actor.email,
+    role: actor.role,
+    vesselId,
+    action: "go-vat-tu-khoi-tau-hang-loat",
+    path: "/materials",
+    detail: `Gỡ ${r.count} vật tư khỏi tàu #${vesselId}: id ${ids.slice(0, 80).join(",")}${ids.length > 80 ? "…" : ""}`,
+  });
+  revalidatePath("/materials");
+  return { message: t("materials.hangLoat_daGo", { n: r.count }), success: true, daGo: r.count };
 }
 
 export type PatchHangLoat = {

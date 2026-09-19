@@ -3,6 +3,7 @@ import Form from "next/form";
 import Link from "next/link";
 import { NGUOI_TAI_PHIEU_GIAO } from "@/lib/phieuGiao";
 import { LAP_YEU_CAU } from "@/lib/roles";
+import { laBanTau } from "@/lib/banCai";
 import ChonHangLoat from "@/components/ChonHangLoat";
 import {
   Anchor,
@@ -107,6 +108,9 @@ export default async function MaterialsPage({
   const { t, tTuDo, tenChucDanh, tenBoPhan } = await layT();
   const scope = vesselScopeDayDu(user);
   const canManageMaster = user.role === "ADMIN";
+  // Xóa khỏi danh mục dùng chung: chỉ quản trị TẠI VĂN PHÒNG (bản trên tàu không
+  // được xóa — đồng bộ không mang lệnh xóa, xem lib/banCai.ts).
+  const xoaDuoc = canManageMaster && !(await laBanTau());
   const {
     type,
     vessel: vesselParam,
@@ -636,9 +640,12 @@ export default async function MaterialsPage({
               <ChonHangLoat
                 quyen={{
                   yeuCau: LAP_YEU_CAU.includes(user.role) && !scope.unassigned,
-                  sua: canManageMaster && !isVesselMode,
+                  sua: canManageMaster,
+                  xoa: xoaDuoc,
+                  goKhoiTau: isVesselMode && canEditVessel,
                 }}
                 categories={categoryOptions}
+                vesselId={selectedVesselId}
               />
               <TableWrap>
                 <Table dense>
@@ -921,6 +928,7 @@ export default async function MaterialsPage({
                                           isActive: material.isActive,
                                         }}
                                         categories={categoryOptions}
+                                        xoaDuoc={xoaDuoc}
                                       />
                                     </Td>
                                   )}

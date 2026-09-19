@@ -10,6 +10,8 @@ export const requests = tuDien(
     moTaTau: "Yêu cầu vật tư & phụ tùng của tàu bạn phụ trách",
     chuaGanTau:
       "Bạn chưa được gán tàu phụ trách nên chưa tạo được yêu cầu vật tư. Vui lòng liên hệ quản trị viên.",
+    chonTuDanhMuc: "Đã điền sẵn {n} mặt hàng chọn từ danh mục — sửa số lượng rồi gửi.",
+    chonTuDanhMucBoQua: "{n} mặt hàng không thêm được (khác loại yêu cầu hoặc không thuộc tàu bạn phụ trách).",
     danhSach: "Danh sách yêu cầu ({n})",
     moiTrangThai: "Mọi trạng thái",
     cotSoYeuCau: "Số yêu cầu",
@@ -141,6 +143,8 @@ export const requests = tuDien(
     moTaTau: "Stores & spare parts requisitions for the vessels you cover",
     chuaGanTau:
       "You have not been assigned to a vessel, so you cannot raise requisitions yet. Please contact the administrator.",
+    chonTuDanhMuc: "Pre-filled {n} items chosen from the catalogue — adjust quantities, then submit.",
+    chonTuDanhMucBoQua: "{n} items could not be added (different requisition type or not in your vessels).",
     danhSach: "Requisitions ({n})",
     moiTrangThai: "All statuses",
     cotSoYeuCau: "Req. No.",

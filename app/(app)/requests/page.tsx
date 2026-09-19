@@ -66,7 +66,7 @@ const TONE_UU_TIEN: Record<string, Tone> = {
 export default async function RequestsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vessel?: string; status?: string }>;
+  searchParams: Promise<{ vessel?: string; status?: string; vatTu?: string }>;
 }) {
   const user = await requireScopedUser();
   const { t, tTuDo, ngayGio } = await layT();
@@ -82,6 +82,12 @@ export default async function RequestsPage({
   const vesselFilter = Number(params.vessel) || 0;
   const statusFilter =
     params.status && REQUEST_STATUS_LABEL[params.status] ? params.status : "";
+  // Mặt hàng chọn sẵn từ danh mục (/materials → tick → "Yêu cầu nhanh").
+  const mucBanDau = String(params.vatTu ?? "")
+    .split(",")
+    .map((s) => Number(s))
+    .filter((n) => Number.isInteger(n) && n > 0)
+    .slice(0, 300);
   const [requests, vessels, materials] = await Promise.all([
     prisma.materialRequest.findMany({
       where: {
@@ -162,6 +168,7 @@ export default async function RequestsPage({
           materials={materials}
           defaultVesselId={scope.vesselId ?? undefined}
           nguoiLap={{ name: user.name, role: user.role }}
+          mucBanDau={mucBanDau.length ? mucBanDau : undefined}
         />
       )}
       <Card>

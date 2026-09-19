@@ -83,12 +83,29 @@ const SEG_ON = "bg-brand-700 text-white shadow-sm";
 const SEG_OFF =
   "text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:text-[var(--text-primary)]";
 
+/**
+ * Dòng điền sẵn từ danh mục (chọn hàng loạt ở /materials → "Yêu cầu nhanh").
+ * Một yêu cầu chỉ có MỘT loại (vật tư hoặc phụ tùng): loại lấy theo đa số các
+ * mặt hàng được chọn, mặt hàng khác loại hay không thuộc tàu bị bỏ và báo số.
+ */
+function dongTuDanhMuc(ids: number[] | undefined, materials: MaterialOption[]) {
+  if (!ids?.length) return null;
+  const chon = ids.map((id) => materials.find((m) => m.id === id)).filter((m): m is MaterialOption => Boolean(m));
+  const soSpare = chon.filter((m) => m.materialType === "SPARE").length;
+  const kind: "STORE" | "SPARE" = soSpare > chon.length - soSpare ? "SPARE" : "STORE";
+  const items: RequestItem[] = chon
+    .filter((m) => m.materialType === kind)
+    .map((m) => ({ mode: "existing", materialId: String(m.id), itemName: "", itemCode: "", itemUom: "", quantity: "1", note: "" }));
+  return { kind, items, boQua: ids.length - items.length };
+}
+
 export default function RequestForm({
   vessels,
   materials,
   defaultVesselId,
   nguoiLap,
   dangSua,
+  mucBanDau,
 }: {
   vessels: VesselOption[];
   materials: MaterialOption[];
@@ -97,14 +114,17 @@ export default function RequestForm({
   nguoiLap: { name: string; role: string };
   /** Có = sửa bản đã lập; không có = lập mới. */
   dangSua?: YeuCauDangSua;
+  /** Id mặt hàng chọn sẵn từ danh mục (?vatTu=1,2,3). */
+  mucBanDau?: number[];
 }) {
   const { t, tTuDo } = useNgonNgu();
   const router = useRouter();
   const laSua = Boolean(dangSua);
+  const [dienSan] = useState(() => (dangSua ? null : dongTuDanhMuc(mucBanDau, materials)));
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [kind, setKind] = useState<"STORE" | "SPARE">(dangSua?.kind ?? "STORE");
+  const [kind, setKind] = useState<"STORE" | "SPARE">(dangSua?.kind ?? dienSan?.kind ?? "STORE");
   const [vesselId, setVesselId] = useState(
     dangSua ? String(dangSua.vesselId) : defaultVesselId ? String(defaultVesselId) : ""
   );
@@ -121,7 +141,7 @@ export default function RequestForm({
   const [maker, setMaker] = useState(dangSua?.maker ?? "");
   const [serialNo, setSerialNo] = useState(dangSua?.serialNo ?? "");
   const [items, setItems] = useState<RequestItem[]>(
-    dangSua?.items.length ? dangSua.items : [blankItem()]
+    dangSua?.items.length ? dangSua.items : dienSan?.items.length ? dienSan.items : [blankItem()]
   );
 
   const filteredMaterials = useMemo(
@@ -251,6 +271,12 @@ export default function RequestForm({
         subtitle={laSua ? t("requests.suaMoTa") : undefined}
       />
       <form onSubmit={submit} className="space-y-4">
+        {dienSan && dienSan.items.length > 0 && (
+          <Notice tone={dienSan.boQua ? "warning" : "info"}>
+            {t("requests.chonTuDanhMuc", { n: dienSan.items.length })}
+            {dienSan.boQua ? ` ${t("requests.chonTuDanhMucBoQua", { n: dienSan.boQua })}` : ""}
+          </Notice>
+        )}
         {/* Đổi loại là xóa sạch các dòng đã gõ (vật tư và phụ tùng dùng hai danh
             mục khác nhau). Khi SỬA thì loại đã khóa — số yêu cầu mã hóa nó —
             nên hai nút này tắt hẳn thay vì để bấm rồi mất hết dòng vô ích. */}

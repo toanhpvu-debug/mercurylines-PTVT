@@ -2,6 +2,8 @@ import { Fragment } from "react";
 import Form from "next/form";
 import Link from "next/link";
 import { NGUOI_TAI_PHIEU_GIAO } from "@/lib/phieuGiao";
+import { LAP_YEU_CAU } from "@/lib/roles";
+import ChonHangLoat from "@/components/ChonHangLoat";
 import {
   Anchor,
   ArrowRight,
@@ -347,7 +349,7 @@ export default async function MaterialsPage({
   // (Mã · Mô tả · IMPA · Part No. · Maker · Nhóm · Giữ bởi · ĐVT · Critical)
   // cộng các cột chỉ hiện trong một số chế độ xem.
   const colCount =
-    9 +
+    10 + // + cột ô tick chọn hàng loạt
     (isSpareView ? 1 : 0) +
     (filterType === "ALL" ? 1 : 0) +
     (!isVesselMode ? 1 : 0) +
@@ -627,10 +629,30 @@ export default async function MaterialsPage({
                 }
               />
             ) : (
+              <>
+              {/* Thanh nổi thao tác hàng loạt — chỉ hiện khi có dòng được tick.
+                  Ô tick là <input> thường do server vẽ; thành phần này lắng
+                  nghe chúng qua data-chon-* (xem components/ChonHangLoat.tsx). */}
+              <ChonHangLoat
+                quyen={{
+                  yeuCau: LAP_YEU_CAU.includes(user.role) && !scope.unassigned,
+                  sua: canManageMaster && !isVesselMode,
+                }}
+                categories={categoryOptions}
+              />
               <TableWrap>
                 <Table dense>
                   <thead>
                     <tr>
+                      <Th className="w-8">
+                        <input
+                          type="checkbox"
+                          data-chon-tat-ca=""
+                          aria-label={t("materials.chonTatCa")}
+                          title={t("materials.chonTatCaGoiY")}
+                          className="size-4 accent-brand-600"
+                        />
+                      </Th>
                       <Th>{t("chung.ma")}</Th>
                       <Th>
                         {isSpareView
@@ -662,6 +684,13 @@ export default async function MaterialsPage({
                         <tbody key={dept.key} id={`bo-phan-${dept.key}`} className="scroll-mt-36">
                           <TrNhom colSpan={colCount}>
                             <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                data-chon-nhom={dept.key}
+                                aria-label={t("materials.chonNhom")}
+                                title={t("materials.chonNhom")}
+                                className="size-4 accent-brand-600"
+                              />
                               <span className="inline-flex items-center gap-2">
                                 <DeptIcon className="size-4 text-[var(--text-muted)]" />
                                 {tTuDo(`labels.dept_${dept.key}`)}
@@ -708,6 +737,17 @@ export default async function MaterialsPage({
                                       "opacity-60"
                                   )}
                                 >
+                                  <Td className="w-8">
+                                    <input
+                                      type="checkbox"
+                                      data-chon-vat-tu={material.id}
+                                      data-nhom={dept.key}
+                                      data-loai={material.materialType === "SPARE" ? "SPARE" : "STORE"}
+                                      data-ma={material.code}
+                                      aria-label={t("materials.chonDong", { ma: material.code })}
+                                      className="size-4 accent-brand-600"
+                                    />
+                                  </Td>
                                   <Td className="font-display text-xs tracking-wide whitespace-nowrap text-[var(--text-primary)]">
                                     {material.code}
                                   </Td>
@@ -893,6 +933,7 @@ export default async function MaterialsPage({
                     })}
                 </Table>
               </TableWrap>
+              </>
             )}
             {hiddenCount > 0 && (
               <Notice tone="info" className="mt-3">

@@ -23,6 +23,11 @@ export const phieuGiao = tuDien(
     canhBaoGoiY:
       "Lý do ghi dưới tên hàng; bấm \"tr.N\" để mở đúng trang trên bản scan. Sửa một ô là cảnh báo của dòng đó được gỡ.",
     nhayTrang: "Mở trang {n} của bản scan",
+    banCuTaiLai:
+      "App vừa được cập nhật nên trang này đang chạy bản cũ. Đang tải lại trang — các ô đang sửa được giữ, tải xong bấm lại nút.",
+    banCuVanLoi:
+      "Trang vẫn chạy bản cũ sau khi tải lại. Đóng tab, mở lại trang phiếu giao rồi thử lại.",
+    daKhoiPhucNhap: "Đã khôi phục các ô đang sửa từ trước khi tải lại. Kiểm tra rồi bấm Lưu hoặc Phê duyệt.",
     docKhongRaDong:
       "Không nhận ra dòng hàng nào. Phiếu đã lưu — mở trang duyệt để gõ tay các dòng.",
     nguon_TEXT: "Lớp chữ PDF",
@@ -125,6 +130,10 @@ export const phieuGiao = tuDien(
     canhBaoGoiY:
       "The reason is shown under the item name; click \"tr.N\" to open that page of the scan. Editing a cell clears that line's warning.",
     nhayTrang: "Open page {n} of the scan",
+    banCuTaiLai:
+      "The app was just updated, so this page is running an old version. Reloading — your edits are kept; click the button again once loaded.",
+    banCuVanLoi: "The page is still on the old version after reloading. Close the tab, reopen the delivery note page and try again.",
+    daKhoiPhucNhap: "Restored the cells you were editing before the reload. Check them, then click Save or Approve.",
     docKhongRaDong: "No item lines recognised. The note is saved — open the review page to type the lines.",
     nguon_TEXT: "PDF text layer",
     nguon_OCR: "Text recognition (OCR)",

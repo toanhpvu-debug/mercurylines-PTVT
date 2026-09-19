@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { laLoiBanCu, taiLaiBanMoi } from "@/components/TuTaiLaiKhiBanCu";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, ExternalLink, Plus, Save, Sparkles, Trash2, XCircle } from "lucide-react";
 import {
@@ -72,6 +73,52 @@ export default function PhieuGiaoDuyet({
   const khoaSua = daXuLy || !coQuyenSua || pending;
   const tenPhieu = phieu.soPhieu || phieu.fileName;
   const soCanKiem = dong.filter((d) => d.canhBao).length;
+  const khoaNhap = `mercury.phieu-giao.nhap.${phieu.id}`;
+
+  // Sau khi tự tải lại vì bản cũ: khôi phục các ô đang sửa đã cất trước đó.
+  // Bắt đầu trong setTimeout để không setState ngay trong thân effect.
+  useEffect(() => {
+    let raw: string | null = null;
+    try {
+      raw = window.sessionStorage.getItem(khoaNhap);
+    } catch {
+      raw = null;
+    }
+    if (!raw || daXuLy) return;
+    const id = window.setTimeout(() => {
+      try {
+        const nhap = JSON.parse(raw as string) as { thongTin: ThongTinPhieuNhap; dong: DongHienThi[]; warehouseId: string };
+        if (Array.isArray(nhap.dong)) setDong(nhap.dong);
+        if (nhap.thongTin) setThongTin(nhap.thongTin);
+        if (typeof nhap.warehouseId === "string") setWarehouseId(nhap.warehouseId);
+        setThongBao({ tone: "info", text: t("phieuGiao.daKhoiPhucNhap") });
+      } catch {
+        /* dữ liệu cất bị hỏng: bỏ qua */
+      }
+      try {
+        window.sessionStorage.removeItem(khoaNhap);
+      } catch {
+        /* không xóa được cũng không sao */
+      }
+    }, 0);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [khoaNhap, daXuLy]);
+
+  /** Bản cũ của app: cất ô đang sửa rồi tải lại trang; trả true nếu đã xử lý. */
+  const xuLyBanCu = (e: unknown): boolean => {
+    if (!laLoiBanCu(e)) return false;
+    try {
+      window.sessionStorage.setItem(khoaNhap, JSON.stringify({ thongTin, dong, warehouseId }));
+    } catch {
+      /* không cất được thì vẫn tải lại */
+    }
+    setThongBao({ tone: "info", text: t("phieuGiao.banCuTaiLai") });
+    window.setTimeout(() => {
+      if (!taiLaiBanMoi()) setThongBao({ tone: "danger", text: t("phieuGiao.banCuVanLoi") });
+    }, 1200);
+    return true;
+  };
 
   // Sửa một ô nội dung là người duyệt đã nhìn dòng đó → gỡ cảnh báo.
   const O_NOI_DUNG = ["ten", "partNo", "impa", "soLuong", "donVi", "loai", "thietBi"];
@@ -132,6 +179,7 @@ export default function PhieuGiaoDuyet({
       } catch (e) {
         // redirect() của server action ném NEXT_REDIRECT — để Next xử lý.
         if (e instanceof Error && /NEXT_REDIRECT/.test(e.message)) throw e;
+        if (xuLyBanCu(e)) return;
         setThongBao({ tone: "danger", text: String((e as Error)?.message ?? e) });
       }
     });
@@ -174,6 +222,7 @@ export default function PhieuGiaoDuyet({
           router.refresh();
         }
       } catch (e) {
+        if (xuLyBanCu(e)) return;
         setThongBao({ tone: "danger", text: String((e as Error)?.message ?? e) });
       }
     });

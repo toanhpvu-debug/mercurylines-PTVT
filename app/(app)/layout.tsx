@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { logout } from "@/app/actions";
 import AppShell, { type NhomMenu } from "@/components/AppShell";
+import TuTaiLaiKhiBanCu from "@/components/TuTaiLaiKhiBanCu";
 import { requireScopedUser, vesselIdWhere } from "@/lib/auth";
 import { COOKIE_CHU_DE, docChuDe } from "@/lib/chuDe";
 import { layT } from "@/lib/i18n/server";
@@ -102,6 +103,8 @@ export default async function AppLayout({
       chuDeBanDau={docChuDe(kho.get(COOKIE_CHU_DE)?.value)}
       logout={logout}
     >
+      {/* Sau mỗi lần deploy, tab đang mở chạy bản cũ → mọi nút vỡ; thành phần này tự tải lại một lần. */}
+      <TuTaiLaiKhiBanCu />
       {children}
     </AppShell>
   );

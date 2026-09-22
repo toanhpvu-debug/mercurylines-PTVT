@@ -104,6 +104,15 @@ export const phieuGiao = tuDien(
     nutXoaPhieu: "Xóa phiếu",
     xacNhanXoaPhieu: "Xóa phiếu {phieu} và các dòng đã đọc? Bản scan cũng bị xóa.",
     quayLai: "Quay lại danh sách phiếu giao",
+    nutGoPhieu: "Gỡ bỏ phiếu",
+    goChiVanPhong: "Gỡ bỏ phiếu chỉ làm được bằng tài khoản quản trị trên bản văn phòng.",
+    goChiPhieuDaDuyet: "Phiếu này chưa duyệt — dùng nút Xóa phiếu trên trang duyệt.",
+    goDangTinh: "Đang tính những gì sẽ được hoàn tác...",
+    xacNhanGoDaDuyet:
+      "Gỡ bỏ phiếu {phieu} ĐÃ DUYỆT và hoàn tác: xóa {tx} dòng nhập kho (trừ lại tồn), xóa {moi} mặt hàng mới do phiếu này tạo và chưa dùng ở đâu khác, giữ {giu} mặt hàng có sẵn hoặc đang dùng. Bản scan cũng bị xóa. Việc này không hoàn lại được.",
+    daGoDaDuyet: "Đã gỡ phiếu {phieu}: xóa {tx} dòng nhập kho, xóa {moi} mặt hàng mới, giữ {giu} mặt hàng.",
+    goTonAm:
+      "Không gỡ được: tồn của {ds} đã bị xuất bớt sau khi nhập nên trừ lại sẽ âm. Điều chỉnh tồn thủ công rồi gỡ lại.",
     lienKetTuNhap: "Có phiếu giao hàng bản scan? Tải lên để hệ thống đọc dòng hàng, rồi phê duyệt mới nhập.",
     nutSangTrangPhieuGiao: "Nhập từ phiếu giao (PDF)",
     ocrChiWindows:
@@ -208,6 +217,15 @@ export const phieuGiao = tuDien(
     nutXoaPhieu: "Delete note",
     xacNhanXoaPhieu: "Delete note {phieu} and its lines? The scan is deleted too.",
     quayLai: "Back to delivery notes",
+    nutGoPhieu: "Remove note",
+    goChiVanPhong: "Removing notes is only possible with an administrator account on the office installation.",
+    goChiPhieuDaDuyet: "This note is not approved — use Delete note on the review page.",
+    goDangTinh: "Working out what will be rolled back...",
+    xacNhanGoDaDuyet:
+      "Remove APPROVED note {phieu} and roll back: delete {tx} stock-in lines (stock is reduced again), delete {moi} new items this note created that are not used elsewhere, keep {giu} existing or in-use items. The scan is deleted too. This cannot be undone.",
+    daGoDaDuyet: "Removed note {phieu}: deleted {tx} stock-in lines and {moi} new items, kept {giu} items.",
+    goTonAm:
+      "Cannot remove: stock of {ds} has been issued since it was received, so reducing it would go negative. Adjust stock manually, then try again.",
     lienKetTuNhap: "Have a scanned delivery note? Upload it for the system to read the lines, then approve before importing.",
     nutSangTrangPhieuGiao: "Import from delivery note (PDF)",
     ocrChiWindows:

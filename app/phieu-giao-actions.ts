@@ -5,6 +5,7 @@ import { createHash, randomUUID } from "crypto";
 import { readFile, unlink, writeFile } from "fs/promises";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   canManageVesselCatalog,
@@ -519,6 +520,7 @@ export async function duyetPhieuGiao(
   const daKhop = chon.filter((d) => d.materialId !== null);
   const chuaKhop = chon.filter((d) => d.materialId === null);
   const idTheoRef = new Map<string, number>();
+  const taoMoiTheoRef = new Map<string, boolean>();
   let taoMoi = 0;
   let gan = 0;
   if (chuaKhop.length) {
@@ -547,12 +549,19 @@ export async function duyetPhieuGiao(
       actorName: actor.name,
     });
     if (r.conflict) return { message: t("actions.nhap_trungMaDoDongThoi") };
-    for (const x of r.resolved ?? []) if (x.ref) idTheoRef.set(x.ref, x.materialId);
+    for (const x of r.resolved ?? []) {
+      if (!x.ref) continue;
+      idTheoRef.set(x.ref, x.materialId);
+      taoMoiTheoRef.set(x.ref, x.taoMoi);
+    }
     taoMoi = r.createdCount;
     gan += r.linkedCount;
   }
   const materialCuaDong = (d: DongSach) =>
     d.materialId ?? idTheoRef.get(`m${chuaKhop.indexOf(d)}`) ?? null;
+  // Dòng này có TẠO MỚI mặt hàng không — để sau này gỡ phiếu (hoàn tác) biết
+  // mặt hàng nào là của phiếu, mặt hàng nào có sẵn từ trước.
+  const dongTaoMoi = (d: DongSach) => (d.materialId ? false : (taoMoiTheoRef.get(`m${chuaKhop.indexOf(d)}`) ?? null));
 
   const ghiChuNhap = `Phiếu giao ${thongTin.soPhieu.trim() || phieu.soPhieu || phieu.fileName}${
     thongTin.nhaCungCap.trim() ? ` — ${thongTin.nhaCungCap.trim().slice(0, 80)}` : ""
@@ -581,7 +590,7 @@ export async function duyetPhieuGiao(
       const materialId = materialCuaDong(d);
       const row = dongDb[i];
       if (!row || !materialId) continue;
-      await tx.phieuGiaoNhanDong.update({ where: { id: row.id }, data: { materialId } });
+      await tx.phieuGiaoNhanDong.update({ where: { id: row.id }, data: { materialId, taoMoi: dongTaoMoi(d) } });
       if (warehouseId && d.soLuong > 0) {
         // Cùng khóa tồn kho với phiếu nhập tay (xem createInventoryTransaction).
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KHOA_TON_KHO_ADVISORY}::int, ${khoaAdvisoryDongTon(
@@ -603,6 +612,8 @@ export async function duyetPhieuGiao(
             note: ghiChuNhap.slice(0, 200),
             occurredAt,
             performedBy: actor.name,
+            // Dấu vết để hoàn tác khi quản trị gỡ phiếu (goPhieuGiaoDaDuyet).
+            phieuGiaoId: phieu.id,
           },
         });
         soDongTon++;
@@ -690,4 +701,227 @@ export async function xoaPhieuGiao(phieuId: number): Promise<KetQuaPhieuGiao> {
 /** Cho trang duyệt: ngày → chuỗi ô date (giữ ở đây để trang server không phải import lib riêng). */
 export async function chuoiNgayPhieu(d: Date | null): Promise<string> {
   return chuoiNgay(d);
+}
+
+// ─── 5. Gỡ bỏ phiếu ĐÃ DUYỆT (hoàn tác) — quản trị tại văn phòng ─────────────
+
+export type TomTatGoPhieu = {
+  /** Dòng nhập kho do phiếu sinh ra sẽ bị xóa (tồn trừ lại). */
+  soDongNhap: number;
+  /** Mặt hàng do phiếu tạo mới, chưa dùng ở đâu khác → xóa. */
+  soVatTuXoa: number;
+  /** Mặt hàng có sẵn từ trước hoặc đã được dùng nơi khác → giữ. */
+  soVatTuGiu: number;
+  /** Mã mặt hàng mà trừ lại tồn sẽ âm (đã xuất bớt sau khi nhập) → không gỡ được. */
+  tonAm: string[];
+};
+
+export type KetQuaGoPhieu = { message: string; success?: boolean; tomTat?: TomTatGoPhieu };
+
+type KeHoachGo = TomTatGoPhieu & {
+  txIds: number[];
+  /** Trừ tồn theo từng dòng tồn (vật tư, kho). */
+  tru: { materialId: number; warehouseId: number; soLuong: number }[];
+  vatTuXoa: number[];
+  maVatTuXoa: string[];
+};
+
+class LoiTonAm extends Error {
+  constructor(public readonly ma: string[]) {
+    super("ton am");
+  }
+}
+
+const PHUT = 60_000;
+
+/**
+ * Tìm mọi thứ phiếu đã sinh ra và quyết định gỡ được gì. Phiếu duyệt SAU khi có
+ * cột phieuGiaoId / taoMoi thì tra thẳng; phiếu duyệt trước đó suy từ ghi chú
+ * dòng nhập và mốc thời gian duyệt (±15 phút) — hẹp để không vơ nhầm phiếu khác.
+ */
+async function lapKeHoachGo(
+  // PrismaClient gán được vào TransactionClient — cùng một hàm dùng cho cả xem trước lẫn giao dịch thật.
+  db: Prisma.TransactionClient,
+  phieu: {
+    id: number;
+    vesselId: number;
+    soPhieu: string | null;
+    fileName: string;
+    approvedAt: Date | null;
+    updatedAt: Date;
+    dong: { materialId: number | null; chon: boolean; taoMoi: boolean | null }[];
+  }
+): Promise<KeHoachGo> {
+  const mocDuyet = phieu.approvedAt ?? phieu.updatedAt;
+  const dong = phieu.dong.filter((d) => d.chon && d.materialId);
+  const materialIds = [...new Set(dong.map((d) => d.materialId as number))];
+  const trong: KeHoachGo = { soDongNhap: 0, soVatTuXoa: 0, soVatTuGiu: 0, tonAm: [], txIds: [], tru: [], vatTuXoa: [], maVatTuXoa: [] };
+  if (!materialIds.length) return trong;
+
+  const [txs, vatTu] = await Promise.all([
+    db.inventoryTransaction.findMany({
+      where: {
+        type: "IN",
+        vesselId: phieu.vesselId,
+        materialId: { in: materialIds },
+        OR: [
+          { phieuGiaoId: phieu.id },
+          {
+            phieuGiaoId: null,
+            note: { startsWith: `Phiếu giao ${phieu.soPhieu ?? phieu.fileName}` },
+            createdAt: { gte: new Date(mocDuyet.getTime() - 15 * PHUT), lte: new Date(mocDuyet.getTime() + 15 * PHUT) },
+          },
+        ],
+      },
+      select: { id: true, materialId: true, warehouseId: true, quantity: true },
+    }),
+    db.material.findMany({ where: { id: { in: materialIds } }, select: { id: true, code: true, createdAt: true } }),
+  ]);
+  const maCua = new Map(vatTu.map((m) => [m.id, m.code]));
+  const txIds = txs.map((x) => x.id);
+
+  // Trừ tồn: gộp theo (vật tư, kho).
+  const truTheoDong = new Map<string, { materialId: number; warehouseId: number; soLuong: number }>();
+  for (const x of txs) {
+    const k = `${x.materialId}|${x.warehouseId}`;
+    const c = truTheoDong.get(k) ?? { materialId: x.materialId, warehouseId: x.warehouseId, soLuong: 0 };
+    c.soLuong += x.quantity;
+    truTheoDong.set(k, c);
+  }
+  const tru = [...truTheoDong.values()];
+
+  // Ứng viên xóa: dòng tạo mới (taoMoi=true) hoặc phiếu cũ mà mặt hàng ra đời
+  // ngay trước lúc duyệt.
+  const ungVien = new Set<number>();
+  for (const d of dong) {
+    const id = d.materialId as number;
+    if (d.taoMoi === true) ungVien.add(id);
+    else if (d.taoMoi === null) {
+      const m = vatTu.find((v) => v.id === id);
+      if (m && m.createdAt.getTime() >= mocDuyet.getTime() - 15 * PHUT && m.createdAt.getTime() <= mocDuyet.getTime() + 2 * PHUT) ungVien.add(id);
+    }
+  }
+  const cands = [...ungVien];
+  const [tonRows, txKhac, yeuCau, donMua, phieuKhac, tauKhac] = await Promise.all([
+    db.inventory.findMany({
+      where: { materialId: { in: materialIds } },
+      select: { materialId: true, warehouseId: true, quantity: true, reservedQuantity: true },
+    }),
+    cands.length ? db.inventoryTransaction.groupBy({ by: ["materialId"], where: { materialId: { in: cands }, id: { notIn: txIds } }, _count: { _all: true } }) : [],
+    cands.length ? db.materialRequestItem.groupBy({ by: ["materialId"], where: { materialId: { in: cands } }, _count: { _all: true } }) : [],
+    cands.length ? db.purchaseOrderItem.groupBy({ by: ["materialId"], where: { materialId: { in: cands } }, _count: { _all: true } }) : [],
+    cands.length ? db.phieuGiaoNhanDong.groupBy({ by: ["materialId"], where: { materialId: { in: cands }, phieuId: { not: phieu.id } }, _count: { _all: true } }) : [],
+    cands.length ? db.vesselMaterial.groupBy({ by: ["materialId"], where: { materialId: { in: cands }, vesselId: { not: phieu.vesselId } }, _count: { _all: true } }) : [],
+  ]);
+  // Tồn âm: dòng tồn nào trừ xong < 0 nghĩa là đã xuất bớt sau khi nhập.
+  const tonAm = new Set<string>();
+  for (const c of tru) {
+    const row = tonRows.find((r) => r.materialId === c.materialId && r.warehouseId === c.warehouseId);
+    if ((row?.quantity ?? 0) - c.soLuong < -1e-9) tonAm.add(maCua.get(c.materialId) ?? String(c.materialId));
+  }
+  // Còn tham chiếu ở đâu → giữ mặt hàng.
+  const conDung = new Set<number>();
+  for (const g of [...txKhac, ...yeuCau, ...donMua, ...phieuKhac, ...tauKhac]) if (g.materialId) conDung.add(g.materialId);
+  for (const r of tonRows) {
+    if (!ungVien.has(r.materialId)) continue;
+    const c = truTheoDong.get(`${r.materialId}|${r.warehouseId}`);
+    const conLai = r.quantity - (c?.soLuong ?? 0);
+    if (conLai > 1e-9 || r.reservedQuantity > 0) conDung.add(r.materialId);
+  }
+  const vatTuXoa = cands.filter((id) => !conDung.has(id));
+  return {
+    soDongNhap: txs.length,
+    soVatTuXoa: vatTuXoa.length,
+    soVatTuGiu: materialIds.length - vatTuXoa.length,
+    tonAm: [...tonAm],
+    txIds,
+    tru,
+    vatTuXoa,
+    maVatTuXoa: vatTuXoa.map((id) => maCua.get(id) ?? String(id)),
+  };
+}
+
+/**
+ * Gỡ bỏ một phiếu ĐÃ DUYỆT và hoàn tác những gì nó đã sinh ra. thuc=false chỉ
+ * tính kế hoạch để giao diện hỏi xác nhận bằng con số thật; thuc=true thực hiện
+ * trong MỘT giao dịch (khóa tồn kho như phiếu nhập tay). Chỉ ADMIN tại văn phòng
+ * — bản trên tàu không được, cùng lý do với xóa mặt hàng (lib/banCai.ts).
+ */
+export async function goPhieuGiaoDaDuyet(phieuId: number, thuc: boolean): Promise<KetQuaGoPhieu> {
+  const { t } = await layT();
+  const actor = await requireActiveRole(["ADMIN"]);
+  if (!actor) return { message: t("chung.khongCoQuyen") };
+  const { laBanTau } = await import("@/lib/banCai");
+  if (await laBanTau()) return { message: t("phieuGiao.goChiVanPhong") };
+  const phieu = await prisma.phieuGiaoNhan.findUnique({
+    where: { id: Number(phieuId) || -1 },
+    select: {
+      id: true,
+      vesselId: true,
+      soPhieu: true,
+      fileName: true,
+      storedName: true,
+      status: true,
+      approvedAt: true,
+      updatedAt: true,
+      vessel: { select: { code: true } },
+      dong: { select: { materialId: true, chon: true, taoMoi: true } },
+    },
+  });
+  if (!phieu) return { message: t("chung.duLieuKhongHopLe") };
+  if (phieu.status !== "DA_DUYET") return { message: t("phieuGiao.goChiPhieuDaDuyet") };
+  const tenPhieu = phieu.soPhieu ?? phieu.fileName;
+
+  if (!thuc) {
+    const kh = await lapKeHoachGo(prisma, phieu);
+    const tomTat: TomTatGoPhieu = { soDongNhap: kh.soDongNhap, soVatTuXoa: kh.soVatTuXoa, soVatTuGiu: kh.soVatTuGiu, tonAm: kh.tonAm };
+    if (kh.tonAm.length) return { message: t("phieuGiao.goTonAm", { ds: kh.tonAm.slice(0, 20).join(", ") }), tomTat };
+    return { message: "", success: true, tomTat };
+  }
+
+  let kh: KeHoachGo | null = null;
+  try {
+    await prisma.$transaction(async (tx) => {
+      kh = await lapKeHoachGo(tx, phieu);
+      if (kh.tonAm.length) throw new LoiTonAm(kh.tonAm);
+      for (const c of kh.tru) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KHOA_TON_KHO_ADVISORY}::int, ${khoaAdvisoryDongTon(c.materialId, c.warehouseId)}::int)`;
+        const r = await tx.inventory.updateMany({
+          where: { materialId: c.materialId, warehouseId: c.warehouseId, quantity: { gte: c.soLuong - 1e-9 } },
+          data: { quantity: { decrement: c.soLuong } },
+        });
+        if (r.count === 0) throw new LoiTonAm([String(c.materialId)]);
+      }
+      if (kh.txIds.length) await tx.inventoryTransaction.deleteMany({ where: { id: { in: kh.txIds } } });
+      if (kh.vatTuXoa.length) {
+        // Dòng tồn đã về 0 của mặt hàng sắp xóa: dọn trước (khóa ngoại cascade cũng dọn, nhưng nói rõ ý).
+        await tx.inventory.deleteMany({ where: { materialId: { in: kh.vatTuXoa }, quantity: { lte: 1e-9 }, reservedQuantity: { lte: 0 } } });
+        await tx.material.deleteMany({ where: { id: { in: kh.vatTuXoa } } });
+      }
+      await tx.phieuGiaoNhan.delete({ where: { id: phieu.id } });
+    }, GIAO_DICH_GIU_KHOA);
+  } catch (e) {
+    if (e instanceof LoiTonAm) return { message: t("phieuGiao.goTonAm", { ds: e.ma.slice(0, 20).join(", ") }) };
+    throw e;
+  }
+  const ketQua = kh as KeHoachGo | null;
+  await unlink(path.join(getUploadDir(), path.basename(phieu.storedName))).catch(() => undefined);
+  await ghiNhatKyNguoiDung(actor, {
+    action: "phieu-giao-go-da-duyet",
+    path: "/materials/phieu-giao",
+    vesselId: phieu.vesselId,
+    detail: `Gỡ phiếu giao ĐÃ DUYỆT ${tenPhieu} (${phieu.vessel.code}): xóa ${ketQua?.soDongNhap ?? 0} dòng nhập kho, xóa ${ketQua?.soVatTuXoa ?? 0} mặt hàng mới [${(ketQua?.maVatTuXoa ?? []).slice(0, 80).join(", ")}${
+      (ketQua?.maVatTuXoa.length ?? 0) > 80 ? "…" : ""
+    }], giữ ${ketQua?.soVatTuGiu ?? 0}`,
+  });
+  revalidatePath("/materials");
+  revalidatePath("/inventory");
+  revalidatePath("/materials/phieu-giao");
+  const tomTat: TomTatGoPhieu = {
+    soDongNhap: ketQua?.soDongNhap ?? 0,
+    soVatTuXoa: ketQua?.soVatTuXoa ?? 0,
+    soVatTuGiu: ketQua?.soVatTuGiu ?? 0,
+    tonAm: [],
+  };
+  return { message: t("phieuGiao.daGoDaDuyet", { phieu: tenPhieu, tx: tomTat.soDongNhap, moi: tomTat.soVatTuXoa, giu: tomTat.soVatTuGiu }), success: true, tomTat };
 }

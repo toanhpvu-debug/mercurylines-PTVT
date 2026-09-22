@@ -6,6 +6,8 @@ import { NGUOI_TAI_PHIEU_GIAO } from "@/lib/phieuGiao";
 import { layCauHinhAi } from "@/lib/cauHinhAi";
 import { TEN_NHA_CUNG_CAP } from "@/lib/docPhieuBangAi";
 import PhieuGiaoUploadForm from "@/components/PhieuGiaoUploadForm";
+import GoPhieuGiaoButton from "@/components/GoPhieuGiaoButton";
+import { laBanTau } from "@/lib/banCai";
 import { layT } from "@/lib/i18n/server";
 import { Badge, Card, CardHeader, Notice, PageHeader, Table, TableWrap, Td, Th, Tr } from "@/components/ui";
 
@@ -59,6 +61,8 @@ export default async function PhieuGiaoPage() {
   const duocTai = NGUOI_TAI_PHIEU_GIAO.includes(user.role);
   const cauHinhAi = await layCauHinhAi();
   const aiBat = cauHinhAi !== null;
+  // Gỡ bỏ phiếu (kể cả đã duyệt, có hoàn tác): chỉ quản trị tại văn phòng.
+  const goDuoc = user.role === "ADMIN" && !(await laBanTau());
 
   return (
     <div className="space-y-5">
@@ -132,13 +136,16 @@ export default async function PhieuGiaoPage() {
                       </Badge>
                     </Td>
                     <Td align="right">
-                      <Link
-                        href={`/materials/phieu-giao/${p.id}`}
-                        className="inline-flex items-center gap-1 text-sm text-brand-700 hover:underline dark:text-brand-300"
-                      >
-                        {t("phieuGiao.nutMo")}
-                        <ArrowRight className="size-4" />
-                      </Link>
+                      <span className="inline-flex flex-wrap items-center justify-end gap-2">
+                        {goDuoc && <GoPhieuGiaoButton phieuId={p.id} tenPhieu={p.soPhieu || p.fileName} trangThai={p.status} />}
+                        <Link
+                          href={`/materials/phieu-giao/${p.id}`}
+                          className="inline-flex items-center gap-1 text-sm text-brand-700 hover:underline dark:text-brand-300"
+                        >
+                          {t("phieuGiao.nutMo")}
+                          <ArrowRight className="size-4" />
+                        </Link>
+                      </span>
                     </Td>
                   </Tr>
                 ))}

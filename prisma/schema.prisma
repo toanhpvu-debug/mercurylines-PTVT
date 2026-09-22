@@ -227,11 +227,15 @@ model InventoryTransaction {
   performedBy String?
   // Thời điểm ghi sổ vào hệ thống (audit).
   createdAt   DateTime @default(now())
+  // Phiếu giao hàng đã sinh ra dòng nhập này (để hoàn tác khi gỡ phiếu). Không
+  // khóa ngoại: bảng này đồng bộ tàu↔bờ, bảng phiếu giao thì không.
+  phieuGiaoId Int?
 
   @@index([vesselId])
   @@index([materialId])
   @@index([warehouseId])
   @@index([occurredAt])
+  @@index([phieuGiaoId])
 }
 
 model MaterialRequest {
@@ -960,6 +964,9 @@ model PhieuGiaoNhanDong {
   material   Material?     @relation(fields: [materialId], references: [id], onDelete: SetNull)
   // Bỏ tick = dòng rác / không nhập.
   chon       Boolean       @default(true)
+  // Lúc duyệt: true = phiếu này TẠO MỚI mặt hàng, false = gắn vào mặt hàng có
+  // sẵn; null = phiếu duyệt trước khi có cột (hoàn tác phải suy từ createdAt).
+  taoMoi     Boolean?
 
   @@index([phieuId])
   @@index([materialId])

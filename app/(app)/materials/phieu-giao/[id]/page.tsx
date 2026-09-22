@@ -7,6 +7,8 @@ import { trongPhamVi } from "@/lib/roles";
 import { NGUOI_TAI_PHIEU_GIAO, chuoiNgay } from "@/lib/phieuGiao";
 import { aiDaCauHinh } from "@/lib/cauHinhAi";
 import PhieuGiaoDuyet, { type DongHienThi } from "@/components/PhieuGiaoDuyet";
+import GoPhieuGiaoButton from "@/components/GoPhieuGiaoButton";
+import { laBanTau } from "@/lib/banCai";
 import { layT } from "@/lib/i18n/server";
 import { Badge, Card, PageHeader } from "@/components/ui";
 
@@ -77,6 +79,7 @@ export default async function PhieuGiaoChiTietPage({
     thongBaoDoc = { tone: "warning", text: `${t("phieuGiao.aiLoi", { loi: phieu.loiAi })} ${t("phieuGiao.aiLoiGoiY")}` };
   }
   const aiBat = await aiDaCauHinh();
+  const goDuoc = user.role === "ADMIN" && phieu.status === "DA_DUYET" && !(await laBanTau());
 
   const dong: DongHienThi[] = phieu.dong.map((d) => ({
     id: d.id,
@@ -145,6 +148,11 @@ export default async function PhieuGiaoChiTietPage({
           aiBat={aiBat}
         />
       </Card>
+      {goDuoc && (
+        <div className="flex justify-end">
+          <GoPhieuGiaoButton phieuId={phieu.id} tenPhieu={phieu.soPhieu || phieu.fileName} trangThai={phieu.status} size="md" veDanhSach />
+        </div>
+      )}
     </div>
   );
 }

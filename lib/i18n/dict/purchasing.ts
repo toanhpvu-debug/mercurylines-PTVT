@@ -143,8 +143,14 @@ export const purchasing = tuDien(
       "Chưa có biểu mẫu trên hệ thống — nút Xuất kiểm kê MLS-11-06 ở trang Tồn kho sẽ báo thiếu cho tới khi tải lên.",
     bieuMauTep_daCo: "{kb} KB · {nguoi} tải lên lúc {luc}",
     bieuMauTep_chonFile: "Chọn tệp biểu mẫu (.xlsx)",
+    bieuMauTep_chonFileDuoi: "Chọn tệp biểu mẫu ({duoi})",
     bieuMauTep_taiLen: "Tải lên",
     bieuMauTep_thayThe: "Thay bằng tệp mới",
+    bieuMauTep_tieuDeWord: "Tệp biểu mẫu Word {ma}",
+    bieuMauTep_moTaWord:
+      "Nút Xuất Word trên trang báo cáo dụng cụ chằng buộc điền số liệu vào chính tệp Word gốc của công ty, giữ nguyên logo, header, đường kẻ và khối chữ ký. File .doc cũ thì mở bằng Word rồi Lưu dưới dạng .docx trước khi tải lên. Bản tải lên nằm trong database, còn nguyên sau mỗi lần cập nhật máy chủ.",
+    bieuMauTep_chuaCoWord:
+      "Chưa có biểu mẫu Word trên hệ thống — nút Xuất Word MLS-11-13 ở trang báo cáo chằng buộc sẽ báo thiếu cho tới khi tải lên.",
     tieuDeBieuMau: "Biểu mẫu chứng từ theo tàu",
     moTaBieuMau:
       "Quản lý danh sách biểu mẫu (công ty quản lý) và gán cho từng tàu — quyết định đầu & chữ ký của Yêu cầu báo giá (RFQ), Đơn mua hàng (PO).",
@@ -298,8 +304,14 @@ export const purchasing = tuDien(
       "No form file loaded yet — the MLS-11-06 export button on the Inventory page will report it missing until one is uploaded.",
     bieuMauTep_daCo: "{kb} KB · uploaded by {nguoi} at {luc}",
     bieuMauTep_chonFile: "Choose the form file (.xlsx)",
+    bieuMauTep_chonFileDuoi: "Choose the form file ({duoi})",
     bieuMauTep_taiLen: "Upload",
     bieuMauTep_thayThe: "Replace with a new file",
+    bieuMauTep_tieuDeWord: "{ma} Word form file",
+    bieuMauTep_moTaWord:
+      "The Export Word button on the lashing gear report fills the company's own Word file, keeping the logo, header, rules and signature block intact. For an old .doc file, open it in Word and Save As .docx before uploading. The uploaded copy lives in the database and survives every server update.",
+    bieuMauTep_chuaCoWord:
+      "No Word form loaded yet — the Export Word MLS-11-13 button on the lashing report will report it missing until one is uploaded.",
     tieuDeBieuMau: "Document form standards by vessel",
     moTaBieuMau:
       "Manage the list of form standards (owned by the company) and assign one to each vessel — it drives the letterhead and signature block of the request for quotation (RFQ) and the purchase order (PO).",

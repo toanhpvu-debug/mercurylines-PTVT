@@ -10,7 +10,7 @@ if ($LASTEXITCODE -ne 0) { "tsc TRUOT"; exit 1 }; "  tsc 0"
 & ".\node_modules\.bin\eslint.cmd" "app" "components" "lib" "scripts" "proxy.ts" "next.config.ts" 2>&1 | Select-Object -Last 20 | ForEach-Object { "  $_" }
 if ($LASTEXITCODE -ne 0) { "eslint TRUOT"; exit 1 }; "  eslint 0"
 "=== kiem thu ==="
-$bo = @("kiem-tra-ngon-ngu","kiem-tra-ma-vat-tu","kiem-tra-phan-quyen","kiem-tra-mau-danh-muc","kiem-tra-dong-bo","kiem-tra-doc-phieu","kiem-tra-bieu-mau-db","thu-xuat-kiem-ke","kiem-tra-qr","kiem-tra-doc-phieu-giao","kiem-tra-pdf-giao","kiem-tra-doc-ai","kiem-tra-cau-hinh-ai")
+$bo = @("kiem-tra-ngon-ngu","kiem-tra-ma-vat-tu","kiem-tra-phan-quyen","kiem-tra-mau-danh-muc","kiem-tra-dong-bo","kiem-tra-doc-phieu","kiem-tra-bieu-mau-db","thu-xuat-kiem-ke","kiem-tra-qr","kiem-tra-doc-phieu-giao","kiem-tra-pdf-giao","kiem-tra-doc-ai","kiem-tra-cau-hinh-ai","kiem-tra-bieu-mau-chang-buoc")
 foreach ($s in $bo) {
     $o = & node --conditions=react-server --import ./node_modules/tsx/dist/loader.mjs "scripts/$s.ts" 2>&1 | ForEach-Object { "$_" }
     $ma = $LASTEXITCODE

@@ -67,3 +67,5 @@ _workspace_prev/
 
 # ban in thu do scripts/thu-xuat-kiem-ke.ts sinh ra
 /_thu-xuat/
+/templates/*.docx
+/templates/*.doc

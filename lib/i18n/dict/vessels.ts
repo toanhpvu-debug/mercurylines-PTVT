@@ -121,6 +121,9 @@ export const vessels = tuDien(
     // --- Trang xem / in một báo cáo chằng buộc ---
     quayLaiDsBaoCao: "Quay lại danh sách báo cáo",
     inBaoCaoMLS1113: "In báo cáo MLS-11-13",
+    xuatWordMLS1113: "Xuất Word MLS-11-13",
+    thieuBieuMauWord:
+      "Chưa có tệp biểu mẫu Word MLS-11-13 trên hệ thống. Quản trị vào Mua sắm → Biểu mẫu, tải lên tệp .docx (mở file Word gốc rồi Lưu dưới dạng .docx) — sau đó nút Xuất Word sẽ điền số liệu vào đúng mẫu công ty.",
     canDatMuaBoSung: "Cần đặt mua bổ sung ({n} loại):",
     canNChiec: "cần {n} chiếc để đủ trang bị chuẩn",
     dungTrangTruoc: "Dùng trang",
@@ -376,6 +379,9 @@ export const vessels = tuDien(
 
     quayLaiDsBaoCao: "Back to the report list",
     inBaoCaoMLS1113: "Print MLS-11-13 report",
+    xuatWordMLS1113: "Export Word MLS-11-13",
+    thieuBieuMauWord:
+      "The MLS-11-13 Word form file is not on the system yet. An administrator uploads the .docx under Purchasing → Forms (open the original Word file and Save As .docx) — the Export Word button then fills the company form exactly.",
     canDatMuaBoSung: "To be ordered ({n} items):",
     canNChiec: "{n} more needed to reach standard out-fitting",
     dungTrangTruoc: "Use the",

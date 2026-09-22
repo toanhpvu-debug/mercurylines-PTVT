@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { AlertTriangle, ArrowLeft, FileDown } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
@@ -9,7 +9,7 @@ import {
 } from "@/lib/auth";
 import PrintButton from "@/components/PrintButton";
 import { layT } from "@/lib/i18n/server";
-import { Notice } from "@/components/ui";
+import { Notice, buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +63,14 @@ export default async function LashingReportPage({
           <ArrowLeft className="size-4" />
           {t("vessels.quayLaiDsBaoCao")}
         </Link>
-        <PrintButton label={t("vessels.inBaoCaoMLS1113")} />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Tệp Word điền vào đúng mẫu công ty (templates / Mua sắm → Biểu mẫu). */}
+          <a href={`/api/export/lashing/${report.id}`} className={buttonClass("secondary")}>
+            <FileDown className="size-4" />
+            {t("vessels.xuatWordMLS1113")}
+          </a>
+          <PrintButton label={t("vessels.inBaoCaoMLS1113")} />
+        </div>
       </div>
 
       <div className="print-area surface rounded-xl border p-6 shadow-sm print:rounded-none print:p-0 print:shadow-none print:border-0">

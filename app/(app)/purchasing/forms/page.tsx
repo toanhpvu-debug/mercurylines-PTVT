@@ -9,7 +9,7 @@ import {
 } from "@/lib/auth";
 import VesselFormStandardRow from "@/components/VesselFormStandardRow";
 import BieuMauTepManager from "@/components/BieuMauTepManager";
-import { MA_BIEU_MAU_KIEM_KE } from "@/lib/bieuMau";
+import { MA_BIEU_MAU_CHANG_BUOC, MA_BIEU_MAU_KIEM_KE } from "@/lib/bieuMau";
 import {
   FormStandardAddForm,
   FormStandardEditForm,
@@ -39,24 +39,23 @@ export default async function VesselFormsPage() {
   if (!["ADMIN", "MASTER"].includes(user.role)) {
     redirect("/purchasing");
   }
-  const [vessels, allStandards, bieuMauTep] = await Promise.all([
+  const chonTep = {
+    fileName: true,
+    size: true,
+    sha256: true,
+    uploadedBy: true,
+    uploadedAt: true,
+  } as const;
+  const [vessels, allStandards, bieuMauTep, bieuMauWord] = await Promise.all([
     prisma.vessel.findMany({
       where: vesselIdWhere(scope),
       orderBy: { code: "asc" },
     }),
     prisma.formStandard.findMany({ orderBy: { code: "asc" } }),
-    // Tệp biểu mẫu Excel gốc — KHÔNG kéo cột `data` (40 KB nhị phân) về chỉ để
-    // hiện vài dòng thông tin; khi xuất kiểm kê mới đọc tới nó.
-    prisma.bieuMauTep.findUnique({
-      where: { code: MA_BIEU_MAU_KIEM_KE },
-      select: {
-        fileName: true,
-        size: true,
-        sha256: true,
-        uploadedBy: true,
-        uploadedAt: true,
-      },
-    }),
+    // Tệp biểu mẫu gốc — KHÔNG kéo cột `data` (nhị phân) về chỉ để hiện vài
+    // dòng thông tin; khi xuất mới đọc tới nó.
+    prisma.bieuMauTep.findUnique({ where: { code: MA_BIEU_MAU_KIEM_KE }, select: chonTep }),
+    prisma.bieuMauTep.findUnique({ where: { code: MA_BIEU_MAU_CHANG_BUOC }, select: chonTep }),
   ]);
   const activeStandards = allStandards.filter((s) => s.isActive);
   const stdByCode = new Map(allStandards.map((s) => [s.code, s]));
@@ -88,21 +87,38 @@ export default async function VesselFormsPage() {
         />
       </div>
 
-      {/* Tệp biểu mẫu Excel gốc — chỉ quản trị mới tải lên được. */}
+      {/* Tệp biểu mẫu gốc (Excel kiểm kê, Word chằng buộc) — chỉ quản trị mới tải lên được. */}
       {canManage && (
-        <BieuMauTepManager
-          hienCo={
-            bieuMauTep
-              ? {
-                  fileName: bieuMauTep.fileName,
-                  size: bieuMauTep.size,
-                  sha256: bieuMauTep.sha256,
-                  uploadedBy: bieuMauTep.uploadedBy,
-                  uploadedAt: ngayGio(bieuMauTep.uploadedAt),
-                }
-              : null
-          }
-        />
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <BieuMauTepManager
+            code={MA_BIEU_MAU_KIEM_KE}
+            hienCo={
+              bieuMauTep
+                ? {
+                    fileName: bieuMauTep.fileName,
+                    size: bieuMauTep.size,
+                    sha256: bieuMauTep.sha256,
+                    uploadedBy: bieuMauTep.uploadedBy,
+                    uploadedAt: ngayGio(bieuMauTep.uploadedAt),
+                  }
+                : null
+            }
+          />
+          <BieuMauTepManager
+            code={MA_BIEU_MAU_CHANG_BUOC}
+            hienCo={
+              bieuMauWord
+                ? {
+                    fileName: bieuMauWord.fileName,
+                    size: bieuMauWord.size,
+                    sha256: bieuMauWord.sha256,
+                    uploadedBy: bieuMauWord.uploadedBy,
+                    uploadedAt: ngayGio(bieuMauWord.uploadedAt),
+                  }
+                : null
+            }
+          />
+        </div>
       )}
 
       {/* Quản lý danh sách biểu mẫu */}

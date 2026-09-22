@@ -59,12 +59,7 @@ import {
   getUploadDir,
 } from "@/lib/uploads";
 import ExcelJS from "exceljs";
-import {
-  DUOI_BIEU_MAU,
-  MA_BIEU_MAU_KIEM_KE,
-  MAX_BIEU_MAU_BYTES,
-  MIME_BIEU_MAU,
-} from "@/lib/bieuMau";
+import { BIEU_MAU_TEP, MAX_BIEU_MAU_BYTES } from "@/lib/bieuMau";
 import type { HamDich } from "@/lib/i18n";
 import { layT } from "@/lib/i18n/server";
 
@@ -3184,15 +3179,18 @@ export async function uploadBieuMauTep(
     return { message: t("chung.khongCoQuyen") };
   }
   const code = String(formData.get("code") || "").trim();
-  if (code !== MA_BIEU_MAU_KIEM_KE) {
+  const bieuMau = BIEU_MAU_TEP[code];
+  if (!bieuMau) {
     return { message: t("chung.duLieuKhongHopLe") };
   }
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
     return { message: t("actions.hoSo_vuiLongChonFile") };
   }
-  if (fileExtension(file.name) !== DUOI_BIEU_MAU) {
-    return { message: t("actions.bieuMauTep_chiNhanXlsx") };
+  if (fileExtension(file.name) !== bieuMau.duoi) {
+    return {
+      message: bieuMau.loai === "word" ? t("actions.bieuMauTep_chiNhanDocx") : t("actions.bieuMauTep_chiNhanXlsx"),
+    };
   }
   if (file.size > MAX_BIEU_MAU_BYTES) {
     return { message: t("actions.bieuMauTep_fileQuaLon") };
@@ -3201,14 +3199,22 @@ export async function uploadBieuMauTep(
   // Đọc thử bằng đúng thư viện mà lúc xuất sẽ dùng. Nhận bừa rồi để vỡ lúc xuất
   // thì người bấm nút xuất mới biết, mà họ không phải người tải lên và cũng không
   // sửa được gì — lỗi phải nổ ngay trước mặt người đang cầm tệp.
-  try {
-    const thu = new ExcelJS.Workbook();
-    await thu.xlsx.load(buffer as unknown as ArrayBuffer);
-    if (!thu.worksheets.length) {
+  if (bieuMau.loai === "excel") {
+    try {
+      const thu = new ExcelJS.Workbook();
+      await thu.xlsx.load(buffer as unknown as ArrayBuffer);
+      if (!thu.worksheets.length) {
+        return { message: t("actions.bieuMauTep_khongDocDuoc") };
+      }
+    } catch {
       return { message: t("actions.bieuMauTep_khongDocDuoc") };
     }
-  } catch {
-    return { message: t("actions.bieuMauTep_khongDocDuoc") };
+  } else {
+    const { kiemTraBieuMauChangBuoc } = await import("@/lib/bieuMauChangBuoc");
+    const kq = await kiemTraBieuMauChangBuoc(buffer);
+    if (!kq.ok) {
+      return { message: `${t("actions.bieuMauTep_khongDocDuoc")} ${kq.loi}` };
+    }
   }
   const sha256 = createHash("sha256").update(buffer).digest("hex");
   await prisma.bieuMauTep.upsert({
@@ -3216,7 +3222,7 @@ export async function uploadBieuMauTep(
     create: {
       code,
       fileName: file.name,
-      mimeType: MIME_BIEU_MAU,
+      mimeType: bieuMau.mime,
       size: file.size,
       sha256,
       data: buffer,
@@ -3224,7 +3230,7 @@ export async function uploadBieuMauTep(
     },
     update: {
       fileName: file.name,
-      mimeType: MIME_BIEU_MAU,
+      mimeType: bieuMau.mime,
       size: file.size,
       sha256,
       data: buffer,
@@ -3240,6 +3246,7 @@ export async function uploadBieuMauTep(
   });
   revalidatePath("/purchasing/forms");
   revalidatePath("/inventory");
+  revalidatePath("/lashing");
   return {
     message: t("actions.bieuMauTep_daLuu", {
       ten: file.name,

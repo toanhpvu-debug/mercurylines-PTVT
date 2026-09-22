@@ -121,6 +121,7 @@ export const actions = tuDien(
     bieuMau_khongHopLe: "Biểu mẫu không hợp lệ.",
     bieuMau_maTenDiaChiBatBuoc: "Mã, tên công ty và địa chỉ là bắt buộc.",
     bieuMauTep_chiNhanXlsx: "Chỉ nhận file Excel .xlsx (bản biểu mẫu gốc của công ty).",
+    bieuMauTep_chiNhanDocx: "Chỉ nhận file Word .docx. File .doc cũ thì mở bằng Word rồi Lưu dưới dạng (Save As) .docx trước.",
     bieuMauTep_fileQuaLon: "File biểu mẫu quá lớn — biểu mẫu trống chỉ vài chục KB, tối đa 5MB.",
     bieuMauTep_khongDocDuoc:
       "Không đọc được file này như một bảng tính Excel. Kiểm tra lại đúng file .xlsx gốc chưa.",
@@ -368,6 +369,7 @@ export const actions = tuDien(
     bieuMau_maTenDiaChiBatBuoc:
       "Code, company name and address are required.",
     bieuMauTep_chiNhanXlsx: "Only .xlsx Excel files are accepted (the original company form).",
+    bieuMauTep_chiNhanDocx: "Only .docx Word files are accepted. For an old .doc file, open it in Word and Save As .docx first.",
     bieuMauTep_fileQuaLon: "The form file is too large — a blank form is a few dozen KB; the limit is 5MB.",
     bieuMauTep_khongDocDuoc:
       "This file could not be read as an Excel workbook. Check that it is the original .xlsx form.",

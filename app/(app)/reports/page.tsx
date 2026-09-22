@@ -6,6 +6,7 @@ import {
 } from "@/lib/auth";
 import { FileText } from "lucide-react";
 import PrintButton from "@/components/PrintButton";
+import LogoBieuMau from "@/components/LogoBieuMau";
 import { layT } from "@/lib/i18n/server";
 import type { KhoaDich } from "@/lib/i18n/tuDien";
 import {
@@ -247,8 +248,8 @@ export default async function ReportsPage({
         <table className="w-full border-2 border-black text-sm">
           <tbody>
             <tr>
-              <td className="w-40 border border-black p-2 align-middle">
-                <p className="text-lg font-black italic">Mercury Lines</p>
+              <td className="w-44 border border-black p-2 align-middle">
+                <LogoBieuMau />
               </td>
               <td className="border border-black p-2 text-center">
                 <p className="font-bold">CÔNG TY TNHH MERCURY LINES</p>

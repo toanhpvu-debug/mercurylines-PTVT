@@ -448,6 +448,17 @@ tbody[data-thu-gon] > tr:not(:first-child) {
 }
 
 /*
+ * Logo ở ô trái chứng từ (components/LogoBieuMau.tsx): phần chữ của logo dùng
+ * currentColor và LogoLockup đổi sang trắng ở chế độ tối — trên tờ giấy trắng
+ * của .print-area thì chữ trắng biến mất. Ghim navy của hãng ở đây, thắng cả
+ * lớp dark:text-white.
+ */
+.print-area .logo-bieu-mau,
+.print-area .logo-bieu-mau svg {
+  color: #204286 !important;
+}
+
+/*
  * IN GIẤY: chứng từ luôn đen trên trắng, bất kể người dùng đang để chế độ tối.
  * Ép lại bộ biến sáng ngay trong @media print — mọi thẻ, bảng, chữ dùng biến
  * đều theo, không phải sửa từng trang. Thanh bên, thanh trên và họa tiết nền

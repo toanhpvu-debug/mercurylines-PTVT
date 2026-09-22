@@ -31,6 +31,7 @@ import { REQUEST_ALLOWED_FROM } from "@/lib/requestStatus";
 import { layT } from "@/lib/i18n/server";
 import { cn } from "@/lib/cn";
 import PrintButton from "@/components/PrintButton";
+import LogoBieuMau from "@/components/LogoBieuMau";
 import RequestStatusForm from "@/components/RequestStatusForm";
 import RequestApprovalForm from "@/components/RequestApprovalForm";
 import RequestDeleteButton from "@/components/RequestDeleteButton";
@@ -232,8 +233,8 @@ export default async function RequestDetailPage({
         <table className="w-full border-2 border-black text-sm">
           <tbody>
             <tr>
-              <td className="w-40 border border-black p-2 align-middle">
-                <p className="text-lg font-black italic">Mercury Lines</p>
+              <td className="w-44 border border-black p-2 align-middle">
+                <LogoBieuMau />
               </td>
               <td className="border border-black p-2 text-center">
                 <p className="font-bold">MERCURY LINES COMPANY LIMITED</p>

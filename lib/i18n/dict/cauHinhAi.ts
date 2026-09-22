@@ -18,6 +18,11 @@ export const cauHinhAi = tuDien(
     nhaCungCap: "Nhà cung cấp",
     ncc_claude: "Claude (Anthropic)",
     ncc_gemini: "Gemini (Google AI Studio)",
+    ncc_deepseek: "DeepSeek",
+    deepseekChiChu:
+      "DeepSeek chỉ đọc CHỮ, không đọc ảnh: app tách chữ từ PDF trước rồi gửi. PDF số (có lớp chữ) đọc được ở mọi máy; bản scan chỉ đọc được khi tải từ máy văn phòng Windows (có OCR). Bản scan tải lên máy chủ sẽ báo không đọc được — khi đó dùng Gemini hoặc Claude.",
+    huongDanDeepseek:
+      "DeepSeek Platform → \"API keys\" → tạo khóa (nạp tiền trước, rẻ). Mô hình gợi ý: deepseek-chat. Chỉ đọc chữ — xem ghi chú khi chọn.",
     khoaApi: "Khóa API",
     khoaApiGiuNguyen: "Đã lưu {duoi} — để trống nếu giữ nguyên",
     khoaApiMoi: "Dán khóa API vào đây",
@@ -75,6 +80,11 @@ export const cauHinhAi = tuDien(
     nhaCungCap: "Provider",
     ncc_claude: "Claude (Anthropic)",
     ncc_gemini: "Gemini (Google AI Studio)",
+    ncc_deepseek: "DeepSeek",
+    deepseekChiChu:
+      "DeepSeek reads TEXT only, not images: the app extracts text from the PDF first, then sends it. Digital PDFs (with a text layer) work on any machine; scans only when uploaded from the Windows office PC (OCR). Scans uploaded on the server will be reported as unreadable — use Gemini or Claude for those.",
+    huongDanDeepseek:
+      "DeepSeek Platform → \"API keys\" → create a key (prepaid, inexpensive). Suggested model: deepseek-chat. Text only — see the note when selected.",
     khoaApi: "API key",
     khoaApiGiuNguyen: "Stored {duoi} — leave empty to keep it",
     khoaApiMoi: "Paste the API key here",

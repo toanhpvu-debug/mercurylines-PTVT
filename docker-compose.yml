@@ -38,6 +38,7 @@ services:
       # Bộ đọc AI cho phiếu giao hàng (tùy chọn) — để trống là tắt.
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       GOOGLE_AI_API_KEY: "${GOOGLE_AI_API_KEY:-}"
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
       PHIEU_GIAO_AI_MODEL: "${PHIEU_GIAO_AI_MODEL:-}"
       # SESSION_SECRET tự sinh và lưu trong volume nếu không đặt ở đây.
       # Truy cập qua HTTP thuần (không HTTPS): bỏ comment dòng dưới để cookie hoạt động.

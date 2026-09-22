@@ -26,19 +26,28 @@
  */
 import { chuanDonVi, type DongPhieuGiao } from "@/lib/phieuGiaoParse";
 
-export type NhaCungCapAi = "claude" | "gemini";
-export const NHA_CUNG_CAP_AI: readonly NhaCungCapAi[] = ["claude", "gemini"];
+/**
+ * "deepseek": API của DeepSeek (OpenAI-compatible) CHỈ NHẬN CHỮ — không nhận
+ * ảnh hay PDF. Nơi gọi phải tách chữ trước (lớp chữ PDF bằng pdfjs, hoặc OCR
+ * Windows cho bản scan) và đưa vào tuyChon.chuPdf; không có chữ thì báo rõ.
+ */
+export type NhaCungCapAi = "claude" | "gemini" | "deepseek";
+export const NHA_CUNG_CAP_AI: readonly NhaCungCapAi[] = ["claude", "gemini", "deepseek"];
 /** "ky" = 2 lượt (đọc + kiểm lại), "nhanh" = 1 lượt. */
 export type CheDoDocAi = "nhanh" | "ky";
 export const CHE_DO_DOC_AI: readonly CheDoDocAi[] = ["nhanh", "ky"];
 export const MODEL_MAC_DINH: Record<NhaCungCapAi, string> = {
   claude: "claude-sonnet-5",
   gemini: "gemini-2.5-pro",
+  deepseek: "deepseek-chat",
 };
 export const TEN_NHA_CUNG_CAP: Record<NhaCungCapAi, string> = {
   claude: "Claude (Anthropic)",
   gemini: "Gemini (Google AI Studio)",
+  deepseek: "DeepSeek",
 };
+/** Nhà cung cấp chỉ đọc chữ (cần tách chữ từ PDF trước). */
+export const CHI_DOC_CHU: readonly NhaCungCapAi[] = ["deepseek"];
 /** Phiếu dài hơn NGUONG_CHIA_CUM trang thì đọc từng cụm TRANG_MOI_CUM trang. */
 export const TRANG_MOI_CUM = 3;
 export const NGUONG_CHIA_CUM = 4;
@@ -56,6 +65,9 @@ export type CauHinhAi = {
 export const DIA_CHI_CLAUDE = "https://api.anthropic.com/v1/messages";
 export const DIA_CHI_CLAUDE_MODELS = "https://api.anthropic.com/v1/models?limit=100";
 export const DIA_CHI_GEMINI = "https://generativelanguage.googleapis.com/v1beta";
+export const DIA_CHI_DEEPSEEK = "https://api.deepseek.com";
+/** DeepSeek trả tối đa 8K token/lượt → đọc từng cụm 2 trang khi phiếu dài hơn 2 trang. */
+export const DEEPSEEK_TRANG_MOI_CUM = 2;
 /** Gemini nhận PDF gửi kèm (inline) tới ~20 MB cả gói; base64 phình 4/3 nên chặn ở 14 MB. */
 export const GEMINI_PDF_TOI_DA = 14 * 1024 * 1024;
 
@@ -364,7 +376,33 @@ type TuyChonDocAi = {
   choThuLaiMs?: number[];
   /** Số trang của PDF (nơi gọi đếm bằng pdfjs) — để chia cụm; không biết thì đọc một lần. */
   soTrang?: number | null;
+  /**
+   * Chữ đã tách từ PDF (lib/pdfChu.ts hoặc OCR), mỗi trang mở đầu bằng
+   * "--- trang N ---". BẮT BUỘC với nhà cung cấp chỉ đọc chữ (DeepSeek).
+   */
+  chuPdf?: string | null;
 };
+
+/** Cắt chữ theo phạm vi trang (dựa vào dấu "--- trang N ---"); không dấu thì trả nguyên. */
+export function catTrang(chu: string, pham: [number, number] | null): string {
+  if (!pham) return chu;
+  const manh = chu.split(/^--- trang (\d+) ---\r?\n?/m);
+  // split với nhóm bắt: [truoc, so1, noiDung1, so2, noiDung2, ...]
+  if (manh.length < 3) return chu;
+  const ra: string[] = [];
+  for (let i = 1; i < manh.length; i += 2) {
+    const so = Number(manh[i]);
+    if (so >= pham[0] && so <= pham[1]) ra.push(`--- trang ${so} ---\n${manh[i + 1] ?? ""}`);
+  }
+  return ra.join("\n");
+}
+
+/** Số trang theo dấu "--- trang N ---" trong chữ đã tách (null nếu không có dấu). */
+export function demTrangTuChu(chu: string | null | undefined): number | null {
+  if (!chu) return null;
+  const so = [...chu.matchAll(/^--- trang (\d+) ---/gm)].map((m) => Number(m[1]));
+  return so.length ? Math.max(...so) : null;
+}
 
 /** Hết hạn mức (429) hay quá tải (529/5xx): chờ 5 s rồi 15 s — hạn mức phút của gói miễn phí thường mở lại trong khoảng đó. */
 const CHO_THU_LAI_MAC_DINH = [5000, 15000];
@@ -385,6 +423,29 @@ function moTaLoiClaude(status: number, json: unknown): string {
 function moTaLoiGemini(status: number, json: unknown): string {
   const e = (json as { error?: { status?: string; message?: string } } | null)?.error;
   return `Gemini API ${status}${e?.status ? ` ${e.status}` : ""}${e?.message ? `: ${e.message}` : ""}`.slice(0, 300);
+}
+
+function moTaLoiDeepseek(status: number, json: unknown): string {
+  const e = (json as { error?: { type?: string; message?: string } } | null)?.error;
+  return `DeepSeek API ${status}${e?.type ? ` ${e.type}` : ""}${e?.message ? `: ${e.message}` : ""}`.slice(0, 300);
+}
+
+/** Bóc JSON từ chữ mô hình trả (có thể kèm ```json ... ``` hay câu dẫn). */
+function bocJson(text: string): unknown | null {
+  const t = text.trim();
+  try {
+    return JSON.parse(t);
+  } catch {
+    /* thử cắt từ { đầu tới } cuối */
+  }
+  const a = t.indexOf("{");
+  const b = t.lastIndexOf("}");
+  if (a < 0 || b <= a) return null;
+  try {
+    return JSON.parse(t.slice(a, b + 1));
+  } catch {
+    return null;
+  }
 }
 
 type KetQuaGoi = { ok: true; json: unknown } | { ok: false; loi: string; status?: number };
@@ -547,6 +608,59 @@ async function goiGemini(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, text: str
   return { ok: true, input, tokenVao: json?.usageMetadata?.promptTokenCount ?? 0, tokenRa: json?.usageMetadata?.candidatesTokenCount ?? 0 };
 }
 
+export const LOI_DEEPSEEK_KHONG_CHU =
+  "DeepSeek chỉ đọc được chữ, mà PDF này là bản scan không có lớp chữ. Dùng Gemini hoặc Claude (đọc được ảnh), hoặc tải phiếu từ máy văn phòng Windows (có OCR tách chữ).";
+
+/**
+ * DeepSeek (OpenAI-compatible chat completions): gửi CHỮ đã tách từ PDF, chỉ
+ * phần trang trong phạm vi; ép JSON bằng response_format (mô hình reasoner
+ * không nhận → bóc JSON từ chữ).
+ */
+async function goiDeepseek(ch: CauHinhAi, tc: TuyChonDocAi, text: string, pham: [number, number] | null, fetchFn: FetchGia, timeoutMs: number): Promise<KetQuaTho> {
+  const chu = (tc.chuPdf ?? "").trim();
+  if (chu.length < 10) return { ok: false, loi: LOI_DEEPSEEK_KHONG_CHU };
+  const chuCum = catTrang(chu, pham);
+  const laReasoner = /reason/i.test(ch.model);
+  const body = JSON.stringify({
+    model: ch.model,
+    temperature: 0,
+    max_tokens: 8192,
+    stream: false,
+    ...(laReasoner ? {} : { response_format: { type: "json_object" } }),
+    messages: [
+      { role: "system", content: `${HUONG_DAN_HE_THONG}\n\nĐầu vào là CHỮ đã tách từ PDF (không có ảnh): mỗi trang mở đầu bằng "--- trang N ---", các cột của bảng cách nhau bằng " | ". ${KHUON_JSON_GOI_Y}` },
+      {
+        role: "user",
+        content: `${text}${tc.fileName ? ` (tệp: ${tc.fileName.slice(0, 200)})` : ""}\n\nVĂN BẢN PHIẾU:\n${chuCum.slice(0, 120_000)}`,
+      },
+    ],
+  });
+  const r = await goiCoThuLai(
+    fetchFn,
+    `${DIA_CHI_DEEPSEEK}/chat/completions`,
+    { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${ch.apiKey}` }, body },
+    timeoutMs,
+    moTaLoiDeepseek,
+    tc.choThuLaiMs
+  );
+  if (!r.ok) return r;
+  const json = r.json as {
+    choices?: { message?: { content?: string | null }; finish_reason?: string }[];
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
+  } | null;
+  const lua = json?.choices?.[0];
+  const noiDung = lua?.message?.content ?? "";
+  if (!noiDung.trim()) return { ok: false, loi: `AI không trả về nội dung (finish_reason: ${lua?.finish_reason ?? "?"}).` };
+  const input = bocJson(noiDung);
+  if (input === null) {
+    return {
+      ok: false,
+      loi: lua?.finish_reason === "length" ? "AI trả về JSON bị cắt dở (quá giới hạn 8K token) — phiếu quá dài cho một lượt." : "AI trả về JSON hỏng.",
+    };
+  }
+  return { ok: true, input, tokenVao: json?.usage?.prompt_tokens ?? 0, tokenRa: json?.usage?.completion_tokens ?? 0 };
+}
+
 /** Lời nhắc cho một lượt: phạm vi trang (nếu chia cụm) và bảng lượt 1 (nếu là lượt kiểm lại). */
 export function loiNhac(pham: [number, number] | null, luot1: DongAi[] | null): string {
   let s = LOI_NHAC_NGUOI_DUNG;
@@ -584,10 +698,19 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
   const timeoutMs = tuyChon.timeoutMs ?? 180_000;
   const ch: CauHinhAi = { ...cauHinh, apiKey: cauHinh.apiKey.trim(), model: cauHinh.model.trim() || MODEL_MAC_DINH[cauHinh.nhaCungCap] };
   const cheDo: CheDoDocAi = ch.cheDo ?? "ky";
-  const goi = (text: string) =>
-    ch.nhaCungCap === "gemini" ? goiGemini(pdf, ch, tuyChon, text, fetchFn, timeoutMs) : goiClaude(pdf, ch, tuyChon, text, fetchFn, timeoutMs);
+  const goi = (text: string, pham: [number, number] | null) =>
+    ch.nhaCungCap === "deepseek"
+      ? goiDeepseek(ch, tuyChon, text, pham, fetchFn, timeoutMs)
+      : ch.nhaCungCap === "gemini"
+        ? goiGemini(pdf, ch, tuyChon, text, fetchFn, timeoutMs)
+        : goiClaude(pdf, ch, tuyChon, text, fetchFn, timeoutMs);
 
-  const cac = chiaTrang(tuyChon.soTrang ?? null);
+  // DeepSeek chỉ có chữ: chặn sớm, và chia cụm nhỏ hơn vì đầu ra giới hạn 8K token.
+  if (ch.nhaCungCap === "deepseek" && (tuyChon.chuPdf ?? "").trim().length < 10) return { ok: false, loi: LOI_DEEPSEEK_KHONG_CHU };
+  const cac =
+    ch.nhaCungCap === "deepseek"
+      ? chiaTrang(tuyChon.soTrang ?? demTrangTuChu(tuyChon.chuPdf), DEEPSEEK_TRANG_MOI_CUM, DEEPSEEK_TRANG_MOI_CUM)
+      : chiaTrang(tuyChon.soTrang ?? null);
   let tokenVao = 0;
   let tokenRa = 0;
   let soLuotGoi = 0;
@@ -596,14 +719,14 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
   const dongTatCa: DongAi[] = [];
   for (const pham of cac) {
     const tenPham = pham ? `trang ${pham[0]}–${pham[1]}` : "cả phiếu";
-    const r1 = await goi(loiNhac(pham, null));
+    const r1 = await goi(loiNhac(pham, null), pham);
     soLuotGoi++;
     if (!r1.ok) return { ok: false, loi: cac.length > 1 ? `${r1.loi} (${tenPham})` : r1.loi };
     tokenVao += r1.tokenVao;
     tokenRa += r1.tokenRa;
     let chuan = chuanHoaKetQuaAi(r1.input);
     if (cheDo === "ky") {
-      const r2 = await goi(loiNhac(pham, chuan.dong));
+      const r2 = await goi(loiNhac(pham, chuan.dong), pham);
       soLuotGoi++;
       if (r2.ok) {
         tokenVao += r2.tokenVao;
@@ -657,7 +780,19 @@ export async function kiemTraKetNoiAi(cauHinh: CauHinhAi, tuyChon: TuyChonDocAi 
   const apiKey = cauHinh.apiKey.trim();
   if (!apiKey) return { ok: false, loi: "Chưa có khóa API." };
   let models: string[] = [];
-  if (cauHinh.nhaCungCap === "gemini") {
+  if (cauHinh.nhaCungCap === "deepseek") {
+    const r = await goiCoThuLai(
+      fetchFn,
+      `${DIA_CHI_DEEPSEEK}/models`,
+      { method: "GET", headers: { authorization: `Bearer ${apiKey}` } },
+      timeoutMs,
+      moTaLoiDeepseek,
+      tuyChon.choThuLaiMs
+    );
+    if (!r.ok) return r;
+    const json = r.json as { data?: { id?: string }[] } | null;
+    models = (json?.data ?? []).map((m) => String(m.id ?? "")).filter(Boolean);
+  } else if (cauHinh.nhaCungCap === "gemini") {
     const r = await goiCoThuLai(
       fetchFn,
       `${DIA_CHI_GEMINI}/models?pageSize=200`,

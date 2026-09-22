@@ -118,10 +118,19 @@ export async function thuDocThatAction(_prev: KetQuaCauHinhAi, formData: FormDat
   }
   const modelDung = model || MODEL_MAC_DINH[nhaCungCap];
   const bd = Date.now();
-  const kq = await docPhieuGiaoBangAi(taoPdfMauPhieuGiao(), { nhaCungCap, apiKey, model: modelDung, cheDo, nguon: "db" }, {
+  const pdfMau = taoPdfMauPhieuGiao();
+  // DeepSeek chỉ đọc chữ: tách lớp chữ của phiếu mẫu như lúc tải phiếu thật.
+  let chuPdf: string | null = null;
+  if (nhaCungCap === "deepseek") {
+    const { docChuTuPdf } = await import("@/lib/pdfChu");
+    const lop = await docChuTuPdf(pdfMau);
+    chuPdf = lop.ok ? lop.text : null;
+  }
+  const kq = await docPhieuGiaoBangAi(pdfMau, { nhaCungCap, apiKey, model: modelDung, cheDo, nguon: "db" }, {
     fileName: "phieu-giao-mau.pdf",
     timeoutMs: 120_000,
     soTrang: 1,
+    chuPdf,
   });
   const giay = ((Date.now() - bd) / 1000).toFixed(1);
   if (!kq.ok) {

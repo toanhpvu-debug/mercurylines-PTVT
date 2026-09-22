@@ -1566,8 +1566,13 @@ scan rồi mới duyệt: AI đọc tốt hơn OCR nhiều nhưng không phải 
   `CauHinhHeThong` (`lib/maHoaBiMat.ts`, `lib/cauHinhAi.ts`); không ghi log, không trả về
   trình duyệt (trang chỉ hiện 4 ký tự cuối), không đi qua gói đồng bộ tàu ↔ bờ. Đổi
   `SESSION_SECRET` thì trang báo "không giải mã được" và bảo dán lại.
-- Đường dự phòng bằng biến môi trường: `ANTHROPIC_API_KEY` hoặc `GOOGLE_AI_API_KEY`
-  (`GEMINI_API_KEY` cũng nhận), mô hình `PHIEU_GIAO_AI_MODEL`. Khóa trong app được ưu tiên.
+- **DeepSeek** cũng chọn được, nhưng API của DeepSeek CHỈ NHẬN CHỮ: app tách chữ từ PDF
+  trước (lớp chữ bằng pdfjs ở mọi máy; bản scan thì OCR Windows) rồi mới gửi, đọc theo cụm
+  2 trang vì đầu ra giới hạn 8K token. Bản scan tải lên máy chủ Linux không đọc được bằng
+  DeepSeek — trang báo rõ, dùng Gemini/Claude cho những phiếu đó.
+- Đường dự phòng bằng biến môi trường: `ANTHROPIC_API_KEY`, `GOOGLE_AI_API_KEY`
+  (`GEMINI_API_KEY` cũng nhận) hoặc `DEEPSEEK_API_KEY`, mô hình `PHIEU_GIAO_AI_MODEL`. Khóa
+  trong app được ưu tiên.
 - Mô hình mặc định: `gemini-2.5-pro` / `claude-sonnet-5`; ô mô hình có gợi ý từ *Kiểm tra kết
   nối*, gõ tên khác nếu nhà cung cấp đổi tên.
 - Chi phí: một phiếu 3 trang tốn cỡ vài nghìn token vào, vài trăm token ra — tính bằng xu.

@@ -11,9 +11,13 @@ import {
   CONG_CU_GHI_PHIEU,
   DIA_CHI_CLAUDE,
   DIA_CHI_CLAUDE_MODELS,
+  DIA_CHI_DEEPSEEK,
   DIA_CHI_GEMINI,
+  LOI_DEEPSEEK_KHONG_CHU,
+  catTrang,
   chiaTrang,
   chuanHoaKetQuaAi,
+  demTrangTuChu,
   docPhieuGiaoBangAi,
   gopLuot,
   kiemTraKetNoiAi,
@@ -408,7 +412,97 @@ async function main() {
   });
   kiemTra("chua cau hinh -> ok:false, khong goi", [chuaKhoa.ok, soLan], [false, 0]);
 
+  // 12b) DeepSeek: chỉ chữ — cắt trang, bearer, JSON mode, cụm 2 trang, reasoner không JSON mode.
+  const CHU_3_TRANG = "--- trang 1 ---\nNo | Description | Qty | Unit\n1 | Rope | 2 | M\n--- trang 2 ---\n2 | Paint | 3 | CAN\n--- trang 3 ---\n3 | Brush | 4 | PCS\n";
+  kiemTra("catTrang giu trang 2-3", catTrang(CHU_3_TRANG, [2, 3]).includes("Paint") && !catTrang(CHU_3_TRANG, [2, 3]).includes("Rope"), true);
+  kiemTra("catTrang khong dau -> nguyen", catTrang("khong co dau trang", [1, 1]), "khong co dau trang");
+  kiemTra("demTrangTuChu", [demTrangTuChu(CHU_3_TRANG), demTrangTuChu("abc"), demTrangTuChu(null)], [3, null, null]);
+  const DEEPSEEK: CauHinhAi = { nhaCungCap: "deepseek", apiKey: "khoa-gia-deepseek", model: "deepseek-chat", nguon: "db", cheDo: "nhanh" };
+  const ketQuaDeepseek = (dong: unknown[] = [{ ten: "Rope", soLuong: 2, donVi: "M", loai: "STORE", trang: 1 }], noiDung?: string) => ({
+    choices: [{ message: { content: noiDung ?? JSON.stringify({ soPhieu: "DS-1", dong }) }, finish_reason: "stop" }],
+    usage: { prompt_tokens: 500, completion_tokens: 40 },
+  });
+  cacYc.length = 0;
+  const ds = await docPhieuGiaoBangAi(pdf, DEEPSEEK, {
+    fileName: "DN.pdf",
+    chuPdf: "--- trang 1 ---\nNo | Description | Qty | Unit\n1 | Rope | 2 | M\n",
+    fetchFn: async (url, init) => {
+      cacYc.push({ url, init });
+      return traVe(200, ketQuaDeepseek());
+    },
+  });
+  kiemTra("deepseek ok", ds.ok, true);
+  if (ds.ok) {
+    kiemTra("deepseek so phieu + dong", [ds.soPhieu, ds.dong.map((d) => [d.ten, d.soLuong, d.donVi])], ["DS-1", [["Rope", 2, "M"]]]);
+    kiemTra("deepseek token", [ds.tokenVao, ds.tokenRa, ds.soLuotGoi], [500, 40, 1]);
+  }
+  kiemTra("deepseek dia chi", cacYc[0]?.url, `${DIA_CHI_DEEPSEEK}/chat/completions`);
+  kiemTra("deepseek bearer", ((cacYc[0]?.init.headers ?? {}) as Record<string, string>)["authorization"], "Bearer khoa-gia-deepseek");
+  const bDs = bodyCua(cacYc[0]);
+  kiemTra("deepseek json mode", bDs.response_format, { type: "json_object" });
+  kiemTra("deepseek gui chu phieu", bDs.messages[1].content.includes("VĂN BẢN PHIẾU") && bDs.messages[1].content.includes("1 | Rope | 2 | M"), true);
+  kiemTra("deepseek model + khong stream", [bDs.model, bDs.stream, bDs.max_tokens], ["deepseek-chat", false, 8192]);
+  // Không có chữ (bản scan) → báo rõ, không gọi mạng.
+  cacYc.length = 0;
+  const dsKhongChu = await docPhieuGiaoBangAi(pdf, DEEPSEEK, {
+    fetchFn: async (url, init) => {
+      cacYc.push({ url, init });
+      return traVe(200, ketQuaDeepseek());
+    },
+  });
+  kiemTra("deepseek khong chu -> ok:false, khong goi", [dsKhongChu.ok, cacYc.length, !dsKhongChu.ok ? dsKhongChu.loi : ""], [false, 0, LOI_DEEPSEEK_KHONG_CHU]);
+  // 3 trang → cụm 2 trang: 2 lượt, mỗi lượt chỉ mang chữ của trang mình.
+  cacYc.length = 0;
+  const dsCum = await docPhieuGiaoBangAi(pdf, DEEPSEEK, {
+    chuPdf: CHU_3_TRANG,
+    fetchFn: async (url, init) => {
+      cacYc.push({ url, init });
+      const n = cacYc.length;
+      return traVe(200, ketQuaDeepseek([{ ten: `Hang ${n}`, soLuong: n, donVi: "PCS", loai: "STORE" }]));
+    },
+  });
+  kiemTra("deepseek 3 trang -> 2 cum", cacYc.length, 2);
+  kiemTra(
+    "deepseek moi cum dung trang",
+    [bodyCua(cacYc[0]).messages[1].content.includes("Paint"), bodyCua(cacYc[0]).messages[1].content.includes("Brush"), bodyCua(cacYc[1]).messages[1].content.includes("Brush")],
+    [true, false, true]
+  );
+  kiemTra("deepseek gop dong 2 cum", dsCum.ok && dsCum.dong.map((d) => d.ten), ["Hang 1", "Hang 2"]);
+  // Mô hình reasoner: không ép JSON mode, bóc JSON trong ```json.
+  cacYc.length = 0;
+  const dsR = await docPhieuGiaoBangAi(pdf, { ...DEEPSEEK, model: "deepseek-reasoner" }, {
+    chuPdf: "--- trang 1 ---\n1 | Rope | 2 | M\n",
+    fetchFn: async (url, init) => {
+      cacYc.push({ url, init });
+      return traVe(200, ketQuaDeepseek([], "Đây là kết quả:\n```json\n" + JSON.stringify({ dong: [{ ten: "Rope", soLuong: 2, donVi: "M", loai: "STORE" }] }) + "\n```"));
+    },
+  });
+  kiemTra("deepseek reasoner khong json mode", "response_format" in bodyCua(cacYc[0]), false);
+  kiemTra("deepseek boc json trong fence", dsR.ok && dsR.dong[0].ten, "Rope");
+  // Bị cắt dở.
+  const dsCat = await docPhieuGiaoBangAi(pdf, DEEPSEEK, {
+    chuPdf: "--- trang 1 ---\n1 | Rope | 2 | M\n",
+    fetchFn: async () => traVe(200, { choices: [{ message: { content: '{"dong": [{"ten": "Ro' }, finish_reason: "length" }] }),
+  });
+  kiemTra("deepseek cat do -> ok:false", [dsCat.ok, !dsCat.ok && dsCat.loi.includes("cắt dở")], [false, true]);
+  // Lỗi khóa.
+  const dsSai = await docPhieuGiaoBangAi(pdf, DEEPSEEK, {
+    ...NHANH,
+    chuPdf: "--- trang 1 ---\n1 | Rope | 2 | M\n",
+    fetchFn: async () => traVe(401, { error: { message: "Authentication Fails, Your api key is invalid", type: "authentication_error" } }),
+  });
+  kiemTra("deepseek 401 thong bao", !dsSai.ok && dsSai.loi, "DeepSeek API 401 authentication_error: Authentication Fails, Your api key is invalid");
+
   // 13) Kiểm tra kết nối / liệt kê mô hình.
+  cacYc.length = 0;
+  const kd = await kiemTraKetNoiAi(DEEPSEEK, {
+    fetchFn: async (url, init) => {
+      cacYc.push({ url, init });
+      return traVe(200, { object: "list", data: [{ id: "deepseek-chat" }, { id: "deepseek-reasoner" }] });
+    },
+  });
+  kiemTra("deepseek models", kd, { ok: true, models: ["deepseek-chat", "deepseek-reasoner"], coModel: true });
+  kiemTra("deepseek models dia chi + bearer", [cacYc[0]?.url, ((cacYc[0]?.init.headers ?? {}) as Record<string, string>)["authorization"]], [`${DIA_CHI_DEEPSEEK}/models`, "Bearer khoa-gia-deepseek"]);
   cacYc.length = 0;
   const kg = await kiemTraKetNoiAi(GEMINI, {
     fetchFn: async (url, init) => {

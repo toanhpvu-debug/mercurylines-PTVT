@@ -55,12 +55,13 @@ function laNhaCungCap(s: unknown): s is NhaCungCapAi {
 export function cauHinhTuEnv(env: Record<string, string | undefined> = process.env): CauHinhAi | null {
   const claude = env.ANTHROPIC_API_KEY?.trim();
   const gemini = (env.GOOGLE_AI_API_KEY ?? env.GEMINI_API_KEY)?.trim();
-  const nhaCungCap: NhaCungCapAi | null = claude ? "claude" : gemini ? "gemini" : null;
+  const deepseek = env.DEEPSEEK_API_KEY?.trim();
+  const nhaCungCap: NhaCungCapAi | null = claude ? "claude" : gemini ? "gemini" : deepseek ? "deepseek" : null;
   if (!nhaCungCap) return null;
   const cheDoEnv = env.PHIEU_GIAO_AI_CHE_DO?.trim();
   return {
     nhaCungCap,
-    apiKey: (nhaCungCap === "claude" ? claude : gemini) as string,
+    apiKey: (nhaCungCap === "claude" ? claude : nhaCungCap === "gemini" ? gemini : deepseek) as string,
     model: env.PHIEU_GIAO_AI_MODEL?.trim() || MODEL_MAC_DINH[nhaCungCap],
     cheDo: laCheDo(cheDoEnv) ? cheDoEnv : "ky",
     nguon: "env",

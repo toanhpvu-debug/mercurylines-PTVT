@@ -102,6 +102,12 @@ export default async function CauHinhAiPage() {
               console.anthropic.com <ExternalLink className="size-3.5" />
             </a>
           </li>
+          <li>
+            <b className="text-[var(--text-primary)]">{t("cauHinhAi.ncc_deepseek")}:</b> {t("cauHinhAi.huongDanDeepseek")}{" "}
+            <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-brand-700 hover:underline dark:text-brand-300">
+              platform.deepseek.com <ExternalLink className="size-3.5" />
+            </a>
+          </li>
           <li>{t("cauHinhAi.luuYRiengTu")}</li>
           <li>{t("cauHinhAi.luuYChiPhi")}</li>
         </ul>

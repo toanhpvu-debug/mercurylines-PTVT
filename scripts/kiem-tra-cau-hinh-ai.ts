@@ -65,6 +65,8 @@ kiemTra("env gemini + model + che do", cauHinhTuEnv({ GOOGLE_AI_API_KEY: K, PHIE
 });
 kiemTra("env che do la -> ky", cauHinhTuEnv({ GOOGLE_AI_API_KEY: K, PHIEU_GIAO_AI_CHE_DO: "sieu" })?.cheDo, "ky");
 kiemTra("env GEMINI_API_KEY cung nhan", cauHinhTuEnv({ GEMINI_API_KEY: K })?.nhaCungCap, "gemini");
+kiemTra("env deepseek", cauHinhTuEnv({ DEEPSEEK_API_KEY: K }), { nhaCungCap: "deepseek", apiKey: K, model: "deepseek-chat", cheDo: "ky", nguon: "env" });
+kiemTra("env gemini + deepseek -> gemini", cauHinhTuEnv({ GOOGLE_AI_API_KEY: K, DEEPSEEK_API_KEY: K })?.nhaCungCap, "gemini");
 kiemTra("env ca hai -> claude", cauHinhTuEnv({ ANTHROPIC_API_KEY: K, GOOGLE_AI_API_KEY: K })?.nhaCungCap, "claude");
 kiemTra("env khoa rong -> null", cauHinhTuEnv({ ANTHROPIC_API_KEY: "   " }), null);
 

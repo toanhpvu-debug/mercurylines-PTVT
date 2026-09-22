@@ -97,6 +97,24 @@ type KetQuaDocDong = {
 const dongThuong = (d: Omit<DongAi, "tenEn" | "trang" | "canhBao">): DongAi => ({ ...d, tenEn: null, trang: null, canhBao: null });
 
 /**
+ * Chữ tách sẵn cho nhà cung cấp CHỈ ĐỌC CHỮ (DeepSeek): lớp chữ PDF (mọi máy),
+ * không có thì OCR (chỉ Windows). Nhà cung cấp đọc được ảnh không cần.
+ */
+async function chuChoAi(nhaCungCap: string, buffer: Buffer, fullPath: string | null): Promise<string | null> {
+  const { CHI_DOC_CHU } = await import("@/lib/docPhieuBangAi");
+  if (!(CHI_DOC_CHU as readonly string[]).includes(nhaCungCap)) return null;
+  const { docChuTuPdf } = await import("@/lib/pdfChu");
+  const lop = await docChuTuPdf(buffer, 100);
+  if (lop.ok) return lop.text;
+  if (fullPath && process.platform === "win32") {
+    const { docPdfBangOcr } = await import("@/lib/pdfOcr");
+    const ocr = await docPdfBangOcr(fullPath, 30);
+    if (ocr.ok && ocr.text.trim().length >= 10) return ocr.text;
+  }
+  return null;
+}
+
+/**
  * Lấy dòng hàng từ PDF theo thứ tự ưu tiên:
  *   1. Bộ đọc AI (Claude) nếu đã cấu hình khóa — đọc cả bản scan, ở mọi máy.
  *   2. Lớp chữ PDF (pdfjs) + bộ tách chuỗi — PDF số, không tốn phí.
@@ -111,7 +129,8 @@ async function docDongTuPdf(buffer: Buffer, fullPath: string, fileName: string):
     const { docPhieuGiaoBangAi } = await import("@/lib/docPhieuBangAi");
     const { demTrangPdf } = await import("@/lib/pdfChu");
     const soTrang = await demTrangPdf(buffer);
-    const ai = await docPhieuGiaoBangAi(buffer, cauHinh, { fileName, soTrang });
+    const chuPdf = await chuChoAi(cauHinh.nhaCungCap, buffer, fullPath);
+    const ai = await docPhieuGiaoBangAi(buffer, cauHinh, { fileName, soTrang, chuPdf });
     if (ai.ok) {
       return {
         chuDoc: ai.chuTomTat,
@@ -310,7 +329,12 @@ export async function docLaiPhieuGiaoBangAi(phieuId: number): Promise<KetQuaDocL
   }
   const tenPhieu = phieu.soPhieu ?? phieu.fileName;
   const { demTrangPdf } = await import("@/lib/pdfChu");
-  const ai = await docPhieuGiaoBangAi(buffer, cauHinh, { fileName: phieu.fileName, soTrang: await demTrangPdf(buffer) });
+  const duongDanTep = path.join(getUploadDir(), path.basename(phieu.storedName));
+  const ai = await docPhieuGiaoBangAi(buffer, cauHinh, {
+    fileName: phieu.fileName,
+    soTrang: await demTrangPdf(buffer),
+    chuPdf: await chuChoAi(cauHinh.nhaCungCap, buffer, duongDanTep),
+  });
   if (!ai.ok) {
     console.error(`[phieu-giao] Bộ đọc AI (${cauHinh.nhaCungCap} · ${cauHinh.model}) lỗi khi đọc lại phiếu #${phieu.id}: ${ai.loi}`);
     await prisma.phieuGiaoNhan.update({ where: { id: phieu.id }, data: { loiAi: ai.loi.slice(0, 500) } });

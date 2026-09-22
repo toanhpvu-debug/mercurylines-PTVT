@@ -75,7 +75,9 @@ export default function CauHinhAiForm({
     });
   };
 
-  const models = (kiem.models ?? []).filter((m) => (nhaCungCap === "gemini" ? /gemini/i.test(m) : /claude/i.test(m))).slice(0, 40);
+  const models = (kiem.models ?? [])
+    .filter((m) => (nhaCungCap === "gemini" ? /gemini/i.test(m) : nhaCungCap === "deepseek" ? /deepseek/i.test(m) : /claude/i.test(m)))
+    .slice(0, 40);
 
   return (
     <form
@@ -90,13 +92,15 @@ export default function CauHinhAiForm({
           <Select
             value={nhaCungCap}
             onChange={(e) => {
-              setNhaCungCap(e.target.value === "claude" ? "claude" : "gemini");
+              const v = e.target.value;
+              setNhaCungCap(v === "claude" ? "claude" : v === "deepseek" ? "deepseek" : "gemini");
               setModel("");
             }}
             disabled={pending}
           >
             <option value="gemini">{t("cauHinhAi.ncc_gemini")}</option>
             <option value="claude">{t("cauHinhAi.ncc_claude")}</option>
+            <option value="deepseek">{t("cauHinhAi.ncc_deepseek")}</option>
           </Select>
         </Field>
         <Field label={t("cauHinhAi.moHinh")} hint={t("cauHinhAi.moHinhGoiY", { macDinh: macDinh[nhaCungCap] })}>
@@ -130,6 +134,7 @@ export default function CauHinhAiForm({
         </div>
       </Field>
 
+      {nhaCungCap === "deepseek" && <Notice tone="warning">{t("cauHinhAi.deepseekChiChu")}</Notice>}
       {kiem.message && (
         <Notice tone={kiem.success ? "success" : kiem.models ? "warning" : "danger"}>
           {kiem.message}

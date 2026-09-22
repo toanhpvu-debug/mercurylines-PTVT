@@ -459,6 +459,24 @@ tbody[data-thu-gon] > tr:not(:first-child) {
 }
 
 /*
+ * Ô sửa trước khi in (components/BaoCaoVatTuSua.tsx): nếu người dùng bấm In
+ * khi còn ở chế độ sửa, ô nhập phải in ra như chữ thường — không khung, không
+ * nền, kế thừa cỡ chữ và căn lề của ô bảng.
+ */
+.print-area .o-sua {
+  font: inherit;
+  color: inherit;
+}
+@media print {
+  .print-area .o-sua {
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+  }
+}
+
+/*
  * IN GIẤY: chứng từ luôn đen trên trắng, bất kể người dùng đang để chế độ tối.
  * Ép lại bộ biến sáng ngay trong @media print — mọi thẻ, bảng, chữ dùng biến
  * đều theo, không phải sửa từng trang. Thanh bên, thanh trên và họa tiết nền

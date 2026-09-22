@@ -6,7 +6,7 @@ import {
 } from "@/lib/auth";
 import { FileText } from "lucide-react";
 import PrintButton from "@/components/PrintButton";
-import LogoBieuMau from "@/components/LogoBieuMau";
+import BaoCaoVatTuSua, { type DongBaoCao1101 } from "@/components/BaoCaoVatTuSua";
 import { layT } from "@/lib/i18n/server";
 import type { KhoaDich } from "@/lib/i18n/tuDien";
 import {
@@ -196,6 +196,20 @@ export default async function ReportsPage({
     const impa = (m.impa ?? "").trim();
     return m.materialType === "SPARE" ? partNo || impa : impa || partNo;
   };
+  const soChu = (n: number) => (n ? String(n) : "");
+  const dongGoc: DongBaoCao1101[] = reportRows.map((row) => ({
+    id: String(row.material!.id),
+    ten: `${row.material!.nameVn}${row.material!.nameEn ? ` (${row.material!.nameEn})` : ""}`,
+    kyHieu: soHieuHang(row.material!),
+    donVi: row.material!.uom,
+    tonTruoc: String(row.opening),
+    nhan: soChu(row.received),
+    ngayNhan: fmtDate(row.lastReceivedAt),
+    dung: soChu(row.used),
+    ngayDung: fmtDate(row.lastUsedAt),
+    ton: String(row.closing),
+    ghiChu: "",
+  }));
 
   return (
     <div className="space-y-5">
@@ -244,201 +258,19 @@ export default async function ReportsPage({
         </form>
       </Card>
 
-      <div className="print-area surface rounded-xl border p-6 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
-        <table className="w-full border-2 border-black text-sm">
-          <tbody>
-            <tr>
-              <td className="w-44 border border-black p-2 align-middle">
-                <LogoBieuMau />
-              </td>
-              <td className="border border-black p-2 text-center">
-                <p className="font-bold">CÔNG TY TNHH MERCURY LINES</p>
-                <p className="font-bold">MERCURY LINES COMPANY LIMITED</p>
-                <p className="text-xs italic">
-                  Phù hợp: Bộ luật ISM 5.2, 6.1.3, 10.1
-                </p>
-              </td>
-              <td className="w-44 border border-black p-2 text-xs">
-                <p>MLS-11-01</p>
-                <p>Ngày ban hành: 10/01/2024</p>
-                <p>Soát xét: 00</p>
-              </td>
-            </tr>
-            <tr>
-              <td colSpan={3} className="border border-black p-2 text-center">
-                <p className="text-base font-bold">
-                  BÁO CÁO NHẬN VÀ SỬ DỤNG VẬT TƯ
-                </p>
-                <p className="text-base font-bold">
-                  MATERIALS RECEIVING &amp; USING REPORT
-                </p>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div className="mt-3 grid grid-cols-2 gap-1 text-sm">
-          <p>
-            <span className="font-semibold">Tên tàu (Ships name):</span>{" "}
-            {selectedVessel.name}
-          </p>
-          <p>
-            <span className="font-semibold">Date (Ngày):</span> {ngay(lastDay)}
-          </p>
-          <p>
-            <span className="font-semibold">Bộ phận (Dep.):</span>{" "}
-            {t(dept.khoa)}
-          </p>
-          <p>
-            <span className="font-semibold">Tại cảng (At Sea):</span>{" "}
-            ..........................
-          </p>
-        </div>
-
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full border-2 border-black text-xs">
-            <thead>
-              <tr className="text-center">
-                <th rowSpan={2} className="border border-black p-1">
-                  Stt
-                  <br />
-                  No
-                </th>
-                <th rowSpan={2} className="border border-black p-1">
-                  Tên vật tư
-                  <br />
-                  Material Name
-                </th>
-                <th rowSpan={2} className="border border-black p-1">
-                  Ký hiệu
-                  <br />
-                  Spare part No.
-                </th>
-                <th rowSpan={2} className="border border-black p-1">
-                  Đơn vị
-                  <br />
-                  Unit
-                </th>
-                <th rowSpan={2} className="border border-black p-1">
-                  SL tồn đợt trước
-                  <br />
-                  Last ROB
-                </th>
-                <th colSpan={2} className="border border-black p-1">
-                  Vật tư nhận
-                  <br />
-                  Received
-                </th>
-                <th colSpan={2} className="border border-black p-1">
-                  Vật tư sử dụng
-                  <br />
-                  Used Materials
-                </th>
-                <th rowSpan={2} className="border border-black p-1">
-                  Vật tư tồn
-                  <br />
-                  Remain on board
-                </th>
-                <th rowSpan={2} className="border border-black p-1">
-                  Ghi chú
-                  <br />
-                  Remarks
-                </th>
-              </tr>
-              <tr className="text-center">
-                <th className="border border-black p-1">
-                  S.Lượng
-                  <br />
-                  Q.ty
-                </th>
-                <th className="border border-black p-1">
-                  Ngày
-                  <br />
-                  Date
-                </th>
-                <th className="border border-black p-1">
-                  S.Lượng
-                  <br />
-                  Q.ty
-                </th>
-                <th className="border border-black p-1">
-                  Ngày
-                  <br />
-                  Date
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {reportRows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={11}
-                    className="border border-black p-3 text-center text-slate-500"
-                  >
-                    {t("inventory.khongCoDuLieuKy")}
-                  </td>
-                </tr>
-              ) : (
-                reportRows.map((row, index) => (
-                  <tr key={row.material!.id} className="text-center">
-                    <td className="border border-black p-1">{index + 1}</td>
-                    <td className="border border-black p-1 text-left">
-                      {row.material!.nameVn}
-                      {row.material!.nameEn ? ` (${row.material!.nameEn})` : ""}
-                    </td>
-                    <td className="border border-black p-1">
-                      {soHieuHang(row.material!)}
-                    </td>
-                    <td className="border border-black p-1">
-                      {row.material!.uom}
-                    </td>
-                    <td className="border border-black p-1">{row.opening}</td>
-                    <td className="border border-black p-1">
-                      {row.received || ""}
-                    </td>
-                    <td className="border border-black p-1">
-                      {fmtDate(row.lastReceivedAt)}
-                    </td>
-                    <td className="border border-black p-1">
-                      {row.used || ""}
-                    </td>
-                    <td className="border border-black p-1">
-                      {fmtDate(row.lastUsedAt)}
-                    </td>
-                    <td className="border border-black p-1 font-semibold">
-                      {row.closing}
-                    </td>
-                    <td className="border border-black p-1"></td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mt-6 flex justify-between text-xs text-slate-700">
-          <div>
-            <p>Người làm báo cáo: CE, CO</p>
-            <p>Thời điểm làm báo cáo: Hàng tháng</p>
-          </div>
-          <div>
-            <p>Thời gian lưu: 3 năm</p>
-            <p>Lưu VP: Vật tư</p>
-          </div>
-        </div>
-        <div className="mt-8 grid grid-cols-2 gap-4 text-center text-sm">
-          <div>
-            <p className="font-bold">NGƯỜI LÀM BÁO CÁO</p>
-            <p className="italic">CE / CO</p>
-            <div className="mt-16" />
-          </div>
-          <div>
-            <p className="font-bold">THUYỀN TRƯỞNG</p>
-            <p className="italic">Captain</p>
-            <div className="mt-16" />
-          </div>
-        </div>
-      </div>
+      {/* Bản in sửa được trước khi in: số liệu server là điểm xuất phát, người
+          làm báo cáo chỉnh tay (ghi chú, ngày, dòng nhận ngoài sổ) rồi mới in;
+          bản sửa chỉ nằm trong trình duyệt theo tàu / bộ phận / tháng. */}
+      <BaoCaoVatTuSua
+        khoaLuu={`mercury.bao-cao-1101.${selectedVessel.id}.${deptKey}.${monthStr}`}
+        dauGoc={{
+          tenTau: selectedVessel.name,
+          ngay: ngay(lastDay),
+          boPhan: t(dept.khoa),
+          taiCang: "",
+        }}
+        dongGoc={dongGoc}
+      />
     </div>
   );
 }

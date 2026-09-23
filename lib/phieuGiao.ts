@@ -12,6 +12,17 @@ export const NGUOI_TAI_PHIEU_GIAO: readonly string[] = [
 ];
 
 export const TRANG_THAI_PHIEU_GIAO = ["CHO_DUYET", "DA_DUYET", "TU_CHOI"] as const;
+
+/**
+ * Bộ đọc AI chạy NỀN (sau khi trả trang) và đánh dấu phiếu bằng aiDangDocTu.
+ * Quá 30 phút mà dấu vẫn còn nghĩa là lần đọc bị gián đoạn (máy chủ khởi động
+ * lại / deploy giữa chừng) — coi như không còn đọc, cho phép đọc lại.
+ */
+export const AI_DOC_QUA_HAN_MS = 30 * 60_000;
+
+export function dangDocAi(aiDangDocTu: Date | null | undefined, bayGio = Date.now()): boolean {
+  return Boolean(aiDangDocTu) && bayGio - (aiDangDocTu as Date).getTime() < AI_DOC_QUA_HAN_MS;
+}
 export type TrangThaiPhieuGiao = (typeof TRANG_THAI_PHIEU_GIAO)[number];
 
 /** Một dòng như giao diện duyệt gửi lên (mọi ô là chuỗi, người dùng gõ). */

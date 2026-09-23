@@ -2,9 +2,10 @@
 
 import path from "path";
 import { createHash, randomUUID } from "crypto";
-import { readFile, unlink, writeFile } from "fs/promises";
+import { readFile, stat, unlink, writeFile } from "fs/promises";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -21,6 +22,7 @@ import { KHOA_TON_KHO_ADVISORY, khoaAdvisoryDongTon } from "@/lib/theKho";
 import {
   NGUOI_TAI_PHIEU_GIAO,
   chuoiNgay,
+  dangDocAi,
   kiemTraDongNhap,
   ngayTuChuoi,
   type DongNhap,
@@ -81,17 +83,13 @@ async function khopMatHang(
   });
 }
 
-type KetQuaDocDong = {
+type KetQuaDocKhongAi = {
   chuDoc: string | null;
-  nguonChu: "AI" | "TEXT" | "OCR" | "TAY";
+  nguonChu: "TEXT" | "OCR" | "TAY";
   dong: DongAi[];
   nhaCungCap: string | null;
   soPhieu: string | null;
   ngayGiao: string | null;
-  /** AI đã cấu hình nhưng đọc hỏng (mạng, hạn mức...) — ghi nhật ký và báo người dùng. */
-  loiAi: string | null;
-  /** Dòng bộ đọc AI / bộ soát đánh dấu cần kiểm kỹ. */
-  soDongCanKiem: number;
 };
 
 const dongThuong = (d: Omit<DongAi, "tenEn" | "trang" | "canhBao">): DongAi => ({ ...d, tenEn: null, trang: null, canhBao: null });
@@ -115,40 +113,13 @@ async function chuChoAi(nhaCungCap: string, buffer: Buffer, fullPath: string | n
 }
 
 /**
- * Lấy dòng hàng từ PDF theo thứ tự ưu tiên:
- *   1. Bộ đọc AI (Claude) nếu đã cấu hình khóa — đọc cả bản scan, ở mọi máy.
- *   2. Lớp chữ PDF (pdfjs) + bộ tách chuỗi — PDF số, không tốn phí.
- *   3. OCR Windows (máy văn phòng) + bộ tách chuỗi — bản scan khi không có AI.
- *   4. Không đọc được: phiếu vẫn lưu, người duyệt gõ tay.
+ * Lấy dòng hàng KHÔNG dùng AI: lớp chữ PDF (pdfjs, PDF số) → OCR Windows (bản
+ * scan, máy văn phòng) → không đọc được (người duyệt gõ tay). Nhanh, chạy ngay
+ * trong lúc tải lên; cũng là đường lùi khi bộ đọc AI hỏng.
  */
-async function docDongTuPdf(buffer: Buffer, fullPath: string, fileName: string): Promise<KetQuaDocDong> {
-  let loiAi: string | null = null;
-  const { layCauHinhAi } = await import("@/lib/cauHinhAi");
-  const cauHinh = await layCauHinhAi();
-  if (cauHinh) {
-    const { docPhieuGiaoBangAi } = await import("@/lib/docPhieuBangAi");
-    const { demTrangPdf } = await import("@/lib/pdfChu");
-    const soTrang = await demTrangPdf(buffer);
-    const chuPdf = await chuChoAi(cauHinh.nhaCungCap, buffer, fullPath);
-    const ai = await docPhieuGiaoBangAi(buffer, cauHinh, { fileName, soTrang, chuPdf });
-    if (ai.ok) {
-      return {
-        chuDoc: ai.chuTomTat,
-        nguonChu: "AI",
-        dong: ai.dong,
-        nhaCungCap: ai.nhaCungCap,
-        soPhieu: ai.soPhieu,
-        ngayGiao: ai.ngayGiao,
-        loiAi: null,
-        soDongCanKiem: ai.soDongCanKiem,
-      };
-    }
-    loiAi = ai.loi;
-    // Ra log máy chủ (Dokploy → Logs) để tra được khi người dùng chỉ thấy câu tóm tắt.
-    console.error(`[phieu-giao] Bộ đọc AI (${cauHinh.nhaCungCap} · ${cauHinh.model}) lỗi khi đọc "${fileName}": ${ai.loi}`);
-  }
+async function docDongKhongAi(buffer: Buffer, fullPath: string): Promise<KetQuaDocKhongAi> {
   let chuDoc: string | null = null;
-  let nguonChu: KetQuaDocDong["nguonChu"] = "TAY";
+  let nguonChu: KetQuaDocKhongAi["nguonChu"] = "TAY";
   const { docChuTuPdf } = await import("@/lib/pdfChu");
   const lopChu = await docChuTuPdf(buffer);
   if (lopChu.ok) {
@@ -171,9 +142,154 @@ async function docDongTuPdf(buffer: Buffer, fullPath: string, fileName: string):
     nhaCungCap: doc?.nhaCungCap ?? null,
     soPhieu: doc?.soPhieu ?? null,
     ngayGiao: doc?.ngayGiao ?? null,
-    loiAi,
-    soDongCanKiem: 0,
   };
+}
+
+/** Dữ liệu tạo dòng phiếu từ kết quả đọc (AI hoặc không). */
+function duLieuDong(dong: DongAi[], khop: (number | null)[]) {
+  return dong.map((d, i) => ({
+    thuTu: i + 1,
+    chuGoc: d.chuGoc.slice(0, 500),
+    ten: d.ten.slice(0, 200),
+    partNo: d.partNo,
+    impa: d.impa,
+    soLuong: d.soLuong,
+    donVi: d.donVi.slice(0, 20),
+    loai: d.loai,
+    thietBi: d.thietBi?.slice(0, 120) ?? null,
+    tenEn: d.tenEn?.slice(0, 200) ?? null,
+    trang: d.trang ?? null,
+    canhBao: d.canhBao?.slice(0, 300) ?? null,
+    materialId: khop[i] ?? null,
+  }));
+}
+
+type NguoiThaoTac = { id: number; email: string; role: string };
+
+/**
+ * Đọc phiếu bằng AI ở CHẾ ĐỘ NỀN — chạy trong after() sau khi trang đã trả về.
+ *
+ * Vì sao nền: phiếu 300+ dòng, AI đọc hai lượt theo nhiều cụm trang mất vài
+ * phút. Để người dùng ngồi chờ một request dài như vậy thì trình duyệt / proxy
+ * dễ cắt ngang và không ai biết tiến độ. Nay phiếu được lưu ngay, trang duyệt
+ * mở ra liền, hiện "AI đang đọc x/y lượt" và tự làm mới tới khi xong.
+ *
+ * Mọi đường ra đều gỡ dấu aiDangDocTu — lỗi thì ghi loiAi nguyên văn.
+ */
+async function chayDocAiNen(phieuId: number, actor: NguoiThaoTac, laDocLai: boolean): Promise<void> {
+  const phieu = await prisma.phieuGiaoNhan
+    .findUnique({
+      where: { id: phieuId },
+      select: {
+        id: true,
+        vesselId: true,
+        storedName: true,
+        fileName: true,
+        soPhieu: true,
+        nhaCungCap: true,
+        ngayGiao: true,
+        vessel: { select: { code: true } },
+      },
+    })
+    .catch(() => null);
+  if (!phieu) return;
+  const tenPhieu = phieu.soPhieu ?? phieu.fileName;
+  const ketThuc = (data: Prisma.PhieuGiaoNhanUpdateInput) =>
+    prisma.phieuGiaoNhan.update({ where: { id: phieu.id }, data: { ...data, aiDangDocTu: null, aiTienDo: null } }).catch(() => undefined);
+  try {
+    const { layCauHinhAi } = await import("@/lib/cauHinhAi");
+    const cauHinh = await layCauHinhAi();
+    if (!cauHinh) {
+      await ketThuc({ loiAi: "Chưa cấu hình bộ đọc AI." });
+      return;
+    }
+    const fullPath = path.join(getUploadDir(), path.basename(phieu.storedName));
+    const buffer = await readFile(fullPath);
+    const { docPhieuGiaoBangAi } = await import("@/lib/docPhieuBangAi");
+    const { demTrangPdf } = await import("@/lib/pdfChu");
+    const bd = Date.now();
+    const ai = await docPhieuGiaoBangAi(buffer, cauHinh, {
+      fileName: phieu.fileName,
+      soTrang: await demTrangPdf(buffer),
+      chuPdf: await chuChoAi(cauHinh.nhaCungCap, buffer, fullPath),
+      onTienDo: (xong, tong) => {
+        void prisma.phieuGiaoNhan.update({ where: { id: phieu.id }, data: { aiTienDo: `${xong}/${tong}` } }).catch(() => undefined);
+      },
+    });
+    const giay = Math.round((Date.now() - bd) / 1000);
+    if (!ai.ok) {
+      // Ra log máy chủ (Dokploy → Logs) để tra được khi người dùng chỉ thấy câu tóm tắt.
+      console.error(`[phieu-giao] Bộ đọc AI (${cauHinh.nhaCungCap} · ${cauHinh.model}) lỗi phiếu #${phieu.id} sau ${giay}s: ${ai.loi}`);
+      if (laDocLai) {
+        // Đọc lại hỏng: GIỮ nguyên các dòng đang có, chỉ báo lỗi.
+        await ketThuc({ loiAi: ai.loi.slice(0, 500) });
+      } else {
+        // Tải lên lần đầu: vẫn lấy dòng bằng lớp chữ / OCR nếu được, để người
+        // duyệt không phải gõ lại từ đầu.
+        const du = await docDongKhongAi(buffer, fullPath);
+        const khop = du.dong.length ? await khopMatHang(phieu.vesselId, du.dong) : [];
+        await prisma.$transaction(async (tx) => {
+          await tx.phieuGiaoNhanDong.deleteMany({ where: { phieuId: phieu.id } });
+          if (du.dong.length) {
+            await tx.phieuGiaoNhanDong.createMany({ data: duLieuDong(du.dong, khop).map((d) => ({ ...d, phieuId: phieu.id })) });
+          }
+          await tx.phieuGiaoNhan.update({
+            where: { id: phieu.id },
+            data: {
+              loiAi: ai.loi.slice(0, 500),
+              nguonChu: du.nguonChu,
+              chuDoc: du.chuDoc ? du.chuDoc.slice(0, 60000) : null,
+              nhaCungCap: phieu.nhaCungCap ?? du.nhaCungCap?.slice(0, 200) ?? null,
+              soPhieu: phieu.soPhieu ?? du.soPhieu?.slice(0, 80) ?? null,
+              ngayGiao: phieu.ngayGiao ?? ngayTuChuoi(du.ngayGiao),
+              aiDangDocTu: null,
+              aiTienDo: null,
+            },
+          });
+        });
+      }
+      await ghiNhatKyNguoiDung(actor, {
+        action: "phieu-giao-ai-loi",
+        path: `/materials/phieu-giao/${phieu.id}`,
+        vesselId: phieu.vesselId,
+        detail: `AI (${cauHinh.nhaCungCap} · ${cauHinh.model}) ${laDocLai ? "đọc lại" : "đọc"} phiếu ${tenPhieu} lỗi sau ${giay}s: ${ai.loi.slice(0, 200)}`,
+      });
+      return;
+    }
+    const khop = ai.dong.length ? await khopMatHang(phieu.vesselId, ai.dong) : [];
+    await prisma.$transaction(async (tx) => {
+      await tx.phieuGiaoNhanDong.deleteMany({ where: { phieuId: phieu.id } });
+      if (ai.dong.length) {
+        await tx.phieuGiaoNhanDong.createMany({ data: duLieuDong(ai.dong, khop).map((d) => ({ ...d, phieuId: phieu.id })) });
+      }
+      await tx.phieuGiaoNhan.update({
+        where: { id: phieu.id },
+        data: {
+          nguonChu: "AI",
+          chuDoc: ai.chuTomTat.slice(0, 60000),
+          // Một số cụm trang hỏng: nêu rõ trang nào để người duyệt đọc lại / gõ tay.
+          loiAi: ai.canhBaoChung ? ai.canhBaoChung.slice(0, 500) : null,
+          // Đầu phiếu: giữ cái người dùng đã gõ, chỉ điền chỗ trống bằng kết quả AI.
+          nhaCungCap: phieu.nhaCungCap ?? ai.nhaCungCap?.slice(0, 200) ?? null,
+          soPhieu: phieu.soPhieu ?? ai.soPhieu?.slice(0, 80) ?? null,
+          ngayGiao: phieu.ngayGiao ?? ngayTuChuoi(ai.ngayGiao),
+          aiDangDocTu: null,
+          aiTienDo: null,
+        },
+      });
+    });
+    await ghiNhatKyNguoiDung(actor, {
+      action: laDocLai ? "phieu-giao-doc-lai-ai" : "phieu-giao-doc-ai",
+      path: `/materials/phieu-giao/${phieu.id}`,
+      vesselId: phieu.vesselId,
+      detail: `AI (${ai.model}, ${ai.soLuotGoi} lượt, ${giay}s) đọc phiếu ${tenPhieu} (${phieu.vessel.code}): ${ai.dong.length} dòng (${ai.soDongCanKiem} cần kiểm), token ${ai.tokenVao}/${ai.tokenRa}${
+        ai.loiPhu.length ? ` — ${ai.loiPhu.join(" | ").slice(0, 200)}` : ""
+      }`,
+    });
+  } catch (e) {
+    console.error(`[phieu-giao] Đọc nền phiếu #${phieu.id} lỗi:`, e);
+    await ketThuc({ loiAi: `Lỗi khi đọc phiếu: ${e instanceof Error ? e.message : String(e)}`.slice(0, 500) });
+  }
 }
 
 // ─── 1. Tải phiếu lên + đọc dòng hàng ────────────────────────────────────────
@@ -205,15 +321,18 @@ export async function taoPhieuGiaoTuPdf(
   const fullPath = path.join(dir, storedName);
   await writeFile(fullPath, buffer);
 
-  // Không đọc được thì vẫn lưu phiếu, người duyệt gõ tay: bản scan đã ở trong
-  // hệ thống là được việc chính.
-  const doc = await docDongTuPdf(buffer, fullPath, file.name);
-  const { chuDoc, nguonChu, dong } = doc;
+  // Có bộ đọc AI: lưu phiếu NGAY và để AI đọc ở chế độ nền (chayDocAiNen).
+  // Không có: đọc lớp chữ / OCR tại chỗ như trước (nhanh). Không đọc được thì
+  // vẫn lưu phiếu, người duyệt gõ tay: bản scan đã ở trong hệ thống là được việc chính.
+  const { layCauHinhAi } = await import("@/lib/cauHinhAi");
+  const coAi = (await layCauHinhAi()) !== null;
+  const du = coAi ? null : await docDongKhongAi(buffer, fullPath);
+  const dong = du?.dong ?? [];
   const khop = dong.length ? await khopMatHang(vesselId, dong) : [];
 
-  const nhaCungCap = String(formData.get("nhaCungCap") || "").trim() || doc.nhaCungCap || null;
-  const soPhieu = String(formData.get("soPhieu") || "").trim() || doc.soPhieu || null;
-  const ngayGiao = ngayTuChuoi(String(formData.get("ngayGiao") || "")) ?? ngayTuChuoi(doc.ngayGiao);
+  const nhaCungCap = String(formData.get("nhaCungCap") || "").trim() || du?.nhaCungCap || null;
+  const soPhieu = String(formData.get("soPhieu") || "").trim() || du?.soPhieu || null;
+  const ngayGiao = ngayTuChuoi(String(formData.get("ngayGiao") || "")) ?? ngayTuChuoi(du?.ngayGiao);
   const ghiChu = String(formData.get("ghiChu") || "").trim() || null;
 
   const phieu = await prisma.phieuGiaoNhan.create({
@@ -224,31 +343,16 @@ export async function taoPhieuGiaoTuPdf(
       mimeType: "application/pdf",
       size: file.size,
       sha256,
-      nguonChu,
-      chuDoc: chuDoc ? chuDoc.slice(0, 60000) : null,
+      nguonChu: du?.nguonChu ?? "TAY",
+      chuDoc: du?.chuDoc ? du.chuDoc.slice(0, 60000) : null,
       nhaCungCap: nhaCungCap?.slice(0, 200) ?? null,
       soPhieu: soPhieu?.slice(0, 80) ?? null,
       ngayGiao,
       ghiChu,
-      loiAi: doc.loiAi ? doc.loiAi.slice(0, 500) : null,
       uploadedById: actor.id,
-      dong: {
-        create: dong.map((d, i) => ({
-          thuTu: i + 1,
-          chuGoc: d.chuGoc.slice(0, 500),
-          ten: d.ten.slice(0, 200),
-          partNo: d.partNo,
-          impa: d.impa,
-          soLuong: d.soLuong,
-          donVi: d.donVi.slice(0, 20),
-          loai: d.loai,
-          thietBi: d.thietBi?.slice(0, 120) ?? null,
-          tenEn: d.tenEn?.slice(0, 200) ?? null,
-          trang: d.trang ?? null,
-          canhBao: d.canhBao?.slice(0, 300) ?? null,
-          materialId: khop[i] ?? null,
-        })),
-      },
+      aiDangDocTu: coAi ? new Date() : null,
+      aiTienDo: coAi ? "0" : null,
+      dong: { create: duLieuDong(dong, khop) },
     },
     select: { id: true },
   });
@@ -257,14 +361,16 @@ export async function taoPhieuGiaoTuPdf(
     action: "phieu-giao-tai-len",
     path: `/materials/phieu-giao/${phieu.id}`,
     vesselId,
-    detail: `Tải phiếu giao ${soPhieu ?? file.name} (${vessel.code}) — ${dong.length} dòng (${doc.soDongCanKiem} cần kiểm), nguồn ${nguonChu}${
-      doc.loiAi ? ` — AI lỗi: ${doc.loiAi.slice(0, 160)}` : ""
+    detail: `Tải phiếu giao ${soPhieu ?? file.name} (${vessel.code}) — ${
+      coAi ? "AI đọc ở chế độ nền" : `${dong.length} dòng, nguồn ${du?.nguonChu ?? "TAY"}`
     }`,
   });
+  if (coAi) {
+    const nguoi = { id: actor.id, email: actor.email, role: actor.role };
+    after(() => chayDocAiNen(phieu.id, nguoi, false));
+  }
   revalidatePath("/materials/phieu-giao");
-  redirect(
-    `/materials/phieu-giao/${phieu.id}?doc=${dong.length}&kiem=${doc.soDongCanKiem}&nguon=${nguonChu}${doc.loiAi ? "&ai=loi" : ""}`
-  );
+  redirect(coAi ? `/materials/phieu-giao/${phieu.id}` : `/materials/phieu-giao/${phieu.id}?doc=${dong.length}&nguon=${du?.nguonChu ?? "TAY"}`);
 }
 
 // ─── 2. Sửa dòng (hàng chờ) ──────────────────────────────────────────────────
@@ -286,6 +392,7 @@ async function timPhieuChoDuyet(id: number) {
       nhaCungCap: true,
       ngayGiao: true,
       ghiChu: true,
+      aiDangDocTu: true,
       vessel: { select: { code: true } },
     },
   });
@@ -293,17 +400,12 @@ async function timPhieuChoDuyet(id: number) {
 
 // ─── 2b. Đọc lại bằng AI (phiếu đã tải, còn chờ duyệt) ───────────────────────
 
-export type KetQuaDocLai = KetQuaPhieuGiao & {
-  dong?: (DongNhap & { materialLabel: string | null })[];
-  thongTin?: ThongTinPhieuNhap;
-};
-
 /**
- * Cho phiếu đã tải lên mà máy chưa đọc được (bản scan ở máy chủ trước khi bật
- * AI) hoặc đọc kém: gửi lại bản scan cho AI, THAY toàn bộ dòng hiện có. Trả về
- * dòng mới để giao diện cập nhật ngay, không phải tải lại trang.
+ * Cho phiếu máy chưa đọc được (bản scan tải trước khi bật AI) hoặc đọc kém:
+ * gửi lại bản scan cho AI ở CHẾ ĐỘ NỀN, THAY toàn bộ dòng khi đọc xong. Trả về
+ * ngay; trang duyệt hiện tiến độ và tự làm mới.
  */
-export async function docLaiPhieuGiaoBangAi(phieuId: number): Promise<KetQuaDocLai> {
+export async function docLaiPhieuGiaoBangAi(phieuId: number): Promise<KetQuaPhieuGiao> {
   const { t, tTuDo } = await layT();
   const actor = await requireActiveRole([...NGUOI_TAI_PHIEU_GIAO]);
   if (!actor) return { message: t("chung.khongCoQuyen") };
@@ -317,116 +419,23 @@ export async function docLaiPhieuGiaoBangAi(phieuId: number): Promise<KetQuaDocL
   if (phieu.uploadedById !== actor.id && !canManageVesselCatalog(actor, phieu.vesselId)) {
     return { message: t("chung.khongCoQuyen") };
   }
+  if (dangDocAi(phieu.aiDangDocTu)) return { message: t("phieuGiao.aiDangDocRoi") };
   const { layCauHinhAi } = await import("@/lib/cauHinhAi");
-  const cauHinh = await layCauHinhAi();
-  if (!cauHinh) return { message: t("phieuGiao.aiChuaCauHinh") };
-  const { docPhieuGiaoBangAi } = await import("@/lib/docPhieuBangAi");
-  let buffer: Buffer;
+  if (!(await layCauHinhAi())) return { message: t("phieuGiao.aiChuaCauHinh") };
   try {
-    buffer = await readFile(path.join(getUploadDir(), path.basename(phieu.storedName)));
+    await stat(path.join(getUploadDir(), path.basename(phieu.storedName)));
   } catch {
     return { message: t("phieuGiao.tepKhongCon") };
   }
-  const tenPhieu = phieu.soPhieu ?? phieu.fileName;
-  const { demTrangPdf } = await import("@/lib/pdfChu");
-  const duongDanTep = path.join(getUploadDir(), path.basename(phieu.storedName));
-  const ai = await docPhieuGiaoBangAi(buffer, cauHinh, {
-    fileName: phieu.fileName,
-    soTrang: await demTrangPdf(buffer),
-    chuPdf: await chuChoAi(cauHinh.nhaCungCap, buffer, duongDanTep),
+  await prisma.phieuGiaoNhan.update({
+    where: { id: phieu.id },
+    data: { aiDangDocTu: new Date(), aiTienDo: "0", loiAi: null },
   });
-  if (!ai.ok) {
-    console.error(`[phieu-giao] Bộ đọc AI (${cauHinh.nhaCungCap} · ${cauHinh.model}) lỗi khi đọc lại phiếu #${phieu.id}: ${ai.loi}`);
-    await prisma.phieuGiaoNhan.update({ where: { id: phieu.id }, data: { loiAi: ai.loi.slice(0, 500) } });
-    await ghiNhatKyNguoiDung(actor, {
-      action: "phieu-giao-ai-loi",
-      path: `/materials/phieu-giao/${phieu.id}`,
-      vesselId: phieu.vesselId,
-      detail: `AI (${cauHinh.nhaCungCap} · ${cauHinh.model}) đọc lại phiếu ${tenPhieu} lỗi: ${ai.loi.slice(0, 200)}`,
-    });
-    return { message: t("phieuGiao.aiLoi", { loi: ai.loi }) };
-  }
-  const khop = ai.dong.length ? await khopMatHang(phieu.vesselId, ai.dong) : [];
-  // Đầu phiếu: giữ cái người dùng đã gõ, chỉ điền chỗ trống bằng kết quả AI.
-  const thongTin: ThongTinPhieuNhap = {
-    nhaCungCap: phieu.nhaCungCap ?? ai.nhaCungCap ?? "",
-    soPhieu: phieu.soPhieu ?? ai.soPhieu ?? "",
-    ngayGiao: chuoiNgay(phieu.ngayGiao ?? ngayTuChuoi(ai.ngayGiao)),
-    ghiChu: phieu.ghiChu ?? "",
-  };
-  await prisma.$transaction(async (tx) => {
-    await tx.phieuGiaoNhan.update({
-      where: { id: phieu.id },
-      data: {
-        nguonChu: "AI",
-        loiAi: null,
-        chuDoc: ai.chuTomTat.slice(0, 60000),
-        nhaCungCap: thongTin.nhaCungCap.slice(0, 200) || null,
-        soPhieu: thongTin.soPhieu.slice(0, 80) || null,
-        ngayGiao: ngayTuChuoi(thongTin.ngayGiao),
-      },
-    });
-    await tx.phieuGiaoNhanDong.deleteMany({ where: { phieuId: phieu.id } });
-    if (ai.dong.length) {
-      await tx.phieuGiaoNhanDong.createMany({
-        data: ai.dong.map((d, i) => ({
-          phieuId: phieu.id,
-          thuTu: i + 1,
-          chuGoc: d.chuGoc.slice(0, 500),
-          ten: d.ten.slice(0, 200),
-          partNo: d.partNo,
-          impa: d.impa,
-          soLuong: d.soLuong,
-          donVi: d.donVi.slice(0, 20),
-          loai: d.loai,
-          thietBi: d.thietBi?.slice(0, 120) ?? null,
-          tenEn: d.tenEn?.slice(0, 200) ?? null,
-          trang: d.trang ?? null,
-          canhBao: d.canhBao?.slice(0, 300) ?? null,
-          materialId: khop[i] ?? null,
-        })),
-      });
-    }
-  });
-  const dongDb = await prisma.phieuGiaoNhanDong.findMany({
-    where: { phieuId: phieu.id },
-    orderBy: { thuTu: "asc" },
-    include: { material: { select: { code: true, nameVn: true } } },
-  });
-  await ghiNhatKyNguoiDung(actor, {
-    action: "phieu-giao-doc-lai-ai",
-    path: `/materials/phieu-giao/${phieu.id}`,
-    vesselId: phieu.vesselId,
-    detail: `AI (${ai.model}, ${ai.soLuotGoi} lượt) đọc lại phiếu ${tenPhieu}: ${ai.dong.length} dòng (${ai.soDongCanKiem} cần kiểm), token ${ai.tokenVao}/${ai.tokenRa}${
-      ai.loiPhu.length ? ` — ${ai.loiPhu.join(" | ").slice(0, 200)}` : ""
-    }`,
-  });
+  const nguoi = { id: actor.id, email: actor.email, role: actor.role };
+  after(() => chayDocAiNen(phieu.id, nguoi, true));
   revalidatePath("/materials/phieu-giao");
   revalidatePath(`/materials/phieu-giao/${phieu.id}`);
-  return {
-    message:
-      t("phieuGiao.daDocLaiAi", { n: ai.dong.length }) +
-      (ai.soDongCanKiem ? ` ${t("phieuGiao.soDongCanKiem", { k: ai.soDongCanKiem })}` : ""),
-    success: true,
-    thongTin,
-    dong: dongDb.map((d) => ({
-      id: d.id,
-      chon: d.chon,
-      ten: d.ten,
-      partNo: d.partNo ?? "",
-      impa: d.impa ?? "",
-      soLuong: d.soLuong,
-      donVi: d.donVi,
-      loai: d.loai === "STORE" ? "STORE" : "SPARE",
-      thietBi: d.thietBi ?? "",
-      materialId: d.materialId,
-      chuGoc: d.chuGoc,
-      tenEn: d.tenEn,
-      trang: d.trang,
-      canhBao: d.canhBao,
-      materialLabel: d.material ? `${d.material.code} — ${d.material.nameVn}` : null,
-    })),
-  };
+  return { message: t("phieuGiao.aiBatDauDoc"), success: true };
 }
 
 async function ghiDong(
@@ -494,7 +503,9 @@ export async function luuDongPhieuGiao(
   if (phieu.uploadedById !== actor.id && !canManageVesselCatalog(actor, phieu.vesselId)) {
     return { message: t("chung.khongCoQuyen") };
   }
-  const kq = kiemTraDongNhap(Array.isArray(dong) ? dong.slice(0, 500) : []);
+  // AI đang đọc nền sẽ THAY toàn bộ dòng khi xong — lưu bây giờ là mất công.
+  if (dangDocAi(phieu.aiDangDocTu)) return { message: t("phieuGiao.aiDangDocRoi") };
+  const kq = kiemTraDongNhap(Array.isArray(dong) ? dong.slice(0, 1000) : []);
   if (!kq.ok) {
     return { message: t(kq.loi === "thieuTen" ? "phieuGiao.dongThieuTen" : "phieuGiao.dongSoLuongSai", { n: kq.n }) };
   }
@@ -521,7 +532,8 @@ export async function duyetPhieuGiao(
   if (phieu.status !== "CHO_DUYET") {
     return { message: t("phieuGiao.phieuDaXuLy", { trangThai: tTuDo(`phieuGiao.trangThai_${phieu.status}`) }) };
   }
-  const kq = kiemTraDongNhap(Array.isArray(dong) ? dong.slice(0, 500) : []);
+  if (dangDocAi(phieu.aiDangDocTu)) return { message: t("phieuGiao.aiDangDocRoi") };
+  const kq = kiemTraDongNhap(Array.isArray(dong) ? dong.slice(0, 1000) : []);
   if (!kq.ok) {
     return { message: t(kq.loi === "thieuTen" ? "phieuGiao.dongThieuTen" : "phieuGiao.dongSoLuongSai", { n: kq.n }) };
   }

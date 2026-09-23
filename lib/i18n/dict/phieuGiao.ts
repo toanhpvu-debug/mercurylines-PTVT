@@ -33,7 +33,7 @@ export const phieuGiao = tuDien(
     nguon_TEXT: "Lớp chữ PDF",
     nguon_OCR: "Nhận dạng chữ (OCR)",
     nguon_TAY: "Gõ tay",
-    nguon_AI: "Bộ đọc AI (Claude)",
+    nguon_AI: "Bộ đọc AI",
     aiBat:
       "Bộ đọc AI đang bật ({ncc} · {model}): bản scan và ảnh chụp cũng được đọc thành dòng hàng ở mọi máy, kể cả máy chủ. Kết quả vẫn phải đối chiếu với bản scan trước khi duyệt.",
     aiLoiGoiY:
@@ -46,6 +46,14 @@ export const phieuGiao = tuDien(
     aiDangDoc: "Đang gửi bản scan cho AI đọc — nhiều trang có thể mất tới một phút, đừng bấm lại.",
     daDocLaiAi: "AI đã đọc {n} dòng hàng. Đối chiếu với bản scan rồi lưu hoặc phê duyệt.",
     aiLoi: "Bộ đọc AI gặp lỗi: {loi}",
+    aiDangDocNen:
+      "Bộ đọc AI đang đọc phiếu ở chế độ nền — đã xong {tienDo} lượt. Trang tự cập nhật; có thể rời trang và quay lại sau. Phiếu nhiều trang mất vài phút.",
+    tienDoChuaRo: "đang bắt đầu",
+    aiBiNgat:
+      "Lần đọc AI trước bị gián đoạn (máy chủ khởi động lại giữa chừng). Bấm \"Đọc lại bằng AI\" để đọc lại.",
+    aiDangDocRoi: "AI đang đọc phiếu này — chờ đọc xong rồi thao tác (trang tự cập nhật).",
+    aiBatDauDoc: "Đã gửi phiếu cho AI đọc lại ở chế độ nền. Trang tự cập nhật khi xong.",
+    badgeDangDoc: "AI đang đọc",
     aiLoiLucTai:
       "Bộ đọc AI gặp lỗi lúc tải lên (mạng hoặc hạn mức). Bấm \"Đọc lại bằng AI\" để thử lại, hoặc gõ tay các dòng.",
     tepKhongCon: "Không tìm thấy tệp bản scan của phiếu này trên máy chủ.",
@@ -147,7 +155,7 @@ export const phieuGiao = tuDien(
     nguon_TEXT: "PDF text layer",
     nguon_OCR: "Text recognition (OCR)",
     nguon_TAY: "Typed",
-    nguon_AI: "AI reader (Claude)",
+    nguon_AI: "AI reader",
     aiBat:
       "The AI reader is on ({ncc} · {model}): scans and photos are also read into item lines on any machine, including the server. Results must still be checked against the scan before approval.",
     aiLoiGoiY:
@@ -160,6 +168,13 @@ export const phieuGiao = tuDien(
     aiDangDoc: "Sending the scan to the AI — several pages can take up to a minute, please don't click again.",
     daDocLaiAi: "The AI read {n} item lines. Check them against the scan, then save or approve.",
     aiLoi: "AI reader error: {loi}",
+    aiDangDocNen:
+      "The AI reader is reading this note in the background — {tienDo} passes done. The page updates itself; you can leave and come back later. Multi-page notes take a few minutes.",
+    tienDoChuaRo: "starting",
+    aiBiNgat: "The previous AI read was interrupted (the server restarted midway). Click \"Re-read with AI\" to read again.",
+    aiDangDocRoi: "The AI is reading this note — wait until it finishes (the page updates itself).",
+    aiBatDauDoc: "The note was sent to the AI to re-read in the background. The page updates itself when done.",
+    badgeDangDoc: "AI reading",
     aiLoiLucTai:
       "The AI reader failed during upload (network or quota). Click \"Re-read with AI\" to retry, or type the lines.",
     tepKhongCon: "The scan file for this note was not found on the server.",

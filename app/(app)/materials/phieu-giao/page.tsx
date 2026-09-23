@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser, vesselIdWhere, vesselScopeDayDu, vesselWhere } from "@/lib/auth";
-import { NGUOI_TAI_PHIEU_GIAO } from "@/lib/phieuGiao";
+import { NGUOI_TAI_PHIEU_GIAO, dangDocAi } from "@/lib/phieuGiao";
 import { layCauHinhAi } from "@/lib/cauHinhAi";
 import { TEN_NHA_CUNG_CAP } from "@/lib/docPhieuBangAi";
 import PhieuGiaoUploadForm from "@/components/PhieuGiaoUploadForm";
@@ -52,6 +52,7 @@ export default async function PhieuGiaoPage() {
         status: true,
         nguonChu: true,
         createdAt: true,
+        aiDangDocTu: true,
         vessel: { select: { code: true } },
         uploadedBy: { select: { name: true } },
         _count: { select: { dong: true } },
@@ -134,6 +135,11 @@ export default async function PhieuGiaoPage() {
                       <Badge tone={TONE[p.status] ?? "neutral"} dot>
                         {tTuDo(`phieuGiao.trangThai_${p.status}`)}
                       </Badge>
+                      {p.status === "CHO_DUYET" && dangDocAi(p.aiDangDocTu) && (
+                        <Badge tone="info" className="ml-1">
+                          {t("phieuGiao.badgeDangDoc")}
+                        </Badge>
+                      )}
                     </Td>
                     <Td align="right">
                       <span className="inline-flex flex-wrap items-center justify-end gap-2">

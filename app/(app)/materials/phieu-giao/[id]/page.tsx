@@ -4,13 +4,14 @@ import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { canManageVesselCatalog, requireScopedUser, vesselScopeDayDu } from "@/lib/auth";
 import { trongPhamVi } from "@/lib/roles";
-import { NGUOI_TAI_PHIEU_GIAO, chuoiNgay } from "@/lib/phieuGiao";
+import { NGUOI_TAI_PHIEU_GIAO, chuoiNgay, dangDocAi } from "@/lib/phieuGiao";
+import TuLamMoi from "@/components/TuLamMoi";
 import { aiDaCauHinh } from "@/lib/cauHinhAi";
 import PhieuGiaoDuyet, { type DongHienThi } from "@/components/PhieuGiaoDuyet";
 import GoPhieuGiaoButton from "@/components/GoPhieuGiaoButton";
 import { laBanTau } from "@/lib/banCai";
 import { layT } from "@/lib/i18n/server";
-import { Badge, Card, PageHeader } from "@/components/ui";
+import { Badge, Card, Notice, PageHeader, Spinner } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -75,9 +76,15 @@ export default async function PhieuGiaoChiTietPage({
   // Lỗi NGUYÊN VĂN của nhà cung cấp AI ở lần đọc gần nhất — hiện ở mọi lần mở
   // trang khi phiếu còn chờ duyệt, để người dùng biết phải sửa gì (khóa, mô
   // hình, hạn mức) thay vì câu chung chung.
-  if (!thongBaoDoc && phieu.loiAi && phieu.nguonChu !== "AI" && phieu.status === "CHO_DUYET") {
+  // Bộ đọc AI chạy nền: đang đọc thì trang hiện tiến độ và tự làm mới; dấu còn
+  // mà quá 30 phút là lần đọc bị gián đoạn (máy chủ khởi động lại giữa chừng).
+  const dangDoc = phieu.status === "CHO_DUYET" && dangDocAi(phieu.aiDangDocTu);
+  const biNgat = phieu.status === "CHO_DUYET" && Boolean(phieu.aiDangDocTu) && !dangDoc;
+  if (!thongBaoDoc && !dangDoc && phieu.loiAi && phieu.status === "CHO_DUYET") {
     thongBaoDoc = { tone: "warning", text: `${t("phieuGiao.aiLoi", { loi: phieu.loiAi })} ${t("phieuGiao.aiLoiGoiY")}` };
   }
+  if (!thongBaoDoc && biNgat) thongBaoDoc = { tone: "warning", text: t("phieuGiao.aiBiNgat") };
+  const tienDo = phieu.aiTienDo && phieu.aiTienDo.includes("/") ? phieu.aiTienDo : t("phieuGiao.tienDoChuaRo");
   const aiBat = await aiDaCauHinh();
   const goDuoc = user.role === "ADMIN" && phieu.status === "DA_DUYET" && !(await laBanTau());
 
@@ -124,8 +131,20 @@ export default async function PhieuGiaoChiTietPage({
         />
         <p className="mt-1 text-sm text-[var(--text-secondary)]">{t("phieuGiao.duyetMoTa")}</p>
       </div>
+      {dangDoc && (
+        <Notice tone="info">
+          <span className="inline-flex items-start gap-2">
+            <Spinner className="mt-0.5 size-4 shrink-0" />
+            <span>{t("phieuGiao.aiDangDocNen", { tienDo })}</span>
+          </span>
+          <TuLamMoi giay={5} />
+        </Notice>
+      )}
       <Card>
         <PhieuGiaoDuyet
+          // Đổi khóa khi AI đọc xong để bảng lấy lại các dòng mới từ máy chủ.
+          key={dangDoc ? "dang-doc" : "san-sang"}
+          dangDocAi={dangDoc}
           phieu={{
             id: phieu.id,
             fileName: phieu.fileName,

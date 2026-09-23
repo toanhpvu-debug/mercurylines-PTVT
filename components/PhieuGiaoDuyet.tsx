@@ -45,6 +45,7 @@ export default function PhieuGiaoDuyet({
   coQuyenSua,
   thongBaoDoc,
   aiBat,
+  dangDocAi = false,
 }: {
   phieu: PhieuHienThi;
   dongBanDau: DongHienThi[];
@@ -54,6 +55,8 @@ export default function PhieuGiaoDuyet({
   thongBaoDoc: { tone: "info" | "warning" | "success"; text: string } | null;
   /** Máy chủ đã có khóa Claude API — hiện nút "Đọc lại bằng AI". */
   aiBat: boolean;
+  /** AI đang đọc nền — khóa mọi ô và nút tới khi đọc xong (trang tự làm mới). */
+  dangDocAi?: boolean;
 }) {
   const { t, tTuDo } = useNgonNgu();
   const router = useRouter();
@@ -70,7 +73,7 @@ export default function PhieuGiaoDuyet({
   /** Trang bản scan đang mở trong khung xem — bấm "tr.N" ở dòng để nhảy tới. */
   const [trangXem, setTrangXem] = useState<number | null>(null);
   const daXuLy = phieu.status !== "CHO_DUYET";
-  const khoaSua = daXuLy || !coQuyenSua || pending;
+  const khoaSua = daXuLy || !coQuyenSua || pending || dangDocAi;
   const tenPhieu = phieu.soPhieu || phieu.fileName;
   const soCanKiem = dong.filter((d) => d.canhBao).length;
   const khoaNhap = `mercury.phieu-giao.nhap.${phieu.id}`;
@@ -211,16 +214,13 @@ export default function PhieuGiaoDuyet({
   const docLaiAi = () => {
     if (!window.confirm(t("phieuGiao.xacNhanDocLaiAi", { phieu: tenPhieu }))) return;
     startTransition(async () => {
-      // AI đọc bản scan nhiều trang mất tới cả phút — báo để người dùng không bấm lại.
-      setThongBao({ tone: "info", text: t("phieuGiao.aiDangDoc") });
+      setThongBao(null);
       try {
+        // Máy chủ chỉ nhận việc rồi trả về ngay; AI đọc ở chế độ nền, trang tự
+        // hiện tiến độ và nạp dòng mới khi xong.
         const r = await docLaiPhieuGiaoBangAi(phieu.id);
-        setThongBao({ tone: r.success ? "success" : "danger", text: r.message });
-        if (r.success && r.dong) {
-          setDong(r.dong);
-          if (r.thongTin) setThongTin(r.thongTin);
-          router.refresh();
-        }
+        if (r.success) router.refresh();
+        else setThongBao({ tone: "danger", text: r.message });
       } catch (e) {
         if (xuLyBanCu(e)) return;
         setThongBao({ tone: "danger", text: String((e as Error)?.message ?? e) });
@@ -384,7 +384,7 @@ export default function PhieuGiaoDuyet({
             </table>
           </TableWrap>
 
-          {!daXuLy && coQuyenSua && (
+          {!daXuLy && coQuyenSua && !dangDocAi && (
             <div className="flex flex-wrap items-center gap-2">
               <Button type="button" onClick={themDong} disabled={pending} icon={<Plus className="size-4" />}>
                 {t("phieuGiao.nutThemDong")}
@@ -403,7 +403,7 @@ export default function PhieuGiaoDuyet({
             </div>
           )}
 
-          {!daXuLy && coQuyenDuyet && (
+          {!daXuLy && coQuyenDuyet && !dangDocAi && (
             <div className="rounded-xl border border-brand-500/30 bg-brand-500/8 p-4 space-y-3">
               <Field label={t("phieuGiao.khoNhap")} hint={t("phieuGiao.khoNhapMoTa")}>
                 <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} disabled={pending}>

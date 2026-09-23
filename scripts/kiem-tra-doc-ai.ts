@@ -15,6 +15,7 @@ import {
   DIA_CHI_GEMINI,
   LOI_DEEPSEEK_KHONG_CHU,
   catTrang,
+  chayGioiHan,
   chiaTrang,
   chuanHoaKetQuaAi,
   demTrangTuChu,
@@ -97,9 +98,10 @@ kiemTra("schema trang integer nullable", sg.properties.dong.items.properties.tra
 
 // 3) Chia cụm trang.
 kiemTra("chia: khong biet so trang", chiaTrang(null), [null]);
-kiemTra("chia: 4 trang doc mot lan", chiaTrang(4), [null]);
-kiemTra("chia: 5 trang", chiaTrang(5), [[1, 3], [4, 5]]);
-kiemTra("chia: 7 trang", chiaTrang(7), [[1, 3], [4, 6], [7, 7]]);
+kiemTra("chia: 2 trang doc mot lan", chiaTrang(2), [null]);
+kiemTra("chia: 3 trang", chiaTrang(3), [[1, 2], [3, 3]]);
+kiemTra("chia: 7 trang", chiaTrang(7), [[1, 2], [3, 4], [5, 6], [7, 7]]);
+kiemTra("chia: tuy chon 3/4", chiaTrang(7, 3, 4), [[1, 3], [4, 6], [7, 7]]);
 
 // 4) Lời nhắc: phạm vi trang + bảng lượt 1.
 kiemTra("loi nhac ca phieu", loiNhac(null, null).includes("CHỈ đọc"), false);
@@ -218,25 +220,34 @@ async function main() {
   kiemTra("ky hong: van ok voi luot 1", [kyHong.ok, kyHong.ok ? kyHong.dong.length : 0, kyHong.ok ? kyHong.loiPhu.length : 0], [true, 1, 1]);
   kiemTra("ky hong: 1 + 3 lan goi", cacYc.length, 4);
 
-  // 9) Chia cụm trang: 7 trang, chế độ nhanh → 3 lượt, mỗi lượt đúng phạm vi; đầu phiếu lấy lượt đầu.
+  // 9) Chia cụm trang: 7 trang, chế độ nhanh → 4 cụm 2 trang, chạy song song;
+  //    kết quả gộp theo THỨ TỰ TRANG dù cụm nào xong trước; đầu phiếu lấy cụm đầu.
+  const trangDau = (yc: YeuCau) => Number((textGemini(yc).match(/trang (\d+) đến (\d+)/) ?? [])[1] ?? 0);
   cacYc.length = 0;
+  const tienDo: string[] = [];
   const cum = await docPhieuGiaoBangAi(pdf, GEMINI, {
     soTrang: 7,
+    onTienDo: (x, n) => tienDo.push(`${x}/${n}`),
     fetchFn: async (url, init) => {
-      cacYc.push({ url, init });
-      const n = cacYc.length;
-      return traVe(200, ketQuaGemini([{ ten: `Hang cum ${n}`, soLuong: n, donVi: "PCS", loai: "STORE", trang: n * 3 - 2 }], n === 1 ? "DN-CUM" : null as unknown as string));
+      const yc = { url, init };
+      cacYc.push(yc);
+      const a = trangDau(yc);
+      // Cụm đầu trả CHẬM nhất — kiểm việc gộp theo thứ tự trang chứ không theo thứ tự xong.
+      await new Promise((r) => setTimeout(r, a === 1 ? 40 : 5));
+      return traVe(200, ketQuaGemini([{ ten: `Hang tr${a}`, soLuong: a, donVi: "PCS", loai: "STORE", trang: a }], a === 1 ? "DN-CUM" : (null as unknown as string)));
     },
   });
-  kiemTra("cum: 3 goi", cacYc.length, 3);
-  kiemTra("cum: pham vi trang", cacYc.map((yc) => (textGemini(yc).match(/trang (\d+) đến (\d+)/) ?? []).slice(1, 3)), [["1", "3"], ["4", "6"], ["7", "7"]]);
-  kiemTra("cum: cum sau de null dau phieu", [textGemini(cacYc[0]).includes("để null"), textGemini(cacYc[1]).includes("để null")], [false, true]);
+  kiemTra("cum: 4 goi", cacYc.length, 4);
+  kiemTra("cum: pham vi trang", cacYc.map(trangDau).sort((x, y) => x - y), [1, 3, 5, 7]);
+  const ycTrang = (a: number) => cacYc.find((yc) => trangDau(yc) === a)!;
+  kiemTra("cum: cum sau de null dau phieu", [textGemini(ycTrang(1)).includes("để null"), textGemini(ycTrang(3)).includes("để null")], [false, true]);
   if (cum.ok) {
-    kiemTra("cum: gop dong theo thu tu", cum.dong.map((d) => d.ten), ["Hang cum 1", "Hang cum 2", "Hang cum 3"]);
+    kiemTra("cum: gop dong theo thu tu trang", cum.dong.map((d) => d.ten), ["Hang tr1", "Hang tr3", "Hang tr5", "Hang tr7"]);
     kiemTra("cum: so phieu tu cum dau", cum.soPhieu, "DN-CUM");
-    kiemTra("cum: token cong don", [cum.tokenVao, cum.soLuotGoi], [2700, 3]);
+    kiemTra("cum: token cong don", [cum.tokenVao, cum.soLuotGoi, cum.canhBaoChung], [3600, 4, null]);
   } else kiemTra("cum ok", cum.ok, true);
-  // Kỹ + cụm: 5 trang → 2 cụm × 2 lượt.
+  kiemTra("cum: tien do 1..4/4", tienDo, ["1/4", "2/4", "3/4", "4/4"]);
+  // Kỹ + cụm: 5 trang → 3 cụm × 2 lượt.
   cacYc.length = 0;
   await docPhieuGiaoBangAi(pdf, { ...GEMINI, cheDo: "ky" }, {
     soTrang: 5,
@@ -245,7 +256,178 @@ async function main() {
       return traVe(200, ketQuaGemini());
     },
   });
-  kiemTra("ky + cum: 4 goi", cacYc.length, 4);
+  kiemTra("ky + cum: 6 goi", cacYc.length, 6);
+
+  // 9b) Chạy song song có giới hạn, giữ thứ tự đầu vào.
+  let dangChay = 0;
+  let dinh = 0;
+  const thuTu = await chayGioiHan([1, 2, 3, 4, 5, 6, 7], 3, async (x) => {
+    dangChay++;
+    dinh = Math.max(dinh, dangChay);
+    await new Promise((r) => setTimeout(r, 4 * (8 - x)));
+    dangChay--;
+    return x * 10;
+  });
+  kiemTra("song song: giu thu tu", thuTu, [10, 20, 30, 40, 50, 60, 70]);
+  kiemTra("song song: toi da 3 cung luc", dinh, 3);
+
+  // 9c) Một cụm hỏng: các cụm khác vẫn giữ kết quả, nêu đúng trang hỏng.
+  const motHong = await docPhieuGiaoBangAi(pdf, GEMINI, {
+    ...NHANH,
+    soTrang: 6,
+    fetchFn: async (url, init) => {
+      const a = trangDau({ url, init });
+      if (a === 3) return traVe(400, { error: { code: 400, status: "INVALID_ARGUMENT", message: "Request contains an invalid argument." } });
+      return traVe(200, ketQuaGemini([{ ten: `Hang tr${a}`, soLuong: 1, donVi: "PCS", loai: "STORE" }]));
+    },
+  });
+  kiemTra("mot cum hong: van ok", motHong.ok, true);
+  if (motHong.ok) {
+    kiemTra("mot cum hong: giu cum tot", motHong.dong.map((d) => d.ten), ["Hang tr1", "Hang tr5"]);
+    kiemTra("mot cum hong: neu trang", motHong.canhBaoChung?.includes("trang 3–4"), true);
+  }
+  const tatCaHong = await docPhieuGiaoBangAi(pdf, GEMINI, {
+    ...NHANH,
+    soTrang: 4,
+    fetchFn: async () => traVe(400, { error: { code: 400, status: "INVALID_ARGUMENT", message: "API key not valid." } }),
+  });
+  kiemTra("tat ca cum hong -> ok:false co trang", [tatCaHong.ok, !tatCaHong.ok && tatCaHong.loi.endsWith("(trang 1–2)")], [false, true]);
+
+  // 9d) Nhận THEO LUỒNG (SSE) cho cả ba nhà cung cấp.
+  const ma = new TextEncoder();
+  const sse = (events: unknown[], coEvent = false) =>
+    new Response(
+      events.map((e) => `${coEvent ? `event: ${(e as { type?: string }).type ?? "x"}\n` : ""}data: ${JSON.stringify(e)}\n\n`).join("") + (coEvent ? "" : "data: [DONE]\n\n"),
+      { headers: { "content-type": "text/event-stream" } }
+    );
+  const suClaude = (json: string, vao = 1500, ra = 60) => [
+    { type: "message_start", message: { usage: { input_tokens: vao } } },
+    { type: "content_block_start", index: 0, content_block: { type: "tool_use", name: "ghi_phieu_giao", input: {} } },
+    { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: json.slice(0, 20) } },
+    { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: json.slice(20) } },
+    { type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { output_tokens: ra } },
+    { type: "message_stop" },
+  ];
+  const jsonRope = JSON.stringify({ soPhieu: "S1", dong: [{ ten: "Rope", soLuong: 3, donVi: "M", loai: "STORE" }] });
+  cacYc.length = 0;
+  const cl = await docPhieuGiaoBangAi(pdf, CLAUDE, {
+    fetchFn: async (url, init) => {
+      cacYc.push({ url, init });
+      return sse(suClaude(jsonRope), true);
+    },
+  });
+  kiemTra("luong claude: body stream", bodyCua(cacYc[0]).stream, true);
+  kiemTra("luong claude: ket qua", cl.ok && [cl.soPhieu, cl.dong[0].ten, cl.dong[0].soLuong, cl.tokenVao, cl.tokenRa], ["S1", "Rope", 3, 1500, 60]);
+  cacYc.length = 0;
+  const gm = await docPhieuGiaoBangAi(pdf, GEMINI, {
+    fetchFn: async (url, init) => {
+      cacYc.push({ url, init });
+      return sse([
+        { candidates: [{ content: { parts: [{ text: "đang nghĩ", thought: true }, { text: '{"soPhieu":"G1","dong":[{"ten":"Pai' }] } }] },
+        { candidates: [{ content: { parts: [{ text: 'nt","soLuong":2,"donVi":"CAN","loai":"STORE"}]}' }] }, finishReason: "STOP" }], usageMetadata: { promptTokenCount: 800, candidatesTokenCount: 40 } },
+      ]);
+    },
+  });
+  kiemTra("luong gemini: dia chi stream", cacYc[0]?.url, `${DIA_CHI_GEMINI}/models/gemini-2.5-pro:streamGenerateContent?alt=sse`);
+  kiemTra("luong gemini: ket qua", gm.ok && [gm.soPhieu, gm.dong[0].ten, gm.dong[0].donVi, gm.tokenVao], ["G1", "Paint", "CAN", 800]);
+  cacYc.length = 0;
+  const DEEP: CauHinhAi = { nhaCungCap: "deepseek", apiKey: "k-deep", model: "deepseek-chat", nguon: "db", cheDo: "nhanh" };
+  const ds1 = await docPhieuGiaoBangAi(pdf, DEEP, {
+    chuPdf: "--- trang 1 ---\n1 | Brush | 4 | PCS\n",
+    fetchFn: async (url, init) => {
+      cacYc.push({ url, init });
+      return sse([
+        { choices: [{ delta: { content: '{"dong":[{"ten":"Br' } }] },
+        { choices: [{ delta: { content: 'ush","soLuong":4,"donVi":"PCS","loai":"STORE"}]}' }, finish_reason: "stop" }] },
+        { choices: [], usage: { prompt_tokens: 300, completion_tokens: 30 } },
+      ]);
+    },
+  });
+  kiemTra("luong deepseek: stream + usage", [bodyCua(cacYc[0]).stream, bodyCua(cacYc[0]).stream_options], [true, { include_usage: true }]);
+  kiemTra("luong deepseek: ket qua", ds1.ok && [ds1.dong[0].ten, ds1.dong[0].soLuong, ds1.tokenVao, ds1.tokenRa], ["Brush", 4, 300, 30]);
+  // Lỗi GIỮA luồng (quá tải) → thử lại một lần.
+  let soLanLuong = 0;
+  const loiGiua = await docPhieuGiaoBangAi(pdf, CLAUDE, {
+    ...NHANH,
+    fetchFn: async () => {
+      soLanLuong++;
+      return soLanLuong === 1
+        ? sse([{ type: "message_start", message: { usage: { input_tokens: 1 } } }, { type: "error", error: { type: "overloaded_error", message: "Overloaded" } }], true)
+        : sse(suClaude(jsonRope), true);
+    },
+  });
+  kiemTra("loi giua luong -> thu lai roi ok", [loiGiua.ok, soLanLuong], [true, 2]);
+  // Bị cắt dở (max_tokens) → báo không có kết quả có cấu trúc.
+  const catDo = await docPhieuGiaoBangAi(pdf, CLAUDE, {
+    fetchFn: async () =>
+      sse(
+        [
+          { type: "content_block_start", content_block: { type: "tool_use", name: "ghi_phieu_giao" } },
+          { type: "content_block_delta", delta: { type: "input_json_delta", partial_json: '{"dong":[{"ten":"Ro' } },
+          { type: "message_delta", delta: { stop_reason: "max_tokens" }, usage: { output_tokens: 32000 } },
+        ],
+        true
+      ),
+  });
+  kiemTra("luong cat do -> ok:false max_tokens", [catDo.ok, !catDo.ok && catDo.loi.includes("max_tokens")], [false, true]);
+
+  // AI viết CHẬM nhưng đều (6 mẩu × 30 ms, tổng 180 ms) với ngưỡng im lặng 100 ms → vẫn đạt.
+  const luongCham = (manh: string[], moiMs: number, signal?: AbortSignal | null, treoSauMau = -1) =>
+    new Response(
+      new ReadableStream({
+        async start(c) {
+          signal?.addEventListener("abort", () => {
+            try {
+              c.error(new DOMException("aborted", "AbortError"));
+            } catch {
+              /* đã đóng */
+            }
+          });
+          for (let i = 0; i < manh.length; i++) {
+            if (i === treoSauMau) return; // treo: không gửi thêm, không đóng
+            await new Promise((r) => setTimeout(r, moiMs));
+            try {
+              c.enqueue(ma.encode(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: manh[i] }] } }] })}\n\n`));
+            } catch {
+              return;
+            }
+          }
+          try {
+            c.close();
+          } catch {
+            /* đã hủy */
+          }
+        },
+      }),
+      { headers: { "content-type": "text/event-stream" } }
+    );
+  const jsonCham = JSON.stringify({ dong: [{ ten: "Slow item", soLuong: 1, donVi: "PCS", loai: "STORE" }] });
+  const manh = Array.from({ length: 6 }, (_, i) => jsonCham.slice(Math.floor((i * jsonCham.length) / 6), Math.floor(((i + 1) * jsonCham.length) / 6)));
+  const cham = await docPhieuGiaoBangAi(pdf, GEMINI, {
+    imLangMs: 100,
+    fetchFn: async (_url, init) => luongCham(manh, 30, init.signal),
+  });
+  kiemTra("viet cham nhung deu -> dat", cham.ok && cham.dong[0].ten, "Slow item");
+  // AI gửi một mẩu rồi IM LẶNG → ngắt sau ngưỡng, thử lại một lần, báo rõ "im lặng".
+  let soLanTreo = 0;
+  const treo = await docPhieuGiaoBangAi(pdf, GEMINI, {
+    ...NHANH,
+    imLangMs: 60,
+    fetchFn: async (_url, init) => {
+      soLanTreo++;
+      return luongCham(manh, 5, init.signal, 1);
+    },
+  });
+  kiemTra("im lang -> ok:false, 2 lan", [treo.ok, soLanTreo], [false, 2]);
+  if (!treo.ok) kiemTra("im lang thong bao", treo.loi, "Không gọi được API (AI im lặng quá 0 giây)");
+  // Trần TỔNG: viết đều mà quá lâu → ngắt, báo "chưa xong".
+  const quaTong = await docPhieuGiaoBangAi(pdf, GEMINI, {
+    ...NHANH,
+    timeoutMs: 80,
+    imLangMs: 1000,
+    fetchFn: async (_url, init) => luongCham(manh, 30, init.signal),
+  });
+  kiemTra("qua tong -> ok:false chua xong", [quaTong.ok, !quaTong.ok && quaTong.loi.includes("chưa xong")], [false, true]);
 
   // 10) Gemini một lượt: soi yêu cầu mức đủ đồ.
   cacYc.length = 0;
@@ -262,7 +444,7 @@ async function main() {
     kiemTra("gemini dong", g.dong.map((d) => [d.ten, d.impa, d.soLuong, d.loai]), [["Rubber pads", "591041", 100, "STORE"]]);
     kiemTra("gemini token", [g.tokenVao, g.tokenRa], [900, 70]);
   }
-  kiemTra("gemini dia chi", cacYc[0]?.url, `${DIA_CHI_GEMINI}/models/gemini-2.5-flash:generateContent`);
+  kiemTra("gemini dia chi", cacYc[0]?.url, `${DIA_CHI_GEMINI}/models/gemini-2.5-flash:streamGenerateContent?alt=sse`);
   const h2 = (cacYc[0]?.init.headers ?? {}) as Record<string, string>;
   kiemTra("gemini khoa o header", h2["x-goog-api-key"], "khoa-gia-gemini");
   kiemTra("gemini khoa khong o url", String(cacYc[0]?.url).includes("khoa-gia"), false);
@@ -280,7 +462,7 @@ async function main() {
       return traVe(200, ketQuaGemini());
     },
   });
-  kiemTra("gemini pro khong ep ngan sach suy nghi", bodyCua(cacYc[0]).generationConfig.thinkingConfig, undefined);
+  kiemTra("gemini pro cung co tran suy nghi", bodyCua(cacYc[0]).generationConfig.thinkingConfig, { thinkingBudget: 4096 });
   // Gemini bỏ phần "suy nghĩ" khi bóc chữ.
   const gNghi = await docPhieuGiaoBangAi(pdf, GEMINI, {
     fetchFn: async () =>
@@ -441,7 +623,7 @@ async function main() {
   const bDs = bodyCua(cacYc[0]);
   kiemTra("deepseek json mode", bDs.response_format, { type: "json_object" });
   kiemTra("deepseek gui chu phieu", bDs.messages[1].content.includes("VĂN BẢN PHIẾU") && bDs.messages[1].content.includes("1 | Rope | 2 | M"), true);
-  kiemTra("deepseek model + khong stream", [bDs.model, bDs.stream, bDs.max_tokens], ["deepseek-chat", false, 8192]);
+  kiemTra("deepseek model + stream", [bDs.model, bDs.stream, bDs.max_tokens], ["deepseek-chat", true, 8192]);
   // Không có chữ (bản scan) → báo rõ, không gọi mạng.
   cacYc.length = 0;
   const dsKhongChu = await docPhieuGiaoBangAi(pdf, DEEPSEEK, {

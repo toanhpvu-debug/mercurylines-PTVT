@@ -48,9 +48,12 @@ export const TEN_NHA_CUNG_CAP: Record<NhaCungCapAi, string> = {
 };
 /** Nhà cung cấp chỉ đọc chữ (cần tách chữ từ PDF trước). */
 export const CHI_DOC_CHU: readonly NhaCungCapAi[] = ["deepseek"];
-/** Phiếu dài hơn NGUONG_CHIA_CUM trang thì đọc từng cụm TRANG_MOI_CUM trang. */
-export const TRANG_MOI_CUM = 3;
-export const NGUONG_CHIA_CUM = 4;
+/**
+ * Phiếu dài hơn NGUONG_CHIA_CUM trang thì đọc từng cụm TRANG_MOI_CUM trang: mỗi
+ * cụm AI chỉ phải viết vài chục dòng (nhanh, ít sót), và các cụm chạy song song.
+ */
+export const TRANG_MOI_CUM = 2;
+export const NGUONG_CHIA_CUM = 2;
 
 /** Cấu hình đã giải mã, sẵn sàng gọi. */
 export type CauHinhAi = {
@@ -97,6 +100,8 @@ export type DocAiThanhCong = DauPhieu & {
   soDongCanKiem: number;
   /** Lỗi không chặn kết quả (VD lượt kiểm lại hỏng, đã dùng lượt 1). */
   loiPhu: string[];
+  /** Một số cụm trang không đọc được — nêu trang nào, để người duyệt đọc lại / gõ tay. null = đủ. */
+  canhBaoChung: string | null;
 };
 export type KetQuaDocAi = DocAiThanhCong | { ok: false; loi: string };
 
@@ -119,8 +124,8 @@ export const CONG_CU_GHI_PHIEU = {
           properties: {
             stt: { type: ["integer", "null"], description: "Số thứ tự in trên phiếu nếu có." },
             ten: { type: "string", description: "Mô tả hàng ĐÚNG NHƯ IN trên phiếu, giữ cả hai ngôn ngữ nếu song ngữ: không dịch, không rút gọn, không sửa." },
-            tenEn: { type: ["string", "null"], description: "Phần tên TIẾNG ANH trong mô tả (nếu phiếu in tiếng Anh hoặc song ngữ); không có thì null." },
-            tenVi: { type: ["string", "null"], description: "Phần tên TIẾNG VIỆT trong mô tả (thường trong ngoặc hoặc dòng dưới); không có thì null. Không tự dịch." },
+            tenEn: { type: ["string", "null"], description: "CHỈ khi mô tả in SONG NGỮ: phần tiếng Anh. Mô tả một ngôn ngữ thì null (đừng chép lại ten)." },
+            tenVi: { type: ["string", "null"], description: "CHỈ khi mô tả in SONG NGỮ: phần tiếng Việt (thường trong ngoặc hoặc dòng dưới). Mô tả một ngôn ngữ thì null. Không tự dịch." },
             partNo: { type: ["string", "null"], description: "Part No. / mã của nhà sản xuất (KHÔNG phải IMPA)." },
             impa: { type: ["string", "null"], description: "Mã IMPA đúng 6 chữ số nếu phiếu có cột IMPA." },
             soLuong: { type: ["number", "null"], description: "Số lượng GIAO (delivered / Q'ty), là số." },
@@ -151,7 +156,7 @@ export const HUONG_DAN_HE_THONG = `Bạn là nhân viên nhập liệu kho của
 
 Quy tắc:
 1. MỖI dòng hàng trên phiếu là MỘT phần tử trong "dong", kể cả dòng số lượng giao bằng 0 hay bị gạch bỏ (ghi vào ghiChu). Không gộp, không bỏ sót, không bịa thêm. Đọc hết các trang được yêu cầu, kể cả bảng tiếp trang sau; dòng cuối mỗi trang và dòng đầu trang sau hay bị sót — kiểm kỹ.
-2. "ten" giữ nguyên như in trên phiếu: không dịch, không sửa chính tả, không rút gọn. Phiếu in song ngữ (VD "Abrasive discs (Đĩa mài)") thì tách thêm tenEn = "Abrasive discs", tenVi = "Đĩa mài"; phiếu chỉ tiếng Anh thì tenEn = ten, tenVi = null; chỉ tiếng Việt thì tenVi = ten, tenEn = null. Không tự dịch để điền phần thiếu.
+2. "ten" giữ nguyên như in trên phiếu: không dịch, không sửa chính tả, không rút gọn. Phiếu in song ngữ (VD "Abrasive discs (Đĩa mài)") thì tách thêm tenEn = "Abrasive discs", tenVi = "Đĩa mài"; mô tả chỉ MỘT ngôn ngữ thì tenEn = null, tenVi = null (đừng chép lại ten — phiếu dài, chép thừa làm chậm). Không tự dịch để điền phần thiếu. Các trường không có thì null; lyDoKiem, ghiChu chỉ ghi khi có.
 3. IMPA là mã 6 chữ số của danh mục ship stores; Part No. là mã của nhà sản xuất. Đừng lẫn hai cột; không có thì null. Đọc số cẩn thận: 0/6/8, 1/7, 3/8 hay lẫn trên bản scan — chỗ không chắc đặt canKiem = true.
 4. "soLuong" là số lượng THỰC GIAO. Phiếu có cả cột đặt (ordered / req.) và cột giao (delivered / supplied) thì lấy cột giao; chỉ có một cột số lượng thì lấy cột đó. Số thập phân giữ nguyên.
 5. "donVi" ghi đúng cột đơn vị trên phiếu (PCS, SET, KG, LTR, M, BOX, ROLL, PAIR, CAN, DRUM, BTL...).
@@ -369,10 +374,17 @@ export type FetchGia = (url: string, init: RequestInit) => Promise<Response>;
 
 type TuyChonDocAi = {
   fileName?: string;
+  /** Trần TỔNG thời gian của một lần gọi (ms). Mặc định TONG_MS_MAC_DINH. */
   timeoutMs?: number;
+  /**
+   * Trần thời gian AI IM LẶNG — không gửi thêm chữ nào — trước khi coi là treo
+   * (ms). Mặc định IM_LANG_MS_MAC_DINH. Đây mới là ngưỡng quyết định: phiếu
+   * 300 dòng AI viết mất vài phút là bình thường, miễn là vẫn đang viết.
+   */
+  imLangMs?: number;
   /** Để kiểm thử thay fetch thật. */
   fetchFn?: FetchGia;
-  /** Thời gian chờ trước mỗi lần thử lại (ms) — kiểm thử đặt ngắn. */
+  /** Thời gian chờ trước mỗi lần thử lại khi hết hạn mức / quá tải (ms) — kiểm thử đặt ngắn. */
   choThuLaiMs?: number[];
   /** Số trang của PDF (nơi gọi đếm bằng pdfjs) — để chia cụm; không biết thì đọc một lần. */
   soTrang?: number | null;
@@ -381,6 +393,10 @@ type TuyChonDocAi = {
    * "--- trang N ---". BẮT BUỘC với nhà cung cấp chỉ đọc chữ (DeepSeek).
    */
   chuPdf?: string | null;
+  /** Báo tiến độ: đã xong bao nhiêu lượt gọi / tổng số lượt dự kiến. */
+  onTienDo?: (xong: number, tong: number) => void;
+  /** Số cụm đọc song song (mặc định SO_CUM_SONG_SONG). */
+  songSong?: number;
 };
 
 /** Cắt chữ theo phạm vi trang (dựa vào dấu "--- trang N ---"); không dấu thì trả nguyên. */
@@ -404,12 +420,21 @@ export function demTrangTuChu(chu: string | null | undefined): number | null {
   return so.length ? Math.max(...so) : null;
 }
 
-/** Hết hạn mức (429) hay quá tải (529/5xx): chờ 5 s rồi 15 s — hạn mức phút của gói miễn phí thường mở lại trong khoảng đó. */
-const CHO_THU_LAI_MAC_DINH = [5000, 15000];
+/**
+ * Hết hạn mức (429) hay quá tải (529/5xx): chờ 8 s, 25 s, 60 s — hạn mức theo
+ * phút của gói miễn phí mở lại trong khoảng đó; đọc song song nhiều cụm dễ
+ * chạm hạn mức hơn đọc một lượt.
+ */
+const CHO_THU_LAI_MAC_DINH = [8000, 25000, 60000];
+/** Một lần gọi (một cụm trang, một lượt) được phép kéo dài tới 12 phút... */
+export const TONG_MS_MAC_DINH = 12 * 60_000;
+/** ...nhưng AI im lặng quá 150 giây thì coi là treo. */
+export const IM_LANG_MS_MAC_DINH = 150_000;
+/** Đọc song song tối đa 3 cụm trang một lúc. */
+export const SO_CUM_SONG_SONG = 3;
 
-function moTaNguyenNhan(e: unknown, timeoutMs: number): string {
+function moTaNguyenNhan(e: unknown): string {
   if (!(e instanceof Error)) return String(e);
-  if (e.name === "AbortError") return `quá ${Math.round(timeoutMs / 1000)} giây không có trả lời`;
   const cause = (e as Error & { cause?: { code?: string; message?: string } }).cause;
   const them = cause?.code ?? cause?.message;
   return them ? `${e.message}: ${them}` : e.message;
@@ -448,42 +473,194 @@ function bocJson(text: string): unknown | null {
   }
 }
 
+// ─── Nhận kết quả THEO LUỒNG (Server-Sent Events) ───────────────────────────
+//
+// Trước đây mỗi lần gọi chờ AI viết XONG cả bảng rồi mới nhận, trần 180 giây:
+// phiếu 300+ dòng AI viết mất vài phút nên lần nào cũng bị ngắt ("quá 180 giây
+// không có trả lời") dù AI vẫn đang làm việc. Nay nhận từng mẩu ngay khi AI
+// viết; chỉ ngắt khi AI IM LẶNG quá lâu, còn tổng thời gian cho phép dài.
+
+/** Lỗi do nhà cung cấp gửi GIỮA luồng (VD quá tải) — thử lại được. */
+export class LoiLuong extends Error {}
+
+/** Đọc thân phản hồi SSE thành danh sách đối tượng JSON ở các dòng "data:". Mỗi mẩu nhận được gọi giuSong(). */
+async function docSuKien(res: Response, giuSong: () => void): Promise<unknown[]> {
+  const ra: unknown[] = [];
+  if (!res.body) return ra;
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  const xuLy = (dongTho: string) => {
+    const d = dongTho.replace(/\r$/, "");
+    if (!d.startsWith("data:")) return;
+    const du = d.slice(5).trim();
+    if (!du || du === "[DONE]") return;
+    try {
+      ra.push(JSON.parse(du));
+    } catch {
+      /* dòng hỏng: bỏ */
+    }
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    giuSong();
+    buf += dec.decode(value, { stream: true });
+    let i: number;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      xuLy(buf.slice(0, i));
+      buf = buf.slice(i + 1);
+    }
+  }
+  buf += dec.decode();
+  if (buf) xuLy(buf);
+  return ra;
+}
+
+type SuKienClaude = {
+  type?: string;
+  message?: { usage?: { input_tokens?: number } };
+  content_block?: { type?: string; name?: string };
+  delta?: { type?: string; partial_json?: string; stop_reason?: string };
+  usage?: { output_tokens?: number };
+  error?: { type?: string; message?: string };
+};
+
+/** Gộp luồng Messages API của Claude thành đúng dạng phản hồi thường (content / stop_reason / usage). */
+export function gomLuongClaude(su: unknown[]): unknown {
+  let vao = 0;
+  let ra = 0;
+  let stop: string | undefined;
+  let ten: string | undefined;
+  let json = "";
+  for (const x of su as SuKienClaude[]) {
+    if (x.type === "error") throw new LoiLuong(`Claude API (luồng) ${x.error?.type ?? ""}: ${x.error?.message ?? ""}`.trim());
+    if (x.type === "message_start") vao = x.message?.usage?.input_tokens ?? vao;
+    if (x.type === "content_block_start" && x.content_block?.type === "tool_use") ten = x.content_block.name;
+    if (x.type === "content_block_delta" && x.delta?.type === "input_json_delta") json += x.delta.partial_json ?? "";
+    if (x.type === "message_delta") {
+      stop = x.delta?.stop_reason ?? stop;
+      ra = x.usage?.output_tokens ?? ra;
+    }
+  }
+  let input: unknown = undefined;
+  try {
+    input = json ? JSON.parse(json) : undefined;
+  } catch {
+    input = undefined; // bị cắt dở (max_tokens)
+  }
+  return {
+    content: ten && input !== undefined ? [{ type: "tool_use", name: ten, input }] : [],
+    stop_reason: stop,
+    usage: { input_tokens: vao, output_tokens: ra },
+  };
+}
+
+type SuKienGemini = {
+  candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[];
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+  promptFeedback?: { blockReason?: string };
+  error?: { status?: string; message?: string };
+};
+
+/** Gộp luồng streamGenerateContent của Gemini thành một phản hồi generateContent. */
+export function gomLuongGemini(su: unknown[]): unknown {
+  let text = "";
+  let finish: string | undefined;
+  let usage: SuKienGemini["usageMetadata"];
+  let fb: SuKienGemini["promptFeedback"];
+  for (const x of su as SuKienGemini[]) {
+    if (x.error) throw new LoiLuong(`Gemini API (luồng) ${x.error.status ?? ""}: ${x.error.message ?? ""}`.trim());
+    const c = x.candidates?.[0];
+    for (const p of c?.content?.parts ?? []) if (!p.thought) text += p.text ?? "";
+    if (c?.finishReason) finish = c.finishReason;
+    if (x.usageMetadata) usage = x.usageMetadata;
+    if (x.promptFeedback) fb = x.promptFeedback;
+  }
+  return { candidates: [{ content: { parts: [{ text }] }, finishReason: finish }], usageMetadata: usage, promptFeedback: fb };
+}
+
+type SuKienDeepseek = {
+  choices?: { delta?: { content?: string | null }; finish_reason?: string | null }[];
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
+  error?: { type?: string; message?: string };
+};
+
+/** Gộp luồng chat/completions (DeepSeek, OpenAI-compatible) thành một phản hồi thường. */
+export function gomLuongDeepseek(su: unknown[]): unknown {
+  let content = "";
+  let finish: string | undefined;
+  let usage: SuKienDeepseek["usage"];
+  for (const x of su as SuKienDeepseek[]) {
+    if (x.error) throw new LoiLuong(`DeepSeek API (luồng) ${x.error.type ?? ""}: ${x.error.message ?? ""}`.trim());
+    const c = x.choices?.[0];
+    content += c?.delta?.content ?? "";
+    if (c?.finish_reason) finish = c.finish_reason;
+    if (x.usage) usage = x.usage;
+  }
+  return { choices: [{ message: { content }, finish_reason: finish }], usage };
+}
+
 type KetQuaGoi = { ok: true; json: unknown } | { ok: false; loi: string; status?: number };
+type ThoiGian = { tongMs: number; imLangMs: number; choThuLaiMs?: number[] };
 
 /**
- * Gọi có thử lại: 429 (hết hạn mức) / 529 / 5xx → thử tới 3 lần, chờ theo
- * choThuLaiMs; mất mạng / quá giờ → thử lại một lần. Lỗi 4xx khác trả ngay kèm
- * mã để nơi gọi đổi cách gọi (khuôn JSON, giới hạn token).
+ * Gọi có thử lại: 429 (hết hạn mức) / 529 / 5xx → thử tiếp theo choThuLaiMs;
+ * mất mạng / AI im lặng quá lâu / lỗi giữa luồng → thử lại một lần. Lỗi 4xx
+ * khác trả ngay kèm mã để nơi gọi đổi cách gọi (khuôn JSON, giới hạn token).
+ *
+ * Phản hồi dạng luồng (text/event-stream) được gomLuong gộp về đúng dạng phản
+ * hồi thường, nên phần bóc kết quả phía sau không cần biết là luồng hay không.
  */
 async function goiCoThuLai(
   fetchFn: FetchGia,
   url: string,
   init: RequestInit,
-  timeoutMs: number,
+  tg: ThoiGian,
   moTaLoi: (status: number, json: unknown) => string,
-  choThuLaiMs: number[] = CHO_THU_LAI_MAC_DINH
+  gomLuong?: (su: unknown[]) => unknown
 ): Promise<KetQuaGoi> {
+  const cho = tg.choThuLaiMs ?? CHO_THU_LAI_MAC_DINH;
   let loiCuoi = "";
   let statusCuoi: number | undefined;
-  for (let lan = 0; lan <= choThuLaiMs.length; lan++) {
-    if (lan > 0) await new Promise((r) => setTimeout(r, choThuLaiMs[lan - 1]));
+  for (let lan = 0; lan <= cho.length; lan++) {
+    if (lan > 0) await new Promise((r) => setTimeout(r, cho[lan - 1]));
     const ac = new AbortController();
-    const dongHo = setTimeout(() => ac.abort(), timeoutMs);
+    const ngat = { lyDo: "" };
+    let henImLang: ReturnType<typeof setTimeout> | undefined;
+    const giuSong = () => {
+      clearTimeout(henImLang);
+      henImLang = setTimeout(() => {
+        ngat.lyDo = `AI im lặng quá ${Math.round(tg.imLangMs / 1000)} giây`;
+        ac.abort();
+      }, tg.imLangMs);
+    };
+    const henTong = setTimeout(() => {
+      ngat.lyDo = `quá ${tg.tongMs >= 120_000 ? `${Math.round(tg.tongMs / 60_000)} phút` : `${Math.round(tg.tongMs / 1000)} giây`} chưa xong`;
+      ac.abort();
+    }, tg.tongMs);
+    giuSong();
     try {
       const res = await fetchFn(url, { ...init, signal: ac.signal });
-      const json = await res.json().catch(() => null);
-      if (res.ok) return { ok: true, json };
-      loiCuoi = moTaLoi(res.status, json);
+      giuSong();
+      const laLuong = (res.headers.get("content-type") ?? "").includes("text/event-stream");
+      if (res.ok) {
+        const json = laLuong && gomLuong ? gomLuong(await docSuKien(res, giuSong)) : await res.json().catch(() => null);
+        return { ok: true, json };
+      }
+      const jsonLoi = await res.json().catch(() => null);
+      loiCuoi = moTaLoi(res.status, jsonLoi);
       statusCuoi = res.status;
       if (res.status === 429 || res.status >= 500) continue;
       return { ok: false, loi: loiCuoi, status: res.status };
     } catch (e) {
-      loiCuoi = `Không gọi được API (${moTaNguyenNhan(e, timeoutMs)})`.slice(0, 300);
+      loiCuoi = (e instanceof LoiLuong ? e.message : `Không gọi được API (${ngat.lyDo || moTaNguyenNhan(e)})`).slice(0, 300);
       statusCuoi = undefined;
       if (lan < 1) continue;
       return { ok: false, loi: loiCuoi };
     } finally {
-      clearTimeout(dongHo);
+      clearTimeout(henImLang);
+      clearTimeout(henTong);
     }
   }
   return { ok: false, loi: loiCuoi || "Không rõ lỗi.", status: statusCuoi };
@@ -491,11 +668,12 @@ async function goiCoThuLai(
 
 type KetQuaTho = { ok: true; input: unknown; tokenVao: number; tokenRa: number } | { ok: false; loi: string };
 
-async function goiClaude(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, text: string, fetchFn: FetchGia, timeoutMs: number): Promise<KetQuaTho> {
+async function goiClaude(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, text: string, fetchFn: FetchGia, tg: ThoiGian): Promise<KetQuaTho> {
   const body = (maxTokens: number) =>
     JSON.stringify({
       model: ch.model,
       max_tokens: maxTokens,
+      stream: true,
       system: HUONG_DAN_HE_THONG,
       tools: [CONG_CU_GHI_PHIEU],
       tool_choice: { type: "tool", name: CONG_CU_GHI_PHIEU.name },
@@ -522,9 +700,9 @@ async function goiClaude(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, text: str
         headers: { "content-type": "application/json", "x-api-key": ch.apiKey, "anthropic-version": "2023-06-01" },
         body: body(maxTokens),
       },
-      timeoutMs,
+      tg,
       moTaLoiClaude,
-      tc.choThuLaiMs
+      gomLuongClaude
     );
   let r = await goi(32_000);
   // Mô hình đời cũ chỉ cho 8192 token ra: API báo 400 nhắc max_tokens → gọi lại với mức đó.
@@ -542,11 +720,11 @@ async function goiClaude(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, text: str
   return { ok: true, input: congCu.input, tokenVao: json?.usage?.input_tokens ?? 0, tokenRa: json?.usage?.output_tokens ?? 0 };
 }
 
-async function goiGemini(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, text: string, fetchFn: FetchGia, timeoutMs: number): Promise<KetQuaTho> {
+async function goiGemini(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, text: string, fetchFn: FetchGia, tg: ThoiGian): Promise<KetQuaTho> {
   if (pdf.length > GEMINI_PDF_TOI_DA) {
     return { ok: false, loi: `PDF ${Math.round(pdf.length / 1024 / 1024)} MB quá lớn cho Gemini (tối đa 14 MB) — nén bản scan hoặc dùng Claude.` };
   }
-  // Ba mức: đủ đồ (khuôn + độ phân giải cao + suy nghĩ cho flash) → chỉ khuôn → chỉ JSON.
+  // Ba mức: đủ đồ (khuôn + độ phân giải cao + ngân sách suy nghĩ) → chỉ khuôn → chỉ JSON.
   const body = (muc: 0 | 1 | 2) =>
     JSON.stringify({
       systemInstruction: { parts: [{ text: HUONG_DAN_HE_THONG }] },
@@ -563,21 +741,22 @@ async function goiGemini(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, text: str
         temperature: 0,
         responseMimeType: "application/json",
         ...(muc <= 1 ? { responseSchema: schemaGemini(CONG_CU_GHI_PHIEU.input_schema) } : {}),
-        // Bản scan chữ nhỏ: độ phân giải cao đọc số rõ hơn; dòng flash mặc định
-        // không "suy nghĩ" — cấp ngân sách để nó đối chiếu cột kỹ hơn.
-        ...(muc === 0 ? { mediaResolution: "MEDIA_RESOLUTION_HIGH" } : {}),
-        ...(muc === 0 && /flash/i.test(ch.model) ? { thinkingConfig: { thinkingBudget: 4096 } } : {}),
+        // Bản scan chữ nhỏ: độ phân giải cao đọc số rõ hơn. Ngân sách "suy nghĩ"
+        // cố định 4096 token: dòng flash mặc định không suy nghĩ (cấp để đối
+        // chiếu cột kỹ hơn), dòng pro mặc định suy nghĩ không giới hạn — trong
+        // lúc suy nghĩ AI im lặng, nên phải có trần để không bị coi là treo.
+        ...(muc === 0 ? { mediaResolution: "MEDIA_RESOLUTION_HIGH", thinkingConfig: { thinkingBudget: 4096 } } : {}),
       },
     });
-  const url = `${DIA_CHI_GEMINI}/models/${encodeURIComponent(ch.model)}:generateContent`;
+  const url = `${DIA_CHI_GEMINI}/models/${encodeURIComponent(ch.model)}:streamGenerateContent?alt=sse`;
   const goi = (muc: 0 | 1 | 2) =>
     goiCoThuLai(
       fetchFn,
       url,
       { method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": ch.apiKey }, body: body(muc) },
-      timeoutMs,
+      tg,
       moTaLoiGemini,
-      tc.choThuLaiMs
+      gomLuongGemini
     );
   let r = await goi(0);
   // Phiên bản API / mô hình không nhận mediaResolution / thinkingConfig → bỏ đồ thêm.
@@ -599,11 +778,15 @@ async function goiGemini(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, text: str
     const lyDo = json?.promptFeedback?.blockReason ?? ung?.finishReason ?? "?";
     return { ok: false, loi: `AI không trả về nội dung (lý do: ${lyDo}).` };
   }
-  let input: unknown;
-  try {
-    input = JSON.parse(textRa);
-  } catch {
-    return { ok: false, loi: `AI trả về JSON hỏng (finishReason: ${ung?.finishReason ?? "?"}).` };
+  const input = bocJson(textRa);
+  if (input === null) {
+    return {
+      ok: false,
+      loi:
+        ung?.finishReason === "MAX_TOKENS"
+          ? "AI trả về JSON bị cắt dở (quá giới hạn đầu ra) — cụm trang quá dài."
+          : `AI trả về JSON hỏng (finishReason: ${ung?.finishReason ?? "?"}).`,
+    };
   }
   return { ok: true, input, tokenVao: json?.usageMetadata?.promptTokenCount ?? 0, tokenRa: json?.usageMetadata?.candidatesTokenCount ?? 0 };
 }
@@ -616,7 +799,7 @@ export const LOI_DEEPSEEK_KHONG_CHU =
  * phần trang trong phạm vi; ép JSON bằng response_format (mô hình reasoner
  * không nhận → bóc JSON từ chữ).
  */
-async function goiDeepseek(ch: CauHinhAi, tc: TuyChonDocAi, text: string, pham: [number, number] | null, fetchFn: FetchGia, timeoutMs: number): Promise<KetQuaTho> {
+async function goiDeepseek(ch: CauHinhAi, tc: TuyChonDocAi, text: string, pham: [number, number] | null, fetchFn: FetchGia, tg: ThoiGian): Promise<KetQuaTho> {
   const chu = (tc.chuPdf ?? "").trim();
   if (chu.length < 10) return { ok: false, loi: LOI_DEEPSEEK_KHONG_CHU };
   const chuCum = catTrang(chu, pham);
@@ -625,7 +808,8 @@ async function goiDeepseek(ch: CauHinhAi, tc: TuyChonDocAi, text: string, pham: 
     model: ch.model,
     temperature: 0,
     max_tokens: 8192,
-    stream: false,
+    stream: true,
+    stream_options: { include_usage: true },
     ...(laReasoner ? {} : { response_format: { type: "json_object" } }),
     messages: [
       { role: "system", content: `${HUONG_DAN_HE_THONG}\n\nĐầu vào là CHỮ đã tách từ PDF (không có ảnh): mỗi trang mở đầu bằng "--- trang N ---", các cột của bảng cách nhau bằng " | ". ${KHUON_JSON_GOI_Y}` },
@@ -639,9 +823,9 @@ async function goiDeepseek(ch: CauHinhAi, tc: TuyChonDocAi, text: string, pham: 
     fetchFn,
     `${DIA_CHI_DEEPSEEK}/chat/completions`,
     { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${ch.apiKey}` }, body },
-    timeoutMs,
+    tg,
     moTaLoiDeepseek,
-    tc.choThuLaiMs
+    gomLuongDeepseek
   );
   if (!r.ok) return r;
   const json = r.json as {
@@ -688,49 +872,84 @@ export function loiNhac(pham: [number, number] | null, luot1: DongAi[] | null): 
   return s;
 }
 
+/** Chạy fn cho từng phần tử, tối đa n việc cùng lúc; kết quả giữ đúng thứ tự đầu vào. */
+export async function chayGioiHan<T, R>(ds: T[], n: number, fn: (x: T, i: number) => Promise<R>): Promise<R[]> {
+  const ra = new Array<R>(ds.length);
+  let tiep = 0;
+  const tho = async () => {
+    while (tiep < ds.length) {
+      const i = tiep++;
+      ra[i] = await fn(ds[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(n, ds.length)) }, tho));
+  return ra;
+}
+
+type KetQuaCum =
+  | { ok: true; chuan: DauPhieu & { dong: DongAi[] }; vao: number; ra: number; luot: number; loiPhu: string[] }
+  | { ok: false; loi: string; tenPham: string; luot: number };
+
 /**
  * Đọc phiếu bằng cấu hình đã giải (null = chưa cấu hình → ok:false, không gọi
- * mạng). Chế độ "ky" (mặc định) đọc hai lượt; phiếu dài đọc theo cụm trang.
+ * mạng). Chế độ "ky" (mặc định) đọc hai lượt; phiếu dài hơn 2 trang đọc theo
+ * cụm 2 trang, tối đa 3 cụm song song. Cụm nào hỏng thì các cụm khác vẫn giữ
+ * kết quả, phần hỏng được nêu trong `canhBaoChung` để người duyệt đọc lại /
+ * gõ tay đúng các trang đó.
  */
 export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null, tuyChon: TuyChonDocAi = {}): Promise<KetQuaDocAi> {
   if (!cauHinh || !cauHinh.apiKey.trim()) return { ok: false, loi: "Chưa cấu hình bộ đọc AI." };
   const fetchFn = tuyChon.fetchFn ?? ((url: string, init: RequestInit) => fetch(url, init));
-  const timeoutMs = tuyChon.timeoutMs ?? 180_000;
+  const tg: ThoiGian = {
+    tongMs: tuyChon.timeoutMs ?? TONG_MS_MAC_DINH,
+    imLangMs: tuyChon.imLangMs ?? IM_LANG_MS_MAC_DINH,
+    choThuLaiMs: tuyChon.choThuLaiMs,
+  };
   const ch: CauHinhAi = { ...cauHinh, apiKey: cauHinh.apiKey.trim(), model: cauHinh.model.trim() || MODEL_MAC_DINH[cauHinh.nhaCungCap] };
   const cheDo: CheDoDocAi = ch.cheDo ?? "ky";
   const goi = (text: string, pham: [number, number] | null) =>
     ch.nhaCungCap === "deepseek"
-      ? goiDeepseek(ch, tuyChon, text, pham, fetchFn, timeoutMs)
+      ? goiDeepseek(ch, tuyChon, text, pham, fetchFn, tg)
       : ch.nhaCungCap === "gemini"
-        ? goiGemini(pdf, ch, tuyChon, text, fetchFn, timeoutMs)
-        : goiClaude(pdf, ch, tuyChon, text, fetchFn, timeoutMs);
+        ? goiGemini(pdf, ch, tuyChon, text, fetchFn, tg)
+        : goiClaude(pdf, ch, tuyChon, text, fetchFn, tg);
 
-  // DeepSeek chỉ có chữ: chặn sớm, và chia cụm nhỏ hơn vì đầu ra giới hạn 8K token.
+  // DeepSeek chỉ có chữ: chặn sớm, và chia theo cụm riêng vì đầu ra giới hạn 8K token.
   if (ch.nhaCungCap === "deepseek" && (tuyChon.chuPdf ?? "").trim().length < 10) return { ok: false, loi: LOI_DEEPSEEK_KHONG_CHU };
   const cac =
     ch.nhaCungCap === "deepseek"
       ? chiaTrang(tuyChon.soTrang ?? demTrangTuChu(tuyChon.chuPdf), DEEPSEEK_TRANG_MOI_CUM, DEEPSEEK_TRANG_MOI_CUM)
       : chiaTrang(tuyChon.soTrang ?? null);
-  let tokenVao = 0;
-  let tokenRa = 0;
-  let soLuotGoi = 0;
-  const loiPhu: string[] = [];
-  const dau: DauPhieu = { nhaCungCap: null, soPhieu: null, ngayGiao: null, tau: null };
-  const dongTatCa: DongAi[] = [];
-  for (const pham of cac) {
+  const luotMoiCum = cheDo === "ky" ? 2 : 1;
+  const tongLuot = cac.length * luotMoiCum;
+  let xong = 0;
+  const baoTienDo = (n: number) => {
+    xong += n;
+    try {
+      tuyChon.onTienDo?.(xong, tongLuot);
+    } catch {
+      /* báo tiến độ hỏng không được làm hỏng việc đọc */
+    }
+  };
+
+  const ketQua = await chayGioiHan(cac, tuyChon.songSong ?? SO_CUM_SONG_SONG, async (pham): Promise<KetQuaCum> => {
     const tenPham = pham ? `trang ${pham[0]}–${pham[1]}` : "cả phiếu";
     const r1 = await goi(loiNhac(pham, null), pham);
-    soLuotGoi++;
-    if (!r1.ok) return { ok: false, loi: cac.length > 1 ? `${r1.loi} (${tenPham})` : r1.loi };
-    tokenVao += r1.tokenVao;
-    tokenRa += r1.tokenRa;
+    if (!r1.ok) {
+      baoTienDo(luotMoiCum);
+      return { ok: false, loi: r1.loi, tenPham, luot: 1 };
+    }
+    baoTienDo(1);
     let chuan = chuanHoaKetQuaAi(r1.input);
+    let vao = r1.tokenVao;
+    let ra = r1.tokenRa;
+    const loiPhu: string[] = [];
     if (cheDo === "ky") {
       const r2 = await goi(loiNhac(pham, chuan.dong), pham);
-      soLuotGoi++;
+      baoTienDo(1);
       if (r2.ok) {
-        tokenVao += r2.tokenVao;
-        tokenRa += r2.tokenRa;
+        vao += r2.tokenVao;
+        ra += r2.tokenRa;
         const c2 = chuanHoaKetQuaAi(r2.input);
         chuan = {
           ...c2,
@@ -744,12 +963,36 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
         loiPhu.push(`Lượt kiểm lại (${tenPham}) không chạy được, dùng lượt 1: ${r2.loi}`);
       }
     }
-    dau.nhaCungCap ??= chuan.nhaCungCap;
-    dau.soPhieu ??= chuan.soPhieu;
-    dau.ngayGiao ??= chuan.ngayGiao;
-    dau.tau ??= chuan.tau;
-    dongTatCa.push(...chuan.dong);
+    return { ok: true, chuan, vao, ra, luot: luotMoiCum, loiPhu };
+  });
+
+  const hong = ketQua.filter((k): k is Extract<KetQuaCum, { ok: false }> => !k.ok);
+  if (hong.length === ketQua.length) {
+    const dau = hong[0];
+    return { ok: false, loi: cac.length > 1 ? `${dau.loi} (${dau.tenPham})` : dau.loi };
   }
+  let tokenVao = 0;
+  let tokenRa = 0;
+  let soLuotGoi = 0;
+  const loiPhu: string[] = [];
+  const dau: DauPhieu = { nhaCungCap: null, soPhieu: null, ngayGiao: null, tau: null };
+  const dongTatCa: DongAi[] = [];
+  for (const k of ketQua) {
+    soLuotGoi += k.luot;
+    if (!k.ok) continue;
+    tokenVao += k.vao;
+    tokenRa += k.ra;
+    loiPhu.push(...k.loiPhu);
+    dau.nhaCungCap ??= k.chuan.nhaCungCap;
+    dau.soPhieu ??= k.chuan.soPhieu;
+    dau.ngayGiao ??= k.chuan.ngayGiao;
+    dau.tau ??= k.chuan.tau;
+    dongTatCa.push(...k.chuan.dong);
+  }
+  const canhBaoChung = hong.length
+    ? `Không đọc được ${hong.map((h) => h.tenPham).join(", ")} (${hong[0].loi}). Bấm "Đọc lại bằng AI" hoặc gõ tay các dòng của phần này.`
+    : null;
+  if (canhBaoChung) loiPhu.push(canhBaoChung);
   const dong = soatDong(dongTatCa);
   return {
     ok: true,
@@ -762,6 +1005,7 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
     soLuotGoi,
     soDongCanKiem: dong.filter((d) => d.canhBao).length,
     loiPhu,
+    canhBaoChung,
   };
 }
 
@@ -776,31 +1020,17 @@ export type KetQuaKiemTraAi =
  */
 export async function kiemTraKetNoiAi(cauHinh: CauHinhAi, tuyChon: TuyChonDocAi = {}): Promise<KetQuaKiemTraAi> {
   const fetchFn = tuyChon.fetchFn ?? ((url: string, init: RequestInit) => fetch(url, init));
-  const timeoutMs = tuyChon.timeoutMs ?? 30_000;
+  const tg: ThoiGian = { tongMs: tuyChon.timeoutMs ?? 30_000, imLangMs: tuyChon.timeoutMs ?? 30_000, choThuLaiMs: tuyChon.choThuLaiMs ?? [3000] };
   const apiKey = cauHinh.apiKey.trim();
   if (!apiKey) return { ok: false, loi: "Chưa có khóa API." };
   let models: string[] = [];
   if (cauHinh.nhaCungCap === "deepseek") {
-    const r = await goiCoThuLai(
-      fetchFn,
-      `${DIA_CHI_DEEPSEEK}/models`,
-      { method: "GET", headers: { authorization: `Bearer ${apiKey}` } },
-      timeoutMs,
-      moTaLoiDeepseek,
-      tuyChon.choThuLaiMs
-    );
+    const r = await goiCoThuLai(fetchFn, `${DIA_CHI_DEEPSEEK}/models`, { method: "GET", headers: { authorization: `Bearer ${apiKey}` } }, tg, moTaLoiDeepseek);
     if (!r.ok) return r;
     const json = r.json as { data?: { id?: string }[] } | null;
     models = (json?.data ?? []).map((m) => String(m.id ?? "")).filter(Boolean);
   } else if (cauHinh.nhaCungCap === "gemini") {
-    const r = await goiCoThuLai(
-      fetchFn,
-      `${DIA_CHI_GEMINI}/models?pageSize=200`,
-      { method: "GET", headers: { "x-goog-api-key": apiKey } },
-      timeoutMs,
-      moTaLoiGemini,
-      tuyChon.choThuLaiMs
-    );
+    const r = await goiCoThuLai(fetchFn, `${DIA_CHI_GEMINI}/models?pageSize=200`, { method: "GET", headers: { "x-goog-api-key": apiKey } }, tg, moTaLoiGemini);
     if (!r.ok) return r;
     const json = r.json as { models?: { name?: string; supportedGenerationMethods?: string[] }[] } | null;
     models = (json?.models ?? [])
@@ -812,9 +1042,8 @@ export async function kiemTraKetNoiAi(cauHinh: CauHinhAi, tuyChon: TuyChonDocAi 
       fetchFn,
       DIA_CHI_CLAUDE_MODELS,
       { method: "GET", headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01" } },
-      timeoutMs,
-      moTaLoiClaude,
-      tuyChon.choThuLaiMs
+      tg,
+      moTaLoiClaude
     );
     if (!r.ok) return r;
     const json = r.json as { data?: { id?: string }[] } | null;

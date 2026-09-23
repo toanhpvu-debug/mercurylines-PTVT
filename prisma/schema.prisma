@@ -924,6 +924,10 @@ model PhieuGiaoNhan {
   ghiChu       String?
   // Lỗi nguyên văn của bộ đọc AI ở lần đọc gần nhất; null = không lỗi.
   loiAi        String?
+  // AI đang đọc NỀN từ lúc này (null = không đọc; quá 30 phút = bị gián đoạn).
+  aiDangDocTu  DateTime?
+  // Tiến độ đọc nền: "x/y" lượt gọi AI.
+  aiTienDo     String?
   // CHO_DUYET · DA_DUYET · TU_CHOI
   status       String              @default("CHO_DUYET")
   uploadedById Int

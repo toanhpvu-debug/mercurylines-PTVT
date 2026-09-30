@@ -88,6 +88,7 @@ model Vessel {
   lashingReports         LashingReport[]
   documents              ReportDocument[]
   phieuGiaoNhan          PhieuGiaoNhan[]
+  phuTungThietYeu        PhuTungThietYeu[]
   vesselMaterials        VesselMaterial[]
   purchaseOrders         PurchaseOrder[]
   paintAreas             PaintArea[]
@@ -158,6 +159,7 @@ model Material {
   vesselMaterials VesselMaterial[]
   poItems         PurchaseOrderItem[]
   phieuGiaoDong   PhieuGiaoNhanDong[]
+  thietYeu        PhuTungThietYeu[]
 
   @@index([categoryId])
   @@index([materialType])
@@ -989,4 +991,57 @@ model CauHinhHeThong {
   updatedBy String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/**
+ * Phụ tùng thiết yếu (MLS-11-04 "Danh mục kiểm tra phụ tùng thiết yếu trên
+ * tàu") — danh mục RIÊNG của từng tàu, tách khỏi danh mục vật tư chung: công ty
+ * quy định mục nào và mức tối thiểu bao nhiêu; tàu điền số hằng tháng (ban đầu,
+ * nhận, tiêu thụ, hiện có, vị trí) và ký gửi văn phòng. Gắn với mặt hàng trong
+ * danh mục kho (materialId) là TÙY CHỌN — có thì số nhập / xuất lấy sẵn từ kho.
+ */
+model PhuTungThietYeu {
+  id         Int                    @id @default(autoincrement())
+  vesselId   Int
+  vessel     Vessel                 @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  // Nhãn nhóm như in trên mẫu: "A. Phụ tùng cho Máy chính (Spare Parts for Main Engine)".
+  nhom       String
+  thuTu      Int
+  // Số thứ tự in trong nhóm.
+  stt        String?
+  moTa       String
+  partNo     String?
+  // Như in trên mẫu: "01 set", "1/2 set", "1 of each type".
+  toiThieu   String?
+  // Quy đổi để so với số hiện có (0 = không đọc được, không cảnh báo).
+  toiThieuSo Float                  @default(0)
+  viTri      String?
+  // Số hiện có mới nhất (tháng gần nhất đã lưu / lúc nhập file).
+  hienCo     Float?
+  materialId Int?
+  material   Material?              @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+  thang      PhuTungThietYeuThang[]
+
+  @@index([vesselId])
+  @@index([materialId])
+}
+
+/** Số kiểm tra của một mục trong một tháng ("YYYY-MM") — tàu lưu khi làm báo cáo tháng. */
+model PhuTungThietYeuThang {
+  id        Int             @id @default(autoincrement())
+  itemId    Int
+  item      PhuTungThietYeu @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  thang     String
+  tonDau    Float?
+  nhan      Float?
+  tieuThu   Float?
+  hienCo    Float?
+  viTri     String?
+  nguoiLuu  String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@unique([itemId, thang])
 }

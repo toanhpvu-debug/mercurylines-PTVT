@@ -177,12 +177,13 @@ export const materials = tuDien(
     robTenCot: "Tồn trên tàu",
     robSau:
       "trong file sẽ được ghi vào kho tương ứng với từng sheet. Đây là cách dùng đúng cho file kiểm kê MLS-11-06.",
-    fileDanhMuc: "File danh mục (.xls / .xlsx / .doc / .docx)",
+    fileDanhMuc: "File danh mục (.xls / .xlsx)",
     nhanFormCongTy: "Nhận trực tiếp form công ty:",
     moTaMLS1106:
-      "Store & Spare Part Inventory (Excel — cột Nhóm/Mô tả/Mã IMPA/Đơn vị/Tồn trên tàu) và",
+      "Store & Spare Part Inventory (Excel — cột Nhóm/Mô tả/Mã IMPA/Đơn vị/Tồn trên tàu). Vật tư trùng (theo IMPA/Part No/tên) sẽ được gán vào tàu thay vì tạo mới.",
     moTaMLS1104:
-      "Danh mục phụ tùng thiết yếu (Word — tự nhận nhóm thiết bị, số lượng tối thiểu). Vật tư trùng (theo IMPA/Part No/tên) sẽ được gán vào tàu thay vì tạo mới.",
+      "(danh mục phụ tùng thiết yếu, tệp Word) là danh mục riêng của từng tàu, nhập ở trang",
+    denTrangThietYeu: "Phụ tùng thiết yếu →",
     docToanBoSheet: "Đọc toàn bộ sheet trong file.",
     docSheetTheoTen:
       "Loại vật tư nhận theo tên sheet — sheet phụ tùng vào nhóm phụ tùng; các sheet vật tư, vật tư boong, phục vụ, bảo hộ vào nhóm vật tư. Sheet Dashboard hoặc trang ghi chú được bỏ qua. Sau khi nhập, hệ thống liệt kê từng sheet đã đọc kèm số dòng để bạn đối chiếu.",
@@ -365,12 +366,13 @@ export const materials = tuDien(
     robTenCot: "ROB on board",
     robSau:
       "column in the file is written into the warehouse matching each sheet. This is the correct way to use the MLS-11-06 stocktake file.",
-    fileDanhMuc: "Catalogue file (.xls / .xlsx / .doc / .docx)",
+    fileDanhMuc: "Catalogue file (.xls / .xlsx)",
     nhanFormCongTy: "Reads the company forms directly:",
     moTaMLS1106:
-      "Store & Spare Part Inventory (Excel — Group / Description / IMPA / Unit / ROB columns) and",
+      "Store & Spare Part Inventory (Excel — Group / Description / IMPA / Unit / ROB columns). Duplicate items (by IMPA / Part No. / name) are assigned to the vessel instead of being created again.",
     moTaMLS1104:
-      "Critical spare parts list (Word — equipment group and minimum quantity detected automatically). Duplicate items (by IMPA / Part No. / name) are assigned to the vessel instead of being created again.",
+      "(essential spare parts list, Word file) is each vessel's own list, imported on the page",
+    denTrangThietYeu: "Essential spare parts →",
     docToanBoSheet: "Every sheet in the file is read.",
     docSheetTheoTen:
       "The item type comes from the sheet name — a spare parts sheet goes to the spare group; stores, deck stores, catering and safety sheets go to the stores group. Dashboard sheets and note pages are skipped. After the import, the system lists every sheet it read with its row count so you can check.",

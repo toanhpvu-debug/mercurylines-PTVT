@@ -7,7 +7,8 @@ import * as XLSX from "xlsx";
 // - Excel (MLS-11-06 Store & Spare Part Inventory): cột Description/IMPA/Unit/R.O.B/Group...
 //   File kiểm kê thực tế tách nhiều sheet theo bộ phận nên ĐỌC TOÀN BỘ SHEET,
 //   không chỉ sheet đầu (có file sheet đầu rỗng, dữ liệu nằm ở các sheet sau).
-// - Word .doc/.docx (MLS-11-04 DM phụ tùng thiết yếu): bảng tab-separated, nhóm theo thiết bị.
+// Word MLS-11-04 (danh mục phụ tùng thiết yếu) KHÔNG nhập ở đây: đó là danh
+// mục riêng của từng tàu, đọc bằng lib/thietYeu.ts ở trang /materials/thiet-yeu.
 
 export type ImportedItem = {
   name: string;
@@ -22,7 +23,7 @@ export type ImportedItem = {
   materialType: "STORE" | "SPARE" | null; // suy từ tên sheet; null = để người dùng quyết
   // Nhãn tùy ý của nơi gọi để nhận lại id mặt hàng sau khi nhập (xem
   // ApplyImportResult.resolved) — phiếu giao hàng cần biết dòng nào thành mặt
-  // hàng nào để cộng tồn. Bộ đọc Excel/Word không đặt.
+  // hàng nào để cộng tồn. Bộ đọc Excel không đặt.
   ref?: string;
   // Tên tiếng Anh nếu nguồn có (phiếu giao song ngữ đọc bằng AI) → Material.nameEn.
   nameEn?: string | null;
@@ -246,7 +247,7 @@ function parseSheet(
     const rawName = cellText(row[col.desc]);
     if (!rawName) continue;
     // Dòng tiêu đề nhóm: cần CẢ tiền tố chữ cái ("A. ") lẫn từ khóa phụ tùng
-    // (như parser Word) — tránh nuốt nhầm vật tư thật kiểu "V. Belt B-52".
+    // — tránh nuốt nhầm vật tư thật kiểu "V. Belt B-52".
     if (/^[A-ZĐ]\.\s/.test(rawName)) {
       if (/phụ tùng|spare/i.test(rawName)) {
         currentEquipment = rawName.replace(/^[A-ZĐ]\.\s*/, "").trim() || null;
@@ -300,69 +301,4 @@ function parseSheet(
   }
   if (!items.length) return null;
   return { items, skippedRows, truncated };
-}
-
-// Word .doc/.docx (MLS-11-04): bảng dạng text, ô tách bằng tab.
-// Cột: Mô tả | Số phụ tùng | Tối thiểu | Ban đầu | Nhận trong tháng | Tổng tiêu thụ | Hiện có | Vị trí
-export async function parseMaterialDoc(buffer: Buffer): Promise<ImportParseResult> {
-  let body: string;
-  try {
-    const { default: WordExtractor } = await import("word-extractor");
-    const extractor = new WordExtractor();
-    const doc = await extractor.extract(buffer);
-    body = doc.getBody();
-  } catch {
-    return {
-      items: [],
-      skippedRows: 0,
-      error: "Không đọc được file Word (file hỏng hoặc sai định dạng).",
-    };
-  }
-  const lines = body.split(/\r?\n/);
-  const items: ImportedItem[] = [];
-  let skippedRows = 0;
-  let currentEquipment: string | null = null;
-  for (const line of lines) {
-    const cells = line.split("\t").map((c) => c.replace(/\s+/g, " ").trim());
-    const first = cells[0] ?? "";
-    if (!first) continue;
-    // Nhóm thiết bị: "A. Phụ tùng cho Máy chính (Spare Parts for Main Engine)"
-    if (/^[A-ZĐ]\.\s/.test(first) && /phụ tùng|spare/i.test(first)) {
-      currentEquipment = first.replace(/^[A-ZĐ]\.\s*/, "").trim() || null;
-      continue;
-    }
-    // Dòng phụ tùng: bắt đầu bằng số thứ tự "12. "
-    if (!/^\d+[.)]\s/.test(first)) continue;
-    const name = first.replace(/^\d+[.)]\s*/, "").replace(/[:：]\s*$/, "").trim();
-    if (!name) {
-      skippedRows++;
-      continue;
-    }
-    const partNumber = cells[1] ? cleanId(cells[1]) : null;
-    const minParsed = parseQtyUnit(cells[2] ?? "");
-    const remain = cellNumber(cells[6] ?? "");
-    items.push({
-      name,
-      impa: null,
-      partNumber,
-      uom: minParsed.unit || "PCS",
-      equipment: currentEquipment,
-      group: null,
-      minStock: minParsed.qty ?? 0,
-      rob: Number.isFinite(remain) && remain >= 0 && cells[6] ? remain : null,
-      sheet: null,
-      // MLS-11-04 là danh mục phụ tùng thiết yếu — toàn bộ là phụ tùng.
-      materialType: "SPARE",
-    });
-    if (items.length >= MAX_ITEMS) break;
-  }
-  if (!items.length) {
-    return {
-      items: [],
-      skippedRows,
-      error:
-        "Không tìm thấy dòng phụ tùng nào trong file Word (cần bảng như form MLS-11-04).",
-    };
-  }
-  return { items, skippedRows };
 }

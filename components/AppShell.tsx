@@ -22,6 +22,7 @@ import {
   Sparkles,
   Users,
   Warehouse,
+  Wrench,
   X,
 } from "lucide-react";
 import { QrCode } from "lucide-react";
@@ -58,7 +59,8 @@ export type TenIcon =
   | "users"
   | "audit"
   | "qr"
-  | "ai";
+  | "ai"
+  | "thietYeu";
 
 const ICON: Record<TenIcon, ReactNode> = {
   dashboard: <LayoutDashboard className="size-4" />,
@@ -76,6 +78,7 @@ const ICON: Record<TenIcon, ReactNode> = {
   audit: <History className="size-4" />,
   qr: <QrCode className="size-4" />,
   ai: <Sparkles className="size-4" />,
+  thietYeu: <Wrench className="size-4" />,
 };
 
 export type MucMenu = {
@@ -130,8 +133,13 @@ export default function AppShell({
   // mình đang ở đâu trong đội tàu.
   const [moDoiTau, setMoDoiTau] = useState(pathname.startsWith("/vessels"));
 
-  const dangChon = (m: MucMenu) =>
+  const khop = (m: MucMenu) =>
     m.end ? pathname === m.href : pathname === m.href || pathname.startsWith(m.href + "/");
+  // Mục con có trang riêng trong menu (/materials/thiet-yeu) thì chỉ mục đó
+  // sáng, mục cha (/materials) không sáng theo.
+  const tatCaMuc = nhom.flatMap((g) => g.items);
+  const dangChon = (m: MucMenu) =>
+    khop(m) && !tatCaMuc.some((k) => k.href.length > m.href.length && k.href.startsWith(m.href + "/") && khop(k));
 
   const dieuHuong = (
     <nav className="flex flex-col gap-6">

@@ -145,26 +145,18 @@ export default async function DashboardPage() {
       select: { id: true, code: true, nameVn: true, minStock: true },
     }),
     prisma.vessel.findMany({ where: vesselIdWhere(scope) }),
-    // Phụ tùng thiết yếu: SPARE có mức tối thiểu, theo danh mục từng tàu.
-    prisma.vesselMaterial.findMany({
-      where: {
-        ...vesselWhere(scope),
-        material: {
-          materialType: "SPARE",
-          isActive: true,
-          minStock: { gt: 0 },
-        },
-      },
-      include: {
-        material: {
-          select: {
-            id: true,
-            nameVn: true,
-            equipment: true,
-            minStock: true,
-            uom: true,
-          },
-        },
+    // Phụ tùng thiết yếu: danh mục RIÊNG MLS-11-04 của từng tàu (trang
+    // /materials/thiet-yeu), chỉ các mục có mức tối thiểu quy đổi được.
+    prisma.phuTungThietYeu.findMany({
+      where: { ...vesselWhere(scope), toiThieuSo: { gt: 0 } },
+      select: {
+        moTa: true,
+        nhom: true,
+        toiThieu: true,
+        toiThieuSo: true,
+        hienCo: true,
+        materialId: true,
+        vesselId: true,
         vessel: { select: { id: true, name: true } },
       },
     }),
@@ -200,29 +192,36 @@ export default async function DashboardPage() {
     .sort((a, b) => a.pct - b.pct);
   const lowStockRows = allLowStock.slice(0, 8);
 
-  // Kiểm soát phụ tùng thiết yếu: tồn hiện tại (theo tàu) so với mức tối thiểu.
+  // Kiểm soát phụ tùng thiết yếu: số hiện có (tháng gần nhất tàu đã lưu / lúc
+  // nhập file; mục gắn kho mà chưa có số thì lấy tồn kho) so với mức tối thiểu.
+  // Mục chưa có số nào không tính là thiếu — đếm riêng "chưa có số kiểm tra".
   const stockByKey = new Map(
     inventoryGroup.map((row) => [
       `${row.materialId}|${row.vesselId}`,
       Number(row._sum.quantity ?? 0),
     ])
   );
-  const spareStatus = spareLinks
-    .map((link) => {
-      const current =
-        stockByKey.get(`${link.material.id}|${link.vesselId}`) ?? 0;
-      return {
-        name: link.material.nameVn,
-        equipment: link.material.equipment,
-        uom: link.material.uom,
-        vesselId: link.vesselId,
-        vesselName: link.vessel.name,
-        current,
-        minStock: link.material.minStock,
-        pct: link.material.minStock > 0 ? current / link.material.minStock : 1,
-      };
-    })
+  const spareTracked = spareLinks.map((muc) => ({
+    name: muc.moTa,
+    equipment: muc.nhom,
+    minLabel: muc.toiThieu ?? String(muc.toiThieuSo),
+    vesselId: muc.vesselId,
+    vesselName: muc.vessel.name,
+    current:
+      muc.hienCo ??
+      (muc.materialId !== null
+        ? (stockByKey.get(`${muc.materialId}|${muc.vesselId}`) ?? null)
+        : null),
+    minStock: muc.toiThieuSo,
+  }));
+  const spareStatus = spareTracked
+    .flatMap((s) =>
+      s.current === null
+        ? []
+        : [{ ...s, current: s.current, pct: s.minStock > 0 ? s.current / s.minStock : 1 }]
+    )
     .sort((a, b) => a.pct - b.pct);
+  const spareChuaCoSo = spareTracked.length - spareStatus.length;
   const spareShortages = spareStatus.filter((s) => s.current < s.minStock);
   const spareTopRows = spareShortages.slice(0, 8);
 
@@ -376,27 +375,43 @@ export default async function DashboardPage() {
                         tong: spareStatus.length,
                       })}
                     </Badge>
+                  ) : spareChuaCoSo > 0 ? (
+                    <Badge tone="warning" dot>
+                      {t("dashboard.chuaCoSoN", { n: spareChuaCoSo })}
+                    </Badge>
                   ) : spareStatus.length > 0 ? (
                     <Badge tone="success" dot>
                       {t("dashboard.duTatCa", { tong: spareStatus.length })}
                     </Badge>
                   ) : null}
-                  <Link href="/materials?type=SPARE" className={LINK}>
-                    {t("dashboard.danhMuc")}
+                  <Link href="/materials/thiet-yeu" className={LINK}>
+                    {t("dashboard.baoCaoThietYeu")}
                   </Link>
                 </div>
               }
             />
-            {spareStatus.length === 0 ? (
+            {spareTracked.length === 0 ? (
               <p className="text-sm text-[var(--text-secondary)]">
                 {t("dashboard.chuaCoPhuTung")}{" "}
-                <Link href="/materials/import" className={LINK}>
+                <Link href="/materials/thiet-yeu" className={LINK}>
                   {t("dashboard.nhapTuFile")}
                 </Link>
               </p>
             ) : spareShortages.length === 0 ? (
               <p className="text-sm text-[var(--text-secondary)]">
-                {t("dashboard.phuTungDuHet")}
+                {spareChuaCoSo > 0 ? (
+                  <>
+                    {t("dashboard.chuaCoSoKiemTra", {
+                      n: spareChuaCoSo,
+                      tong: spareTracked.length,
+                    })}{" "}
+                    <Link href="/materials/thiet-yeu" className={LINK}>
+                      {t("dashboard.dienSoThang")}
+                    </Link>
+                  </>
+                ) : (
+                  t("dashboard.phuTungDuHet")
+                )}
               </p>
             ) : (
               <div className="space-y-3">
@@ -417,7 +432,7 @@ export default async function DashboardPage() {
                           )}
                         </p>
                         <p className="text-xs">
-                          <Link href={`/vessels/${row.vesselId}`} className={LINK}>
+                          <Link href={`/materials/thiet-yeu?vessel=${row.vesselId}`} className={LINK}>
                             {row.vesselName}
                           </Link>
                         </p>
@@ -428,7 +443,7 @@ export default async function DashboardPage() {
                             {row.current}
                           </span>
                           <span className="text-[var(--text-muted)]">
-                            / {row.minStock} {row.uom}
+                            / {row.minLabel}
                           </span>
                         </div>
                         <Meter value={pct} tone={toneThieu(pct)} className="h-2" />
@@ -437,7 +452,7 @@ export default async function DashboardPage() {
                   );
                 })}
                 {spareShortages.length > spareTopRows.length && (
-                  <Link href="/materials?type=SPARE" className={`block pt-1 ${LINK}`}>
+                  <Link href="/materials/thiet-yeu" className={`block pt-1 ${LINK}`}>
                     {t("dashboard.xemTatCaThieu", { n: spareShortages.length })}
                   </Link>
                 )}

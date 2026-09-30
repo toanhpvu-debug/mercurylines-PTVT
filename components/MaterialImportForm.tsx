@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { startTransition, useActionState, useState } from "react";
 import { FileSpreadsheet, Upload } from "lucide-react";
 import { importMaterials } from "@/app/actions";
@@ -116,9 +117,14 @@ export default function MaterialImportForm({
         <p className="mb-3 text-xs text-[var(--text-secondary)]">
           {t("materials.nhanFormCongTy")}{" "}
           <b className="text-[var(--text-primary)]">MLS-11-06</b>{" "}
-          {t("materials.moTaMLS1106")}{" "}
+          {t("materials.moTaMLS1106")}
+        </p>
+        <p className="mb-3 text-xs text-[var(--text-secondary)]">
           <b className="text-[var(--text-primary)]">MLS-11-04</b>{" "}
-          {t("materials.moTaMLS1104")}
+          {t("materials.moTaMLS1104")}{" "}
+          <Link href="/materials/thiet-yeu" className="font-medium text-[var(--text-brand)] hover:underline">
+            {t("materials.denTrangThietYeu")}
+          </Link>
         </p>
         <p className="mb-3 text-xs text-[var(--text-secondary)]">
           <b className="text-[var(--text-primary)]">
@@ -129,7 +135,7 @@ export default function MaterialImportForm({
         <input
           type="file"
           name="file"
-          accept=".xls,.xlsx,.doc,.docx"
+          accept=".xls,.xlsx"
           required
           className="block w-full text-sm text-[var(--text-secondary)] file:mr-3 file:rounded-lg file:border-0 file:bg-brand-700 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-brand-600"
         />

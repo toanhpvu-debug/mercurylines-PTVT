@@ -25,9 +25,13 @@ export const dashboard = tuDien(
     kiemSoatPhuTung: "⚙️ Kiểm soát phụ tùng thiết yếu",
     thieuTheoDoi: "{thieu} thiếu / {tong} theo dõi",
     duTatCa: "Đủ {tong}/{tong}",
-    danhMuc: "Danh mục →",
+    baoCaoThietYeu: "Báo cáo MLS-11-04 →",
+    chuaCoSoN: "{n} mục chưa có số",
+    chuaCoSoKiemTra:
+      "Đã có {tong} phụ tùng thiết yếu nhưng {n} mục chưa có số hiện có.",
+    dienSoThang: "Điền số kiểm tra tháng →",
     chuaCoPhuTung:
-      "Chưa có phụ tùng thiết yếu (SPARE có mức tối thiểu) trong danh mục tàu.",
+      "Tàu chưa có danh mục phụ tùng thiết yếu (MLS-11-04).",
     nhapTuFile: "Nhập từ file MLS-11-04 →",
     phuTungDuHet: "✅ Tất cả phụ tùng thiết yếu đều đủ mức tối thiểu.",
     xemTatCaThieu: "Xem tất cả {n} phụ tùng thiếu →",
@@ -72,9 +76,13 @@ export const dashboard = tuDien(
     kiemSoatPhuTung: "⚙️ Critical spare parts control",
     thieuTheoDoi: "{thieu} short / {tong} tracked",
     duTatCa: "All {tong}/{tong} sufficient",
-    danhMuc: "Catalogue →",
+    baoCaoThietYeu: "MLS-11-04 report →",
+    chuaCoSoN: "{n} without figures",
+    chuaCoSoKiemTra:
+      "{tong} critical spare parts listed, but {n} have no on-board figure yet.",
+    dienSoThang: "Enter this month's figures →",
     chuaCoPhuTung:
-      "No critical spare parts (spares with a minimum level) in the vessel catalogue yet.",
+      "No critical spare parts list (MLS-11-04) for the vessel yet.",
     nhapTuFile: "Import from MLS-11-04 file →",
     phuTungDuHet: "✅ All critical spare parts are at or above minimum.",
     xemTatCaThieu: "View all {n} short spares →",

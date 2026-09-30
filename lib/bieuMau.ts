@@ -8,6 +8,7 @@
  */
 export const MA_BIEU_MAU_KIEM_KE = "MLS-11-06";
 export const MA_BIEU_MAU_CHANG_BUOC = "MLS-11-13";
+export const MA_BIEU_MAU_THIET_YEU = "MLS-11-04";
 
 /** Phần mở rộng và kiểu MIME chấp nhận cho tệp biểu mẫu Excel (MLS-11-06). */
 export const DUOI_BIEU_MAU = ".xlsx";
@@ -27,6 +28,7 @@ export type LoaiBieuMauTep = "excel" | "word";
 export const BIEU_MAU_TEP: Record<string, { duoi: string; mime: string; loai: LoaiBieuMauTep; tep: string }> = {
   [MA_BIEU_MAU_KIEM_KE]: { duoi: DUOI_BIEU_MAU, mime: MIME_BIEU_MAU, loai: "excel", tep: "MLS-11-06.xlsx" },
   [MA_BIEU_MAU_CHANG_BUOC]: { duoi: DUOI_BIEU_MAU_WORD, mime: MIME_BIEU_MAU_WORD, loai: "word", tep: "MLS-11-13.docx" },
+  [MA_BIEU_MAU_THIET_YEU]: { duoi: DUOI_BIEU_MAU_WORD, mime: MIME_BIEU_MAU_WORD, loai: "word", tep: "MLS-11-04.docx" },
 };
 
 /** Trần kích thước tệp biểu mẫu: biểu mẫu là form trống, vài chục KB là cùng. */

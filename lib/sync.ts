@@ -44,6 +44,9 @@ export const BANG_CUA_TAU = [
   { ten: "consumableReceipt", moc: "updatedAt" },
   { ten: "consumableTransaction", moc: "createdAt" },
   { ten: "reportDocument", moc: "createdAt" },
+  // Danh mục phụ tùng thiết yếu (MLS-11-04) của tàu — lưu số tháng nào thì
+  // mục đó cũng được cập nhật (hienCo), nên số tháng đi theo bảng con bên dưới.
+  { ten: "phuTungThietYeu", moc: "updatedAt" },
 ] as const;
 
 /**
@@ -57,6 +60,7 @@ export const BANG_CON = [
   { ten: "lashingReportLine", cha: "lashingReport", khoa: "reportId" },
   { ten: "paintJobLine", cha: "paintJob", khoa: "jobId" },
   { ten: "paintSchemeLayer", cha: "paintArea", khoa: "areaId" },
+  { ten: "phuTungThietYeuThang", cha: "phuTungThietYeu", khoa: "itemId" },
 ] as const;
 
 /**
@@ -196,6 +200,8 @@ export const TEN_BANG_DB: Record<string, string> = {
   consumableStock: "ConsumableStock",
   consumableReceipt: "ConsumableReceipt",
   consumableTransaction: "ConsumableTransaction",
+  phuTungThietYeu: "PhuTungThietYeu",
+  phuTungThietYeuThang: "PhuTungThietYeuThang",
 };
 
 /**

@@ -152,7 +152,9 @@ export const actions = tuDien(
     nhap_vuiLongChonFile:
       "Vui lòng chọn file danh mục (.xls/.xlsx/.doc/.docx).",
     nhap_fileSaiDinhDang:
-      "File phải là Excel (.xls/.xlsx) hoặc Word (.doc/.docx).",
+      "File phải là Excel (.xls/.xlsx).",
+    nhap_wordLaThietYeu:
+      "Tệp Word MLS-11-04 là danh mục phụ tùng thiết yếu — nhập ở trang riêng: Vật tư & phụ tùng → Phụ tùng thiết yếu (/materials/thiet-yeu), không trộn vào danh mục vật tư chung.",
     nhap_fileQua10MB: "File vượt quá 10MB.",
     nhap_trungMaDoDongThoi:
       "Có phiên nhập liệu khác chạy đồng thời nên mã tự sinh bị trùng. Vui lòng bấm nhập lại.",
@@ -398,7 +400,9 @@ export const actions = tuDien(
     nhap_vuiLongChonFile:
       "Please choose a catalogue file (.xls/.xlsx/.doc/.docx).",
     nhap_fileSaiDinhDang:
-      "The file must be Excel (.xls/.xlsx) or Word (.doc/.docx).",
+      "The file must be Excel (.xls/.xlsx).",
+    nhap_wordLaThietYeu:
+      "An MLS-11-04 Word file is the essential spare parts list — import it on its own page: Essential spare parts (/materials/thiet-yeu), not into the general catalogue.",
     nhap_fileQua10MB: "The file is larger than 10MB.",
     nhap_trungMaDoDongThoi:
       "Another import was running at the same time, so an auto-generated code collided. Please click import again.",

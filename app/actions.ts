@@ -2136,7 +2136,7 @@ export async function deleteSupplier(
   return { message: "", success: true };
 }
 
-// Nhập danh mục vật tư/phụ tùng cho một tàu từ file Excel (MLS-11-06) hoặc Word (MLS-11-04).
+// Nhập danh mục vật tư/phụ tùng cho một tàu từ file Excel (MLS-11-06).
 export async function importMaterials(
   _prevState: { message: string; success?: boolean },
   formData: FormData
@@ -2199,19 +2199,20 @@ export async function importMaterials(
     return { message: t("actions.nhap_vuiLongChonFile") };
   }
   const ext = fileExtension(file.name);
-  if (![".xls", ".xlsx", ".doc", ".docx"].includes(ext)) {
+  // Word MLS-11-04 là danh mục phụ tùng thiết yếu RIÊNG của tàu — nhập ở trang
+  // /materials/thiet-yeu, không trộn vào danh mục vật tư chung.
+  if ([".doc", ".docx"].includes(ext)) {
+    return { message: t("actions.nhap_wordLaThietYeu") };
+  }
+  if (![".xls", ".xlsx"].includes(ext)) {
     return { message: t("actions.nhap_fileSaiDinhDang") };
   }
   if (file.size > 10 * 1024 * 1024) {
     return { message: t("actions.nhap_fileQua10MB") };
   }
   const buffer = Buffer.from(await file.arrayBuffer());
-  const { parseMaterialExcel, parseMaterialDoc } = await import(
-    "@/lib/materialImport"
-  );
-  const parsed = [".xls", ".xlsx"].includes(ext)
-    ? parseMaterialExcel(buffer)
-    : await parseMaterialDoc(buffer);
+  const { parseMaterialExcel } = await import("@/lib/materialImport");
+  const parsed = parseMaterialExcel(buffer);
   if (parsed.error) {
     return { message: parsed.error };
   }
@@ -3210,8 +3211,11 @@ export async function uploadBieuMauTep(
       return { message: t("actions.bieuMauTep_khongDocDuoc") };
     }
   } else {
-    const { kiemTraBieuMauChangBuoc } = await import("@/lib/bieuMauChangBuoc");
-    const kq = await kiemTraBieuMauChangBuoc(buffer);
+    // Mỗi mẫu Word có bộ kiểm riêng: điền thử đúng cách lúc xuất sẽ điền.
+    const kq =
+      code === "MLS-11-04"
+        ? await (await import("@/lib/bieuMauThietYeu")).kiemTraBieuMauThietYeu(buffer)
+        : await (await import("@/lib/bieuMauChangBuoc")).kiemTraBieuMauChangBuoc(buffer);
     if (!kq.ok) {
       return { message: `${t("actions.bieuMauTep_khongDocDuoc")} ${kq.loi}` };
     }

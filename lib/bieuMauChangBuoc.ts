@@ -65,7 +65,9 @@ export function datChuO(tc: string, text: string): string {
   const tcPr = tc.match(/<w:tcPr>[\s\S]*?<\/w:tcPr>/)?.[0] ?? "";
   const pDau = tc.match(RE_P)?.[0] ?? "<w:p></w:p>";
   const pPr = pPrCua(pDau);
-  const rPr = rPrDauTien(pDau);
+  // Ô trống của mẫu không có run nào — lấy định dạng chữ của dấu đoạn (rPr
+  // trong pPr) để chữ điền vào đúng phông / cỡ như cột đó trên mẫu.
+  const rPr = rPrDauTien(pDau) || (pPr.match(/<w:rPr>[\s\S]*?<\/w:rPr>/)?.[0] ?? "");
   const noiDung = text === "" ? " " : text;
   return `<w:tc>${tcPr}<w:p>${pPr}<w:r>${rPr}<w:t xml:space="preserve">${xmlEsc(noiDung)}</w:t></w:r></w:p></w:tc>`;
 }

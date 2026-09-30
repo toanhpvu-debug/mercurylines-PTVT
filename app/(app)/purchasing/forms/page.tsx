@@ -9,7 +9,7 @@ import {
 } from "@/lib/auth";
 import VesselFormStandardRow from "@/components/VesselFormStandardRow";
 import BieuMauTepManager from "@/components/BieuMauTepManager";
-import { MA_BIEU_MAU_CHANG_BUOC, MA_BIEU_MAU_KIEM_KE } from "@/lib/bieuMau";
+import { MA_BIEU_MAU_CHANG_BUOC, MA_BIEU_MAU_KIEM_KE, MA_BIEU_MAU_THIET_YEU } from "@/lib/bieuMau";
 import {
   FormStandardAddForm,
   FormStandardEditForm,
@@ -46,7 +46,7 @@ export default async function VesselFormsPage() {
     uploadedBy: true,
     uploadedAt: true,
   } as const;
-  const [vessels, allStandards, bieuMauTep, bieuMauWord] = await Promise.all([
+  const [vessels, allStandards, bieuMauTep, bieuMauWord, bieuMauThietYeu] = await Promise.all([
     prisma.vessel.findMany({
       where: vesselIdWhere(scope),
       orderBy: { code: "asc" },
@@ -56,6 +56,7 @@ export default async function VesselFormsPage() {
     // dòng thông tin; khi xuất mới đọc tới nó.
     prisma.bieuMauTep.findUnique({ where: { code: MA_BIEU_MAU_KIEM_KE }, select: chonTep }),
     prisma.bieuMauTep.findUnique({ where: { code: MA_BIEU_MAU_CHANG_BUOC }, select: chonTep }),
+    prisma.bieuMauTep.findUnique({ where: { code: MA_BIEU_MAU_THIET_YEU }, select: chonTep }),
   ]);
   const activeStandards = allStandards.filter((s) => s.isActive);
   const stdByCode = new Map(allStandards.map((s) => [s.code, s]));
@@ -87,7 +88,7 @@ export default async function VesselFormsPage() {
         />
       </div>
 
-      {/* Tệp biểu mẫu gốc (Excel kiểm kê, Word chằng buộc) — chỉ quản trị mới tải lên được. */}
+      {/* Tệp biểu mẫu gốc (Excel kiểm kê, Word chằng buộc, Word phụ tùng thiết yếu) — chỉ quản trị mới tải lên được. */}
       {canManage && (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <BieuMauTepManager
@@ -114,6 +115,23 @@ export default async function VesselFormsPage() {
                     sha256: bieuMauWord.sha256,
                     uploadedBy: bieuMauWord.uploadedBy,
                     uploadedAt: ngayGio(bieuMauWord.uploadedAt),
+                  }
+                : null
+            }
+          />
+          <BieuMauTepManager
+            code={MA_BIEU_MAU_THIET_YEU}
+            tieuDe={t("thietYeu.bieuMauTieuDe")}
+            moTa={t("thietYeu.bieuMauMoTa")}
+            chuaCo={t("thietYeu.bieuMauChuaCo")}
+            hienCo={
+              bieuMauThietYeu
+                ? {
+                    fileName: bieuMauThietYeu.fileName,
+                    size: bieuMauThietYeu.size,
+                    sha256: bieuMauThietYeu.sha256,
+                    uploadedBy: bieuMauThietYeu.uploadedBy,
+                    uploadedAt: ngayGio(bieuMauThietYeu.uploadedAt),
                   }
                 : null
             }

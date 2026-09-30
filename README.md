@@ -1073,9 +1073,9 @@ Nên chạy `sao-luu-du-lieu.cmd` trước cho chắc.
 ADMIN/Thuyền trưởng upload file theo form công ty để nạp nhanh danh mục cho từng tàu:
 
 - **Excel MLS-11-06** (Store & Spare Part Inventory): tự dò bảng (cột Description/IMPA/Unit/Group/R.O.B) — nhóm (Group) tự thành Category; nếu chọn kho, cột **R.O.B được ghi thành tồn kho** (đặt số tuyệt đối + tự ghi giao dịch kiểm kê IN/OUT để giữ vết).
-- **Word MLS-11-04** (Danh mục phụ tùng thiết yếu, .doc/.docx): tự nhận nhóm thiết bị (Máy chính, Máy phát...), tên phụ tùng, **số lượng tối thiểu** ("2 set" → min 2, ĐVT SET) — phụ tùng cùng tên nhưng khác thiết bị được tách riêng.
+- **Word MLS-11-04** (Danh mục phụ tùng thiết yếu) **không nhập ở đây** — đó là danh mục riêng của từng tàu, nhập ở trang *Phụ tùng thiết yếu* (xem mục "Phụ tùng thiết yếu (MLS-11-04)" bên dưới). Tải tệp Word lên trang này, app trả lời kèm đường dẫn sang trang đó.
 
-Vật tư trùng (theo IMPA / Part No / tên + thiết bị; mã giữ chỗ "-", "N/A" bị bỏ qua) chỉ được **gán vào tàu**, không tạo bản sao — nhập lại cùng file không sinh trùng lặp. Vật tư mới có mã theo khuôn `[bộ phận]-IMPA-####` / `[bộ phận]-SPR-####` (xem mục dưới). Trang **Dashboard** có mục **"Kiểm soát phụ tùng thiết yếu"**: đếm phụ tùng SPARE dưới mức tối thiểu trên toàn đội (theo phạm vi tàu) với thanh mức độ.
+Vật tư trùng (theo IMPA / Part No / tên + thiết bị; mã giữ chỗ "-", "N/A" bị bỏ qua) chỉ được **gán vào tàu**, không tạo bản sao — nhập lại cùng file không sinh trùng lặp. Vật tư mới có mã theo khuôn `[bộ phận]-IMPA-####` / `[bộ phận]-SPR-####` (xem mục dưới). Mục **"Kiểm soát phụ tùng thiết yếu"** trên Dashboard đọc danh mục MLS-11-04 riêng (không đọc danh mục vật tư chung) — xem mục dưới.
 
 ### Mã đang dùng: `[bộ phận]-IMPA-####` · `[bộ phận]-SPR-####`
 
@@ -1511,6 +1511,17 @@ Công cụ dùng **chính parser mà chức năng nhập file dùng**, nên kế
 
 Nút **"⬇ Xuất kiểm kê MLS-11-06"** ở trang Danh mục (chế độ theo tàu, giữ bộ lọc Store/Spare) và trang chi tiết tàu tải về file Excel **điền trên chính template gốc của công ty** (giữ nguyên định dạng, chữ ký): tên tàu, ngày, loại vật tư, và từng dòng Nhóm / Mô tả / IMPA / Đơn vị / **Còn tồn đợt trước / Nhận trong kỳ / Tiêu thụ trong kỳ / Tồn trên tàu** (kỳ = tháng hiện tại, tính từ giao dịch nhập–xuất trong app). Trên 25 dòng thì form tự giãn, khối chữ ký tự dời xuống. Quyền theo phạm vi tàu (thuyền viên chỉ xuất được tàu mình).
 
+### Phụ tùng thiết yếu (MLS-11-04) — danh mục riêng từng tàu (`/materials/thiet-yeu`)
+
+MLS-11-04 *"Danh mục kiểm tra phụ tùng thiết yếu trên tàu"* là danh sách **công ty quy định** (mỗi mục có mức tối thiểu phải luôn có trên tàu), tàu điền số **hằng tháng** và Máy trưởng / Thuyền trưởng ký gửi văn phòng. Vì vậy nó được quản lý **tách riêng** khỏi danh mục vật tư chung (bảng `PhuTungThietYeu` + số từng tháng `PhuTungThietYeuThang`), menu *Vận hành → Phụ tùng thiết yếu*.
+
+- **Nhập:** tải tệp Word MLS-11-04 của tàu (`.doc`/`.docx`, ≤ 10 MB). App đọc đúng bảng của mẫu: dòng nhóm ("A. Phụ tùng cho Máy chính…", hoặc "C | SPARE PARTS FOR BOILERS"), từng mục (stt, mô tả, số phụ tùng, tối thiểu, và số tháng nếu đã điền). Cột *Tối thiểu* giữ nguyên chữ in ("01 set", "½ set", "1 of each type") và được quy đổi ra số để cảnh báo thiếu. Chọn *Thay toàn bộ* (xóa danh mục cũ cùng số tháng đã lưu) hoặc *Thêm vào cuối*. Mục trùng Part No. / tên với mặt hàng trong danh mục kho của tàu được **gắn** tự động.
+- **Số tháng**, theo thứ tự ưu tiên: *Đã lưu* (tàu đã lưu tháng đó) → *Từ kho* (mục gắn mặt hàng kho: tính từ phiếu nhập/xuất trong tháng như MLS-11-01) → *Ước tính* (ban đầu = hiện có của tháng trước, nhận/tiêu thụ trống). Bấm **Sửa số tháng**, gõ thẳng vào bảng (đổi Ban đầu / Nhận / Tiêu thụ thì Hiện có tự tính lại), **Lưu tháng** — lưu cả chỉnh sửa mô tả / số phụ tùng / tối thiểu / vị trí. Thêm / xóa mục ngay trong chế độ sửa.
+- **In / Xuất:** bảng trên trang chính là bản in theo mẫu (logo, khung MLS-11-04, nhóm A–D, chữ ký Máy trưởng / Thuyền trưởng). Nút **Xuất Word MLS-11-04** (`/api/export/thiet-yeu?vessel=&thang=`) điền tên tàu, ngày và các nhóm vào **chính tệp Word mẫu của công ty** — header, footer, logo, cỡ chữ giữ nguyên. Mẫu lấy từ database (quản trị tải lên ở *Mua sắm → Biểu mẫu → Mẫu Word MLS-11-04*), sau đó `templates/MLS-11-04.docx` (không vào git).
+- **Quyền:** Máy trưởng, Đại phó, Thuyền trưởng **của đúng tàu** và quản trị (`coQuanLyThietYeu` trong `lib/roles.ts`, theo footer mẫu "Người làm báo cáo: CE, CO"); người khác trong phạm vi tàu chỉ xem / in / xuất. Mọi thao tác ghi nhật ký. Hai bảng đồng bộ tàu ↔ văn phòng như dữ liệu của tàu.
+- **Dashboard:** thẻ *Kiểm soát phụ tùng thiết yếu* so số hiện có (tháng gần nhất đã lưu; mục gắn kho chưa có số thì lấy tồn kho) với mức tối thiểu; mục chưa có số nào được đếm riêng là *chưa có số*, không tính là thiếu.
+- Kiểm thử: `scripts/kiem-tra-thiet-yeu.ts` (đọc 3 tệp mẫu thật trên Desktop nếu có, điền tệp mẫu thật ra `_thu-xuat/MLS-11-04-thu.docx`), `scripts/kiem-tra-thiet-yeu-db.ts` (database, trong giao dịch cuộn ngược).
+
 ### Nhập từ phiếu giao hàng bản scan — qua duyệt mới vào hệ thống (`/materials/phieu-giao`)
 
 Nhà cung cấp giao hàng lên tàu, thuyền viên kiểm xong, thay vì gõ lại từng dòng
@@ -1858,14 +1869,15 @@ khuôn kẻ chữ) vẫn thuộc danh mục vật tư boong.
 
 ## Báo cáo theo biểu mẫu công ty
 
-App tạo và in được 2 loại báo cáo đúng biểu mẫu Mercury Lines (nút **In báo cáo** → hộp thoại in của trình duyệt → giấy/PDF khổ A4 ngang, tự ẩn menu):
+App tạo và in được 3 loại báo cáo đúng biểu mẫu Mercury Lines (nút **In báo cáo** → hộp thoại in của trình duyệt → giấy/PDF khổ A4 ngang, tự ẩn menu):
 
 | Trang | Biểu mẫu | Cách hoạt động |
 |---|---|---|
-| **Báo cáo vật tư** (`/reports`) | MLS-11-01 / MLS-11-04 — Báo cáo nhận và sử dụng vật tư | **Tự động tổng hợp** từ giao dịch nhập/xuất trong app: chọn tàu + bộ phận (Máy/Boong/Kho tiêu hao/Tất cả) + tháng → bảng SL tồn đợt trước, Nhận (SL+ngày), Sử dụng (SL+ngày), Tồn trên tàu. Không phải nhập tay số liệu. |
+| **Báo cáo vật tư** (`/reports`) | MLS-11-01 — Báo cáo nhận và sử dụng vật tư | **Tự động tổng hợp** từ giao dịch nhập/xuất trong app: chọn tàu + bộ phận (Máy/Boong/Kho tiêu hao/Tất cả) + tháng → bảng SL tồn đợt trước, Nhận (SL+ngày), Sử dụng (SL+ngày), Tồn trên tàu. Không phải nhập tay số liệu. |
 | **Chằng buộc container** (`/lashing`) | MLS-11-13 — Báo cáo dụng cụ chằng buộc container | Sổ **trang bị chuẩn** từng tàu (SL tối thiểu + trang bị chuẩn, ADMIN chỉnh); mỗi chuyến ADMIN/MASTER kiểm đếm nhập 2 cột *Còn dùng được / Bị hỏng* (điền sẵn số lần trước) → app tự tính Tổng tồn, SL thiếu, **SL cần đặt mua** và gợi ý chuyển sang trang Yêu cầu vật tư để mua sắm. |
+| **Phụ tùng thiết yếu** (`/materials/thiet-yeu`) | MLS-11-04 — Danh mục kiểm tra phụ tùng thiết yếu trên tàu | Danh mục riêng từng tàu nhập từ tệp Word của tàu; số tháng lưu trong app; in hoặc **xuất Word** trên chính tệp mẫu công ty. Xem mục "Phụ tùng thiết yếu (MLS-11-04)". |
 
-Cả hai trang đều tuân theo phạm vi tàu (CREW chỉ thấy tàu mình, chỉ xem không lập).
+Cả ba trang đều tuân theo phạm vi tàu (CREW chỉ thấy tàu mình, chỉ xem không lập).
 
 ### Tải file báo cáo từ tàu (`/documents` — "Báo cáo từ tàu")
 
@@ -1873,7 +1885,7 @@ Tàu tải trực tiếp file báo cáo gốc (PDF hoặc Excel .xls/.xlsx, tố
 
 ## Cấu trúc chính
 
-- `prisma/schema.prisma` — model nghiệp vụ: User, Vessel, Warehouse, Category, Material, Inventory, InventoryTransaction, MaterialRequest(+Item), Supplier, PurchaseOrder(+Item), FormStandard, LashingGear/Report, ReportDocument, nhóm sơn (PaintProduct, PaintArea, PaintSchemeLayer, PaintStock, PaintTransaction, PaintJob+Line), nhóm dầu/hóa chất (ConsumableProduct, ConsumableStock, ConsumableReceipt, ConsumableTransaction), và nhóm phân quyền nâng cao: FleetAssignment, Delegation, AuditLog
+- `prisma/schema.prisma` — model nghiệp vụ: User, Vessel, Warehouse, Category, Material, Inventory, InventoryTransaction, MaterialRequest(+Item), Supplier, PurchaseOrder(+Item), FormStandard, LashingGear/Report, ReportDocument, PhuTungThietYeu(+Thang) (phụ tùng thiết yếu MLS-11-04), nhóm sơn (PaintProduct, PaintArea, PaintSchemeLayer, PaintStock, PaintTransaction, PaintJob+Line), nhóm dầu/hóa chất (ConsumableProduct, ConsumableStock, ConsumableReceipt, ConsumableTransaction), và nhóm phân quyền nâng cao: FleetAssignment, Delegation, AuditLog
 - `lib/roles.ts` — hàm quyết định quyền, THUẦN nên kiểm thử được ngoài Next: phạm vi tàu (`vesselScope`, `vesselScopeDayDu`, `trongPhamVi`), danh tính hiệu lực khi có ủy quyền (`danhTinhHieuLuc`), cấp duyệt (`capDuyetChoPhep`, `capDuyetChiTiet`)
 - `lib/audit.ts` — ghi nhật ký thao tác; `proxy.ts` ghi tự động mọi request thay đổi dữ liệu
 - `app/quyen-actions.ts` — server action phân công đội tàu và ủy quyền

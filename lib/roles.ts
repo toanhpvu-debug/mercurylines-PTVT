@@ -524,6 +524,21 @@ export function canManageVesselCatalog(user: NguoiThaoTac, vesselId: number) {
 }
 
 /**
+ * Ai làm báo cáo phụ tùng thiết yếu (MLS-11-04) của tàu: người lập theo mẫu là
+ * Máy trưởng và Đại phó ("Người làm báo cáo: CE, CO"), người ký là Thuyền
+ * trưởng; quản trị văn phòng làm được mọi tàu. Đúng vai trò VÀ đúng tàu.
+ */
+export const LAM_BAO_CAO_THIET_YEU: readonly string[] = ["ADMIN", "MASTER", "CHIEF_ENGINEER", "CHIEF_OFFICER"];
+
+export function coQuanLyThietYeu(user: NguoiThaoTac, vesselId: number) {
+  return danhTinhHieuLuc(user).some((d) => {
+    if (d.role === "ADMIN") return true;
+    if (!LAM_BAO_CAO_THIET_YEU.includes(d.role)) return false;
+    return trongPhamVi(vesselScope(d), vesselId);
+  });
+}
+
+/**
  * Người này có được vận hành phần Sơn của tàu này không.
  *
  * Cùng khuôn với canManageVesselCatalog: đúng vai trò VÀ đúng tàu. Người bị

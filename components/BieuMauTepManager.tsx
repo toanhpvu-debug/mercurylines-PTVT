@@ -17,9 +17,16 @@ import { BIEU_MAU_TEP, MA_BIEU_MAU_KIEM_KE } from "@/lib/bieuMau";
 export default function BieuMauTepManager({
   code = MA_BIEU_MAU_KIEM_KE,
   hienCo,
+  tieuDe,
+  moTa,
+  chuaCo,
 }: {
   /** Mã biểu mẫu trong BIEU_MAU_TEP (lib/bieuMau.ts). */
   code?: string;
+  /** Chữ riêng cho biểu mẫu không phải MLS-11-06 / MLS-11-13 (vd. MLS-11-04). */
+  tieuDe?: string;
+  moTa?: string;
+  chuaCo?: string;
   hienCo: {
     fileName: string;
     size: number;
@@ -38,8 +45,8 @@ export default function BieuMauTepManager({
     <Card>
       <CardHeader
         icon={laWord ? <FileText className="size-4" /> : <FileSpreadsheet className="size-4" />}
-        title={laWord ? t("purchasing.bieuMauTep_tieuDeWord", { ma: code }) : t("purchasing.bieuMauTep_tieuDe", { ma: code })}
-        subtitle={laWord ? t("purchasing.bieuMauTep_moTaWord") : t("purchasing.bieuMauTep_moTa")}
+        title={tieuDe ?? (laWord ? t("purchasing.bieuMauTep_tieuDeWord", { ma: code }) : t("purchasing.bieuMauTep_tieuDe", { ma: code }))}
+        subtitle={moTa ?? (laWord ? t("purchasing.bieuMauTep_moTaWord") : t("purchasing.bieuMauTep_moTa"))}
       />
       {hienCo ? (
         <div className="mb-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] px-3 py-2 text-sm">
@@ -59,7 +66,7 @@ export default function BieuMauTepManager({
         </div>
       ) : (
         <Notice tone="warning" className="mb-4">
-          {laWord ? t("purchasing.bieuMauTep_chuaCoWord") : t("purchasing.bieuMauTep_chuaCo")}
+          {chuaCo ?? (laWord ? t("purchasing.bieuMauTep_chuaCoWord") : t("purchasing.bieuMauTep_chuaCo"))}
         </Notice>
       )}
       <form action={formAction} className="flex flex-wrap items-end gap-3">

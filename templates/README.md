@@ -58,3 +58,15 @@ npx tsx scripts/kiem-bieu-mau-kiem-ke.ts [đường-dẫn-file]
 
 Script in ra những gì đang nằm ở đúng các ô trên để so bằng mắt, rồi sửa tham chiếu ô trong
 file route nói trên nếu lệch.
+
+## Mẫu Word: MLS-11-13 (chằng buộc) và MLS-11-04 (phụ tùng thiết yếu)
+
+Cùng cách nạp: **Mua sắm → Biểu mẫu** → khối mẫu Word tương ứng → tải tệp `.docx` lên (tệp
+`.doc` cũ thì mở bằng Word, *Save As* `.docx` trước). Khi tải lên, app điền thử đúng như lúc
+xuất để chắc tệp dùng được. Đường lùi trên đĩa: `templates/MLS-11-13.docx`,
+`templates/MLS-11-04.docx` (đều bị `.gitignore` chặn).
+
+Mẫu MLS-11-04 cần: đoạn `Tên tàu (Vessel) … Ngày (Date): …`, và một bảng có hàng tiêu đề cột,
+ít nhất một hàng nhóm một ô (`A. Phụ tùng cho Máy chính …`), một hàng mục 9 ô (ô đầu là số
+thứ tự) và hàng trống cuối bảng. Code (`lib/bieuMauThietYeu.ts`) nhân bản hàng nhóm / hàng mục
+của chính mẫu cho từng nhóm / mục nên giữ nguyên đường kẻ, cỡ chữ, header, footer và logo.

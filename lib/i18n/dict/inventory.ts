@@ -113,7 +113,6 @@ export const inventory = tuDien(
     cotNgayTai: "Ngày tải",
     cotKy: "Kỳ",
     cotTieuDeFile: "Tiêu đề / File",
-    cotCo: "Cỡ",
     cotNguoiTai: "Người tải",
     xemTai: "Xem / Tải",
     luuYBatBien:
@@ -137,6 +136,22 @@ export const inventory = tuDien(
       "— không thể sửa hay thay thế. Nếu nhầm, hãy tải lên bản đúng (bản mới nằm trên cùng); chỉ quản trị viên công ty có quyền xóa.",
     xacNhanXoaHoSo:
       'Xóa vĩnh viễn hồ sơ "{ten}"? Hành động này không hoàn tác được.',
+    xacNhanGoNhieuHoSo:
+      "Gỡ vĩnh viễn {n} hồ sơ đã chọn khỏi hệ thống (xóa cả tệp)? Không hoàn tác được — nhật ký vẫn ghi lại từng hồ sơ đã gỡ.",
+    daChonHoSo: "Đã chọn {n} hồ sơ",
+    goHoSoDaChon: "Gỡ {n} hồ sơ đã chọn",
+    boChonHoSo: "Bỏ chọn",
+    chonTatCaHoSo: "Chọn tất cả hồ sơ",
+    chonHoSo: "Chọn hồ sơ {ten}",
+    goHoSoNay: "Gỡ hồ sơ này",
+    go: "Gỡ",
+    goiYGoHoSo:
+      "Gỡ nhanh: bấm nút thùng rác trên dòng, hoặc tick nhiều dòng (ô đầu bảng để chọn tất cả) rồi bấm \"Gỡ … hồ sơ đã chọn\".",
+    daGoHoSo: "Đã gỡ {n} hồ sơ.",
+    goHoSoChuaChon: "Chưa chọn hồ sơ nào để gỡ.",
+    goHoSoQuaNhieu: "Mỗi lần gỡ tối đa {n} hồ sơ.",
+    goHoSoChiVanPhong:
+      "Chỉ quản trị viên ở bản cài văn phòng mới gỡ được hồ sơ — bản cài trên tàu không gỡ.",
 
     // --- Dải chọn tàu (dùng chung nhiều trang) ---
     chuyenTau: "Chuyển tàu:",
@@ -247,7 +262,6 @@ export const inventory = tuDien(
     cotNgayTai: "Uploaded on",
     cotKy: "Period",
     cotTieuDeFile: "Title / File",
-    cotCo: "Size",
     cotNguoiTai: "Uploaded by",
     xemTai: "View / Download",
     luuYBatBien:
@@ -270,6 +284,22 @@ export const inventory = tuDien(
       "— it cannot be edited or replaced. If you upload the wrong file, upload the correct one instead (the newest one is listed on top); only company administrators may delete.",
     xacNhanXoaHoSo:
       'Permanently delete the document "{ten}"? This action cannot be undone.',
+    xacNhanGoNhieuHoSo:
+      "Permanently remove the {n} selected documents (files included)? This cannot be undone — the audit log still records each removed document.",
+    daChonHoSo: "{n} documents selected",
+    goHoSoDaChon: "Remove {n} selected",
+    boChonHoSo: "Clear selection",
+    chonTatCaHoSo: "Select all documents",
+    chonHoSo: "Select document {ten}",
+    goHoSoNay: "Remove this document",
+    go: "Remove",
+    goiYGoHoSo:
+      "Quick removal: click the bin on a row, or tick several rows (the header box selects all) and click \"Remove … selected\".",
+    daGoHoSo: "Removed {n} documents.",
+    goHoSoChuaChon: "No document selected for removal.",
+    goHoSoQuaNhieu: "At most {n} documents can be removed at once.",
+    goHoSoChiVanPhong:
+      "Only administrators on the office installation can remove documents — vessel installations cannot.",
 
     chuyenTau: "Switch vessel:",
   }

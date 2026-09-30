@@ -56,7 +56,6 @@ import {
   MAX_UPLOAD_BYTES,
   ensureUploadDir,
   fileExtension,
-  getUploadDir,
 } from "@/lib/uploads";
 import ExcelJS from "exceljs";
 import { BIEU_MAU_TEP, MAX_BIEU_MAU_BYTES } from "@/lib/bieuMau";
@@ -3359,51 +3358,6 @@ export async function uploadReportDocument(
     }),
     success: true,
   };
-}
-
-export async function deleteReportDocument(
-  _prevState: { message: string; success?: boolean },
-  formData: FormData
-): Promise<{ message: string; success?: boolean }> {
-  const { t } = await layT();
-  const admin = await requireActiveRole(["ADMIN"]);
-  if (!admin) {
-    return { message: t("chung.khongCoQuyen") };
-  }
-  const id = Number(formData.get("id"));
-  if (!Number.isInteger(id) || id <= 0) {
-    return { message: t("chung.duLieuKhongHopLe") };
-  }
-  const doc = await prisma.reportDocument.findUnique({ where: { id } });
-  if (!doc) {
-    return { message: t("actions.hoSo_khongTimThay") };
-  }
-  await prisma.reportDocument.delete({ where: { id } });
-  // Ghi vết TRƯỚC khi đụng tới đĩa: bản ghi đã mất, file sắp mất, và dòng nhật
-  // ký này là thứ duy nhất còn lại. deleteUser từ chối xóa tài khoản đã nộp
-  // file với lý do "file là bản lưu bất biến, phải giữ được vết ai đã nộp" —
-  // giữ vết người nộp mà không giữ vết người xóa thì lập luận đó tự mâu thuẫn,
-  // và khi thanh tra hỏi hồ sơ PSC đâu thì không ai trả lời được.
-  await ghiNhatKy({
-    userId: admin.id,
-    email: admin.email,
-    role: admin.role,
-    // Tàu của hồ sơ, không phải tàu của ông quản trị (xem createUser).
-    vesselId: doc.vesselId,
-    action: "xoa-ho-so",
-    path: "/documents",
-    detail:
-      `Xóa hồ sơ #${id} "${doc.title}" (${doc.reportType}` +
-      `${doc.period ? `, kỳ ${doc.period}` : ""}) — file ${doc.fileName}` +
-      `, người nộp #${doc.uploadedById}`,
-  });
-  try {
-    await unlink(path.join(getUploadDir(), path.basename(doc.storedName)));
-  } catch {
-    // file đã không còn trên đĩa — bỏ qua
-  }
-  revalidatePath("/documents");
-  return { message: "", success: true };
 }
 
 // Danh sách vai trò hợp lệ lấy thẳng từ lib/roles.ts — trước đây là một mảng

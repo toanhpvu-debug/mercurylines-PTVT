@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { ExternalLink, FileText, Upload } from "lucide-react";
+import { FileText, Upload } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
@@ -8,22 +7,10 @@ import {
   vesselWhere,
 } from "@/lib/auth";
 import DocumentUploadForm from "@/components/DocumentUploadForm";
-import DocumentDeleteButton from "@/components/DocumentDeleteButton";
+import BangHoSo from "@/components/BangHoSo";
+import { laBanTau } from "@/lib/banCai";
 import { layT } from "@/lib/i18n/server";
-import {
-  Badge,
-  Card,
-  CardHeader,
-  EmptyState,
-  Notice,
-  PageHeader,
-  Table,
-  TableWrap,
-  Td,
-  Th,
-  Tr,
-  buttonClass,
-} from "@/components/ui";
+import { Card, CardHeader, EmptyState, Notice, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +25,8 @@ export default async function DocumentsPage() {
   const user = await requireScopedUser();
   const { t, ngay } = await layT();
   const scope = vesselScopeDayDu(user);
-  const canDelete = user.role === "ADMIN";
+  // Gỡ hồ sơ: chỉ quản trị ở bản cài văn phòng (goHoSo kiểm lại lần nữa).
+  const goDuoc = user.role === "ADMIN" && !(await laBanTau());
   const [vessels, documents] = await Promise.all([
     prisma.vessel.findMany({
       where: vesselIdWhere(scope),
@@ -65,7 +53,7 @@ export default async function DocumentsPage() {
       {scope.unassigned ? (
         <Notice tone="warning">{t("inventory.taiLieuChuaGanTau")}</Notice>
       ) : (
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[22rem_minmax(0,1fr)]">
           <Card>
             <CardHeader
               icon={<Upload className="size-4" />}
@@ -73,7 +61,7 @@ export default async function DocumentsPage() {
             />
             <DocumentUploadForm vessels={vessels} />
           </Card>
-          <Card className="xl:col-span-2">
+          <Card className="min-w-0">
             <CardHeader
               icon={<FileText className="size-4" />}
               title={t("inventory.hoSoDaLuu", { n: documents.length })}
@@ -84,94 +72,27 @@ export default async function DocumentsPage() {
                 title={t("inventory.chuaCoBaoCao")}
               />
             ) : (
-              <TableWrap>
-                <Table dense>
-                  <thead>
-                    <tr>
-                      <Th>{t("inventory.cotNgayTai")}</Th>
-                      <Th>{t("chung.tau")}</Th>
-                      <Th>{t("inventory.loai")}</Th>
-                      <Th>{t("inventory.cotKy")}</Th>
-                      <Th>{t("inventory.cotTieuDeFile")}</Th>
-                      <Th>{t("inventory.cotCo")}</Th>
-                      <Th>{t("inventory.cotNguoiTai")}</Th>
-                      <Th>SHA-256</Th>
-                      <Th></Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {documents.map((doc) => (
-                      <Tr
-                        key={doc.id}
-                        className="align-top transition-colors hover:bg-[var(--surface-sunken)]/50"
-                      >
-                        <Td className="whitespace-nowrap">
-                          {ngay(doc.createdAt)}
-                        </Td>
-                        <Td className="whitespace-nowrap">
-                          <Link
-                            href={`/vessels/${doc.vessel.id}`}
-                            className="font-display text-xs tracking-wide text-brand-700 hover:underline dark:text-brand-300"
-                          >
-                            {doc.vessel.code}
-                          </Link>
-                        </Td>
-                        <Td className="whitespace-nowrap">
-                          <Badge tone="neutral">{doc.reportType}</Badge>
-                        </Td>
-                        <Td className="whitespace-nowrap">{doc.period}</Td>
-                        <Td>
-                          <p className="font-medium">{doc.title}</p>
-                          {doc.title !== doc.fileName && (
-                            <p className="text-xs text-[var(--text-muted)]">
-                              {doc.fileName}
-                            </p>
-                          )}
-                          {doc.note && (
-                            <p className="text-xs text-[var(--text-muted)]">
-                              {t("chung.ghiChu")}: {doc.note}
-                            </p>
-                          )}
-                        </Td>
-                        <Td className="tabular whitespace-nowrap">
-                          {formatSize(doc.size)}
-                        </Td>
-                        <Td>{doc.uploadedBy.name}</Td>
-                        <Td>
-                          <span
-                            className="font-mono text-xs text-[var(--text-muted)]"
-                            title={doc.sha256}
-                          >
-                            {doc.sha256.slice(0, 12)}…
-                          </span>
-                        </Td>
-                        <Td>
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={`/api/documents/${doc.id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={buttonClass("secondary", "sm")}
-                            >
-                              <ExternalLink className="size-4" />
-                              {t("inventory.xemTai")}
-                            </a>
-                            {canDelete && (
-                              <DocumentDeleteButton
-                                id={doc.id}
-                                fileName={doc.fileName}
-                              />
-                            )}
-                          </div>
-                        </Td>
-                      </Tr>
-                    ))}
-                  </tbody>
-                </Table>
-              </TableWrap>
+              <BangHoSo
+                goDuoc={goDuoc}
+                dong={documents.map((doc) => ({
+                  id: doc.id,
+                  ngay: ngay(doc.createdAt),
+                  vesselId: doc.vessel.id,
+                  vesselCode: doc.vessel.code,
+                  reportType: doc.reportType,
+                  period: doc.period,
+                  title: doc.title,
+                  fileName: doc.fileName,
+                  note: doc.note,
+                  co: formatSize(doc.size),
+                  sha256: doc.sha256,
+                  nguoiTai: doc.uploadedBy.name,
+                }))}
+              />
             )}
             <Notice tone="info" className="mt-4">
               {t("inventory.luuYBatBien")}
+              {goDuoc && <> {t("inventory.goiYGoHoSo")}</>}
             </Notice>
           </Card>
         </div>

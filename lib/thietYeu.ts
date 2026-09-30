@@ -268,3 +268,29 @@ export function sachBanIn(x: unknown): { tenTau: string; ngay: string; dong: Don
   }
   return { tenTau: chu(o.tenTau, 120), ngay: chu(o.ngay, 40), dong };
 }
+
+/** Sự kiện trình duyệt báo bảng đang mở bỏ bản in sửa tay (detail = id tàu). */
+export const SU_KIEN_XOA_BAN_IN = "mercury:ban-in-1104-xoa";
+
+/** Khóa localStorage của bản in đã sửa tay (tàu + tháng). */
+export function khoaBanIn(vesselId: number, thang: string): string {
+  return `mercury.bao-cao-1104.${vesselId}.${thang}`;
+}
+
+/**
+ * Xóa mọi bản in đã sửa tay của một tàu trên máy này — gọi sau khi gỡ hoặc nhập
+ * lại danh mục: mục đã đổi hết id, bản nháp cũ không còn khớp và sẽ che mất
+ * danh mục mới. Chỉ chạy ở trình duyệt.
+ */
+export function xoaBanInCuaTau(vesselId: number): void {
+  try {
+    const tien = khoaBanIn(vesselId, "");
+    for (let i = window.localStorage.length - 1; i >= 0; i--) {
+      const k = window.localStorage.key(i);
+      if (k && k.startsWith(tien)) window.localStorage.removeItem(k);
+    }
+  } catch {
+    /* localStorage bị chặn: không có gì để xóa */
+  }
+  window.dispatchEvent(new CustomEvent(SU_KIEN_XOA_BAN_IN, { detail: vesselId }));
+}

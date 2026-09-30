@@ -1,8 +1,9 @@
 "use client";
 
-import { startTransition, useActionState, useState } from "react";
+import { startTransition, useActionState, useEffect, useState } from "react";
 import { FileText, Upload } from "lucide-react";
 import { nhapThietYeuTuWord } from "@/app/thiet-yeu-actions";
+import { xoaBanInCuaTau } from "@/lib/thietYeu";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Button, Field, Notice, Select } from "@/components/ui";
 
@@ -10,6 +11,11 @@ import { Button, Field, Notice, Select } from "@/components/ui";
 export default function NhapThietYeuForm({ vesselId, soMucHienCo }: { vesselId: number; soMucHienCo: number }) {
   const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(nhapThietYeuTuWord, { message: "" });
+  // Nhập xong thì danh mục đã đổi: bản in sửa tay cũ của tàu trên máy này không
+  // còn khớp (sẽ che mất mục mới) — bỏ đi.
+  useEffect(() => {
+    if (state.success) xoaBanInCuaTau(vesselId);
+  }, [state, vesselId]);
   const [cheDo, setCheDo] = useState(soMucHienCo > 0 ? "them" : "thay");
 
   return (

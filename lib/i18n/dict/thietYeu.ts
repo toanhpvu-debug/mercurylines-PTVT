@@ -89,6 +89,12 @@ export const thietYeu = tuDien(
     banInCu:
       "Số liệu hệ thống đã thay đổi sau lúc bạn sửa bản in (vd. vừa lưu số tháng) — bấm \"Đặt lại\" nếu muốn lấy số mới.",
     khongXuatDuoc: "Không xuất được tệp Word (mã {ma}). Thử lại, hoặc tải lại trang.",
+    goDanhMuc: "Gỡ danh mục",
+    xacNhanGoDanhMuc:
+      "Gỡ TOÀN BỘ danh mục phụ tùng thiết yếu của tàu {tau} ({n} mục) cùng mọi số tháng đã lưu? Không hoàn tác được. Mặt hàng trong kho không bị ảnh hưởng; muốn dùng lại thì nhập lại tệp Word MLS-11-04.",
+    daGoDanhMuc: "Đã gỡ danh mục phụ tùng thiết yếu của tàu {tau}: {n} mục, {thang} bản ghi số tháng.",
+    daGoDanhMucNgan: "Đã gỡ danh mục phụ tùng thiết yếu của tàu {tau} ({n} mục). Nhập lại tệp Word MLS-11-04 bên dưới nếu cần.",
+    goChiVanPhong: "Chỉ quản trị viên ở bản cài văn phòng mới gỡ được danh mục — bản cài trên tàu không gỡ.",
   },
   {
     tieuDe: "Essential spare parts (MLS-11-04)",
@@ -177,5 +183,11 @@ export const thietYeu = tuDien(
     banInCu:
       "System figures have changed since you edited the printout (e.g. monthly figures were just saved) — click \"Reset\" to take the new figures.",
     khongXuatDuoc: "Could not export the Word file (code {ma}). Try again or reload the page.",
+    goDanhMuc: "Remove list",
+    xacNhanGoDanhMuc:
+      "Remove the WHOLE essential spare parts list of {tau} ({n} items) together with all saved monthly figures? This cannot be undone. Stock materials are not affected; to use it again, re-import the MLS-11-04 Word file.",
+    daGoDanhMuc: "Removed the essential spare parts list of {tau}: {n} items, {thang} monthly records.",
+    daGoDanhMucNgan: "Removed the essential spare parts list of {tau} ({n} items). Re-import the MLS-11-04 Word file below if needed.",
+    goChiVanPhong: "Only administrators on the office installation can remove the list — vessel installations cannot.",
   }
 );

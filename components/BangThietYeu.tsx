@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Download, FilePenLine, FolderPlus, Pencil, Plus, Printer, RotateCcw, Trash2, X } from "lucide-react";
 import LogoBieuMau from "@/components/LogoBieuMau";
-import { luuThangThietYeu, themPhuTungThietYeu, xoaPhuTungThietYeu } from "@/app/thiet-yeu-actions";
-import { COT_IN, dongInTu, gomNhom, laThieuIn, soIn, soTrongO, type DongIn, type DongThietYeu } from "@/lib/thietYeu";
+import { goDanhMucThietYeu, luuThangThietYeu, themPhuTungThietYeu, xoaPhuTungThietYeu } from "@/app/thiet-yeu-actions";
+import { COT_IN, SU_KIEN_XOA_BAN_IN, dongInTu, gomNhom, khoaBanIn, laThieuIn, soIn, soTrongO, xoaBanInCuaTau, type DongIn, type DongThietYeu } from "@/lib/thietYeu";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Badge, Button, Field, Input, Notice, Select } from "@/components/ui";
 
@@ -67,6 +67,7 @@ export default function BangThietYeu({
   ngay,
   dongGoc,
   coQuyen,
+  goDuoc,
 }: {
   vesselId: number;
   maTau: string;
@@ -75,10 +76,12 @@ export default function BangThietYeu({
   ngay: string;
   dongGoc: DongThietYeu[];
   coQuyen: boolean;
+  /** Gỡ cả danh mục của tàu: quản trị ở bản cài văn phòng (goDanhMucThietYeu kiểm lại). */
+  goDuoc: boolean;
 }) {
   const { t, tTuDo } = useNgonNgu();
   const router = useRouter();
-  const khoaLuu = `mercury.bao-cao-1104.${vesselId}.${thang}`;
+  const khoaLuu = khoaBanIn(vesselId, thang);
   const dauGoc = useMemo<DauIn>(() => ({ tenTau, ngay }), [tenTau, ngay]);
   const dongGocIn = useMemo(() => dongGoc.map(dongInTu), [dongGoc]);
   const moc = useMemo(() => vanTay(dongGocIn), [dongGocIn]);
@@ -110,6 +113,16 @@ export default function BangThietYeu({
     }, 0);
     return () => window.clearTimeout(id);
   }, [khoaLuu]);
+
+  // Nhập lại / gỡ danh mục ở chỗ khác trên trang thì bản in sửa tay cũ không
+  // còn khớp — bỏ luôn bản đang giữ trong bộ nhớ.
+  useEffect(() => {
+    const nghe = (e: Event) => {
+      if ((e as CustomEvent<number>).detail === vesselId) setBanIn(null);
+    };
+    window.addEventListener(SU_KIEN_XOA_BAN_IN, nghe);
+    return () => window.removeEventListener(SU_KIEN_XOA_BAN_IN, nghe);
+  }, [vesselId]);
 
   // Server trả bảng mới (sau khi lưu / thêm / xóa mục): đang "Sửa số tháng" thì
   // giữ ô đã gõ của mục cũ, thêm mục mới, bỏ mục đã xóa; không thì lấy nguyên.
@@ -224,6 +237,21 @@ export default function BangThietYeu({
         router.refresh();
       }
     });
+  const goDanhMuc = () => {
+    if (!window.confirm(t("thietYeu.xacNhanGoDanhMuc", { tau: tenTau, n: dongGoc.length }))) return;
+    setThongBao(null);
+    startTransition(async () => {
+      const r = await goDanhMucThietYeu(vesselId);
+      if (!r.success) {
+        bao(r);
+        return;
+      }
+      xoaBanInCuaTau(vesselId);
+      // Bảng này sắp biến mất (trang về trạng thái chưa có danh mục) — báo kết
+      // quả qua URL để trang hiện, thay vì thông báo nằm trong bảng.
+      router.replace(`/materials/thiet-yeu?vessel=${vesselId}&thang=${thang}&daGo=${dongGoc.length}`);
+    });
+  };
   const xoa = (d: DongIn) => {
     if (!window.confirm(t("thietYeu.xacNhanXoa", { moTa: d.moTa }))) return;
     startTransition(async () => {
@@ -305,6 +333,11 @@ export default function BangThietYeu({
             {coQuyen && (
               <Button type="button" size="sm" onClick={batDauSuaSo} icon={<Pencil className="size-4" />}>
                 {t("thietYeu.suaSo")}
+              </Button>
+            )}
+            {goDuoc && (
+              <Button type="button" variant="danger" size="sm" onClick={goDanhMuc} loading={dangGui} icon={<Trash2 className="size-4" />}>
+                {t("thietYeu.goDanhMuc")}
               </Button>
             )}
           </>

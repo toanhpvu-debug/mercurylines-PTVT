@@ -7,6 +7,7 @@ import { LAM_BAO_CAO_THIET_YEU, coQuanLyThietYeu } from "@/lib/roles";
 import { ghiNhatKyNguoiDung } from "@/lib/audit";
 import { layT } from "@/lib/i18n/server";
 import { fileExtension } from "@/lib/uploads";
+import { laBanTau } from "@/lib/banCai";
 import { docHangMLS1104, soTuToiThieu, tachHang, thangHopLe } from "@/lib/thietYeu";
 
 /*
@@ -252,4 +253,33 @@ export async function xoaPhuTungThietYeu(idRaw: number): Promise<KetQuaThietYeu>
   revalidatePath("/materials/thiet-yeu");
   revalidatePath("/dashboard");
   return { message: t("thietYeu.daXoa", { moTa: muc.moTa }), success: true };
+}
+
+/**
+ * Gỡ TOÀN BỘ danh mục phụ tùng thiết yếu (tệp MLS-11-04 đã nhập) của một tàu,
+ * kèm mọi số tháng đã lưu (xóa theo khóa ngoại). Mặt hàng kho đã gắn vẫn giữ.
+ * Như các chức năng gỡ / xóa khác: chỉ quản trị ở bản cài văn phòng.
+ */
+export async function goDanhMucThietYeu(vesselIdRaw: number): Promise<KetQuaThietYeu> {
+  const { t } = await layT();
+  const admin = await requireActiveRole(["ADMIN"]);
+  if (!admin) return { message: t("chung.khongCoQuyen") };
+  if (await laBanTau()) return { message: t("thietYeu.goChiVanPhong") };
+  const vessel = await prisma.vessel.findUnique({ where: { id: Number(vesselIdRaw) || -1 }, select: { id: true, code: true, name: true } });
+  if (!vessel) return { message: t("actions.tau_khongTonTai") };
+  const [soMuc, soThang] = await Promise.all([
+    prisma.phuTungThietYeu.count({ where: { vesselId: vessel.id } }),
+    prisma.phuTungThietYeuThang.count({ where: { item: { vesselId: vessel.id } } }),
+  ]);
+  if (!soMuc) return { message: t("thietYeu.chuaCoDanhMuc") };
+  await prisma.phuTungThietYeu.deleteMany({ where: { vesselId: vessel.id } });
+  await ghiNhatKyNguoiDung(admin, {
+    action: "thiet-yeu-go-danh-muc",
+    path: "/materials/thiet-yeu",
+    vesselId: vessel.id,
+    detail: `Gỡ danh mục phụ tùng thiết yếu MLS-11-04 của tàu ${vessel.code}: ${soMuc} mục, ${soThang} bản ghi số tháng`,
+  });
+  revalidatePath("/materials/thiet-yeu");
+  revalidatePath("/dashboard");
+  return { message: t("thietYeu.daGoDanhMuc", { tau: vessel.name, n: soMuc, thang: soThang }), success: true };
 }

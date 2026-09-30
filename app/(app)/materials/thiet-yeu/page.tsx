@@ -4,6 +4,7 @@ import { requireScopedUser, vesselIdWhere } from "@/lib/auth";
 import { coQuanLyThietYeu, vesselScopeDayDu } from "@/lib/roles";
 import { layBangThietYeu } from "@/lib/thietYeuServer";
 import { laThieu, ngayBaoCao, thangHopLe } from "@/lib/thietYeu";
+import { laBanTau } from "@/lib/banCai";
 import { layT } from "@/lib/i18n/server";
 import BangThietYeu from "@/components/BangThietYeu";
 import NhapThietYeuForm from "@/components/NhapThietYeuForm";
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function ThietYeuPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vessel?: string; thang?: string }>;
+  searchParams: Promise<{ vessel?: string; thang?: string; daGo?: string }>;
 }) {
   const user = await requireScopedUser();
   const { t } = await layT();
@@ -44,6 +45,10 @@ export default async function ThietYeuPage({
 
   const dong = await layBangThietYeu(tau.id, thang);
   const coQuyen = coQuanLyThietYeu(user, tau.id);
+  // Gỡ cả danh mục: quản trị ở bản cài văn phòng (như mọi chức năng gỡ / xóa khác).
+  const goDuoc = user.role === "ADMIN" && !(await laBanTau());
+  // Vừa gỡ danh mục (goDanhMucThietYeu → URL ?daGo=<số mục>): báo lại ở đầu trang.
+  const daGo = dong.length === 0 && /^\d{1,4}$/.test(params.daGo ?? "") ? Number(params.daGo) : 0;
   const soThieu = dong.filter(laThieu).length;
   const soChuaCoSo = dong.filter((d) => d.hienCo === null).length;
   const soDaLuu = dong.filter((d) => d.nguon === "DA_LUU").length;
@@ -78,6 +83,12 @@ export default async function ThietYeuPage({
         </form>
       </Card>
 
+      {daGo > 0 && (
+        <Notice tone="success" className="no-print">
+          {t("thietYeu.daGoDanhMucNgan", { tau: tau.name, n: daGo })}
+        </Notice>
+      )}
+
       {dong.length === 0 ? (
         <Card className="no-print">
           <EmptyState title={t("thietYeu.chuaCoDanhMuc")} hint={coQuyen ? t("thietYeu.chuaCoDanhMucGoiY") : t("thietYeu.chiXem")} />
@@ -111,6 +122,7 @@ export default async function ThietYeuPage({
             ngay={ngayBaoCao(thang)}
             dongGoc={dong}
             coQuyen={coQuyen}
+            goDuoc={goDuoc}
           />
 
           {coQuyen && (

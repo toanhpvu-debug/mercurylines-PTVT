@@ -16,10 +16,15 @@ import JSZip from "jszip";
 import { chuCua } from "@/lib/bieuMauChangBuoc";
 import { dienBieuMauThietYeu, dienXmlThietYeu, kiemTraBieuMauThietYeu } from "@/lib/bieuMauThietYeu";
 import {
+  COT_IN,
+  TOI_DA_DONG_IN,
   docHangMLS1104,
+  dongInTu,
   gomNhom,
   laThieu,
+  laThieuIn,
   ngayBaoCao,
+  sachBanIn,
   soIn,
   soTuToiThieu,
   tachHang,
@@ -137,7 +142,7 @@ const ra = dienXmlThietYeu(xmlMau, {
     dong(1, "A. Máy chính", "1", "Cylinder cover", { partNo: "P-1", tonDau: 2, nhan: 1, tieuThu: 1, hienCo: 2, viTri: "Kho <máy>" }),
     dong(2, "A. Máy chính", "2", "Piston & ring"),
     dong(3, "B. Máy đèn", "1", "Fuel pump", { toiThieu: "1/2 set", hienCo: 0.5 }),
-  ],
+  ].map(dongInTu),
 });
 const bang = ra.match(/<w:tbl>[\s\S]*?<\/w:tbl>/)![0];
 const hang = bang.match(/<w:tr\b[\s\S]*?<\/w:tr>/g)!;
@@ -160,6 +165,30 @@ kiemTra("doan ten tau / ngay", chuCua(pTau).replace(/\s+/g, " "), "Tên tàu (Ve
 kiemTra("doan ten tau het dau cham", /…/.test(chuCua(pTau)), false);
 kiemTra("Vessel / Date van nghieng", dem(pTau, /<w:i\/>/g), 2);
 kiemTra("mau khong co bang → loi", (() => { try { dienXmlThietYeu("<w:document/>", { tenTau: "", ngay: "", dong: [] }); return "khong loi"; } catch { return "loi"; } })(), "loi");
+
+// Bản in sửa tay trước khi in → xuất Word đúng bản đó (POST /api/export/thiet-yeu).
+console.log("\n=== 3b) Ban in sua tay ===");
+const dongIn = dongInTu(dong(9, "A. Máy chính", "1", "Cylinder cover", { tonDau: 2, hienCo: 1.5 }));
+kiemTra("dongInTu: so thanh chu, null thanh trong", [dongIn.id, dongIn.tonDau, dongIn.nhan, dongIn.hienCo, dongIn.partNo], ["9", "2", "", "1.5", ""]);
+kiemTra("COT_IN dung thu tu 9 cot mau", COT_IN.length, 9);
+kiemTra("laThieuIn theo chu tren ban in", [laThieuIn({ toiThieu: "01 set", hienCo: "0" }), laThieuIn({ toiThieu: "½ set", hienCo: "0,5" }), laThieuIn({ toiThieu: "01", hienCo: "" })], [true, false, false]);
+const banSua = sachBanIn({
+  vessel: 1,
+  tenTau: "M. ODYSSEY (sua)",
+  ngay: "01/10/2026",
+  dong: [
+    { ...dongIn, moTa: "Cylinder cover <sua>", hienCo: "3" },
+    { id: "moi-1", nhom: "", stt: "2", moTa: "Dong them tay", partNo: 7, toiThieu: "01", tonDau: "", nhan: "", tieuThu: "", hienCo: "", viTri: "x".repeat(500) },
+  ],
+});
+kiemTra("sachBanIn nhan ban hop le", banSua?.dong.length, 2);
+kiemTra("sachBanIn: nhom trong → '—', so khong phai chu → trong, cat do dai", [banSua?.dong[1].nhom, banSua?.dong[1].partNo, banSua?.dong[1].viTri.length], ["—", "", 120]);
+kiemTra("sachBanIn tu choi sai dang", [sachBanIn(null), sachBanIn({ dong: "x" }), sachBanIn({ dong: [1] }), sachBanIn({ dong: new Array(TOI_DA_DONG_IN + 1).fill({}) })], [null, null, null, null]);
+const raSua = dienXmlThietYeu(xmlMau, banSua!);
+const hangSua = raSua.match(/<w:tbl>[\s\S]*?<\/w:tbl>/)![0].match(/<w:tr\b[\s\S]*?<\/w:tr>/g)!;
+kiemTra("ban sua: tieu de + 2 nhom + 2 dong + 1 trong", hangSua.length, 6);
+kiemTra("ban sua: o da sua vao Word", oCua(hangSua[2]).slice(1, 8).map((c) => c.trim()), ["Cylinder cover &lt;sua&gt;", "", "01 set", "2", "", "", "3"]);
+kiemTra("ban sua: ten tau / ngay sua tay", chuCua(raSua).includes("M. ODYSSEY (sua)") && chuCua(raSua).includes("01/10/2026"), true);
 
 // ─── 4) Tệp MLS-11-04 thật trên Desktop (nếu có) ───────────────────────────
 const desktop = path.join(os.homedir(), "Desktop");
@@ -195,7 +224,7 @@ async function dienThat() {
   const mau = readFileSync(tep);
   kiemTra("mau hop le", await kiemTraBieuMauThietYeu(mau), { ok: true });
   const dongThu = mucThat.length ? mucThat : [dong(1, "A. Phụ tùng cho Máy chính (Spare Parts for Main Engine)", "1", "Cylinder cover complete")];
-  const ra = await dienBieuMauThietYeu(mau, { tenTau: "M. ODYSSEY", ngay: "30/09/2026", dong: dongThu });
+  const ra = await dienBieuMauThietYeu(mau, { tenTau: "M. ODYSSEY", ngay: "30/09/2026", dong: dongThu.map(dongInTu) });
   const xml = await (await JSZip.loadAsync(ra)).file("word/document.xml")!.async("string");
   const hang = xml.match(/<w:tbl>[\s\S]*?<\/w:tbl>/)![0].match(/<w:tr\b[\s\S]*?<\/w:tr>/g)!;
   const soNhom = gomNhom(dongThu).length;

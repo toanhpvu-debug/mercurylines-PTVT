@@ -14,9 +14,10 @@
  */
 import JSZip from "jszip";
 import { chuCua, datChuO, xmlEsc } from "@/lib/bieuMauChangBuoc";
-import { gomNhom, soIn, type DongThietYeu } from "@/lib/thietYeu";
+import { COT_IN, gomNhom, type DongIn } from "@/lib/thietYeu";
 
-export type DuLieuThietYeu = { tenTau: string; ngay: string; dong: DongThietYeu[] };
+/** Dòng bản in (chữ) — từ số liệu hệ thống (dongInTu) hoặc bản người dùng sửa trước khi in. */
+export type DuLieuThietYeu = { tenTau: string; ngay: string; dong: DongIn[] };
 
 const RE_TBL = /<w:tbl>[\s\S]*?<\/w:tbl>/;
 const RE_TR = /<w:tr\b[\s\S]*?<\/w:tr>/g;
@@ -56,11 +57,7 @@ export function dienXmlThietYeu(xml: string, du: DuLieuThietYeu): string {
   const than: string[] = [];
   for (const nh of gomNhom(du.dong)) {
     than.push(hangNhom(nh.nhom));
-    for (const d of nh.dong) {
-      than.push(
-        hangMuc([d.stt, d.moTa, d.partNo ?? "", d.toiThieu ?? "", soIn(d.tonDau), soIn(d.nhan), soIn(d.tieuThu), soIn(d.hienCo), d.viTri ?? ""])
-      );
-    }
+    for (const d of nh.dong) than.push(hangMuc(COT_IN.map((k) => d[k])));
   }
   if (hangTrongCuoi) {
     const trPr = hangTrongCuoi.match(/<w:trPr>[\s\S]*?<\/w:trPr>/)?.[0] ?? "";

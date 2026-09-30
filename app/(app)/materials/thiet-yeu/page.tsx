@@ -1,4 +1,4 @@
-import { Download, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser, vesselIdWhere } from "@/lib/auth";
 import { coQuanLyThietYeu, vesselScopeDayDu } from "@/lib/roles";
@@ -7,8 +7,7 @@ import { laThieu, ngayBaoCao, thangHopLe } from "@/lib/thietYeu";
 import { layT } from "@/lib/i18n/server";
 import BangThietYeu from "@/components/BangThietYeu";
 import NhapThietYeuForm from "@/components/NhapThietYeuForm";
-import PrintButton from "@/components/PrintButton";
-import { Button, Card, CardHeader, EmptyState, Field, Input, Notice, PageHeader, Select, Stat, buttonClass } from "@/components/ui";
+import { Button, Card, CardHeader, EmptyState, Field, Input, Notice, PageHeader, Select, Stat } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -76,18 +75,6 @@ export default async function ThietYeuPage({
           <Button type="submit" variant="primary" icon={<Eye className="size-4" />}>
             {t("thietYeu.xem")}
           </Button>
-          {dong.length > 0 && (
-            <>
-              <PrintButton label={t("thietYeu.inBaoCao")} />
-              <a
-                href={`/api/export/thiet-yeu?vessel=${tau.id}&thang=${thang}`}
-                className={buttonClass("secondary")}
-              >
-                <Download className="size-4" />
-                {t("thietYeu.xuatWord")}
-              </a>
-            </>
-          )}
         </form>
       </Card>
 
@@ -118,6 +105,7 @@ export default async function ThietYeuPage({
           <BangThietYeu
             key={`${tau.id}-${thang}`}
             vesselId={tau.id}
+            maTau={tau.code}
             thang={thang}
             tenTau={tau.name}
             ngay={ngayBaoCao(thang)}

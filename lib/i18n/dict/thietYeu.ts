@@ -73,6 +73,22 @@ export const thietYeu = tuDien(
       "Tệp .docx mẫu \"Danh mục kiểm tra phụ tùng thiết yếu trên tàu\" của công ty. Nút \"Xuất Word MLS-11-04\" điền tên tàu, ngày và bảng các nhóm vào đúng tệp này — giữ nguyên logo, header, footer và chữ ký.",
     bieuMauChuaCo: "Chưa tải lên — đang dùng tệp trên đĩa máy chủ (nếu có).",
     ganKho: "Gắn kho: {ma}",
+    suaTruocKhiIn: "Sửa trước khi in",
+    xongSuaIn: "Xong sửa",
+    themNhomIn: "Thêm nhóm",
+    themDongIn: "Dòng",
+    boDongIn: "Bỏ dòng này khỏi bản in",
+    dongThemTay: "Thêm tay",
+    tenNhomMacDinh: "{chu}. Nhóm mới",
+    goiYSuaIn:
+      "Bấm vào ô để sửa: tên tàu, ngày, tên nhóm, từng ô; thêm / bỏ dòng. Đây chỉ là bản để in và xuất Word — số liệu hệ thống không đổi; bản sửa được giữ trên máy này cho tới khi bấm \"Đặt lại\".",
+    datLai: "Đặt lại theo số liệu gốc",
+    xacNhanDatLai: "Bỏ mọi chỗ đã sửa tay trên bản in và quay về số liệu gốc của hệ thống?",
+    daSuaTay:
+      "Bản in đã sửa tay {n} chỗ (tô vàng) — In và Xuất Word sẽ ra đúng bản này. Số liệu hệ thống không đổi.",
+    banInCu:
+      "Số liệu hệ thống đã thay đổi sau lúc bạn sửa bản in (vd. vừa lưu số tháng) — bấm \"Đặt lại\" nếu muốn lấy số mới.",
+    khongXuatDuoc: "Không xuất được tệp Word (mã {ma}). Thử lại, hoặc tải lại trang.",
   },
   {
     tieuDe: "Essential spare parts (MLS-11-04)",
@@ -145,5 +161,21 @@ export const thietYeu = tuDien(
       "The company's .docx template \"Check list for essential spare parts onboard\". \"Export Word MLS-11-04\" fills the vessel name, date and group tables into this exact file — logo, header, footer and signatures stay as they are.",
     bieuMauChuaCo: "Not uploaded — using the file on the server disk (if any).",
     ganKho: "Stock link: {ma}",
+    suaTruocKhiIn: "Edit before printing",
+    xongSuaIn: "Done editing",
+    themNhomIn: "Add group",
+    themDongIn: "Row",
+    boDongIn: "Remove this row from the printout",
+    dongThemTay: "Added by hand",
+    tenNhomMacDinh: "{chu}. New group",
+    goiYSuaIn:
+      "Click a cell to edit: vessel name, date, group names, any cell; add / remove rows. This is only the printout and Word export — system figures do not change; your edits stay on this computer until you click \"Reset\".",
+    datLai: "Reset to original figures",
+    xacNhanDatLai: "Discard all manual edits on the printout and go back to the system figures?",
+    daSuaTay:
+      "The printout has {n} manual edits (highlighted) — Print and Export Word will use this version. System figures are unchanged.",
+    banInCu:
+      "System figures have changed since you edited the printout (e.g. monthly figures were just saved) — click \"Reset\" to take the new figures.",
+    khongXuatDuoc: "Could not export the Word file (code {ma}). Try again or reload the page.",
   }
 );

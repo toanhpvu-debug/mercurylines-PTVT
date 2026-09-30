@@ -193,3 +193,78 @@ export function soIn(n: number | null | undefined): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return "";
   return String(Math.round(n * 100) / 100);
 }
+
+/**
+ * Một dòng BẢN IN (và tệp Word): mọi ô là chữ, như người làm báo cáo gõ. Bản
+ * sửa trước khi in chỉ sống trong trình duyệt, không đổi số liệu hệ thống; dòng
+ * thêm tay có id bắt đầu bằng "moi-".
+ */
+export type DongIn = {
+  id: string;
+  nhom: string;
+  stt: string;
+  moTa: string;
+  partNo: string;
+  toiThieu: string;
+  tonDau: string;
+  nhan: string;
+  tieuThu: string;
+  hienCo: string;
+  viTri: string;
+};
+
+/** Chín ô của một hàng mục, đúng thứ tự cột trên mẫu MLS-11-04. */
+export const COT_IN = ["stt", "moTa", "partNo", "toiThieu", "tonDau", "nhan", "tieuThu", "hienCo", "viTri"] as const;
+
+export function dongInTu(d: DongThietYeu): DongIn {
+  return {
+    id: String(d.id),
+    nhom: d.nhom,
+    stt: d.stt,
+    moTa: d.moTa,
+    partNo: d.partNo ?? "",
+    toiThieu: d.toiThieu ?? "",
+    tonDau: soIn(d.tonDau),
+    nhan: soIn(d.nhan),
+    tieuThu: soIn(d.tieuThu),
+    hienCo: soIn(d.hienCo),
+    viTri: d.viTri ?? "",
+  };
+}
+
+/** Dòng bản in có thiếu không (so theo chữ đang hiện trên bản in). */
+export function laThieuIn(d: Pick<DongIn, "toiThieu" | "hienCo">): boolean {
+  return laThieu({ toiThieuSo: soTuToiThieu(d.toiThieu), hienCo: soTrongO(d.hienCo) });
+}
+
+export const TOI_DA_DONG_IN = 600;
+
+/**
+ * Kiểm bản in người dùng gửi lên (xuất Word bản đã sửa): đúng dạng, cắt độ dài.
+ * Sai dạng → null.
+ */
+export function sachBanIn(x: unknown): { tenTau: string; ngay: string; dong: DongIn[] } | null {
+  if (!x || typeof x !== "object") return null;
+  const o = x as Record<string, unknown>;
+  const chu = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").slice(0, max) : "");
+  if (!Array.isArray(o.dong) || o.dong.length > TOI_DA_DONG_IN) return null;
+  const dong: DongIn[] = [];
+  for (const r of o.dong) {
+    if (!r || typeof r !== "object") return null;
+    const d = r as Record<string, unknown>;
+    dong.push({
+      id: chu(d.id, 40),
+      nhom: chu(d.nhom, 200).trim() || "—",
+      stt: chu(d.stt, 12),
+      moTa: chu(d.moTa, 300),
+      partNo: chu(d.partNo, 80),
+      toiThieu: chu(d.toiThieu, 60),
+      tonDau: chu(d.tonDau, 20),
+      nhan: chu(d.nhan, 20),
+      tieuThu: chu(d.tieuThu, 20),
+      hienCo: chu(d.hienCo, 20),
+      viTri: chu(d.viTri, 120),
+    });
+  }
+  return { tenTau: chu(o.tenTau, 120), ngay: chu(o.ngay, 40), dong };
+}

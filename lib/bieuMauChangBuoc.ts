@@ -5,8 +5,10 @@
  * Tệp .docx là gói zip chứa XML; toàn bộ nội dung trang nằm ở word/document.xml.
  * Mẫu gốc (chuyển từ .doc bằng Word) có: một đoạn "Ship's Name (Tên tàu): . . .
  * Port (Cảng): . . . Date (Ngày): . . / . . / . . ." với dấu chấm chờ điền; một
- * bảng 10 cột gồm các hàng tiêu đề (ô đầu KHÔNG phải số) rồi 10 hàng số liệu
- * đánh số 1..10 (ô đầu là số); hai dòng chữ ký. Cách điền:
+ * bảng 10 cột gồm các hàng tiêu đề rồi 10 hàng số liệu đánh số 1..10; hai dòng
+ * chữ ký. Tệp từ tàu hay khác đôi chút (Word tự đánh số cột Stt, có bảng phụ phía
+ * trên, dấu nháy ’) — tachBang dò theo cấu trúc chứ không đòi ô Stt là chữ số
+ * gõ tay. Cách điền:
  *   - Dòng Ship's Name: dựng lại đoạn với đúng định dạng chữ của mẫu (rPr của
  *     run thường và run nghiêng), thay dấu chấm bằng giá trị, giữ hai dấu tab.
  *   - Bảng: lấy hàng số liệu đầu làm khuôn, sinh đúng số hàng cần (ít nhất bằng
@@ -37,10 +39,50 @@ export type DuLieuChangBuoc = {
   dong: DongChangBuoc[];
 };
 
-const RE_TBL = /<w:tbl>[\s\S]*?<\/w:tbl>/;
+// Thẻ mở có thể mang thuộc tính (tệp lưu từ trình soạn khác Word); \b giữ cho
+// <w:tblPr>, <w:tcPr>, <w:trPr> không bị bắt nhầm.
+const RE_TBL_G = /<w:tbl\b[^>]*>[\s\S]*?<\/w:tbl>/g;
 const RE_TR = /<w:tr\b[\s\S]*?<\/w:tr>/g;
-const RE_TC = /<w:tc>[\s\S]*?<\/w:tc>/g;
+const RE_TC = /<w:tc\b[^>]*>[\s\S]*?<\/w:tc>/g;
 const RE_P = /<w:p\b[\s\S]*?<\/w:p>/g;
+/** Chữ nhận ra dòng "Ship's Name (Tên tàu)…" — cả dấu nháy thẳng lẫn ’. */
+const RE_DONG_TAU = /Ship\s*['’`]?\s*s\s*Name|Tên tàu/i;
+/** Chữ của hàng tiêu đề cột trong bảng (khi hàng tiêu đề không gộp dọc ô Stt). */
+const RE_CHU_TIEU_DE = /quantity|out-?fitting|trang bị|dụng được|bị hỏng|toàn bộ|yêu cầu|minimum|standard|tối thiểu|stock|order/i;
+
+const oCua = (tr: string) => tr.match(RE_TC) ?? [];
+/** Ô nối tiếp một ô gộp dọc (không phải ô bắt đầu gộp). */
+const laTiepGop = (tc: string) => /<w:vMerge(?:\s*\/>|\s+w:val="continue"\s*\/>)/.test(tc);
+const oDauLaSo = (tr: string) => /^\s*\d+\s*[.)]?\s*$/.test(chuCua(oCua(tr)[0] ?? ""));
+/** Ô Stt đánh số TỰ ĐỘNG (danh sách của Word): ô không có chữ nhưng có w:numPr. */
+const oDauTuDanhSo = (tr: string) => /<w:numPr>/.test(oCua(tr)[0] ?? "");
+
+/**
+ * Tìm bảng số liệu và tách hàng: tiêu đề / số liệu (10 ô) / phần sau.
+ * Không đòi ô Stt là chữ số gõ tay — mẫu từ tàu hay để Word tự đánh số, hoặc là
+ * một báo cáo đã điền; hàng tiêu đề nhận theo ô gộp dọc của cột Stt hoặc theo chữ.
+ */
+function tachBang(xml: string): { tbl: string; hangTieuDe: string[]; hangSoLieuMau: string[]; hangSau: string[] } {
+  const bangs = xml.match(RE_TBL_G) ?? [];
+  const co10O = (b: string) => (b.match(RE_TR) ?? []).some((tr) => oCua(tr).length === 10);
+  const tbl =
+    bangs.find((b) => co10O(b) && /stt|no\.|minimum|fitting|chằng|lashing/i.test(chuCua(b))) ?? bangs.find(co10O) ?? bangs[0];
+  if (!tbl) throw new Error("Mẫu không có bảng.");
+  const rows = tbl.match(RE_TR) ?? [];
+  const laHangTieuDe = (tr: string, i: number) =>
+    i === 0 || laTiepGop(oCua(tr)[0] ?? "") || (!oDauLaSo(tr) && !oDauTuDanhSo(tr) && RE_CHU_TIEU_DE.test(chuCua(tr)));
+  let dau = 0;
+  while (dau < rows.length && laHangTieuDe(rows[dau], dau)) dau++;
+  const hangSoLieuMau = rows.slice(dau).filter((tr) => oCua(tr).length === 10);
+  if (!hangSoLieuMau.length) {
+    throw new Error(
+      `Không tìm thấy hàng số liệu 10 ô dưới phần tiêu đề của bảng (bảng có ${rows.length} hàng, số ô từng hàng: ${rows
+        .map((r) => oCua(r).length)
+        .join(",")}).`
+    );
+  }
+  return { tbl, hangTieuDe: rows.slice(0, dau), hangSoLieuMau, hangSau: rows.slice(dau).filter((tr) => oCua(tr).length !== 10) };
+}
 
 export function xmlEsc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -64,7 +106,9 @@ function rPrDauTien(p: string): string {
 export function datChuO(tc: string, text: string): string {
   const tcPr = tc.match(/<w:tcPr>[\s\S]*?<\/w:tcPr>/)?.[0] ?? "";
   const pDau = tc.match(RE_P)?.[0] ?? "<w:p></w:p>";
-  const pPr = pPrCua(pDau);
+  // Bỏ đánh số tự động của đoạn: ô đã được ghi chữ số rõ ràng, giữ w:numPr thì
+  // Word hiện thêm số của danh sách ("1." + "1").
+  const pPr = pPrCua(pDau).replace(/<w:numPr>[\s\S]*?<\/w:numPr>/, "");
   // Ô trống của mẫu không có run nào — lấy định dạng chữ của dấu đoạn (rPr
   // trong pPr) để chữ điền vào đúng phông / cỡ như cột đó trên mẫu.
   const rPr = rPrDauTien(pDau) || (pPr.match(/<w:rPr>[\s\S]*?<\/w:rPr>/)?.[0] ?? "");
@@ -77,15 +121,7 @@ const soChu = (n: number) => (Number.isFinite(n) ? String(Number.isInteger(n) ? 
 /** Phần thuần: điền dữ liệu vào chuỗi document.xml. Ném lỗi nếu mẫu không đúng dạng. */
 export function dienDocumentXml(xml: string, du: DuLieuChangBuoc): string {
   // 1) Bảng.
-  const tblMatch = xml.match(RE_TBL);
-  if (!tblMatch) throw new Error("Mẫu không có bảng.");
-  const tbl = tblMatch[0];
-  const rows = tbl.match(RE_TR) ?? [];
-  const laHangSoLieu = (tr: string) => /^\s*\d+\s*$/.test(chuCua(tr.match(RE_TC)?.[0] ?? ""));
-  const viTriDau = rows.findIndex(laHangSoLieu);
-  if (viTriDau < 0) throw new Error("Mẫu không có hàng số liệu (ô đầu là số thứ tự).");
-  const hangTieuDe = rows.slice(0, viTriDau);
-  const hangSoLieuMau = rows.slice(viTriDau).filter(laHangSoLieu);
+  const { tbl, hangTieuDe, hangSoLieuMau, hangSau } = tachBang(xml);
   // Hai khuôn: hàng số liệu ĐẦU cho các hàng giữa, hàng số liệu CUỐI cho hàng
   // cuối — trong mẫu chỉ hàng cuối có kẻ đáy (các hàng giữa để "nil" cho bảng
   // liền nét), cắt mọi hàng từ một khuôn là bảng mất đường kẻ đáy.
@@ -107,15 +143,15 @@ export function dienDocumentXml(xml: string, du: DuLieuChangBuoc): string {
     hangMoi.push(`<w:tr>${trPrCua(cuoi ? khuonCuoi : khuon)}${oDung.map((tc, j) => datChuO(tc, gia[j])).join("")}</w:tr>`);
   }
   // Hàng sau số liệu (nếu mẫu có) giữ nguyên.
-  const hangSau = rows.slice(viTriDau).filter((r) => !laHangSoLieu(r));
   const tblPr = tbl.match(/<w:tblPr>[\s\S]*?<\/w:tblPr>/)?.[0] ?? "";
   const tblGrid = tbl.match(/<w:tblGrid>[\s\S]*?<\/w:tblGrid>/)?.[0] ?? "";
   const tblMoi = `<w:tbl>${tblPr}${tblGrid}${hangTieuDe.join("")}${hangMoi.join("")}${hangSau.join("")}</w:tbl>`;
   let ra = xml.replace(tbl, () => tblMoi);
 
-  // 2) Dòng Ship's Name / Port / Date — đoạn ngoài bảng có chữ "Ship's Name".
-  const khongBang = ra.replace(RE_TBL, "");
-  const pShip = (khongBang.match(RE_P) ?? []).find((p) => chuCua(p).includes("Ship's Name"));
+  // 2) Dòng Ship's Name / Port / Date — đoạn ngoài bảng số liệu (có thể nằm trong
+  // một bảng khác phía trên) có chữ "Ship's Name" / "Tên tàu".
+  const ngoaiBangSoLieu = ra.replace(tblMoi, "");
+  const pShip = (ngoaiBangSoLieu.match(RE_P) ?? []).find((p) => RE_DONG_TAU.test(chuCua(p)));
   if (pShip) {
     const pPr = pPrCua(pShip);
     const runs = pShip.match(/<w:r\b[^>]*>[\s\S]*?<\/w:r>/g) ?? [];
@@ -158,7 +194,7 @@ export async function kiemTraBieuMauChangBuoc(buffer: Buffer): Promise<{ ok: tru
     const xml = await tep.async("string");
     // Điền thử với dữ liệu giả — mọi lỗi cấu trúc nổ ở đây, trước mặt người tải.
     dienDocumentXml(xml, { tenTau: "THU", cang: "THU", ngay: "01/01/2026", dong: [] });
-    if (!chuCua(xml).includes("Ship's Name")) return { ok: false, loi: "Mẫu không có dòng \"Ship's Name\"." };
+    if (!RE_DONG_TAU.test(chuCua(xml))) return { ok: false, loi: "Mẫu không có dòng \"Ship's Name (Tên tàu)\"." };
     return { ok: true };
   } catch (e) {
     return { ok: false, loi: e instanceof Error ? e.message : String(e) };

@@ -9,7 +9,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import JSZip from "jszip";
-import { chuCua, datChuO, dienBieuMauChangBuoc, dienDocumentXml, type DongChangBuoc } from "@/lib/bieuMauChangBuoc";
+import { chuCua, datChuO, dienBieuMauChangBuoc, dienDocumentXml, kiemTraBieuMauChangBuoc, type DongChangBuoc } from "@/lib/bieuMauChangBuoc";
 
 let dat = 0;
 let truot = 0;
@@ -77,6 +77,45 @@ try {
 kiemTra("khong bang -> loi", nem, "Mẫu không có bảng.");
 kiemTra("datChuO rong -> khoang trang", chuCua(datChuO(o("x"), "")), " ");
 
+// ─── 1b) Biến thể mẫu gặp thật: Stt đánh số TỰ ĐỘNG (ô trống + w:numPr), bảng
+// phụ phía trên, 3 hàng tiêu đề (một hàng không gộp dọc ô Stt), thẻ <w:tc> có
+// thuộc tính, dấu nháy ’ trong "Ship’s Name". Trước đây mẫu kiểu này bị từ chối
+// "Mẫu không có hàng số liệu (ô đầu là số thứ tự)".
+const oTuDong = (thuocTinh = "") =>
+  `<w:tc${thuocTinh}><w:tcPr><w:tcW w:w="100" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="7"/></w:numPr><w:jc w:val="center"/></w:pPr></w:p></w:tc>`;
+const tiepGop = `<w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc>`;
+const tdBien0 = `<w:tr><w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p><w:r><w:t>No. Stt</w:t></w:r></w:p></w:tc>${["TYPE", "PART", "Minimum", "Standard", "In Order", "Out of", "Total", "Short of", " "].map((c) => o(c)).join("")}</w:tr>`;
+const tdBien1 = `<w:tr>${tiepGop}${[" ", " ", "Quantity", "Out-fitting", " ", "Order", "Stock", "Minium Qtty.", "ORDER"].map((c) => o(c)).join("")}</w:tr>`;
+const tdBien2 = `<w:tr>${[" ", " ", " ", "SL.tối thiểu", "Chuẩn", "dụng được", "Bị hỏng", "có trên tàu", "tối thiểu", "yêu cầu"].map((c) => o(c)).join("")}</w:tr>`;
+const slBien = (thuocTinh = "") => `<w:tr>${oTuDong(thuocTinh)}${Array.from({ length: 9 }, () => o(" ")).join("")}</w:tr>`;
+const bangPhu = `<w:tbl><w:tblPr/><w:tr><w:tc><w:p><w:r><w:t>MERCURY LINES</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>CONTAINER LASHING GEAR RECORD</w:t></w:r></w:p></w:tc></w:tr></w:tbl>`;
+const doanShipCong = doanShip.replace("Ship's Name (", "Ship’s Name (");
+const xmlBien = `<?xml version="1.0"?><w:document><w:body>${bangPhu}${doanShipCong}<w:tbl><w:tblPr/><w:tblGrid/>${tdBien0}${tdBien1}${tdBien2}${slBien(' w:rsidR="5"')}${slBien()}${slBien()}</w:tbl>${chuKy}<w:sectPr/></w:body></w:document>`;
+const raBien = dienDocumentXml(xmlBien, { tenTau: "M. ODYSSEY", cang: "HAI PHONG", ngay: "16/09/2026", dong: [dong(1, "TWIST LOCK"), dong(2, "CONE")] });
+const bangBien = raBien.match(/<w:tbl>[\s\S]*?<\/w:tbl>/g)!;
+kiemTra("bien the: bang phu phia tren giu nguyen", bangBien[0], bangPhu);
+const hangBien = bangBien[1].match(/<w:tr\b[\s\S]*?<\/w:tr>/g)!;
+kiemTra("bien the: 3 tieu de + 3 hang so lieu (mau co 3)", hangBien.length, 6);
+kiemTra("bien the: hang tieu de khong gop doc van la tieu de", oCua(hangBien[2])[3], "SL.tối thiểu");
+kiemTra("bien the: hang 1 dien du", oCua(hangBien[3]).slice(0, 4), ["1", "TWIST LOCK", "K-1", "10"]);
+kiemTra("bien the: bo danh so tu dong o o da ghi so", /<w:numPr>/.test(hangBien.slice(3).join("")), false);
+kiemTra("bien the: hang trong danh so 3", oCua(hangBien[5])[0], "3");
+const pShipBien = (raBien.replace(bangBien[1], "").match(/<w:p\b[\s\S]*?<\/w:p>/g) ?? []).find((p) => chuCua(p).includes("Name ("))!;
+kiemTra("bien the: dong tau voi dau nhay ’ duoc dien", chuCua(pShipBien).includes("M. ODYSSEY") && chuCua(pShipBien).includes("HAI PHONG"), true);
+kiemTra("bien the: can bang the", canBang(raBien), { tc: true, tr: true, p: true, r: true });
+let loiBien = "";
+try {
+  dienDocumentXml(`<w:document><w:body><w:tbl><w:tr>${o("a")}${o("b")}</w:tr></w:tbl></w:body></w:document>`, { tenTau: "", cang: "", ngay: "", dong: [] });
+} catch (e) {
+  loiBien = (e as Error).message;
+}
+kiemTra("bang khong co hang 10 o -> loi noi ro so o", /Không tìm thấy hàng số liệu 10 ô.*số ô từng hàng: 2/.test(loiBien), true);
+const kiemTepBien = async () => {
+  const z = new JSZip();
+  z.file("word/document.xml", xmlBien);
+  return kiemTraBieuMauChangBuoc(await z.generateAsync({ type: "nodebuffer" }));
+};
+
 // ─── 2) Tệp mẫu thật (nếu có) ───────────────────────────────────────────────
 async function mauThat() {
   const duong = "templates/MLS-11-13.docx";
@@ -104,7 +143,10 @@ async function mauThat() {
   console.log("  da ghi _thu-xuat/MLS-11-13-thu.docx");
 }
 
-mauThat().then(() => {
-  console.log(`\n=== TONG: ${dat} dat / ${truot} truot ===`);
-  process.exit(truot ? 1 : 0);
-});
+kiemTepBien()
+  .then((kq) => kiemTra("bien the: tai len duoc (kiemTraBieuMauChangBuoc)", kq, { ok: true }))
+  .then(mauThat)
+  .then(() => {
+    console.log(`\n=== TONG: ${dat} dat / ${truot} truot ===`);
+    process.exit(truot ? 1 : 0);
+  });

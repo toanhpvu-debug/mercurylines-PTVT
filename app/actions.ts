@@ -3216,7 +3216,7 @@ export async function uploadBieuMauTep(
         ? await (await import("@/lib/bieuMauThietYeu")).kiemTraBieuMauThietYeu(buffer)
         : await (await import("@/lib/bieuMauChangBuoc")).kiemTraBieuMauChangBuoc(buffer);
     if (!kq.ok) {
-      return { message: `${t("actions.bieuMauTep_khongDocDuoc")} ${kq.loi}` };
+      return { message: `${t("actions.bieuMauTep_khongDungMauWord")} ${kq.loi}` };
     }
   }
   const sha256 = createHash("sha256").update(buffer).digest("hex");

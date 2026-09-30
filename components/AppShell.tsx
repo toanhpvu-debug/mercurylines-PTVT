@@ -95,11 +95,16 @@ export type NhomMenu = { label: string; items: MucMenu[] };
 
 type TauTrongMenu = { id: number; code: string; name: string };
 
+// Mục menu: chữ dùng màu CHỮ CHÍNH (rõ nhất, không phải chữ phụ xám), biểu tượng
+// 18px màu dịu hơn chữ để mắt đọc chữ trước; mục đang chọn tô nền thương hiệu,
+// chữ đậm và có vạch dọc bên trái — nhìn là biết đang ở đâu. Chỉ biểu tượng ĐẦU
+// (con đầu tiên) bị chỉnh, mũi tên sổ danh sách tàu ở cuối giữ nguyên.
 const MUC =
-  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition";
+  "relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors [&>svg:first-child]:size-[18px] [&>svg:first-child]:shrink-0";
 const MUC_THUONG =
-  "text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)] hover:text-[var(--text-primary)]";
-const MUC_DANG_CHON = "bg-brand-500/12 text-brand-700 dark:text-brand-300";
+  "text-[var(--text-primary)] hover:bg-[var(--surface-sunken)] [&>svg:first-child]:text-[var(--text-muted)] hover:[&>svg:first-child]:text-[var(--text-primary)]";
+const MUC_DANG_CHON =
+  "bg-brand-500/12 font-semibold text-brand-700 dark:text-brand-300 before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-brand-500";
 
 export default function AppShell({
   nhom,
@@ -142,11 +147,15 @@ export default function AppShell({
     khop(m) && !tatCaMuc.some((k) => k.href.length > m.href.length && k.href.startsWith(m.href + "/") && khop(k));
 
   const dieuHuong = (
-    <nav className="flex flex-col gap-6">
+    <nav className="flex flex-col gap-5">
       {nhom.map((g) => (
         <div key={g.label}>
-          <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">
-            {g.label}
+          {/* Nhãn nhóm: chữ in hoa 14px đậm, giãn vừa phải (giãn "widest" ở cỡ
+              16px làm chữ có dấu tiếng Việt thưa và ồn), thêm đường kẻ mảnh kéo
+              tới mép phải để các nhóm tách bạch. */}
+          <p className="mb-1.5 flex items-center gap-2.5 px-3 text-[0.875rem] leading-5 font-bold tracking-[0.08em] text-[var(--text-muted)] uppercase">
+            <span className="shrink-0">{g.label}</span>
+            <span aria-hidden="true" className="h-px flex-1 bg-[var(--border-subtle)]" />
           </p>
           <div className="flex flex-col gap-0.5">
             {g.items.map((m) =>
@@ -234,14 +243,16 @@ export default function AppShell({
       <div className="app-motif" aria-hidden="true" />
 
       {/* Thanh bên — màn hình lớn */}
-      {/* w-72 (288px) — cùng bề rộng với ngăn kéo mobile bên dưới, và đủ cho nhãn dài
-          nhất ("Yêu cầu vật tư & phụ tùng", "Dầu · Dầu nhờn · Hóa chất") nằm trên
-          MỘT dòng ở cỡ chữ 14px. w-64 làm hai nhãn đó gãy thành hai dòng. */}
-      <aside className="surface sticky top-0 z-10 hidden h-screen w-72 shrink-0 flex-col border-r px-4 py-5 lg:flex">
+      {/* w-[19.5rem] (312px) — cùng bề rộng với ngăn kéo mobile bên dưới. Nhãn dài
+          nhất ("Yêu cầu vật tư & phụ tùng", "Dầu · Dầu nhờn · Hóa chất") ở cỡ 17px
+          cần 201px (nền tối) / 205px (nền sáng, nét đậm hơn); w-72 (288px) chỉ
+          còn 191px cho chữ khi thanh cuộn hiện ra nên hai nhãn đó gãy hai dòng
+          (đo bằng DOM, 2026-09-30). Thanh cuộn để mảnh cho đỡ ăn chỗ. */}
+      <aside className="surface sticky top-0 z-10 hidden h-screen w-[19.5rem] shrink-0 flex-col border-r px-4 py-5 lg:flex">
         <Link href="/dashboard" className="px-2">
           <LogoLockup height={30} />
         </Link>
-        <div className="mt-8 flex-1 overflow-y-auto">{dieuHuong}</div>
+        <div className="mt-8 flex-1 overflow-y-auto [scrollbar-width:thin]">{dieuHuong}</div>
         {chanThanhBen}
       </aside>
 
@@ -252,7 +263,7 @@ export default function AppShell({
             className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
             onClick={() => setMoNgan(false)}
           />
-          <aside className="surface absolute inset-y-0 left-0 flex w-72 flex-col border-r px-4 py-5">
+          <aside className="surface absolute inset-y-0 left-0 flex w-[19.5rem] max-w-[85vw] flex-col border-r px-4 py-5">
             <div className="flex items-center justify-between px-2">
               <LogoLockup height={28} />
               <button
@@ -264,7 +275,7 @@ export default function AppShell({
                 <X className="size-4" />
               </button>
             </div>
-            <div className="mt-8 flex-1 overflow-y-auto">{dieuHuong}</div>
+            <div className="mt-8 flex-1 overflow-y-auto [scrollbar-width:thin]">{dieuHuong}</div>
             {chanThanhBen}
           </aside>
         </div>

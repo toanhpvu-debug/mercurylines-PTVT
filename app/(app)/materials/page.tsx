@@ -34,7 +34,6 @@ import {
   sortWithinDepartment,
   DEPARTMENTS,
   THIET_BI_CHUA_RO,
-  departmentOfMaterial,
   equipmentOf,
 } from "@/lib/departments";
 import {
@@ -43,6 +42,7 @@ import {
 } from "@/lib/chucDanhChiuTrachNhiem";
 import MaterialForm from "@/components/MaterialForm";
 import { chuongImpa, laTenBoPhan } from "@/lib/nhomImpa";
+import { nhomCuaVatTu, type KetQuaPhanNhom } from "@/lib/phanNhomBanChat";
 import MaterialRowActions from "@/components/MaterialRowActions";
 import {
   VesselMaterialAddForm,
@@ -289,6 +289,9 @@ export default async function MaterialsPage({
           equipment: m.equipment,
           code: m.code,
           impa: m.impa,
+          nameVn: m.nameVn,
+          nameEn: m.nameEn,
+          nhomQuanLy: m.nhomQuanLy,
           materialType: m.materialType,
         })
       )
@@ -319,16 +322,23 @@ export default async function MaterialsPage({
   // m.category được.
   const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name }));
   const byDept = new Map<string, Row[]>();
+  // Nhóm theo BẢN CHẤT mặt hàng (lib/phanNhomBanChat.ts) — cùng hàm với cột
+  // "Giữ bởi" và trang Tồn kho; quản trị ghim tay được (Sửa hàng loạt).
+  const phanNhomById = new Map<number, KetQuaPhanNhom>();
   for (const m of rows) {
-    const key = departmentOfMaterial(
-      [
-        m.categoryId ? categoryNameById.get(m.categoryId) : null,
-        m.equipment,
-        m.code,
-      ],
-      m.materialType,
-      m.department
-    );
+    const pn = nhomCuaVatTu({
+      nameVn: m.nameVn,
+      nameEn: m.nameEn,
+      impa: m.impa,
+      materialType: m.materialType,
+      code: m.code,
+      department: m.department,
+      categoryName: m.categoryId ? categoryNameById.get(m.categoryId) : null,
+      equipment: m.equipment,
+      nhomQuanLy: m.nhomQuanLy,
+    });
+    phanNhomById.set(m.id, pn);
+    const key = pn.nhom;
     const list = byDept.get(key);
     if (list) list.push(m);
     else byDept.set(key, [m]);
@@ -804,13 +814,27 @@ export default async function MaterialsPage({
                                       const nhomFile = tenNhom && !laTenBoPhan(tenNhom) ? tenNhom : null;
                                       const nhomImpa = tenNhomImpa(material.impa);
                                       const chinh = nhomImpa ?? (material.materialType === "SPARE" && !isSpareView ? material.equipment : null) ?? nhomFile;
-                                      if (!chinh) return <span className="text-xs text-[var(--text-muted)]">—</span>;
+                                      const pnO = phanNhomById.get(material.id);
+                                      const coGhiChu = pnO && (pnO.nguon === "ghim" || (pnO.nguon === "ban-chat" && pnO.nhom !== pnO.nhomCu));
+                                      if (!chinh && !coGhiChu) return <span className="text-xs text-[var(--text-muted)]">—</span>;
                                       return (
                                         <>
-                                          <span className="text-sm">{chinh}</span>
+                                          {chinh && <span className="text-sm">{chinh}</span>}
                                           {nhomFile && nhomFile !== chinh && (
                                             <span className="block text-xs text-[var(--text-muted)]">{nhomFile}</span>
                                           )}
+                                          {(() => {
+                                            const pn = phanNhomById.get(material.id);
+                                            if (!pn) return null;
+                                            if (pn.nguon === "ghim") return <span className="block text-xs text-[var(--text-brand)]">{t("materials.nhomDaGhim")}</span>;
+                                            if (pn.nguon === "ban-chat" && pn.nhom !== pn.nhomCu && pn.banChat)
+                                              return (
+                                                <span className="block text-xs text-[var(--text-info)]" title={t("materials.chuyenNhomGoiY")}>
+                                                  ↻ {t("materials.chuyenNhom", { lyDo: pn.banChat.lyDo })}
+                                                </span>
+                                              );
+                                            return null;
+                                          })()}
                                         </>
                                       );
                                     })()}
@@ -832,6 +856,9 @@ export default async function MaterialsPage({
                                         equipment: material.equipment,
                                         code: material.code,
                                         impa: material.impa,
+                                        nameVn: material.nameVn,
+                                        nameEn: material.nameEn,
+                                        nhomQuanLy: material.nhomQuanLy,
                                         materialType: material.materialType,
                                       });
                                       if (!tn) {
@@ -850,8 +877,8 @@ export default async function MaterialsPage({
                                             suyRa
                                               ? tn.nguon === "thiet-bi"
                                                 ? t("materials.suyRaTuThietBi")
-                                                : tn.nguon === "nhom-impa"
-                                                  ? t("materials.suyRaTuNhomImpa")
+                                                : tn.nguon === "ban-chat"
+                                                  ? t("materials.suyRaTuBanChat")
                                                   : t("materials.suyRaTuBoPhan")
                                               : t("materials.daGanTrucTiep")
                                           }

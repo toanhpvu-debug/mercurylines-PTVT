@@ -26,18 +26,6 @@ export function chuongImpa(impa: string | null | undefined): ChuongImpa | null {
   return (CHUONG_IMPA as readonly string[]).includes(ch) ? (ch as ChuongImpa) : null;
 }
 
-/**
- * Chương IMPA có NHÓM RIÊNG trong bộ phân loại công ty (NHOM_THIET_BI,
- * lib/maVatTu.ts) với người giữ khác người giữ mặc định của bộ phận: hải đồ /
- * thiết bị hàng hải, tủ thuốc, văn phòng phẩm do Phó hai giữ chứ không phải
- * Thủy thủ trưởng. Chỉ áp khi mặt hàng thuộc đúng bộ phận của nhóm đó.
- */
-export const NHOM_THEO_CHUONG: Partial<Record<ChuongImpa, string>> = {
-  "37": "NAV",
-  "39": "MED",
-  "47": "DOC",
-};
-
 const boDau = (s: string) =>
   s
     .normalize("NFD")

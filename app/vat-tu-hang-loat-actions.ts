@@ -8,6 +8,7 @@ import { VAN_HANH_TAU } from "@/lib/roles";
 import { ghiNhatKy } from "@/lib/audit";
 import { laBanTau } from "@/lib/banCai";
 import { layT } from "@/lib/i18n/server";
+import { NHOM_HIEN_THI } from "@/lib/phanNhomBanChat";
 
 /*
  * Thao tác HÀNG LOẠT trên danh mục gốc (chọn nhiều dòng bằng ô tick ở
@@ -135,6 +136,8 @@ export type PatchHangLoat = {
   maxStock?: number;
   isCritical?: boolean;
   isActive?: boolean;
+  /** Ghim nhóm hiển thị: DECK · ENGINE · ELEC · SERVICE · SAFETY; null = bỏ ghim (tự xếp theo bản chất); undefined = giữ nguyên. */
+  nhomQuanLy?: string | null;
 };
 
 export type KetQuaSuaHangLoat = { message: string; success?: boolean; soDoi: number };
@@ -184,6 +187,17 @@ export async function suaVatTuHangLoat(idsRaw: number[], patch: PatchHangLoat): 
       if (!nhom) return { message: t("chung.duLieuKhongHopLe"), soDoi: 0 };
       data.categoryId = nhom.id;
       mota.push(`nhóm=${nhom.name}`);
+    }
+  }
+  if (patch.nhomQuanLy !== undefined) {
+    if (patch.nhomQuanLy === null) {
+      data.nhomQuanLy = null;
+      mota.push("nhóm hiển thị=tự động theo bản chất");
+    } else if ((NHOM_HIEN_THI as readonly string[]).includes(String(patch.nhomQuanLy))) {
+      data.nhomQuanLy = String(patch.nhomQuanLy);
+      mota.push(`nhóm hiển thị=ghim ${data.nhomQuanLy}`);
+    } else {
+      return { message: t("chung.duLieuKhongHopLe"), soDoi: 0 };
     }
   }
   const coThietBi = typeof patch.equipment === "string";

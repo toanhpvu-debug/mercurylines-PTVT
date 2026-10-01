@@ -153,6 +153,9 @@ model Material {
   department      String?
   equipGroup      String?
   responsibleRank String?
+  // Nhóm hiển thị quản trị GHIM tay (DECK · ENGINE · ELEC · SERVICE · SAFETY); trống =
+  // tự xếp theo bản chất mặt hàng (lib/phanNhomBanChat.ts). Không đổi mã.
+  nhomQuanLy      String?
   categoryId      Int?
   category        Category?             @relation(fields: [categoryId], references: [id])
   minStock        Float                 @default(0)

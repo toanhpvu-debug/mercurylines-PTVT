@@ -7,7 +7,7 @@
  *
  * Chạy:  node --conditions=react-server --import ./node_modules/tsx/dist/loader.mjs scripts/kiem-tra-nhom-impa.ts
  */
-import { CHUONG_IMPA, NHOM_THEO_CHUONG, chuongImpa, laTenBoPhan } from "@/lib/nhomImpa";
+import { CHUONG_IMPA, chuongImpa, laTenBoPhan } from "@/lib/nhomImpa";
 import { chucDanhChiuTrachNhiem, laNguoiPhuTrach } from "@/lib/chucDanhChiuTrachNhiem";
 import { NHOM_THIET_BI } from "@/lib/maVatTu";
 import { TU_DIEN } from "@/lib/i18n/tuDien";
@@ -28,8 +28,7 @@ kiemTra(
   ["61.13.33", "470397", "IMPA 190405", "51.08", "12", "999999", "", null, "1234567"].map((x) => chuongImpa(x)),
   ["61", "47", "19", "51", null, null, null, null, null]
 );
-kiemTra("chuong co nhom rieng", NHOM_THEO_CHUONG, { "37": "NAV", "39": "MED", "47": "DOC" });
-kiemTra("nhom rieng deu thuoc Boong, Pho hai giu", Object.values(NHOM_THEO_CHUONG).map((k) => [NHOM_THIET_BI[k!]?.boPhan, NHOM_THIET_BI[k!]?.chucDanh[0]]), [["D", "2O"], ["D", "2O"], ["D", "2O"]]);
+kiemTra("nhom NAV / MED / DOC thuoc Boong, Pho hai giu", ["NAV", "MED", "DOC"].map((k) => [NHOM_THIET_BI[k]?.boPhan, NHOM_THIET_BI[k]?.chucDanh[0]]), [["D", "2O"], ["D", "2O"], ["D", "2O"]]);
 const vi = TU_DIEN.labels.vi as Record<string, string>;
 const en = TU_DIEN.labels.en as Record<string, string>;
 kiemTra("moi chuong co ten VI + EN", CHUONG_IMPA.filter((c) => !vi[`impaChuong_${c}`] || !en[`impaChuong_${c}`]), []);
@@ -55,12 +54,12 @@ kiemTra(
 
 console.log("\n=== 3) Nguoi giu theo nhom IMPA ===");
 const boong = { materialType: "STORE", department: "D", categoryName: "Boong (Deck)", code: "D-IMPA-0801" };
-kiemTra("van phong pham boong -> Pho hai", chucDanhChiuTrachNhiem({ ...boong, impa: "470397" }), { chucDanh: "2O", nguon: "nhom-impa" });
-kiemTra("thiet bi hang hai -> Pho hai", chucDanhChiuTrachNhiem({ ...boong, impa: "37.01.11" }), { chucDanh: "2O", nguon: "nhom-impa" });
-kiemTra("thuoc -> Pho hai", chucDanhChiuTrachNhiem({ ...boong, impa: "390101" }), { chucDanh: "2O", nguon: "nhom-impa" });
+kiemTra("van phong pham boong -> Pho hai", chucDanhChiuTrachNhiem({ ...boong, impa: "470397" }), { chucDanh: "2O", nguon: "ban-chat" });
+kiemTra("thiet bi hang hai -> Pho hai", chucDanhChiuTrachNhiem({ ...boong, impa: "37.01.11" }), { chucDanh: "2O", nguon: "ban-chat" });
+kiemTra("thuoc -> Pho hai", chucDanhChiuTrachNhiem({ ...boong, impa: "390101" }), { chucDanh: "2O", nguon: "ban-chat" });
 kiemTra("dung cu cam tay boong -> van Thuy thu truong", chucDanhChiuTrachNhiem({ ...boong, impa: "61.13.33" }), { chucDanh: "BSN", nguon: "bo-phan" });
 kiemTra("khong IMPA -> theo bo phan", chucDanhChiuTrachNhiem({ ...boong, impa: null }), { chucDanh: "BSN", nguon: "bo-phan" });
-kiemTra("van phong pham o kho may -> nguoi kho may", chucDanhChiuTrachNhiem({ materialType: "STORE", department: "E", impa: "470397", code: "E-IMPA-0009" }), { chucDanh: "CE", nguon: "bo-phan" });
+kiemTra("van phong pham o kho may -> van theo nhom cong ty (Boong / Pho hai)", chucDanhChiuTrachNhiem({ materialType: "STORE", department: "E", impa: "470397", code: "E-IMPA-0009" }), { chucDanh: "2O", nguon: "ban-chat" });
 kiemTra("da gan tay -> giu nguyen", chucDanhChiuTrachNhiem({ ...boong, impa: "470397", responsibleRank: "CO" }), { chucDanh: "CO", nguon: "gan" });
 kiemTra("phu tung co IMPA 47 -> khong ap", chucDanhChiuTrachNhiem({ materialType: "SPARE", department: "D", impa: "470397", code: "D-SPR-0001" })?.nguon, "bo-phan");
 

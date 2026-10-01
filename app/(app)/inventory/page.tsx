@@ -24,8 +24,8 @@ import { prisma } from "@/lib/prisma";
 import {
   sortWithinDepartment,
   DEPARTMENTS,
-  departmentOfMaterial,
 } from "@/lib/departments";
+import { nhomCuaVatTu } from "@/lib/phanNhomBanChat";
 import InventoryForm from "@/components/InventoryForm";
 import {
   duongDanTheKho,
@@ -215,11 +215,13 @@ export default async function InventoryPage({
               id: true,
               code: true,
               nameVn: true,
+              nameEn: true,
               impa: true,
               minStock: true,
               materialType: true,
               equipment: true,
               department: true,
+              nhomQuanLy: true,
               uom: true,
               category: { select: { name: true } },
             },
@@ -332,16 +334,20 @@ export default async function InventoryPage({
 
   // Phân bộ phận dùng chung với trang Danh mục vật tư (lib/departments.ts).
   type InvRow = (typeof filtered)[number];
+  // Nhóm theo bản chất mặt hàng — cùng hàm với trang Danh mục (lib/phanNhomBanChat.ts).
   const deptKeyOf = (inv: InvRow): string =>
-    departmentOfMaterial(
-      [
-        inv.material.category?.name,
-        inv.material.equipment,
-        inv.warehouse.code,
-      ],
-      inv.material.materialType,
-      inv.material.department
-    );
+    nhomCuaVatTu({
+      nameVn: inv.material.nameVn,
+      nameEn: inv.material.nameEn,
+      impa: inv.material.impa,
+      materialType: inv.material.materialType,
+      code: inv.material.code,
+      department: inv.material.department,
+      categoryName: inv.material.category?.name,
+      equipment: inv.material.equipment,
+      nhomQuanLy: inv.material.nhomQuanLy,
+      nguonPhu: inv.warehouse.code,
+    }).nhom;
   const deptSections = DEPARTMENTS;
   const sortDeptRows = (rows: InvRow[]) =>
     sortWithinDepartment(rows, (inv) => ({

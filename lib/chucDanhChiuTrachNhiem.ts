@@ -1,6 +1,5 @@
-import { departmentOfMaterial } from "@/lib/departments";
 import { NHOM_THIET_BI, type BoPhan } from "@/lib/maVatTu";
-import { NHOM_THEO_CHUONG, chuongImpa } from "@/lib/nhomImpa";
+import { nhomCuaVatTu } from "@/lib/phanNhomBanChat";
 
 /**
  * Ai chịu trách nhiệm GIỮ và KIỂM KÊ một mặt hàng — trả về CHỨC DANH, không
@@ -26,7 +25,7 @@ import { NHOM_THEO_CHUONG, chuongImpa } from "@/lib/nhomImpa";
  * liệu đã gán khi có.
  */
 
-// Nhóm hiển thị mà departmentOfMaterial trả về → chữ cái bộ phận.
+// Nhóm hiển thị (nhomCuaVatTu, lib/phanNhomBanChat.ts) → chữ cái bộ phận.
 // Trùng khớp KEY_BO_PHAN (trang danh mục) và BO_PHAN_THEO_NHOM (nhập file).
 const KEY_BO_PHAN: Record<string, BoPhan> = {
   DECK: "D",
@@ -85,7 +84,7 @@ export function chucDanhTheoNhomThietBi(
   return cat && THEO_CATEGORY[cat] ? THEO_CATEGORY[cat] : null;
 }
 
-export type NguonChucDanh = "gan" | "thiet-bi" | "nhom-impa" | "bo-phan";
+export type NguonChucDanh = "gan" | "thiet-bi" | "ban-chat" | "bo-phan";
 
 export type MonChiuTrachNhiem = {
   responsibleRank?: string | null;
@@ -94,15 +93,18 @@ export type MonChiuTrachNhiem = {
   department?: string | null;
   equipment?: string | null;
   code?: string | null;
-  /** Mã IMPA — chương IMPA có nhóm riêng (hải đồ, tủ thuốc, văn phòng phẩm) thì theo người giữ của nhóm đó. */
+  /** Tên + mã IMPA + nhóm ghim — để xếp nhóm theo BẢN CHẤT (lib/phanNhomBanChat.ts). */
+  nameVn?: string | null;
+  nameEn?: string | null;
   impa?: string | null;
+  nhomQuanLy?: string | null;
   materialType: string;
 };
 
 /**
  * Chức danh chịu trách nhiệm của một mặt hàng, kèm NGUỒN suy ra (để giao diện
  * phân biệt "đã gán" với "suy tạm"). Trả null chỉ khi không xếp nổi vào bộ phận
- * nào — trên thực tế gần như không xảy ra vì departmentOfMaterial luôn có mục
+ * nào — trên thực tế gần như không xảy ra vì nhomCuaVatTu luôn có mục
  * "Khác" → boong.
  */
 export function chucDanhChiuTrachNhiem(
@@ -111,26 +113,34 @@ export function chucDanhChiuTrachNhiem(
   const daGan = (m.responsibleRank ?? "").trim();
   if (daGan) return { chucDanh: daGan, nguon: "gan" };
 
+  // Cùng một hàm xếp nhóm với trang Danh mục / Tồn kho, để cột "Giữ bởi" và
+  // nhóm hiển thị không bao giờ nói hai điều khác nhau.
+  const pn = nhomCuaVatTu(m);
+
+  // Nhóm thiết bị máy (mã Category) → sĩ quan máy. Bỏ qua khi bản chất đã đưa
+  // VẬT TƯ ra khỏi nhóm Máy (túi rác, bảng trắng nằm trong sheet "Engine
+  // Stores"): khi đó người giữ đi theo nhóm mới, không theo sheet cũ.
   const theoNhom = chucDanhTheoNhomThietBi(m.categoryCode);
-  if (theoNhom) {
+  const daChuyenKhoiMay = m.materialType !== "SPARE" && pn.banChat !== null && pn.nhom !== "ENGINE";
+  if (theoNhom && !daChuyenKhoiMay) {
     return { chucDanh: theoNhom, nguon: "thiet-bi" };
   }
 
-  const key = departmentOfMaterial(
-    [m.categoryName, m.equipment, m.code],
-    m.materialType,
-    m.department
-  );
-  const bp = KEY_BO_PHAN[key];
+  const bp = KEY_BO_PHAN[pn.nhom];
 
-  // Vật tư có mã IMPA thuộc chương có nhóm riêng trong bộ phân loại công ty
-  // (37 hàng hải → NAV, 39 thuốc → MED, 47 văn phòng phẩm → DOC): người giữ là
-  // người của nhóm đó (Phó hai), không phải người giữ kho chung của bộ phận
-  // (Thủy thủ trưởng). Chỉ khi mặt hàng thuộc đúng bộ phận của nhóm — mã IMPA
-  // văn phòng phẩm nằm ở kho máy thì vẫn do người kho máy giữ.
-  const nhom = NHOM_THIET_BI[NHOM_THEO_CHUONG[chuongImpa(m.impa) ?? "00"] ?? ""];
+  // Bản chất cho ra nhóm con của bộ phân loại công ty (cứu sinh, cứu hỏa, hàn
+  // cắt, vệ sinh, văn phòng phẩm...) và nhóm đó cùng bộ phận: người giữ là người
+  // của nhóm (Phó ba, Máy trưởng, Phục vụ viên, Phó hai...), không phải người
+  // giữ kho chung của bộ phận.
+  const nhom = pn.banChat?.nhomCongTy ? NHOM_THIET_BI[pn.banChat.nhomCongTy] : undefined;
   if (m.materialType !== "SPARE" && nhom && bp === nhom.boPhan && nhom.chucDanh[0]) {
-    return { chucDanh: nhom.chucDanh[0], nguon: "nhom-impa" };
+    return { chucDanh: nhom.chucDanh[0], nguon: "ban-chat" };
+  }
+  // Bảo hộ cá nhân (găng, kính, nút tai...) không có nhóm con riêng: người giữ
+  // kho ĐANG chứa nó (chữ đầu mã) — găng tay kho máy vẫn do Máy trưởng cấp.
+  if (pn.nhom === "SAFETY") {
+    const chu = /^([DELC])-/i.exec(m.code ?? "")?.[1]?.toUpperCase() as BoPhan | undefined;
+    if (chu && GIU_KHO_BO_PHAN[chu]) return { chucDanh: GIU_KHO_BO_PHAN[chu], nguon: "bo-phan" };
   }
   return bp ? { chucDanh: GIU_KHO_BO_PHAN[bp], nguon: "bo-phan" } : null;
 }
@@ -142,10 +152,13 @@ export function chucDanhChiuTrachNhiem(
  * đây nên chỉ khớp đúng phần của chính họ.
  */
 const BAO_TRUM: Record<string, readonly string[]> = {
-  MST: ["CO", "2O", "3O", "BSN", "CCK", "CE", "ELC", "2E", "3E", "4E"], // thuyền trưởng: toàn tàu (kể cả phần Phó hai giữ: hải đồ, tủ thuốc, văn phòng phẩm)
-  CO: ["BSN"], // đại phó: kho boong (thủy thủ trưởng giữ)
-  CE: ["2E", "3E", "4E"], // máy trưởng: cả buồng máy
+  // Thuyền trưởng: TOÀN TÀU — mọi chức danh giữ kho, kể cả phần Phó hai (hải đồ,
+  // tủ thuốc, văn phòng phẩm), Phó ba (cứu sinh, cứu hỏa), Phục vụ viên (vệ sinh).
+  MST: ["CO", "2O", "3O", "BSN", "CCK", "STW", "CE", "2E", "3E", "4E", "OIL", "FIT", "ETO", "ELC"],
+  CO: ["BSN", "3O"], // đại phó: kho boong (thủy thủ trưởng giữ) và trang bị cứu sinh / cứu hỏa (Phó ba)
+  CE: ["2E", "3E", "4E", "OIL", "FIT"], // máy trưởng: cả buồng máy
   ETO: ["ELC"], // sĩ quan điện: kho điện
+  CCK: ["STW"], // bếp trưởng: cả bộ phận phục vụ (phục vụ viên giữ đồ vệ sinh, buồng ở)
 };
 
 /**

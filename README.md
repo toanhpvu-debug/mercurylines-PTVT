@@ -1298,6 +1298,37 @@ Chức danh chưa có vai trò đăng nhập riêng (thủy thủ trưởng, th�
 để trống cột cuối. Họ vẫn giữ hàng và vẫn hiện trong bảng kiểm kê; chỉ là bộ lọc "vật tư của
 tôi" theo tài khoản chưa nhận ra họ. Cần thì thêm vai trò vào `lib/roles.ts` sau.
 
+### Phân nhóm theo BẢN CHẤT mặt hàng (Boong · Máy · Điện · Sinh hoạt & Phục vụ · An toàn chung)
+
+Danh mục nhập từ file kiểm kê từng lấy nhóm theo **tên sheet**, nên cầu thang hoa tiêu nằm trong
+An toàn, bình oxy hàn nằm trong Boong, găng tay rải ở Máy lẫn Boong. Nay nhóm hiển thị (nút
+*Nhảy tới*, tiêu đề nhóm ở Danh mục và Tồn kho) và cột *Giữ bởi* đi theo **một hàm**
+(`nhomCuaVatTu`, [`lib/phanNhomBanChat.ts`](lib/phanNhomBanChat.ts)), theo thứ tự:
+
+1. **Ghim tay** của quản trị (cột `Material.nhomQuanLy`): tick dòng → *Sửa hàng loạt* → *Nhóm
+   hiển thị* → *Ghim vào …* (hoặc *Tự động theo bản chất* để bỏ ghim). Cột Nhóm ghi "📌".
+2. **Bản chất** — luật theo TÊN hàng (Việt / Anh, bỏ dấu), rồi chương IMPA: hàn cắt (oxy, gas,
+   que hàn, kính / găng hàn) → Máy · nhóm TOL; phao, áo phao, thang xuồng cứu sinh → An toàn ·
+   LSA; bình chữa cháy, vòi rồng → An toàn · FFA; găng tay, kính, nút tai, ủng, áo mưa → An toàn
+   (bảo hộ cá nhân); bóng đèn, đèn pin, pin, ắc quy, cầu chì, phích / ổ cắm điện → Điện; chổi,
+   cây gạt nước, xà phòng, túi rác → Sinh hoạt · CLN; đồ bếp → UTN; cầu thang hoa tiêu, dây, ma ní,
+   sơn, chổi sơn, cờ, xi măng → Boong; VHF / bộ đàm → Boong · COM; văn phòng phẩm → Boong · DOC.
+   Hàng **dùng chung** (dụng cụ cầm tay, bu lông, mỡ, giấy nhám, thước…) **không có luật** — giữ
+   chỗ cũ, không đoán. Phụ tùng đi theo thiết bị như trước. Mặt hàng được chuyển nhóm có dòng
+   "↻ xếp theo bản chất: …" ở cột Nhóm.
+3. Cách xếp cũ — riêng **An toàn chung chỉ giữ hàng có bản chất an toàn**: món lọt vào đó chỉ vì
+   nằm trong sheet "Vật tư bảo hộ & an toàn" về lại bộ phận theo chữ đầu mã.
+
+**Người giữ** theo nhóm con của bộ phân loại công ty (bảng *Nhóm thiết bị* bên dưới): cứu sinh /
+cứu hỏa → Phó ba, hàn cắt → Máy trưởng, vệ sinh / đồ vải → Phục vụ viên, đồ bếp → Bếp trưởng, pin
+ắc quy → Sĩ quan điện, văn phòng phẩm / liên lạc → Phó hai. Bảo hộ cá nhân do người giữ **kho đang
+chứa nó** cấp (chữ đầu mã: găng tay kho máy → Máy trưởng). Thuyền trưởng bao trùm mọi chức danh,
+Đại phó bao trùm Phó ba, Bếp trưởng bao trùm Phục vụ viên. `gan-ma-vat-tu` dùng cùng luật.
+
+**Mã vật tư và tem QR không đổi.** Trên dữ liệu máy văn phòng (606 mặt hàng) có 75 mặt hàng
+được chuyển nhóm. Kiểm ở `scripts/kiem-tra-phan-nhom-ban-chat.ts` (tên hàng thật, kể cả các bẫy
+từng khớp nhầm như "chổi sơn", "mũi khoan", "băng dính cách điện", "pipe wrench").
+
 ### Nhóm con theo chương IMPA (cột "Nhóm" của danh mục)
 
 Cột **Nhóm** hiện nhóm CON chứ không lặp tên bộ phận: mặt hàng có mã IMPA lấy nhóm theo
@@ -1307,11 +1338,9 @@ hiện thiết bị; nhóm của file nhập chỉ hiện (dòng phụ) khi nó 
 (Deck)", "Vật tư Boong", "ENGINE STORE"… bị bỏ). Ô tìm kiếm tìm được theo tên nhóm con. Không
 sửa dữ liệu — `lib/nhomImpa.ts`, kiểm ở `scripts/kiem-tra-nhom-impa.ts`.
 
-Người giữ suy theo chương IMPA khi chương đó có nhóm riêng trong bảng dưới **và** mặt hàng
-thuộc đúng bộ phận của nhóm: 37 thiết bị hàng hải → `NAV`, 39 thuốc → `MED`, 47 văn phòng phẩm →
-`DOC` — cả ba do **Phó hai** giữ (trước đây rơi về người giữ kho chung Boong là Thủy thủ trưởng).
-Chức danh đã gán tay giữ nguyên; `gan-ma-vat-tu` dùng cùng luật. Văn phòng phẩm **vẫn thuộc
-Boong** (nhóm `DOC`), mã không đổi.
+Người giữ và nhóm con công ty theo mục "Phân nhóm theo bản chất" ở trên — chương IMPA là một căn
+cứ của bộ đó (37 thiết bị hàng hải → `NAV`, 39 thuốc → `MED`, 47 văn phòng phẩm → `DOC`, cả ba do
+**Phó hai** giữ). Văn phòng phẩm **vẫn thuộc Boong** (nhóm `DOC`), mã không đổi.
 
 Tên hiển thị bộ phận: Boong (Deck) · Máy (Engine) · Điện (Electric) · **Sinh hoạt & Phục vụ
 (Cabin/Galley)** · **An toàn chung (Safety)** — chỉ đổi chữ, mã bộ phận (D/E/L/C) giữ nguyên.

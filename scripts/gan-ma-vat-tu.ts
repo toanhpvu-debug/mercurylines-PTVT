@@ -26,7 +26,7 @@ import {
   sinhMaVatTu,
   type BoPhan,
 } from "@/lib/maVatTu";
-import { NHOM_THEO_CHUONG, chuongImpa } from "@/lib/nhomImpa";
+import { banChatVatTu } from "@/lib/phanNhomBanChat";
 
 /**
  * Nhóm vật tư trong danh mục → (bộ phận, nhóm thiết bị, chức danh giữ).
@@ -126,14 +126,15 @@ async function main() {
       continue;
     }
 
-    // Vật tư có mã IMPA thuộc chương có nhóm riêng (37 hàng hải, 39 thuốc, 47
-    // văn phòng phẩm — lib/nhomImpa.ts) và cùng bộ phận: theo nhóm đó và người
-    // giữ của nhóm (Phó hai), không theo nhóm thô "Boong (Deck)" → Thủy thủ
-    // trưởng. Cùng luật với cột "Giữ bởi" (lib/chucDanhChiuTrachNhiem.ts).
-    const maNhomImpa = NHOM_THEO_CHUONG[chuongImpa(m.impa) ?? "00"];
-    const nhomImpa = maNhomImpa ? NHOM_THIET_BI[maNhomImpa] : undefined;
-    if (m.materialType !== "SPARE" && maNhomImpa && nhomImpa && nhomImpa.boPhan === luat.boPhan) {
-      luat = { boPhan: luat.boPhan, nhom: maNhomImpa, chucDanh: nhomImpa.chucDanh[0] };
+    // Vật tư xếp được theo BẢN CHẤT (lib/phanNhomBanChat.ts: tên hàng, chương
+    // IMPA) vào một nhóm của bộ phân loại công ty: theo nhóm đó — bộ phận và
+    // người giữ của nhóm (hàn cắt → Máy / Máy trưởng, phao → Boong / Phó ba,
+    // văn phòng phẩm → Boong / Phó hai), không theo sheet thô "Boong (Deck)".
+    // Cùng luật với cột "Giữ bởi" (lib/chucDanhChiuTrachNhiem.ts).
+    const banChat = banChatVatTu(m);
+    const nhomBanChat = banChat?.nhomCongTy ? NHOM_THIET_BI[banChat.nhomCongTy] : undefined;
+    if (m.materialType !== "SPARE" && banChat?.nhomCongTy && nhomBanChat) {
+      luat = { boPhan: nhomBanChat.boPhan, nhom: banChat.nhomCongTy, chucDanh: nhomBanChat.chucDanh[0] };
     }
 
     // Nhóm thiết bị: bình thường lấy thẳng từ bảng ánh xạ, riêng phụ tùng máy

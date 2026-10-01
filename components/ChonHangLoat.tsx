@@ -251,7 +251,7 @@ function SuaHangLoatDialog({
   onSubmit: (patch: PatchHangLoat) => void;
   onClose: () => void;
 }) {
-  const { t } = useNgonNgu();
+  const { t, tTuDo } = useNgonNgu();
   const [equipment, setEquipment] = useState("");
   const [doiThietBi, setDoiThietBi] = useState(false);
   const [categoryId, setCategoryId] = useState("__giu");
@@ -260,6 +260,7 @@ function SuaHangLoatDialog({
   const [maxStock, setMaxStock] = useState("");
   const [isCritical, setIsCritical] = useState("__giu");
   const [isActive, setIsActive] = useState("__giu");
+  const [nhomQuanLy, setNhomQuanLy] = useState("__giu");
 
   const gui = () => {
     const patch: PatchHangLoat = {};
@@ -270,6 +271,7 @@ function SuaHangLoatDialog({
     if (maxStock.trim()) patch.maxStock = Number(maxStock);
     if (isCritical !== "__giu") patch.isCritical = isCritical === "1";
     if (isActive !== "__giu") patch.isActive = isActive === "1";
+    if (nhomQuanLy !== "__giu") patch.nhomQuanLy = nhomQuanLy === "" ? null : nhomQuanLy;
     onSubmit(patch);
   };
 
@@ -297,6 +299,17 @@ function SuaHangLoatDialog({
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t("materials.nhomHienThi")} hint={t("materials.nhomHienThiGoiY")}>
+            <Select value={nhomQuanLy} onChange={(e) => setNhomQuanLy(e.target.value)}>
+              <option value="__giu">{t("materials.giuNguyen")}</option>
+              <option value="">{t("materials.nhomTuDong")}</option>
+              {(["DECK", "ENGINE", "ELEC", "SERVICE", "SAFETY"] as const).map((k) => (
+                <option key={k} value={k}>
+                  {t("materials.ghimVao", { nhom: tTuDo(`labels.dept_${k}`) })}
                 </option>
               ))}
             </Select>

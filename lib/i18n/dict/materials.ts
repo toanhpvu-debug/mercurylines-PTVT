@@ -44,6 +44,7 @@ export const materials = tuDien(
     suyRaTuThietBi:
       "Suy theo nhóm thiết bị — chạy gan-ma-vat-tu.cmd để gán cố định",
     suyRaTuBoPhan: "Suy theo bộ phận — chạy gan-ma-vat-tu.cmd để gán cố định",
+    suyRaTuNhomImpa: "Suy theo nhóm hàng IMPA trong bộ phân loại công ty (hải đồ / thiết bị hàng hải, tủ thuốc, văn phòng phẩm do Phó hai giữ) — chưa gán trực tiếp",
     daGanTrucTiep: "Đã gán trực tiếp",
     dangHienDauMoiBoPhan: "Đang hiện {n} dòng đầu mỗi bộ phận — còn",
     nDong: "{n} dòng",
@@ -237,6 +238,7 @@ export const materials = tuDien(
       "Inferred from the equipment group — run gan-ma-vat-tu.cmd to assign it permanently",
     suyRaTuBoPhan:
       "Inferred from the department — run gan-ma-vat-tu.cmd to assign it permanently",
+    suyRaTuNhomImpa: "Inferred from the IMPA group in the company classification (charts / nautical equipment, medicine, stationery are kept by the 2nd Officer) — not assigned directly",
     daGanTrucTiep: "Assigned directly",
     dangHienDauMoiBoPhan: "Showing the first {n} rows of each department —",
     nDong: "{n} rows",

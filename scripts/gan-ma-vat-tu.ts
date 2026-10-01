@@ -26,6 +26,7 @@ import {
   sinhMaVatTu,
   type BoPhan,
 } from "@/lib/maVatTu";
+import { NHOM_THEO_CHUONG, chuongImpa } from "@/lib/nhomImpa";
 
 /**
  * Nhóm vật tư trong danh mục → (bộ phận, nhóm thiết bị, chức danh giữ).
@@ -115,7 +116,7 @@ async function main() {
 
   for (const m of materials) {
     const maNhom = m.category?.code ?? "";
-    const luat = THEO_NHOM[maNhom];
+    let luat = THEO_NHOM[maNhom];
     if (!luat) {
       khongSuyDuoc.push({
         code: m.code,
@@ -123,6 +124,16 @@ async function main() {
         nhom: m.category?.name ?? "(chưa có nhóm)",
       });
       continue;
+    }
+
+    // Vật tư có mã IMPA thuộc chương có nhóm riêng (37 hàng hải, 39 thuốc, 47
+    // văn phòng phẩm — lib/nhomImpa.ts) và cùng bộ phận: theo nhóm đó và người
+    // giữ của nhóm (Phó hai), không theo nhóm thô "Boong (Deck)" → Thủy thủ
+    // trưởng. Cùng luật với cột "Giữ bởi" (lib/chucDanhChiuTrachNhiem.ts).
+    const maNhomImpa = NHOM_THEO_CHUONG[chuongImpa(m.impa) ?? "00"];
+    const nhomImpa = maNhomImpa ? NHOM_THIET_BI[maNhomImpa] : undefined;
+    if (m.materialType !== "SPARE" && maNhomImpa && nhomImpa && nhomImpa.boPhan === luat.boPhan) {
+      luat = { boPhan: luat.boPhan, nhom: maNhomImpa, chucDanh: nhomImpa.chucDanh[0] };
     }
 
     // Nhóm thiết bị: bình thường lấy thẳng từ bảng ánh xạ, riêng phụ tùng máy

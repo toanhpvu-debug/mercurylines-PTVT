@@ -1,5 +1,6 @@
 import { departmentOfMaterial } from "@/lib/departments";
-import type { BoPhan } from "@/lib/maVatTu";
+import { NHOM_THIET_BI, type BoPhan } from "@/lib/maVatTu";
+import { NHOM_THEO_CHUONG, chuongImpa } from "@/lib/nhomImpa";
 
 /**
  * Ai chịu trách nhiệm GIỮ và KIỂM KÊ một mặt hàng — trả về CHỨC DANH, không
@@ -84,7 +85,7 @@ export function chucDanhTheoNhomThietBi(
   return cat && THEO_CATEGORY[cat] ? THEO_CATEGORY[cat] : null;
 }
 
-export type NguonChucDanh = "gan" | "thiet-bi" | "bo-phan";
+export type NguonChucDanh = "gan" | "thiet-bi" | "nhom-impa" | "bo-phan";
 
 export type MonChiuTrachNhiem = {
   responsibleRank?: string | null;
@@ -93,6 +94,8 @@ export type MonChiuTrachNhiem = {
   department?: string | null;
   equipment?: string | null;
   code?: string | null;
+  /** Mã IMPA — chương IMPA có nhóm riêng (hải đồ, tủ thuốc, văn phòng phẩm) thì theo người giữ của nhóm đó. */
+  impa?: string | null;
   materialType: string;
 };
 
@@ -119,6 +122,16 @@ export function chucDanhChiuTrachNhiem(
     m.department
   );
   const bp = KEY_BO_PHAN[key];
+
+  // Vật tư có mã IMPA thuộc chương có nhóm riêng trong bộ phân loại công ty
+  // (37 hàng hải → NAV, 39 thuốc → MED, 47 văn phòng phẩm → DOC): người giữ là
+  // người của nhóm đó (Phó hai), không phải người giữ kho chung của bộ phận
+  // (Thủy thủ trưởng). Chỉ khi mặt hàng thuộc đúng bộ phận của nhóm — mã IMPA
+  // văn phòng phẩm nằm ở kho máy thì vẫn do người kho máy giữ.
+  const nhom = NHOM_THIET_BI[NHOM_THEO_CHUONG[chuongImpa(m.impa) ?? "00"] ?? ""];
+  if (m.materialType !== "SPARE" && nhom && bp === nhom.boPhan && nhom.chucDanh[0]) {
+    return { chucDanh: nhom.chucDanh[0], nguon: "nhom-impa" };
+  }
   return bp ? { chucDanh: GIU_KHO_BO_PHAN[bp], nguon: "bo-phan" } : null;
 }
 
@@ -129,7 +142,7 @@ export function chucDanhChiuTrachNhiem(
  * đây nên chỉ khớp đúng phần của chính họ.
  */
 const BAO_TRUM: Record<string, readonly string[]> = {
-  MST: ["BSN", "CCK", "CE", "ELC", "2E", "3E", "4E"], // thuyền trưởng: toàn tàu
+  MST: ["CO", "2O", "3O", "BSN", "CCK", "CE", "ELC", "2E", "3E", "4E"], // thuyền trưởng: toàn tàu (kể cả phần Phó hai giữ: hải đồ, tủ thuốc, văn phòng phẩm)
   CO: ["BSN"], // đại phó: kho boong (thủy thủ trưởng giữ)
   CE: ["2E", "3E", "4E"], // máy trưởng: cả buồng máy
   ETO: ["ELC"], // sĩ quan điện: kho điện

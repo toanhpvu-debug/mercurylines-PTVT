@@ -42,6 +42,7 @@ import {
   laNguoiPhuTrach,
 } from "@/lib/chucDanhChiuTrachNhiem";
 import MaterialForm from "@/components/MaterialForm";
+import { chuongImpa, laTenBoPhan } from "@/lib/nhomImpa";
 import MaterialRowActions from "@/components/MaterialRowActions";
 import {
   VesselMaterialAddForm,
@@ -107,6 +108,11 @@ export default async function MaterialsPage({
 }) {
   const user = await requireScopedUser();
   const { t, tTuDo, tenChucDanh, tenBoPhan } = await layT();
+  // Tên nhóm con theo chương IMPA (labels.impaChuong_<số>), null nếu không có mã IMPA.
+  const tenNhomImpa = (impa: string | null | undefined) => {
+    const ch = chuongImpa(impa);
+    return ch ? tTuDo(`labels.impaChuong_${ch}`) : null;
+  };
   const scope = vesselScopeDayDu(user);
   const canManageMaster = user.role === "ADMIN";
   // Xóa khỏi danh mục dùng chung: chỉ quản trị TẠI VĂN PHÒNG (bản trên tàu không
@@ -282,6 +288,7 @@ export default async function MaterialsPage({
           department: m.department,
           equipment: m.equipment,
           code: m.code,
+          impa: m.impa,
           materialType: m.materialType,
         })
       )
@@ -296,6 +303,8 @@ export default async function MaterialsPage({
           m.partNumber,
           m.manufacturer,
           m.equipment,
+          // Nhóm con theo chương IMPA ("văn phòng phẩm", "hand tools"...).
+          tenNhomImpa(m.impa),
         ]
           .filter(Boolean)
           .some((v) => String(v).toLowerCase().includes(q))
@@ -786,10 +795,25 @@ export default async function MaterialsPage({
                                   <Td>{material.partNumber}</Td>
                                   <Td>{material.manufacturer}</Td>
                                   <Td>
-                                    {"category" in material
-                                      ? // @ts-expect-error category included
-                                        material.category?.name
-                                      : ""}
+                                    {(() => {
+                                      // Nhóm CON, không lặp tên bộ phận: chương IMPA trước
+                                      // (Dụng cụ cầm tay, Văn phòng phẩm, Bảo hộ...), phụ tùng
+                                      // thì thiết bị; nhóm của file nhập chỉ hiện khi nó không
+                                      // phải tên bộ phận ("Boong (Deck)") — hiện thành dòng phụ.
+                                      const tenNhom = material.categoryId ? categoryNameById.get(material.categoryId) : null;
+                                      const nhomFile = tenNhom && !laTenBoPhan(tenNhom) ? tenNhom : null;
+                                      const nhomImpa = tenNhomImpa(material.impa);
+                                      const chinh = nhomImpa ?? (material.materialType === "SPARE" && !isSpareView ? material.equipment : null) ?? nhomFile;
+                                      if (!chinh) return <span className="text-xs text-[var(--text-muted)]">—</span>;
+                                      return (
+                                        <>
+                                          <span className="text-sm">{chinh}</span>
+                                          {nhomFile && nhomFile !== chinh && (
+                                            <span className="block text-xs text-[var(--text-muted)]">{nhomFile}</span>
+                                          )}
+                                        </>
+                                      );
+                                    })()}
                                   </Td>
                                   <Td>
                                     {(() => {
@@ -807,6 +831,7 @@ export default async function MaterialsPage({
                                         department: material.department,
                                         equipment: material.equipment,
                                         code: material.code,
+                                        impa: material.impa,
                                         materialType: material.materialType,
                                       });
                                       if (!tn) {
@@ -825,7 +850,9 @@ export default async function MaterialsPage({
                                             suyRa
                                               ? tn.nguon === "thiet-bi"
                                                 ? t("materials.suyRaTuThietBi")
-                                                : t("materials.suyRaTuBoPhan")
+                                                : tn.nguon === "nhom-impa"
+                                                  ? t("materials.suyRaTuNhomImpa")
+                                                  : t("materials.suyRaTuBoPhan")
                                               : t("materials.daGanTrucTiep")
                                           }
                                         >

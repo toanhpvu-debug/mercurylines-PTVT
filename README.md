@@ -1298,6 +1298,24 @@ Chức danh chưa có vai trò đăng nhập riêng (thủy thủ trưởng, th�
 để trống cột cuối. Họ vẫn giữ hàng và vẫn hiện trong bảng kiểm kê; chỉ là bộ lọc "vật tư của
 tôi" theo tài khoản chưa nhận ra họ. Cần thì thêm vai trò vào `lib/roles.ts` sau.
 
+### Nhóm con theo chương IMPA (cột "Nhóm" của danh mục)
+
+Cột **Nhóm** hiện nhóm CON chứ không lặp tên bộ phận: mặt hàng có mã IMPA lấy nhóm theo
+**chương IMPA** (2 chữ số đầu — 61 Dụng cụ cầm tay, 47 Văn phòng phẩm, 31 Bảo hộ lao động, 21
+Dây & cáp, 17 Dụng cụ ăn uống & bếp…, đủ 34 chương, tên ở `labels.impaChuong_<số>`); phụ tùng
+hiện thiết bị; nhóm của file nhập chỉ hiện (dòng phụ) khi nó không phải tên bộ phận ("Boong
+(Deck)", "Vật tư Boong", "ENGINE STORE"… bị bỏ). Ô tìm kiếm tìm được theo tên nhóm con. Không
+sửa dữ liệu — `lib/nhomImpa.ts`, kiểm ở `scripts/kiem-tra-nhom-impa.ts`.
+
+Người giữ suy theo chương IMPA khi chương đó có nhóm riêng trong bảng dưới **và** mặt hàng
+thuộc đúng bộ phận của nhóm: 37 thiết bị hàng hải → `NAV`, 39 thuốc → `MED`, 47 văn phòng phẩm →
+`DOC` — cả ba do **Phó hai** giữ (trước đây rơi về người giữ kho chung Boong là Thủy thủ trưởng).
+Chức danh đã gán tay giữ nguyên; `gan-ma-vat-tu` dùng cùng luật. Văn phòng phẩm **vẫn thuộc
+Boong** (nhóm `DOC`), mã không đổi.
+
+Tên hiển thị bộ phận: Boong (Deck) · Máy (Engine) · Điện (Electric) · **Sinh hoạt & Phục vụ
+(Cabin/Galley)** · **An toàn chung (Safety)** — chỉ đổi chữ, mã bộ phận (D/E/L/C) giữ nguyên.
+
 ### Nhóm thiết bị
 
 **Boong (D)**

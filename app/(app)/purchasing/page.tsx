@@ -3,6 +3,7 @@ import {
   Building2,
   ClipboardList,
   Eye,
+  FileClock,
   FileInput,
   FilePlus,
   FileText,
@@ -158,6 +159,39 @@ export default async function PurchasingPage() {
                       <span className="text-xs text-[var(--text-muted)]">· {t("purchasing.trinhBoi", { nguoi: po.submittedBy ?? "—" })}</span>
                     </li>
                   ))}
+              </ul>
+            </Card>
+          )}
+          {/* PO nháp chưa trình: chưa trình thì lãnh đạo phòng KT-VT không thấy để duyệt */}
+          {(canManage || laNguoiDuyet) && purchaseOrders.some((po) => po.status === "DRAFT") && (
+            <Card>
+              <CardHeader
+                icon={<FileClock className="size-4" />}
+                title={t("purchasing.nhapChuaTrinhTieuDe", { n: purchaseOrders.filter((po) => po.status === "DRAFT").length })}
+                subtitle={canManage ? t("purchasing.nhapChuaTrinhLapMoTa") : t("purchasing.nhapChuaTrinhMoTa")}
+              />
+              <ul className="space-y-1.5 text-sm">
+                {purchaseOrders
+                  .filter((po) => po.status === "DRAFT")
+                  .map((po) => {
+                    const chuaGia = po.items.filter((it) => !(it.unitPrice > 0)).length;
+                    return (
+                      <li key={po.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <Link href={`/purchasing/${po.id}`} className={`font-display text-xs tracking-wide ${LINK}`}>
+                          {po.poNo}
+                        </Link>
+                        <span>{po.supplier.name}</span>
+                        <span className="text-[var(--text-muted)]">· {po.vessel.name}</span>
+                        {po.approvalNote ? (
+                          <Badge tone="danger">{t("purchasing.tinhTrangBiTraLai")}</Badge>
+                        ) : chuaGia ? (
+                          <Badge tone="warning">{t("purchasing.tinhTrangChuaGia", { n: chuaGia })}</Badge>
+                        ) : (
+                          <Badge tone="info">{t("purchasing.tinhTrangChoTrinh")}</Badge>
+                        )}
+                      </li>
+                    );
+                  })}
               </ul>
             </Card>
           )}

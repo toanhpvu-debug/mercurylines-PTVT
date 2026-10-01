@@ -25,7 +25,7 @@ export function TrinhDuyetButton({ poId }: { poId: number }) {
   const { t } = useNgonNgu();
   const { thongBao, dang, goi } = useGoi();
   return (
-    <span className="inline-flex flex-col gap-1">
+    <div className="flex flex-col items-start gap-2">
       <Button
         type="button"
         variant="primary"
@@ -37,8 +37,9 @@ export function TrinhDuyetButton({ poId }: { poId: number }) {
       >
         {t("purchasing.nutTrinhDuyet")}
       </Button>
-      {thongBao && !thongBao.ok && <span className="text-xs text-[var(--text-danger)]">{thongBao.chu}</span>}
-    </span>
+      {/* Trình không được (còn dòng chưa giá, đơn vừa đổi trạng thái...) thì báo TO, không phải dòng chữ nhỏ dễ sót. */}
+      {thongBao && <Notice tone={thongBao.ok ? "success" : "danger"}>{thongBao.chu}</Notice>}
+    </div>
   );
 }
 

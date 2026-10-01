@@ -294,7 +294,7 @@ async function main() {
     }
   }
 
-  console.log(`\n${truot ? "TRUOT" : "DAT"}: ${dat}/${dat + truot}`);
+  console.log(`\n=== TONG: ${dat} dat / ${truot} truot ===`);
   await prisma.$disconnect();
   if (truot) process.exit(1);
 }

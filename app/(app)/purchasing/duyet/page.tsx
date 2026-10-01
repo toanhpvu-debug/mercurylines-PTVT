@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Clock, FileInput, History, ShieldCheck, UserCheck, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock, FileClock, FileInput, History, ShieldCheck, UserCheck, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser, vesselWhere } from "@/lib/auth";
 import { trangThaiUyQuyen } from "@/lib/roles";
@@ -59,7 +59,7 @@ export default async function KiemSoatDuyetPoPage() {
   const poTrongPhamVi = scope.all ? null : (await prisma.purchaseOrder.findMany({ where: vesselWhere(scope), select: { id: true } })).map((p) => p.id);
   const locLichSu = poTrongPhamVi ? { poId: { in: poTrongPhamVi } } : {};
 
-  const [choDuyet, lichSu, daDuyet30, traLai30, lanhDao, uyQuyen, nguoiVanPhong] = await Promise.all([
+  const [choDuyet, lichSu, daDuyet30, traLai30, lanhDao, uyQuyen, nguoiVanPhong, nhapChuaTrinh] = await Promise.all([
     prisma.purchaseOrder.findMany({
       where: { ...vesselWhere(scope), status: "PENDING_APPROVAL" },
       orderBy: [{ submittedAt: "asc" }, { id: "asc" }],
@@ -88,6 +88,18 @@ export default async function KiemSoatDuyetPoPage() {
       where: { isActive: true, role: { in: [...VAI_TRO_DUYET_PO] } },
       orderBy: { name: "asc" },
       select: { id: true, name: true, role: true, duyetDonMua: true },
+    }),
+    // PO đã lập nhưng CHƯA trình: chưa duyệt được, nhưng người duyệt phải biết
+    // là có — nếu không, "chuyên viên đã tạo PO mà tôi không thấy để duyệt".
+    prisma.purchaseOrder.findMany({
+      where: { ...vesselWhere(scope), status: "DRAFT" },
+      orderBy: { updatedAt: "desc" },
+      take: 50,
+      include: {
+        supplier: { select: { name: true } },
+        vessel: { select: { code: true, name: true } },
+        items: { select: { quantity: true, unitPrice: true } },
+      },
     }),
   ]);
 
@@ -184,7 +196,11 @@ export default async function KiemSoatDuyetPoPage() {
       <Card>
         <CardHeader icon={<ShieldCheck className="size-4" />} title={t("purchasing.poChoDuyet", { n: dong.length })} subtitle={t("purchasing.poChoDuyetMoTa")} />
         {dong.length === 0 ? (
-          <EmptyState icon={<ShieldCheck className="size-5" />} title={t("purchasing.khongCoPoChoDuyet")} />
+          <EmptyState
+            icon={<ShieldCheck className="size-5" />}
+            title={t("purchasing.khongCoPoChoDuyet")}
+            hint={nhapChuaTrinh.length ? t("purchasing.coNhapChuaTrinh", { n: nhapChuaTrinh.length }) : undefined}
+          />
         ) : (
           <TableWrap>
             <Table dense>
@@ -251,6 +267,69 @@ export default async function KiemSoatDuyetPoPage() {
           </TableWrap>
         )}
       </Card>
+
+      {/* PO nháp chưa trình */}
+      {nhapChuaTrinh.length > 0 && (
+        <Card>
+          <CardHeader icon={<FileClock className="size-4" />} title={t("purchasing.nhapChuaTrinhTieuDe", { n: nhapChuaTrinh.length })} subtitle={t("purchasing.nhapChuaTrinhMoTa")} />
+          <TableWrap>
+            <Table dense>
+              <thead>
+                <tr>
+                  <Th>{t("purchasing.cotSoPo")}</Th>
+                  <Th>{t("purchasing.cotTauNcc")}</Th>
+                  <Th align="right">{t("purchasing.cotTongTien")}</Th>
+                  <Th>{t("purchasing.cotNguoiLap")}</Th>
+                  <Th>{t("purchasing.cotTinhTrang")}</Th>
+                  <Th></Th>
+                </tr>
+              </thead>
+              <tbody>
+                {nhapChuaTrinh.map((po) => {
+                  const chuaGia = po.items.filter((it) => !(it.unitPrice > 0)).length;
+                  return (
+                    <Tr key={po.id} className="align-top">
+                      <Td>
+                        <Link href={`/purchasing/${po.id}`} className={`font-display text-xs tracking-wide ${LINK}`}>
+                          {po.poNo}
+                        </Link>
+                        {po.subject && <span className="block text-xs text-[var(--text-secondary)]">{po.subject}</span>}
+                      </Td>
+                      <Td>
+                        {po.vessel.code} {po.vessel.name}
+                        <span className="block text-xs text-[var(--text-secondary)]">{po.supplier.name}</span>
+                      </Td>
+                      <Td align="right" className="tabular whitespace-nowrap">
+                        {tien(tongDonMua(po.items, po.discountPercent, po.transportFee, po.deliveryFee).tong)} {po.currency}
+                      </Td>
+                      <Td>
+                        {po.createdBy}
+                        <span className="block text-xs text-[var(--text-muted)]">{ngayGio(po.createdAt)}</span>
+                      </Td>
+                      <Td>
+                        {po.approvalNote ? (
+                          <Badge tone="danger">{t("purchasing.tinhTrangBiTraLai")}</Badge>
+                        ) : chuaGia ? (
+                          <Badge tone="warning">{t("purchasing.tinhTrangChuaGia", { n: chuaGia })}</Badge>
+                        ) : (
+                          <Badge tone="info">{t("purchasing.tinhTrangChoTrinh")}</Badge>
+                        )}
+                        {po.approvalNote && <span className="mt-0.5 block text-xs text-[var(--text-secondary)]">{po.approvalNote}</span>}
+                      </Td>
+                      <Td>
+                        <Link href={`/purchasing/${po.id}`} className={`inline-flex items-center gap-1 text-sm ${LINK}`}>
+                          {t("purchasing.xemPo")}
+                          <ArrowRight className="size-3.5" />
+                        </Link>
+                      </Td>
+                    </Tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </TableWrap>
+        </Card>
+      )}
 
       {/* Lịch sử duyệt */}
       <Card>

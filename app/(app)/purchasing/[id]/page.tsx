@@ -96,6 +96,7 @@ export default async function PurchaseOrderDetailPage({
 
   const standard = await getStandardForVessel(po.vessel.formStandard);
   const tongDon = tongDonMua(po.items, po.discountPercent, po.transportFee, po.deliveryFee);
+  const soDongChuaGia = po.items.filter((it) => !(it.unitPrice > 0)).length;
   const subtotal = tongDon.cong;
   const discountAmount = tongDon.giam;
   const afterDiscount = tongDon.sauGiam;
@@ -212,6 +213,86 @@ export default async function PurchaseOrderDetailPage({
           {t("purchasing.daDuyetBoi", { nguoi: po.approvedBy, luc: po.approvedAt ? ngayGio(po.approvedAt) : "—" })}
           {po.approvalNote ? ` — ${po.approvalNote}` : ""}
         </Notice>
+      )}
+
+      {/* Điều khiển quy trình — đặt TRÊN tờ PO: nút Trình duyệt / Duyệt phải thấy ngay, không phải cuộn qua cả trang A4. */}
+      {(canManage || laNguoiDuyet || canReceive) && po.status !== "CANCELLED" && po.status !== "CLOSED" && (
+        <Card className="no-print">
+          <CardHeader
+            icon={<ListChecks className="size-4" />}
+            title={t("purchasing.tienTrinhDon")}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            {canManage && po.status === "DRAFT" && (
+              <div className="w-full space-y-2">
+                <Notice tone={soDongChuaGia ? "danger" : "warning"}>
+                  {t("purchasing.nhacTrinhDuyet")}
+                  {soDongChuaGia > 0 && <span className="mt-1 block font-medium">{t("purchasing.conDongChuaGia", { n: soDongChuaGia })}</span>}
+                </Notice>
+                <TrinhDuyetButton poId={po.id} />
+              </div>
+            )}
+            {ktDuyet.ok && (
+              <div className="w-full space-y-1">
+                <p className="text-xs text-[var(--text-muted)]">
+                  {ktDuyet.kyThay
+                    ? t("purchasing.duyetKyThay", { ten: ktDuyet.kyThay.name })
+                    : ktDuyet.tamThoi
+                      ? t("purchasing.duyetTamThoi")
+                      : t("purchasing.duyetLanhDao")}
+                </p>
+                <DuyetDonMuaForm poId={po.id} />
+              </div>
+            )}
+            {po.status === "PENDING_APPROVAL" && canManage && (!laNguoiDuyet || po.submittedBy === user.name) && <RutLaiButton poId={po.id} />}
+            {canManage && po.status === "APPROVED" && (
+              <>
+                {mailto && (
+                  <a href={mailto} className={buttonClass("secondary")}>
+                    <Mail className="size-4" />
+                    {t("purchasing.nutSoanThuNcc")}
+                  </a>
+                )}
+                <POStatusButton
+                  id={po.id}
+                  status="SENT"
+                  label={t("purchasing.nutDaGuiNcc")}
+                  variant="primary"
+                  icon={<Send className="size-4" />}
+                />
+              </>
+            )}
+            {canManage && po.status === "SENT" && <XacNhanNccForm poId={po.id} homNay={homNayStr} />}
+            {canManage && po.status === "RECEIVED" && (
+              <POStatusButton
+                id={po.id}
+                status="CLOSED"
+                label={t("purchasing.nutHoanTat")}
+                variant="primary"
+                icon={<PackageCheck className="size-4" />}
+              />
+            )}
+            {canManage && po.status === "PARTIALLY_RECEIVED" && (
+              <POStatusButton
+                id={po.id}
+                status="CLOSED"
+                label={t("purchasing.nutDongDonThieu")}
+                variant="secondary"
+                icon={<PackageCheck className="size-4" />}
+              />
+            )}
+            {canManage && ["DRAFT", "PENDING_APPROVAL", "APPROVED", "SENT", "CONFIRMED"].includes(po.status) && (
+              <POStatusButton
+                id={po.id}
+                status="CANCELLED"
+                label={t("purchasing.nutHuyDon")}
+                variant="danger"
+                icon={<X className="size-4" />}
+              />
+            )}
+          </div>
+          {canManage && po.status === "APPROVED" && <p className="mt-2 text-xs text-[var(--text-muted)]">{t("purchasing.goiYGuiNcc")}</p>}
+        </Card>
       )}
 
       {canManage && po.status === "DRAFT" && (
@@ -494,78 +575,6 @@ export default async function PurchaseOrderDetailPage({
           </div>
         </div>
       </div>
-
-      {/* Điều khiển quy trình */}
-      {(canManage || laNguoiDuyet || canReceive) && po.status !== "CANCELLED" && po.status !== "CLOSED" && (
-        <Card className="no-print">
-          <CardHeader
-            icon={<ListChecks className="size-4" />}
-            title={t("purchasing.tienTrinhDon")}
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            {canManage && po.status === "DRAFT" && <TrinhDuyetButton poId={po.id} />}
-            {ktDuyet.ok && (
-              <div className="w-full space-y-1">
-                <p className="text-xs text-[var(--text-muted)]">
-                  {ktDuyet.kyThay
-                    ? t("purchasing.duyetKyThay", { ten: ktDuyet.kyThay.name })
-                    : ktDuyet.tamThoi
-                      ? t("purchasing.duyetTamThoi")
-                      : t("purchasing.duyetLanhDao")}
-                </p>
-                <DuyetDonMuaForm poId={po.id} />
-              </div>
-            )}
-            {po.status === "PENDING_APPROVAL" && canManage && (!laNguoiDuyet || po.submittedBy === user.name) && <RutLaiButton poId={po.id} />}
-            {canManage && po.status === "APPROVED" && (
-              <>
-                {mailto && (
-                  <a href={mailto} className={buttonClass("secondary")}>
-                    <Mail className="size-4" />
-                    {t("purchasing.nutSoanThuNcc")}
-                  </a>
-                )}
-                <POStatusButton
-                  id={po.id}
-                  status="SENT"
-                  label={t("purchasing.nutDaGuiNcc")}
-                  variant="primary"
-                  icon={<Send className="size-4" />}
-                />
-              </>
-            )}
-            {canManage && po.status === "SENT" && <XacNhanNccForm poId={po.id} homNay={homNayStr} />}
-            {canManage && po.status === "RECEIVED" && (
-              <POStatusButton
-                id={po.id}
-                status="CLOSED"
-                label={t("purchasing.nutHoanTat")}
-                variant="primary"
-                icon={<PackageCheck className="size-4" />}
-              />
-            )}
-            {canManage && po.status === "PARTIALLY_RECEIVED" && (
-              <POStatusButton
-                id={po.id}
-                status="CLOSED"
-                label={t("purchasing.nutDongDonThieu")}
-                variant="secondary"
-                icon={<PackageCheck className="size-4" />}
-              />
-            )}
-            {canManage && ["DRAFT", "PENDING_APPROVAL", "APPROVED", "SENT", "CONFIRMED"].includes(po.status) && (
-              <POStatusButton
-                id={po.id}
-                status="CANCELLED"
-                label={t("purchasing.nutHuyDon")}
-                variant="danger"
-                icon={<X className="size-4" />}
-              />
-            )}
-          </div>
-          {canManage && po.status === "APPROVED" && <p className="mt-2 text-xs text-[var(--text-muted)]">{t("purchasing.goiYGuiNcc")}</p>}
-        </Card>
-      )}
 
       {lichSuDuyet.length > 0 && (
         <Card className="no-print">

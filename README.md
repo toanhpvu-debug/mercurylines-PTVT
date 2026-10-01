@@ -1703,11 +1703,17 @@ duyệt. Không ai duyệt PO do chính mình trình; người ký thay cũng kh
 trong nhật ký. Khi **chưa chỉ định lãnh đạo nào**, quản trị tạm duyệt để PO không kẹt (trang báo
 rõ điều này).
 
+PO vừa tạo (từ yêu cầu, tạo trực tiếp hay từ báo giá) là **bản nháp**: lãnh đạo chưa thấy để duyệt
+cho tới khi người lập bấm **Trình duyệt** — nút này nằm ở khung *Tiến trình đơn mua* ngay đầu trang
+PO, kèm lời nhắc và số dòng còn thiếu đơn giá. Người duyệt cũng duyệt / trả lại ngay ở khung đó.
+
 Mục **Kiểm soát duyệt PO** (menu *Yêu cầu & mua sắm*, kèm số PO đang chờ với người duyệt):
 
 - Thẻ số: chờ duyệt (kèm tổng tiền theo loại tiền), chờ quá 48 giờ, đã duyệt / trả lại 30 ngày.
 - *PO chờ duyệt*: đơn chờ lâu nhất lên đầu, tàu, NCC, tổng tiền, người trình, đã chờ bao lâu,
   link báo giá; **Duyệt / Trả lại ngay trên dòng** (trả lại phải ghi lý do), hoặc mở PO xem kỹ.
+- *PO nháp chưa trình*: PO đã lập nhưng chưa bấm Trình duyệt (kèm tình trạng: thiếu đơn giá / đủ giá chờ
+  trình / bị trả lại) — để người duyệt biết là có, và nhắc người lập.
 - *Lịch sử duyệt*: mỗi lần trình / rút lại / duyệt / trả lại một dòng, không sửa không xóa — ai,
   ký thay ai, lúc nào, tổng tiền lúc đó, ghi chú. Trang PO cũng có mục *Lịch sử trình / duyệt*.
 - *Lãnh đạo phòng KT-VT* và *Ủy quyền duyệt PO* như trên.

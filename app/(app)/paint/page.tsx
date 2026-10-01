@@ -5,14 +5,17 @@ import {
   ClipboardList,
   Droplets,
   Paintbrush,
+  Send,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   requireScopedUser,
   vesselIdWhere,
   vesselScopeDayDu,
+  vesselWhere,
 } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
+import { LAP_YEU_CAU, coQuanLySon } from "@/lib/roles";
 import { cn } from "@/lib/cn";
 import {
   Badge,
@@ -49,7 +52,7 @@ export default async function PaintOverviewPage() {
   }
 
   // Hai truy vấn độc lập — chạy song song thay vì nối đuôi (bớt một vòng chờ DB).
-  const [vessels, productCount] = await Promise.all([
+  const [vessels, productCount, choDuyetSon] = await Promise.all([
     prisma.vessel.findMany({
       where: vesselIdWhere(scope),
       orderBy: { code: "asc" },
@@ -69,7 +72,22 @@ export default async function PaintOverviewPage() {
       },
     }),
     prisma.paintProduct.count({ where: { isActive: true } }),
+    // Yêu cầu sơn còn đang chờ duyệt (cấp tàu / công ty) của từng tàu.
+    prisma.materialRequest.groupBy({
+      by: ["vesselId"],
+      where: {
+        ...vesselWhere(scope),
+        status: { in: ["PENDING_MASTER", "PENDING_OFFICE"] },
+        items: { some: { paintProductId: { not: null } } },
+      },
+      _count: { _all: true },
+    }),
   ]);
+  const choDuyetTheoTau = new Map(choDuyetSon.map((g) => [g.vesselId, g._count._all]));
+  // Lập yêu cầu sơn: người lập yêu cầu VÀ quản phần sơn của đúng tàu (đại phó,
+  // thuyền trưởng, máy trưởng của tàu; quản trị).
+  const coLapSon = (vesselId: number) => coQuanLySon(user, vesselId) && LAP_YEU_CAU.includes(user.role);
+  const tauLapDuoc = vessels.filter((v) => coLapSon(v.id));
 
   const fleetLow = vessels.reduce(
     (n, v) =>
@@ -83,12 +101,21 @@ export default async function PaintOverviewPage() {
         title={t("paint.tieuDe")}
         subtitle={t("paint.moTa")}
         action={
-          canManageCatalog && (
-            <Link href="/paint/products" className={buttonClass("secondary")}>
-              <ClipboardList className="size-4" />
-              {t("paint.danhMucSonN", { n: productCount })}
-            </Link>
-          )
+          <>
+            {/* Đại phó / thuyền trưởng một tàu: vào thẳng trang yêu cầu sơn của tàu mình. */}
+            {tauLapDuoc.length === 1 && (
+              <Link href={`/paint/${tauLapDuoc[0].id}/yeu-cau`} className={buttonClass("primary")}>
+                <Send className="size-4" />
+                {t("paint.ycNutLap")}
+              </Link>
+            )}
+            {canManageCatalog && (
+              <Link href="/paint/products" className={buttonClass("secondary")}>
+                <ClipboardList className="size-4" />
+                {t("paint.danhMucSonN", { n: productCount })}
+              </Link>
+            )}
+          </>
         }
       />
 
@@ -128,6 +155,7 @@ export default async function PaintOverviewPage() {
                 <Th align="right">{t("paint.cotDuoiDinhMuc")}</Th>
                 <Th align="right">{t("paint.cotLanThiCong")}</Th>
                 <Th>{t("paint.cotGanNhat")}</Th>
+                <Th>{t("paint.cotYeuCauSon")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -178,6 +206,20 @@ export default async function PaintOverviewPage() {
                             }`
                           : "—"}
                       </span>
+                    </Td>
+                    <Td className="whitespace-nowrap">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {coLapSon(v.id) && (
+                          <Link href={`/paint/${v.id}/yeu-cau`} className={LINK}>
+                            {t("paint.ycLapNgan")}
+                          </Link>
+                        )}
+                        {(choDuyetTheoTau.get(v.id) ?? 0) > 0 && (
+                          <Link href={`/requests?vessel=${v.id}`}>
+                            <Badge tone="warning">{t("paint.ycChoDuyetN", { n: choDuyetTheoTau.get(v.id) ?? 0 })}</Badge>
+                          </Link>
+                        )}
+                      </div>
                     </Td>
                   </Tr>
                 );

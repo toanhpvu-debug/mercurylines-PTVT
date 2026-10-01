@@ -61,6 +61,7 @@ export default async function SuaYeuCauPage({
           quantity: true,
           note: true,
           robSnapshot: true,
+          paintProductId: true,
         },
       },
     },
@@ -126,6 +127,7 @@ export default async function SuaYeuCauPage({
       note: item.note ?? "",
       // Hàng mới giữ R.O.B đã ghi lúc lập (VD theo file MLS-11-05) khi sửa.
       rob: item.materialId ? "" : String(item.robSnapshot ?? ""),
+      paintProductId: item.paintProductId ? String(item.paintProductId) : "",
     })),
   };
 

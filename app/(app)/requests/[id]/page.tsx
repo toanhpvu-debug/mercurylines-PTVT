@@ -108,7 +108,8 @@ export default async function RequestDetailPage({
     item.material
       ? item.material.nameVn +
         (item.material.nameEn ? ` (${item.material.nameEn})` : "")
-      : (item.itemName ?? "") + " (mới)";
+      : // Dòng sơn lấy từ danh mục sơn — không phải hàng "mới" ngoài danh mục.
+        (item.itemName ?? "") + (item.paintProductId ? "" : " (mới)");
   const lineCode = (item: Line) =>
     item.material
       ? isSpare
@@ -196,7 +197,8 @@ export default async function RequestDetailPage({
           subtitle={
             <>
               {request.vessel.name} ·{" "}
-              {tTuDo(`labels.type_${isSpare ? "SPARE" : "STORE"}`)} ·{" "}
+              {tTuDo(`labels.type_${isSpare ? "SPARE" : "STORE"}`)}
+              {request.items.some((i) => i.paintProductId) && ` (${t("paint.ycNhanSon")})`} ·{" "}
               <span className="font-display text-xs tracking-wide">{formCode}</span>
               {tepGoc && (
                 <>

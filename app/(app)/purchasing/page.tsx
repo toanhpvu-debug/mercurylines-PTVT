@@ -241,6 +241,11 @@ export default async function PurchasingPage() {
                               `labels.type_${req.kind === "SPARE" ? "SPARE" : "STORE"}`
                             )}
                           </Badge>
+                          {req.items.some((i) => i.paintProductId) && (
+                            <Badge tone="info" className="ml-1">
+                              {t("paint.ycNhanSon")}
+                            </Badge>
+                          )}
                         </Td>
                         <Td>
                           <Link

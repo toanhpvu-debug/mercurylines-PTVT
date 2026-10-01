@@ -22,7 +22,7 @@ import {
   vesselIdWhere,
   vesselScopeDayDu,
 } from "@/lib/auth";
-import { LAP_YEU_CAU, nguoiDuyetCapTau, boPhanCuaChucDanh } from "@/lib/roles";
+import { LAP_YEU_CAU } from "@/lib/roles";
 import { layT } from "@/lib/i18n/server";
 import { PAINT_TYPE_LABEL } from "@/lib/paintTypes";
 import { cn } from "@/lib/cn";
@@ -33,7 +33,6 @@ import {
 import { PaintStockMinForm, PaintStockMoveForm } from "@/components/PaintStockForm";
 import { PaintJobDeleteButton, PaintJobForm } from "@/components/PaintJobForm";
 import PaintSchemeCopyForm from "@/components/PaintSchemeCopyForm";
-import PaintRequestForm from "@/components/PaintRequestForm";
 import PaintStockBulkForm from "@/components/PaintStockBulkForm";
 import PrintButton from "@/components/PrintButton";
 import VesselSwitcher from "@/components/VesselSwitcher";
@@ -51,6 +50,7 @@ import {
   Td,
   Th,
   Tr,
+  buttonClass,
   type Tone,
 } from "@/components/ui";
 
@@ -176,19 +176,6 @@ export default async function PaintVesselPage({
     }));
   const lowStocks = stocks.filter((s) => s.minQty > 0 && s.quantity < s.minQty);
   const duoiDinhMuc = lowStocks.length;
-  // Dòng cho bảng xin cấp sơn: mọi loại sơn đang dùng, kèm tồn và định mức của
-  // tàu này. Loại chưa từng nhập chưa có bản ghi tồn nên coi như tồn 0 — vẫn
-  // phải xin được, đó chính là lúc cần xin nhất.
-  const yeuCauLines = products.map((p) => {
-    const st = stocks.find((s) => s.productId === p.id);
-    return {
-      productId: p.id,
-      label: productLabel(p, tenLoaiSon),
-      uom: p.uom,
-      ton: st?.quantity ?? 0,
-      minQty: st?.minQty ?? 0,
-    };
-  });
   const totalPaintedM2 = jobs.reduce((sum, j) => sum + j.paintedM2, 0);
   const defaultDate = new Date().toISOString().slice(0, 10);
 
@@ -625,46 +612,23 @@ export default async function PaintVesselPage({
         )}
 
         {canRequest && (
-          <Card padded={false} className="print:hidden">
-            <details className="group">
-              <summary className={SUMMARY}>
-                <ChevronRight
-                  aria-hidden="true"
-                  className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
-                />
-                <Send className="size-4 text-[var(--text-muted)]" />
-                {t("paint.yeuCauCapSon")}
-                {duoiDinhMuc > 0 && (
-                  <Badge tone="warning">
-                    {t("paint.nLoaiDuoiDinhMuc", { n: duoiDinhMuc })}
-                  </Badge>
-                )}
-              </summary>
-              <div className="space-y-3 border-t border-[var(--border-subtle)] px-4 py-4">
-                <Notice tone="info">
-                  {t("paint.luongDuyetTruoc")}{" "}
-                  <b>{tTuDo(`labels.role_${user.role}`)}</b>{" "}
-                  {t("paint.luongDuyetBoPhan", {
-                    bp:
-                      boPhanCuaChucDanh(user.role) === "ENGINE"
-                        ? t("labels.reqDept_ENGINE")
-                        : t("labels.reqDept_DECK"),
-                  })}{" "}
-                  {t("paint.luongDuyetGiua")}{" "}
-                  <b>
-                    {tTuDo(
-                      `labels.role_${nguoiDuyetCapTau(
-                        boPhanCuaChucDanh(user.role) ?? "DECK"
-                      )}`
-                    )}
-                  </b>{" "}
-                  {t("paint.luongDuyetCapTau")}{" "}
-                  <b>{t("labels.role_TECH_MANAGER")}</b>{" "}
-                  {t("paint.luongDuyetCapCongTy")}
-                </Notice>
-                <PaintRequestForm vesselId={vesselId} lines={yeuCauLines} />
-              </div>
-            </details>
+          <Card className="print:hidden">
+            <CardHeader
+              icon={<Send className="size-4" />}
+              title={t("paint.yeuCauCapSon")}
+              subtitle={t("paint.ycMoTa")}
+              action={
+                <Link href={`/paint/${vesselId}/yeu-cau`} className={buttonClass("primary")}>
+                  <Send className="size-4" />
+                  {t("paint.ycNutLap")}
+                </Link>
+              }
+            />
+            {duoiDinhMuc > 0 && (
+              <Badge tone="warning">
+                {t("paint.nLoaiDuoiDinhMuc", { n: duoiDinhMuc })}
+              </Badge>
+            )}
           </Card>
         )}
       </section>

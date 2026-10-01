@@ -8,32 +8,15 @@ import {
 import { layT } from "@/lib/i18n/server";
 import { LAP_YEU_CAU } from "@/lib/roles";
 import {
+  capSoYeuCauTx,
   chupROB,
+  locSonCoThat,
   docDongYeuCau,
   duVatTuTrongDanhMuc,
   maVatTuCoSan,
 } from "@/lib/yeuCauVatTu";
 
 export const dynamic = "force-dynamic";
-
-// Vùng khóa tư vấn cấp số yêu cầu vật tư (khác vùng của tồn kho 811001 và số PO
-// 811002). Xem app/actions.ts:sinhSoDonMua về lý do phải xin khóa trong CÙNG
-// giao dịch với lúc đọc số lớn nhất — nếu không, hai yêu cầu cùng tàu nộp sát
-// nhau cùng đọc thấy số cũ, cùng sinh một requestNo, một bên vỡ vì requestNo là
-// khóa duy nhất, người dùng nhận màn hình 500 và mất luôn yêu cầu vừa gõ.
-const KHOA_SINH_SO_YEU_CAU = 811003;
-
-// Khóa theo ĐÚNG thứ chia dãy số (tiền tố đã bỏ ký tự đặc biệt), không theo
-// vesselId: hai tàu mã "MLS-001"/"MLS001" cùng lùi về một tiền tố nên dùng chung
-// dãy số dù vesselId khác nhau. Đụng độ băm chỉ khiến hai dãy chẳng liên quan
-// chờ nhau một nhịp, không bao giờ sai số.
-function khoaDaySoYeuCau(tienTo: string) {
-  let bam = 0;
-  for (let i = 0; i < tienTo.length; i++) {
-    bam = (Math.imul(bam, 31) + tienTo.charCodeAt(i)) | 0;
-  }
-  return bam;
-}
 
 export async function POST(request: Request) {
   // Lấy trước khối try để câu báo lỗi ở khối catch cũng dùng được.
@@ -93,7 +76,7 @@ export async function POST(request: Request) {
     }
     // Đọc dòng bằng HÀM DÙNG CHUNG với đường sửa (PATCH .../[id]) — xem
     // lib/yeuCauVatTu.ts về lý do không được chép đôi đoạn này.
-    const items = docDongYeuCau(body.items);
+    const items = await locSonCoThat(docDongYeuCau(body.items));
     if (!items.length) {
       return NextResponse.json(
         { error: t("actionsModule.yeuCau_danhSachKhongHopLe") },
@@ -121,28 +104,10 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const vesselTag = vessel.code.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-    const yearTag = String(new Date().getFullYear()).slice(-2);
-    const base = `${prefix}-${vesselTag}-${yearTag}-`;
-    // Lấy số lớn nhất đã dùng trong năm của tàu này rồi +1 (không dựa vào count
-    // để xóa yêu cầu không làm trùng số).
-    // Cấp số VÀ ghi yêu cầu trong CÙNG một giao dịch, sau khi xin khóa tư vấn
-    // theo dãy số của tàu — y hệt sinhSoDonMua bên app/actions.ts. Khóa nhả khi
-    // giao dịch kết thúc, không có gì phải dọn. Khóa theo tiền tố KHÔNG kèm năm
-    // để hai đơn rơi đúng khoảnh khắc giao thừa vẫn xếp hàng với nhau.
-    const khoaTienTo = `${prefix}-${vesselTag}-`;
+    // Cấp số trong CÙNG giao dịch ghi yêu cầu, sau khóa tư vấn theo dãy số của
+    // tàu — xem capSoYeuCauTx (lib/yeuCauVatTu.ts).
     const created = await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KHOA_SINH_SO_YEU_CAU}::int, ${khoaDaySoYeuCau(
-        khoaTienTo
-      )}::int)`;
-      const latest = await tx.materialRequest.findFirst({
-        where: { requestNo: { startsWith: base } },
-        orderBy: { requestNo: "desc" },
-        select: { requestNo: true },
-      });
-      let seq = latest ? Number(latest.requestNo.slice(base.length)) + 1 : 1;
-      if (!Number.isFinite(seq) || seq < 1) seq = 1;
-      const requestNo = `${base}${String(seq).padStart(4, "0")}`;
+      const requestNo = await capSoYeuCauTx(tx, prefix, vessel.code);
       const row = await tx.materialRequest.create({
       data: {
         requestNo,
@@ -172,6 +137,7 @@ export async function POST(request: Request) {
                 : (item.rob ?? 0),
             approvedQuantity: 0,
             note: item.note,
+            paintProductId: item.paintProductId,
           })),
         },
       },

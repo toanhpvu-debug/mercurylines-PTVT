@@ -163,10 +163,11 @@ export default async function RequestsPage({
     tuTepId > 0 && !scope.unassigned
       ? await prisma.yeuCauTep.findUnique({
           where: { id: tuTepId },
-          select: { id: true, fileName: true, vesselId: true, dau: true, dong: true, loiAi: true, aiDangDocTu: true, aiTienDo: true, nguoiTaiId: true, requestId: true },
+          select: { id: true, fileName: true, vesselId: true, dau: true, dong: true, loiAi: true, aiDangDocTu: true, aiTienDo: true, nguoiTaiId: true, requestId: true, muc: true },
         })
       : null;
-  const tep = tepTho && (tepTho.nguoiTaiId === user.id || user.role === "ADMIN") ? tepTho : null;
+  // File yêu cầu SƠN điền form ở trang /paint/<tàu>/yeu-cau, không phải ở đây.
+  const tep = tepTho && tepTho.muc === "VAT_TU" && (tepTho.nguoiTaiId === user.id || user.role === "ADMIN") ? tepTho : null;
   const tepDangDoc = Boolean(tep && dangDocAi(tep.aiDangDocTu));
   const yeuCauTuTep = tep?.requestId
     ? await prisma.materialRequest.findUnique({ where: { id: tep.requestId }, select: { id: true, requestNo: true } })
@@ -327,6 +328,12 @@ export default async function RequestsPage({
                           `labels.type_${request.kind === "SPARE" ? "SPARE" : "STORE"}`
                         )}
                       </Badge>
+                      {/* Yêu cầu sơn (lập ở trang Quản lý sơn): dòng trỏ về danh mục sơn. */}
+                      {request.items.some((i) => i.paintProductId) && (
+                        <Badge tone="info" className="ml-1">
+                          {t("paint.ycNhanSon")}
+                        </Badge>
+                      )}
                     </Td>
                     <Td>
                       <Link href={`/vessels/${request.vesselId}`} className={LINK}>

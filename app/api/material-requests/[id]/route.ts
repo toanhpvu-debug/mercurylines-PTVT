@@ -10,6 +10,7 @@ import {
   docDongYeuCau,
   duVatTuTrongDanhMuc,
   maVatTuCoSan,
+  locSonCoThat,
 } from "@/lib/yeuCauVatTu";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +93,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const items = docDongYeuCau(body.items);
+    const items = await locSonCoThat(docDongYeuCau(body.items));
     if (!items.length) {
       return NextResponse.json(
         { error: t("actionsModule.yeuCau_itNhatMotDong") },
@@ -153,6 +154,7 @@ export async function PATCH(
                   : (item.rob ?? 0),
               approvedQuantity: 0,
               note: item.note,
+              paintProductId: item.paintProductId,
             })),
           },
         },

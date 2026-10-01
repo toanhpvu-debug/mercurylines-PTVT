@@ -10,15 +10,22 @@ import { Button, Card, CardHeader, Notice } from "@/components/ui";
  * Yêu cầu nhanh: tải phiếu MLS-11-05B / MLS-11-05A (Word / Excel / PDF / PDF
  * scan) — đọc xong trang chuyển về /requests?tuTep=<id> và form bên dưới được
  * điền sẵn. Gập lại khi đang điền từ file để form có chỗ.
+ *
+ * `son`: tải phiếu yêu cầu SƠN cho một tàu (trang /paint/<tàu>/yeu-cau) — file
+ * ghép với danh mục sơn thay vì danh mục vật tư.
  */
-export default function TaiFileYeuCau({ coAi, moSan = true }: { coAi: boolean; moSan?: boolean }) {
+export default function TaiFileYeuCau({ coAi, moSan = true, son }: { coAi: boolean; moSan?: boolean; son?: { vesselId: number } }) {
   const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(taiFileYeuCau, { message: "" });
   return (
     <Card>
       <details open={moSan} className="group">
         <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-          <CardHeader icon={<FileSpreadsheet className="size-4" />} title={t("requests.tepTieuDe")} subtitle={t("requests.tepMoTa")} />
+          <CardHeader
+            icon={<FileSpreadsheet className="size-4" />}
+            title={son ? t("paint.ycTepTieuDe") : t("requests.tepTieuDe")}
+            subtitle={son ? t("paint.ycTepMoTa") : t("requests.tepMoTa")}
+          />
         </summary>
         {/* Gửi thủ công qua startTransition để React không reset form (mất file) khi lỗi. */}
         <form
@@ -29,12 +36,18 @@ export default function TaiFileYeuCau({ coAi, moSan = true }: { coAi: boolean; m
           }}
           className="space-y-3"
         >
+          {son && (
+            <>
+              <input type="hidden" name="muc" value="SON" />
+              <input type="hidden" name="vesselId" value={son.vesselId} />
+            </>
+          )}
           <p className="text-xs text-[var(--text-secondary)]">{coAi ? t("requests.tepDinhDang") : t("requests.tepDinhDangKhongAi")}</p>
           <div className="flex flex-wrap items-end gap-3 rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-3">
             <label className="min-w-64 flex-1">
               <span className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
                 <FileUp className="size-4 text-[var(--text-muted)]" />
-                {t("requests.tepChon")}
+                {son ? t("paint.ycTepChon") : t("requests.tepChon")}
               </span>
               <input
                 type="file"

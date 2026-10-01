@@ -44,6 +44,8 @@ type RequestItem = {
   rob?: string;
   /** Dòng nhắc dưới mục (đọc từ file: R.O.B trên file, cảnh báo khi đọc). */
   goiY?: string;
+  /** Dòng sơn (yêu cầu sơn): id loại sơn trong danh mục sơn — giữ nguyên khi sửa. */
+  paintProductId?: string;
 };
 
 /**
@@ -244,6 +246,7 @@ export default function RequestForm({
                   quantity: Number(item.quantity),
                   note: item.note,
                   rob: item.rob?.trim() ? Number(item.rob) : null,
+                  paintProductId: item.paintProductId ? Number(item.paintProductId) : null,
                 }
           ),
         ...(tuFile ? { tuTep: tuFile.tepId } : {}),

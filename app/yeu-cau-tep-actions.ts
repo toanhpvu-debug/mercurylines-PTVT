@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { requireActiveRole, vesselIdWhere, vesselScopeDayDu } from "@/lib/auth";
 import { ghiNhatKyNguoiDung } from "@/lib/audit";
 import { layT } from "@/lib/i18n/server";
-import { LAP_YEU_CAU } from "@/lib/roles";
+import { LAP_YEU_CAU, coQuanLySon } from "@/lib/roles";
 import { tauTuTenTep } from "@/lib/kiemKe";
 import { MAX_UPLOAD_BYTES, ensureUploadDir, fileExtension, getUploadDir } from "@/lib/uploads";
 import { DUOI_YEU_CAU, dauTuAiYeuCau, dongTuAiYeuCau, gopDauYeuCau, type DauYeuCauFile, type DongYeuCauFile } from "@/lib/yeuCauNhap";
@@ -121,6 +121,11 @@ export async function taiFileYeuCau(_prev: KetQuaYeuCauTep, formData: FormData):
   const { t } = await layT();
   const actor = await requireActiveRole([...LAP_YEU_CAU]);
   if (!actor) return { message: t("chung.khongCoQuyen") };
+  // Yêu cầu SƠN (tải từ /paint/<tàu>/yeu-cau): tàu cố định theo trang, người tải
+  // phải quản phần sơn của tàu đó (đại phó / thuyền trưởng / máy trưởng / quản trị).
+  const laSon = formData.get("muc") === "SON";
+  const tauSon = Number(formData.get("vesselId"));
+  if (laSon && !(Number.isInteger(tauSon) && tauSon > 0 && coQuanLySon(actor, tauSon))) return { message: t("chung.khongCoQuyen") };
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { message: t("actions.nhap_vuiLongChonFile") };
   const ext = fileExtension(file.name);
@@ -142,8 +147,9 @@ export async function taiFileYeuCau(_prev: KetQuaYeuCauTep, formData: FormData):
   }
   if (!kq.ok && !dungAi) return { message: laPdf ? `${kq.loi} ${t("requests.tepPdfCanAi")}` : kq.loi };
   const dau: DauYeuCauFile | null = kq.ok ? kq.dau : null;
-  const tauPhamVi = await prisma.vessel.findMany({ where: vesselIdWhere(vesselScopeDayDu(actor)), select: { id: true, code: true, name: true } });
-  const vesselId = nhanTau(tauPhamVi, dau?.tau ?? null, file.name);
+  const tauPhamVi = laSon ? [] : await prisma.vessel.findMany({ where: vesselIdWhere(vesselScopeDayDu(actor)), select: { id: true, code: true, name: true } });
+  const vesselId = laSon ? tauSon : nhanTau(tauPhamVi, dau?.tau ?? null, file.name);
+  const denTrang = (id: number) => (laSon ? `/paint/${tauSon}/yeu-cau?tuTep=${id}` : `/requests?tuTep=${id}`);
 
   const dir = await ensureUploadDir();
   const storedName = `${TIEN_TO_TEP}${randomUUID()}${ext}`;
@@ -163,20 +169,21 @@ export async function taiFileYeuCau(_prev: KetQuaYeuCauTep, formData: FormData):
       aiTienDo: dungAi ? "0" : null,
       nguoiTaiId: actor.id,
       nguoiTai: actor.name,
+      muc: laSon ? "SON" : "VAT_TU",
     },
     select: { id: true },
   });
   await ghiNhatKyNguoiDung(actor, {
     action: "yeu-cau-tep-tai-len",
-    path: `/requests?tuTep=${tep.id}`,
+    path: denTrang(tep.id),
     vesselId,
-    detail: `Tải phiếu yêu cầu ${file.name} (${dungAi ? "PDF — AI đọc nền" : `${kq.ok ? kq.dong.length : 0} dòng`})`,
+    detail: `Tải phiếu yêu cầu ${laSon ? "sơn " : ""}${file.name} (${dungAi ? "PDF — AI đọc nền" : `${kq.ok ? kq.dong.length : 0} dòng`})`,
   });
   if (dungAi) {
     const nguoi = { id: actor.id, email: actor.email, role: actor.role, name: actor.name };
     after(() => chayDocAiYeuCau(tep.id, nguoi, tauPhamVi));
   }
-  redirect(`/requests?tuTep=${tep.id}`);
+  redirect(denTrang(tep.id));
 }
 
 // ─── 3. Bỏ file chưa dùng ────────────────────────────────────────────────────
@@ -185,9 +192,10 @@ export async function boFileYeuCau(id: number): Promise<KetQuaYeuCauTep> {
   const { t } = await layT();
   const actor = await requireActiveRole([...LAP_YEU_CAU]);
   if (!actor) return { message: t("chung.khongCoQuyen") };
-  const tep = Number.isInteger(id) && id > 0 ? await prisma.yeuCauTep.findUnique({ where: { id }, select: { id: true, nguoiTaiId: true, storedName: true, fileName: true, requestId: true, vesselId: true } }) : null;
+  const tep = Number.isInteger(id) && id > 0 ? await prisma.yeuCauTep.findUnique({ where: { id }, select: { id: true, nguoiTaiId: true, storedName: true, fileName: true, requestId: true, vesselId: true, muc: true } }) : null;
   if (!tep || (tep.nguoiTaiId !== actor.id && actor.role !== "ADMIN")) return { message: t("requests.tepKhongThay") };
-  if (tep.requestId) redirect("/requests");
+  const veTrang = tep.muc === "SON" && tep.vesselId ? `/paint/${tep.vesselId}/yeu-cau` : "/requests";
+  if (tep.requestId) redirect(veTrang);
   await prisma.yeuCauTep.delete({ where: { id: tep.id } });
   try {
     await unlink(path.join(getUploadDir(), path.basename(tep.storedName)));
@@ -200,6 +208,6 @@ export async function boFileYeuCau(id: number): Promise<KetQuaYeuCauTep> {
     vesselId: tep.vesselId,
     detail: `Bỏ phiếu yêu cầu chưa dùng ${tep.fileName} (#${tep.id})`,
   });
-  revalidatePath("/requests");
-  redirect("/requests");
+  revalidatePath(veTrang);
+  redirect(veTrang);
 }

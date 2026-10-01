@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -27,6 +28,8 @@ export type DongYeuCau = {
    * ROB của chúng chụp từ tồn kho (chupROB).
    */
   rob: number | null;
+  /** Hàng mới là một loại sơn trong danh mục sơn (yêu cầu sơn) — xem MaterialRequestItem.paintProductId. */
+  paintProductId: number | null;
 };
 
 /**
@@ -56,6 +59,7 @@ export function docDongYeuCau(raw: unknown): DongYeuCau[] {
           quantity,
           note,
           rob: Number.isFinite(Number(item?.rob)) && item?.rob !== null && item?.rob !== "" && Number(item?.rob) >= 0 ? Number(item?.rob) : null,
+          paintProductId: Number.isInteger(Number(item?.paintProductId)) && Number(item?.paintProductId) > 0 ? Number(item?.paintProductId) : null,
         };
       }
       const materialId = Number(item?.materialId);
@@ -68,6 +72,7 @@ export function docDongYeuCau(raw: unknown): DongYeuCau[] {
         quantity,
         note,
         rob: null,
+        paintProductId: null,
       };
     })
     .filter((x: DongYeuCau | null): x is DongYeuCau => x !== null);
@@ -80,6 +85,17 @@ export function maVatTuCoSan(items: DongYeuCau[]): number[] {
       items.map((i) => i.materialId).filter((x): x is number => x !== null)
     ),
   ];
+}
+
+/**
+ * Bỏ liên kết sơn trỏ tới loại sơn không còn trong danh mục (đã xóa) thay vì để
+ * lỗi khóa ngoại nổ thành màn hình 500 — dòng vẫn giữ tên / mã / đơn vị như gõ.
+ */
+export async function locSonCoThat(items: DongYeuCau[]): Promise<DongYeuCau[]> {
+  const ids = [...new Set(items.map((i) => i.paintProductId).filter((x): x is number => x !== null))];
+  if (!ids.length) return items;
+  const co = new Set((await prisma.paintProduct.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((p) => p.id));
+  return items.map((i) => (i.paintProductId !== null && !co.has(i.paintProductId) ? { ...i, paintProductId: null } : i));
 }
 
 /**
@@ -112,4 +128,48 @@ export async function chupROB(vesselId: number, materialIds: number[]) {
     _sum: { quantity: true },
   });
   return new Map(nhom.map((g) => [g.materialId, Number(g._sum.quantity ?? 0)]));
+}
+
+// Vùng khóa tư vấn cấp số yêu cầu vật tư (khác vùng của tồn kho 811001 và số PO
+// 811002). Xem app/actions.ts:sinhSoDonMua về lý do phải xin khóa trong CÙNG
+// giao dịch với lúc đọc số lớn nhất — nếu không, hai yêu cầu cùng tàu nộp sát
+// nhau cùng đọc thấy số cũ, cùng sinh một requestNo, một bên vỡ vì requestNo là
+// khóa duy nhất, người dùng nhận màn hình 500 và mất luôn yêu cầu vừa gõ.
+const KHOA_SINH_SO_YEU_CAU = 811003;
+
+// Khóa theo ĐÚNG thứ chia dãy số (tiền tố đã bỏ ký tự đặc biệt), không theo
+// vesselId: hai tàu mã "MLS-001"/"MLS001" cùng lùi về một tiền tố nên dùng chung
+// dãy số dù vesselId khác nhau. Đụng độ băm chỉ khiến hai dãy chẳng liên quan
+// chờ nhau một nhịp, không bao giờ sai số.
+function khoaDaySoYeuCau(tienTo: string) {
+  let bam = 0;
+  for (let i = 0; i < tienTo.length; i++) {
+    bam = (Math.imul(bam, 31) + tienTo.charCodeAt(i)) | 0;
+  }
+  return bam;
+}
+
+/**
+ * Cấp số yêu cầu theo quy ước chứng từ: <MR|SR>-<mã tàu>-<năm 2 số>-<số thứ tự>,
+ * VD MR-MLS001-26-0007 — số lớn nhất đã dùng trong năm của tàu + 1 (không đếm,
+ * để xóa yêu cầu không làm trùng số).
+ *
+ * PHẢI gọi trong CÙNG giao dịch với lúc ghi yêu cầu: hàm xin khóa tư vấn theo
+ * dãy số của tàu (y hệt sinhSoDonMua bên app/actions.ts), khóa nhả khi giao dịch
+ * kết thúc. Khóa theo tiền tố KHÔNG kèm năm để hai yêu cầu rơi đúng khoảnh khắc
+ * giao thừa vẫn xếp hàng với nhau. Dùng chung cho yêu cầu vật tư / phụ tùng
+ * (POST /api/material-requests) và yêu cầu sơn.
+ */
+export async function capSoYeuCauTx(tx: Prisma.TransactionClient, prefix: "MR" | "SR", vesselCode: string): Promise<string> {
+  const vesselTag = vesselCode.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const base = `${prefix}-${vesselTag}-${String(new Date().getFullYear()).slice(-2)}-`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KHOA_SINH_SO_YEU_CAU}::int, ${khoaDaySoYeuCau(`${prefix}-${vesselTag}-`)}::int)`;
+  const latest = await tx.materialRequest.findFirst({
+    where: { requestNo: { startsWith: base } },
+    orderBy: { requestNo: "desc" },
+    select: { requestNo: true },
+  });
+  let seq = latest ? Number(latest.requestNo.slice(base.length)) + 1 : 1;
+  if (!Number.isFinite(seq) || seq < 1) seq = 1;
+  return `${base}${String(seq).padStart(4, "0")}`;
 }

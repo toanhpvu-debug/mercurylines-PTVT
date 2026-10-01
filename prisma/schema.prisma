@@ -379,6 +379,8 @@ model YeuCauTep {
   nguoiTaiId  Int
   nguoiTai    String
   requestId   Int?
+  // VAT_TU = yêu cầu vật tư / phụ tùng (/requests) · SON = yêu cầu sơn (/paint/<tàu>/yeu-cau)
+  muc         String    @default("VAT_TU")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -450,10 +452,16 @@ model MaterialRequestItem {
   approvedQuantity Float               @default(0) // SL duyệt (APP)
   suppliedQuantity Float               @default(0) // SL đã nhận về (từ mua sắm)
   note             String?
+  // Dòng xin cấp SƠN: loại sơn trong danh mục sơn (PaintProduct) — sơn không nằm
+  // trong danh mục vật tư nên materialId trống. Nhận hàng theo PO thì số nhận
+  // cộng thẳng vào tồn sơn của tàu (PaintStock).
+  paintProductId   Int?
+  paintProduct     PaintProduct?       @relation(fields: [paintProductId], references: [id], onDelete: SetNull)
   poItems          PurchaseOrderItem[]
 
   @@index([requestId])
   @@index([materialId])
+  @@index([paintProductId])
 }
 
 // Nhà cung cấp
@@ -566,6 +574,7 @@ model PaintProduct {
   stocks       PaintStock[]
   jobLines     PaintJobLine[]
   transactions PaintTransaction[]
+  requestItems MaterialRequestItem[]
 }
 
 // Khu vực sơn của từng tàu — do người dùng tự khai báo (không seed sẵn).

@@ -870,21 +870,34 @@ Vài điểm của phần hàng loạt:
 - Cột nhận diện tự động: tên sơn, hãng, loại, mã màu, tên màu, ĐVT, dung tích, độ phủ, DFT,
   dung môi, số lượng — cùng bộ đọc với trang nhập danh mục.
 
-**Yêu cầu cấp sơn** (nút *Gửi yêu cầu phê duyệt* ở trang sơn của tàu) **không** dựng một đường
-phê duyệt riêng. Nó tạo một yêu cầu vật tư bình thường và đi đúng dây chuyền đang có:
+**Yêu cầu sơn từ tàu** (trang `/paint/<tàu>/yeu-cau` — nút *Lập yêu cầu sơn* ở trang Quản lý
+sơn và ở trang sơn của tàu; cột *Yêu cầu sơn* ở bảng các tàu) **không** dựng một đường phê
+duyệt riêng. Nó tạo một yêu cầu vật tư MLS-11-05B bình thường và đi đúng dây chuyền đang có:
 
 ```
-Đại phó lập  →  Thuyền trưởng duyệt cấp tàu  →  Công ty duyệt  →  Mua sắm
+Đại phó lập  →  Thuyền trưởng duyệt cấp tàu  →  Công ty duyệt  →  Mua sắm (PO)  →  Nhận hàng
+                                                                     (sơn cộng thẳng vào tồn sơn của tàu)
 ```
 
-Bộ phận của yêu cầu lấy theo chức danh người lập, nên yêu cầu của đại phó (boong) về đúng bàn
-thuyền trưởng, còn yêu cầu sơn buồng máy của máy trưởng nằm trong thẩm quyền máy trưởng. Dựng
-đường duyệt thứ hai chỉ để phục vụ sơn là tự tạo thêm một bộ quy tắc nữa phải giữ cho khớp với
-bộ đang có.
+- **Ai lập:** đại phó, thuyền trưởng, máy trưởng của tàu đó, quản trị (`VAN_HANH_SON` ∩ người
+  lập yêu cầu). Bộ phận lấy theo chức danh, nên yêu cầu của đại phó (Boong) về đúng bàn thuyền
+  trưởng; máy trưởng xin sơn buồng máy thì nằm trong thẩm quyền máy trưởng; thuyền trưởng /
+  quản trị lập thì cấp tàu coi như đã ký, đi thẳng lên công ty.
+- **Ba cách đưa dòng vào:** *chọn từ danh mục sơn* (bảng có tồn, định mức và số đề xuất = phần
+  thiếu so với định mức; nút *Thêm tất cả*), *gõ tay sơn ngoài danh mục* (tên, mã, ĐVT, R.O.B),
+  hoặc *tải phiếu MLS-11-05* (Word / Excel / PDF / PDF scan — cùng bộ đọc với yêu cầu nhanh từ
+  file). Dòng phiếu ghép với **danh mục sơn**: mã sơn → tên / tên + màu / hãng + tên trùng khít
+  → mô tả chứa tên và màu; hai loại cùng tên khác màu mà phiếu không ghi màu thì để người lập
+  chọn, không đoán.
+- **Dòng yêu cầu trỏ về loại sơn** (`MaterialRequestItem.paintProductId`): ROB in trên chứng
+  từ là tồn sơn của tàu; danh sách yêu cầu / mua sắm gắn nhãn *Sơn*; sửa yêu cầu vẫn giữ liên
+  kết; và khi **nhận hàng theo PO**, số nhận của dòng sơn cộng thẳng vào tồn sơn của tàu kèm
+  phiếu nhập "Nhận hàng PO-…" (sơn không vào kho vật tư nên không cần chọn kho nhận).
+- Trang yêu cầu sơn có bảng **yêu cầu sơn gần đây** của tàu để người lập theo dõi đã tới bước
+  nào; bảng các tàu ở trang Quản lý sơn hiện số yêu cầu sơn đang chờ duyệt.
 
-Bảng xin cấp điền sẵn phần thiếu so với định mức (định mức − tồn) cho những loại đang dưới
-mức, và ghi tồn hiện tại vào cột ROB của chứng từ để người duyệt thấy ngay còn bao nhiêu mà
-xin thêm bấy nhiêu.
+Mã: [`lib/yeuCauSon.ts`](lib/yeuCauSon.ts) (thuần, kiểm ở `scripts/kiem-tra-yeu-cau-son.ts`),
+[`lib/yeuCauSonServer.ts`](lib/yeuCauSonServer.ts), [`app/yeu-cau-son-actions.ts`](app/yeu-cau-son-actions.ts).
 
 Sáu chức danh sĩ quan có **quyền giống hệt nhau** ở phần yêu cầu vật tư — tách chức danh khỏi quyền như vậy để
 chứng từ và nhật ký ghi đúng "Máy 2 · Nguyễn Văn A" thay vì "CREW", mà ma trận phân quyền

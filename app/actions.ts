@@ -63,6 +63,7 @@ import { sinhSoDonMua } from "@/lib/soDonMua";
 import { LAP_DON_MUA, NHAN_HANG_PO, PO_DUOC_TU, QUAN_LY_NCC, VAI_TRO_DUYET_PO } from "@/lib/donMuaQuyTrinh";
 import type { HamDich } from "@/lib/i18n";
 import { layT } from "@/lib/i18n/server";
+import { nhapSonTuDonMuaTx } from "@/lib/yeuCauSonServer";
 
 class ActionError extends Error {}
 
@@ -2714,6 +2715,8 @@ export async function receivePurchaseOrder(
     return { message: t("actions.donMua_chuaNhapSoLuongNhan") };
   }
 
+  // Có dòng sơn nhận vào tồn sơn thì làm mới cả trang Quản lý sơn.
+  let coDongSon = false;
   try {
     await prisma.$transaction(async (tx) => {
       // Đọc lại PO + dòng MỚI TRONG transaction để tránh nhận trùng (double-submit).
@@ -2804,6 +2807,18 @@ export async function receivePurchaseOrder(
             data: { suppliedQuantity: { increment: qty } },
           });
           affectedRequestIds.add(ri.requestId);
+          // Dòng SƠN (yêu cầu sơn): sơn không có trong danh mục vật tư nên không
+          // vào kho vật tư — cộng thẳng vào tồn sơn của tàu.
+          if (!item.materialId && ri.paintProductId) {
+            await nhapSonTuDonMuaTx(tx, {
+              vesselId: fresh.vesselId,
+              productId: ri.paintProductId,
+              soLuong: qty,
+              poNo: fresh.poNo,
+              nguoi: actor.name,
+            });
+            coDongSon = true;
+          }
         }
       }
       if (totalReceived === 0) {
@@ -2867,6 +2882,10 @@ export async function receivePurchaseOrder(
   revalidatePath(`/purchasing/${id}`);
   revalidatePath("/requests");
   revalidatePath("/inventory");
+  if (coDongSon) {
+    revalidatePath("/paint");
+    revalidatePath(`/paint/${po.vesselId}`);
+  }
   return { message: t("actions.donMua_daGhiNhanNhanHang"), success: true };
 }
 

@@ -1088,3 +1088,28 @@ model KiemKeTep {
   @@index([vesselId])
   @@index([trangThai])
 }
+
+/**
+ * File Word / Excel GỐC của một chuẩn biểu mẫu (FormStandard, nối theo code) và
+ * logo lấy ra từ file đó — để đầu chứng từ PO / RFQ in đúng logo của công ty
+ * thay cho ô chữ lồng. Tách khỏi FormStandard vì bảng đó đồng bộ xuống tàu,
+ * còn tệp nhị phân thì không cần đi theo (bản cài trên tàu dùng chữ lồng).
+ */
+model FormStandardTep {
+  id         Int      @id @default(autoincrement())
+  // Mã chuẩn biểu mẫu (FormStandard.code) — đổi mã thì đổi theo, xóa chuẩn thì xóa theo.
+  code       String   @unique
+  fileName   String
+  mimeType   String
+  size       Int
+  sha256     String
+  data       Bytes
+  logo       Bytes?
+  logoMime   String?
+  logoTen    String?
+  // Các dòng chữ đã đọc được ở đầu chứng từ (để soát lại).
+  dongChu    String?
+  uploadedBy String?
+  uploadedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

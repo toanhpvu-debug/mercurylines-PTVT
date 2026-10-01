@@ -2,7 +2,8 @@ import type { FormStandardInfo } from "@/lib/formStandards";
 import { MercuryMark } from "@/components/MercuryLogo";
 
 // Đầu chứng từ (letterhead) theo biểu mẫu công ty — dùng chung cho PO, RFQ, Service Order.
-// Biểu mẫu MLS dùng logo nhận diện Mercury Lines; biểu mẫu khác dùng huy hiệu chữ lồng.
+// Logo: lấy từ file Word / Excel gốc nếu quản trị đã tải lên (trang Biểu mẫu); không có
+// thì biểu mẫu MLS dùng logo nhận diện Mercury Lines, biểu mẫu khác dùng huy hiệu chữ lồng.
 export default function FormDocHeader({
   standard,
   title,
@@ -19,7 +20,11 @@ export default function FormDocHeader({
     <div>
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          {standard.code === "MLS" ? (
+          {standard.logoUrl ? (
+            // Logo lấy từ file Word / Excel gốc của công ty (trang Biểu mẫu).
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={standard.logoUrl} alt={standard.companyName} className="h-14 w-auto max-w-[180px] shrink-0 object-contain" />
+          ) : standard.code === "MLS" ? (
             <MercuryMark className="h-14 w-auto shrink-0" />
           ) : (
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#0c2a5c] to-[#1d4ed8] text-lg font-black tracking-tight text-white">

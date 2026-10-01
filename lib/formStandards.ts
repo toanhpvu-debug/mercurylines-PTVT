@@ -8,6 +8,8 @@ export type FormStandardInfo = {
   tel?: string | null;
   email?: string | null;
   website?: string | null;
+  /** Logo lấy từ file Word / Excel gốc (FormStandardTep) — có thì đầu chứng từ in logo này. */
+  logoUrl?: string | null;
 };
 
 // Thông tin công ty KHÔNG hardcode trong mã nguồn (repo công khai) — đọc từ biến môi trường

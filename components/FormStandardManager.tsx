@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Ban, Pencil, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 import {
   createFormStandard,
@@ -11,6 +11,7 @@ import {
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Button, Field, Input, Notice } from "@/components/ui";
 import { Modal } from "@/components/ui-client";
+import DocTepBieuMau from "@/components/DocTepBieuMau";
 
 export type FormStandardData = {
   id: number;
@@ -30,8 +31,10 @@ export function FormStandardAddForm() {
     message: "",
   });
   const v = state.values ?? {};
+  const formRef = useRef<HTMLFormElement>(null);
   return (
-    <form action={formAction} className="space-y-3">
+    <form ref={formRef} action={formAction} className="space-y-3">
+      <DocTepBieuMau formRef={formRef} />
       <div className="grid grid-cols-2 gap-3">
         <Field label={t("purchasing.phMaBieuMau")}>
           <Input
@@ -55,7 +58,6 @@ export function FormStandardAddForm() {
           name="companyName"
           placeholder={t("purchasing.tenCongTy")}
           defaultValue={v.companyName ?? ""}
-          required
         />
       </Field>
       <Field label={t("purchasing.diaChi")}>
@@ -63,7 +65,6 @@ export function FormStandardAddForm() {
           name="address"
           placeholder={t("purchasing.diaChi")}
           defaultValue={v.address ?? ""}
-          required
         />
       </Field>
       <Field label={t("purchasing.diaChiVpDaiDien")}>
@@ -111,8 +112,11 @@ export function FormStandardAddForm() {
 // Form sửa/hiệu chỉnh thông tin một biểu mẫu (ADMIN) — mở trong hộp thoại.
 export function FormStandardEditForm({
   standard,
+  tepGoc = null,
 }: {
   standard: FormStandardData;
+  /** Tên file Word / Excel gốc đã lưu (nếu có) — để gỡ. */
+  tepGoc?: string | null;
 }) {
   const { t } = useNgonNgu();
   const [open, setOpen] = useState(false);
@@ -120,6 +124,7 @@ export function FormStandardEditForm({
     message: "",
   });
   const v = state.values ?? {};
+  const formRef = useRef<HTMLFormElement>(null);
   return (
     <>
       <Button
@@ -143,8 +148,15 @@ export function FormStandardEditForm({
           </>
         }
       >
-        <form action={formAction} className="space-y-3">
+        <form ref={formRef} action={formAction} className="space-y-3">
           <input type="hidden" name="id" value={standard.id} />
+          <DocTepBieuMau formRef={formRef} />
+          {tepGoc && (
+            <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+              <input type="checkbox" name="goTepGoc" className="size-4 accent-brand-600" />
+              {t("purchasing.tepGocGo", { ten: tepGoc })}
+            </label>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <Field label={t("purchasing.maBieuMauGhiChu")}>
               <Input

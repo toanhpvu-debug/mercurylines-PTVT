@@ -10,6 +10,7 @@ import {
 import VesselFormStandardRow from "@/components/VesselFormStandardRow";
 import BieuMauTepManager from "@/components/BieuMauTepManager";
 import { MA_BIEU_MAU_CHANG_BUOC, MA_BIEU_MAU_KIEM_KE, MA_BIEU_MAU_THIET_YEU } from "@/lib/bieuMau";
+import { duongDanLogo, thongTinTepBieuMau } from "@/lib/bieuMauTepDb";
 import {
   FormStandardAddForm,
   FormStandardEditForm,
@@ -46,7 +47,7 @@ export default async function VesselFormsPage() {
     uploadedBy: true,
     uploadedAt: true,
   } as const;
-  const [vessels, allStandards, bieuMauTep, bieuMauWord, bieuMauThietYeu] = await Promise.all([
+  const [vessels, allStandards, bieuMauTep, bieuMauWord, bieuMauThietYeu, tepGocTheoMa] = await Promise.all([
     prisma.vessel.findMany({
       where: vesselIdWhere(scope),
       orderBy: { code: "asc" },
@@ -57,6 +58,8 @@ export default async function VesselFormsPage() {
     prisma.bieuMauTep.findUnique({ where: { code: MA_BIEU_MAU_KIEM_KE }, select: chonTep }),
     prisma.bieuMauTep.findUnique({ where: { code: MA_BIEU_MAU_CHANG_BUOC }, select: chonTep }),
     prisma.bieuMauTep.findUnique({ where: { code: MA_BIEU_MAU_THIET_YEU }, select: chonTep }),
+    // File Word / Excel gốc + logo của từng chuẩn biểu mẫu (không kéo dữ liệu nhị phân).
+    thongTinTepBieuMau(),
   ]);
   const activeStandards = allStandards.filter((s) => s.isActive);
   const stdByCode = new Map(allStandards.map((s) => [s.code, s]));
@@ -165,7 +168,16 @@ export default async function VesselFormsPage() {
                 )}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
+                  {(() => {
+                    const logo = duongDanLogo(s.code, tepGocTheoMa.get(s.code));
+                    return logo ? (
+                      <div className="shrink-0 rounded-lg border border-[var(--border-subtle)] bg-white p-1.5">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={logo} alt={s.companyName} className="h-10 w-auto max-w-[120px] object-contain" />
+                      </div>
+                    ) : null;
+                  })()}
+                  <div className="min-w-0 flex-1">
                     <div className="mb-1 flex flex-wrap items-center gap-2">
                       <Badge tone="brand">
                         <span className="font-display text-xs tracking-wide">
@@ -210,6 +222,17 @@ export default async function VesselFormsPage() {
                         .filter(Boolean)
                         .join(" · ")}
                     </p>
+                    {(() => {
+                      const tg = tepGocTheoMa.get(s.code);
+                      return tg ? (
+                        <p className="mt-1 text-xs text-[var(--text-muted)]">
+                          {t("purchasing.tepGocDaLuu", { ten: tg.fileName, kb: Math.max(1, Math.round(tg.size / 1024)), nguoi: tg.uploadedBy ?? "—", luc: ngayGio(tg.uploadedAt) })}{" "}
+                          <a href={`/api/form-standards/${encodeURIComponent(s.code)}/file`} className="font-medium text-[var(--text-brand)] hover:underline">
+                            {t("purchasing.tepGocTai")}
+                          </a>
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                   {canManage && (
                     <div className="flex flex-wrap items-start gap-2">
@@ -225,6 +248,7 @@ export default async function VesselFormsPage() {
                           email: s.email,
                           website: s.website,
                         }}
+                        tepGoc={tepGocTheoMa.get(s.code)?.fileName ?? null}
                       />
                       <FormStandardRowActions id={s.id} isActive={s.isActive} />
                     </div>

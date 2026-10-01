@@ -1761,7 +1761,8 @@ export async function createFormStandard(
   values?: Record<string, string>;
 }> {
   const { t } = await layT();
-  if (!(await requireActiveRole(["ADMIN"]))) {
+  const admin = await requireActiveRole(["ADMIN"]);
+  if (!admin) {
     return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, [
@@ -1774,12 +1775,20 @@ export async function createFormStandard(
     "email",
     "website",
   ]);
+  // File Word / Excel gốc (tùy chọn): ô nào để trống thì lấy từ đầu chứng từ
+  // đọc được trong file; file + logo được lưu kèm chuẩn biểu mẫu.
+  const { tepBieuMauTuForm, luuTepBieuMau } = await import("@/lib/bieuMauTepDb");
+  const tep = await tepBieuMauTuForm(formData);
+  if (tep && "loi" in tep) return { message: tep.loi, values };
+  const tuTep = tep?.trich.truong;
+  const lay = (k: "companyName" | "address" | "repAddress" | "tel" | "email" | "website") =>
+    String(formData.get(k) || "").trim() || tuTep?.[k] || "";
   const code = String(formData.get("code") || "")
     .trim()
     .toUpperCase();
   const label = String(formData.get("label") || "").trim();
-  const companyName = String(formData.get("companyName") || "").trim();
-  const address = String(formData.get("address") || "").trim();
+  const companyName = lay("companyName");
+  const address = lay("address");
   if (!code || !companyName || !address) {
     return {
       message: t("actions.bieuMau_maTenDiaChiBatBuoc"),
@@ -1793,12 +1802,13 @@ export async function createFormStandard(
         label: label || code,
         companyName,
         address,
-        repAddress: String(formData.get("repAddress") || "").trim() || null,
-        tel: String(formData.get("tel") || "").trim() || null,
-        email: String(formData.get("email") || "").trim() || null,
-        website: String(formData.get("website") || "").trim() || null,
+        repAddress: lay("repAddress") || null,
+        tel: lay("tel") || null,
+        email: lay("email") || null,
+        website: lay("website") || null,
       },
     });
+    if (tep) await luuTepBieuMau(code, tep, admin.name);
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -1809,7 +1819,12 @@ export async function createFormStandard(
     throw error;
   }
   revalidatePath("/purchasing/forms");
-  return { message: t("actions.bieuMau_daThem", { ma: code }), success: true };
+  return {
+    message: `${t("actions.bieuMau_daThem", { ma: code })}${
+      tep ? ` ${t(tep.trich.logo ? "actions.bieuMau_daLuuTepVaLogo" : "actions.bieuMau_daLuuTep", { ten: tep.ten })}` : ""
+    }`,
+    success: true,
+  };
 }
 
 // Sửa thông tin một biểu mẫu; nếu đổi mã thì cập nhật luôn các tàu đang gán mã cũ.
@@ -1822,7 +1837,8 @@ export async function updateFormStandard(
   values?: Record<string, string>;
 }> {
   const { t } = await layT();
-  if (!(await requireActiveRole(["ADMIN"]))) {
+  const admin = await requireActiveRole(["ADMIN"]);
+  if (!admin) {
     return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, [
@@ -1835,13 +1851,19 @@ export async function updateFormStandard(
     "email",
     "website",
   ]);
+  const { tepBieuMauTuForm, luuTepBieuMau, goTepBieuMau, doiMaTepBieuMau } = await import("@/lib/bieuMauTepDb");
+  const tep = await tepBieuMauTuForm(formData);
+  if (tep && "loi" in tep) return { message: tep.loi, values };
+  const tuTep = tep?.trich.truong;
+  const lay = (k: "companyName" | "address" | "repAddress" | "tel" | "email" | "website") =>
+    String(formData.get(k) || "").trim() || tuTep?.[k] || "";
   const id = Number(formData.get("id"));
   const code = String(formData.get("code") || "")
     .trim()
     .toUpperCase();
   const label = String(formData.get("label") || "").trim();
-  const companyName = String(formData.get("companyName") || "").trim();
-  const address = String(formData.get("address") || "").trim();
+  const companyName = lay("companyName");
+  const address = lay("address");
   if (!Number.isInteger(id) || id <= 0) {
     return { message: t("chung.duLieuKhongHopLe"), values };
   }
@@ -1861,10 +1883,10 @@ export async function updateFormStandard(
           label: label || code,
           companyName,
           address,
-          repAddress: String(formData.get("repAddress") || "").trim() || null,
-          tel: String(formData.get("tel") || "").trim() || null,
-          email: String(formData.get("email") || "").trim() || null,
-          website: String(formData.get("website") || "").trim() || null,
+          repAddress: lay("repAddress") || null,
+          tel: lay("tel") || null,
+          email: lay("email") || null,
+          website: lay("website") || null,
         },
       });
       if (code !== existing.code) {
@@ -1884,8 +1906,17 @@ export async function updateFormStandard(
     }
     throw error;
   }
+  // File gốc + logo đi theo mã: đổi mã thì chuyển theo; gỡ / thay nếu được yêu cầu.
+  await doiMaTepBieuMau(existing.code, code);
+  if (String(formData.get("goTepGoc") || "") === "on") await goTepBieuMau(code);
+  if (tep) await luuTepBieuMau(code, tep, admin.name);
   revalidatePath("/purchasing/forms");
-  return { message: t("actions.bieuMau_daCapNhat"), success: true };
+  return {
+    message: `${t("actions.bieuMau_daCapNhat")}${
+      tep ? ` ${t(tep.trich.logo ? "actions.bieuMau_daLuuTepVaLogo" : "actions.bieuMau_daLuuTep", { ten: tep.ten })}` : ""
+    }`,
+    success: true,
+  };
 }
 
 export async function setFormStandardActive(
@@ -1951,6 +1982,8 @@ export async function deleteFormStandard(
     };
   }
   await prisma.formStandard.delete({ where: { id } });
+  // File gốc + logo của chuẩn đi theo chuẩn.
+  await prisma.formStandardTep.deleteMany({ where: { code: std.code } });
   // Chuẩn biểu mẫu quyết định đầu chứng từ PO/RFQ gửi ra ngoài cho nhà cung
   // cấp. Xóa mất là mọi tàu đang dùng nó phải chuyển sang chuẩn khác, nên phải
   // biết ai đã bỏ chuẩn nào đi.

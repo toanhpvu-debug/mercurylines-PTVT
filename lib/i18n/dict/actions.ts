@@ -132,6 +132,8 @@ export const actions = tuDien(
     bieuMau_daThem: 'Đã thêm biểu mẫu "{ma}".',
     bieuMau_khongTimThay: "Không tìm thấy biểu mẫu.",
     bieuMau_daCapNhat: "Đã cập nhật biểu mẫu.",
+    bieuMau_daLuuTep: "Đã lưu file gốc {ten}.",
+    bieuMau_daLuuTepVaLogo: "Đã lưu file gốc {ten} và logo lấy từ file — PO / RFQ in logo này.",
     bieuMau_conTauDangDung:
       "Còn {n} tàu đang dùng biểu mẫu này. Hãy chuyển các tàu sang biểu mẫu khác trước.",
     bieuMau_conTauDangDungKhongXoaDuoc:
@@ -383,6 +385,8 @@ export const actions = tuDien(
     bieuMau_daThem: 'Form standard "{ma}" added.',
     bieuMau_khongTimThay: "Form standard not found.",
     bieuMau_daCapNhat: "The form standard has been updated.",
+    bieuMau_daLuuTep: "Original file {ten} saved.",
+    bieuMau_daLuuTepVaLogo: "Original file {ten} and the logo taken from it saved — POs / RFQs print this logo.",
     bieuMau_conTauDangDung:
       "{n} vessels still use this form standard. Move them to another form standard first.",
     bieuMau_conTauDangDungKhongXoaDuoc:

@@ -7,6 +7,8 @@ import {
 import { FileText } from "lucide-react";
 import PrintButton from "@/components/PrintButton";
 import BaoCaoVatTuSua, { type DongBaoCao1101 } from "@/components/BaoCaoVatTuSua";
+import PhuLuc1101, { type DongPhuLuc1101 } from "@/components/PhuLuc1101";
+import { chuoiNgay1101, coSo1101, ghiChu1101, loaiGiaoDich, nhanNguonPO, tongHop1101 } from "@/lib/baoCao1101";
 import { layT } from "@/lib/i18n/server";
 import type { KhoaDich } from "@/lib/i18n/tuDien";
 import {
@@ -87,6 +89,7 @@ export default async function ReportsPage({
   const [inventories, transactions, materials] = await Promise.all([
     prisma.inventory.findMany({
       where: { warehouseId: { in: warehouseIds } },
+      select: { materialId: true, quantity: true },
     }),
     prisma.inventoryTransaction.findMany({
       where: {
@@ -94,8 +97,9 @@ export default async function ReportsPage({
         occurredAt: { gte: monthStart },
       },
       orderBy: { occurredAt: "asc" },
+      select: { id: true, type: true, materialId: true, warehouseId: true, quantity: true, occurredAt: true, note: true, performedBy: true },
     }),
-    // Báo cáo chỉ đọc 8 cột — kéo cả 21 cột của 606 dòng là 243 KB thay vì 68 KB.
+    // Báo cáo chỉ đọc vài cột — kéo cả 21 cột của 606 dòng là 243 KB thay vì 68 KB.
     prisma.material.findMany({
       orderBy: { code: "asc" },
       select: {
@@ -107,79 +111,46 @@ export default async function ReportsPage({
         materialType: true,
         partNumber: true,
         impa: true,
+        minStock: true,
       },
     }),
   ]);
 
-  type Row = {
-    currentQty: number;
-    netAfterMonth: number;
-    received: number;
-    used: number;
-    lastReceivedAt: Date | null;
-    lastUsedAt: Date | null;
-  };
-  const rowsByMaterial = new Map<number, Row>();
-  const getRow = (materialId: number): Row => {
-    let row = rowsByMaterial.get(materialId);
-    if (!row) {
-      row = {
-        currentQty: 0,
-        netAfterMonth: 0,
-        received: 0,
-        used: 0,
-        lastReceivedAt: null,
-        lastUsedAt: null,
-      };
-      rowsByMaterial.set(materialId, row);
-    }
-    return row;
-  };
-  for (const inventory of inventories) {
-    getRow(inventory.materialId).currentQty += inventory.quantity;
+  // Nguồn nhận theo PO: "Nhận hàng PO-…" → kèm tên nhà cung cấp.
+  const giaoDichTrongThang = transactions.filter((g) => g.occurredAt < monthEnd);
+  const soPo = [...new Set(giaoDichTrongThang.map((g) => /^Nhận hàng\s+(\S+)/i.exec(g.note ?? "")?.[1]).filter((x): x is string => Boolean(x)))];
+  // Mặt hàng "mới nhận lần đầu": có nhận trong tháng mà trước tháng chưa từng
+  // có giao dịch nào ở các kho này.
+  const nhanTrongThang = [...new Set(giaoDichTrongThang.filter((g) => loaiGiaoDich(g) === "NHAN").map((g) => g.materialId))];
+  const [donPo, coTruocThang] = await Promise.all([
+    soPo.length
+      ? prisma.purchaseOrder.findMany({ where: { poNo: { in: soPo } }, select: { poNo: true, supplier: { select: { name: true } } } })
+      : Promise.resolve([]),
+    nhanTrongThang.length
+      ? prisma.inventoryTransaction.findMany({
+          where: { warehouseId: { in: warehouseIds }, materialId: { in: nhanTrongThang }, occurredAt: { lt: monthStart } },
+          distinct: ["materialId"],
+          select: { materialId: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const nccTheoPo = new Map(donPo.map((p) => [p.poNo, p.supplier.name]));
+  const daCoTruoc = new Set(coTruocThang.map((g) => g.materialId));
+  const nhanDauTien = new Map<number, Date>();
+  for (const g of giaoDichTrongThang) {
+    if (loaiGiaoDich(g) === "NHAN" && !daCoTruoc.has(g.materialId) && !nhanDauTien.has(g.materialId)) nhanDauTien.set(g.materialId, g.occurredAt);
   }
-  for (const tx of transactions) {
-    const row = getRow(tx.materialId);
-    const signed = tx.type === "IN" ? tx.quantity : -tx.quantity;
-    if (tx.occurredAt >= monthEnd) {
-      row.netAfterMonth += signed;
-    } else {
-      if (tx.type === "IN") {
-        row.received += tx.quantity;
-        row.lastReceivedAt = tx.occurredAt;
-      } else {
-        row.used += tx.quantity;
-        row.lastUsedAt = tx.occurredAt;
-      }
-    }
-  }
-  const materialById = new Map(materials.map((m) => [m.id, m]));
-  const round2 = (n: number) => Math.round(n * 100) / 100;
-  const reportRows = [...rowsByMaterial.entries()]
-    .map(([materialId, row]) => {
-      const material = materialById.get(materialId);
-      const closing = row.currentQty - row.netAfterMonth;
-      const opening = closing - row.received + row.used;
-      return {
-        material,
-        ...row,
-        received: round2(row.received),
-        used: round2(row.used),
-        closing: round2(closing),
-        opening: round2(opening),
-      };
-    })
-    .filter(
-      (row) =>
-        row.material &&
-        (row.opening !== 0 ||
-          row.received !== 0 ||
-          row.used !== 0 ||
-          row.closing !== 0)
-    )
-    .sort((a, b) => (a.material!.code < b.material!.code ? -1 : 1));
+  const nguonCua = (g: { note: string | null }) => nhanNguonPO(g.note, nccTheoPo) ?? g.note;
 
-  const fmtDate = (d: Date | null) => (d ? ngay(d) : "");
+  const tonHienTai = new Map<number, number>();
+  for (const r of inventories) tonHienTai.set(r.materialId, (tonHienTai.get(r.materialId) ?? 0) + r.quantity);
+  const tongHop = tongHop1101({ tonHienTai, giaoDich: transactions, dau: monthStart, cuoi: monthEnd, nhanDauTien, nguonCua });
+
+  const materialById = new Map(materials.map((m) => [m.id, m]));
+  const reportRows = [...tongHop.values()]
+    .filter((d) => materialById.has(d.materialId) && coSo1101(d))
+    .map((d) => ({ d, material: materialById.get(d.materialId)! }))
+    .sort((a, b) => (a.material.code < b.material.code ? -1 : 1));
 
   // Cột "Ký hiệu / Spare part No." trên MLS-11-01 là chỗ ghi SỐ CỦA HÃNG: phụ
   // tùng -> Part No. của nhà sản xuất, vật tư -> mã IMPA. KHÔNG in mã nội bộ
@@ -197,19 +168,43 @@ export default async function ReportsPage({
     return m.materialType === "SPARE" ? partNo || impa : impa || partNo;
   };
   const soChu = (n: number) => (n ? String(n) : "");
-  const dongGoc: DongBaoCao1101[] = reportRows.map((row) => ({
-    id: String(row.material!.id),
-    ten: `${row.material!.nameVn}${row.material!.nameEn ? ` (${row.material!.nameEn})` : ""}`,
-    kyHieu: soHieuHang(row.material!),
-    donVi: row.material!.uom,
-    tonTruoc: String(row.opening),
-    nhan: soChu(row.received),
-    ngayNhan: fmtDate(row.lastReceivedAt),
-    dung: soChu(row.used),
-    ngayDung: fmtDate(row.lastUsedAt),
-    ton: String(row.closing),
-    ghiChu: "",
+  // Ngày nhận / dùng: MỌI ngày trong tháng (trước chỉ hiện lần cuối); Ghi chú tự
+  // điền nguồn nhận, mục đích dùng, điều chỉnh kiểm kê, hàng mới, dưới tối thiểu.
+  const dongGoc: DongBaoCao1101[] = reportRows.map(({ d, material }) => ({
+    id: String(material.id),
+    ten: `${material.nameVn}${material.nameEn ? ` (${material.nameEn})` : ""}`,
+    kyHieu: soHieuHang(material),
+    donVi: material.uom,
+    tonTruoc: String(d.tonDau),
+    nhan: soChu(d.nhan),
+    ngayNhan: chuoiNgay1101(d.ngayNhan),
+    dung: soChu(d.dung),
+    ngayDung: chuoiNgay1101(d.ngayDung),
+    ton: String(d.tonCuoi),
+    ghiChu: ghiChu1101(d, material.minStock),
   }));
+
+  // Phụ lục: từng giao dịch trong tháng (theo thời gian), để đối chiếu từng con số.
+  const khoTheoId = new Map(warehouses.map((w) => [w.id, w.code]));
+  const phuLuc: DongPhuLuc1101[] = giaoDichTrongThang.flatMap((g) => {
+    const m = materialById.get(g.materialId);
+    if (!m) return [];
+    const loai = loaiGiaoDich(g);
+    return [
+      {
+        id: g.id,
+        ngay: ngay(g.occurredAt),
+        ma: m.code,
+        ten: m.nameVn,
+        donVi: m.uom,
+        loai,
+        so: loai === "KIEM_KE" ? (g.type === "IN" ? g.quantity : -g.quantity) : g.quantity,
+        nguon: (loai === "NHAN" ? nguonCua(g) : g.note) ?? "",
+        nguoi: g.performedBy ?? "",
+        kho: khoTheoId.get(g.warehouseId) ?? "",
+      },
+    ];
+  });
 
   return (
     <div className="space-y-5">
@@ -271,6 +266,8 @@ export default async function ReportsPage({
         }}
         dongGoc={dongGoc}
       />
+
+      <PhuLuc1101 dong={phuLuc} tenTau={selectedVessel.name} thang={`${String(monthNum).padStart(2, "0")}/${yearNum}`} />
     </div>
   );
 }

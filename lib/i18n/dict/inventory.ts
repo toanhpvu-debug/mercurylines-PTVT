@@ -79,7 +79,13 @@ export const inventory = tuDien(
 
     // --- Trang Báo cáo nhận và sử dụng vật tư (MLS-11-01) ---
     baoCaoTieuDe: "Báo cáo nhận và sử dụng vật tư",
-    baoCaoMoTa: "Tự động tổng hợp từ giao dịch nhập/xuất kho — mẫu MLS-11-01",
+    baoCaoMoTa:
+      "Tự động tổng hợp từ mọi lần nhập / xuất / kiểm kê trong tháng — mẫu MLS-11-01: đủ các ngày nhận, dùng; Ghi chú tự ghi nguồn nhận (PO, phiếu giao), mục đích dùng, điều chỉnh kiểm kê, hàng mới, hàng dưới tối thiểu.",
+    phuLucTieuDe: "Chi tiết nhập / xuất trong tháng ({n} giao dịch)",
+    phuLucMoTa:
+      "Từng lần nhận, dùng và điều chỉnh kiểm kê theo thời gian — để đối chiếu từng con số trên báo cáo. Điều chỉnh kiểm kê không tính vào cột Nhận / Sử dụng.",
+    inKemPhuLuc: "In kèm bảng chi tiết",
+    phuLucTrong: "Không có giao dịch nào trong tháng.",
     boPhan: "Bộ phận",
     thang: "Tháng",
     xemBaoCao: "Xem báo cáo",
@@ -230,7 +236,12 @@ export const inventory = tuDien(
 
     baoCaoTieuDe: "Materials receiving and using report",
     baoCaoMoTa:
-      "Compiled automatically from warehouse receipts and issues — form MLS-11-01",
+      "Compiled automatically from every receipt, issue and stock-take of the month — form MLS-11-01: all receiving and using dates; Remarks filled with receipt source (PO, delivery note), purpose of use, stock-take adjustments, new items and items below minimum.",
+    phuLucTieuDe: "Transactions of the month ({n})",
+    phuLucMoTa:
+      "Every receipt, issue and stock-take adjustment in time order — to reconcile each figure on the report. Stock-take adjustments are not counted as Received / Used.",
+    inKemPhuLuc: "Print with the detail table",
+    phuLucTrong: "No transaction in this month.",
     boPhan: "Department",
     thang: "Month",
     xemBaoCao: "View report",

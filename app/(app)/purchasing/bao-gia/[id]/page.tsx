@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Download, ExternalLink } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser, trongPhamVi, vesselScopeDayDu } from "@/lib/auth";
-import { LAP_DON_MUA } from "@/lib/donMuaQuyTrinh";
+import { LAP_DON_MUA, QUAN_LY_NCC } from "@/lib/donMuaQuyTrinh";
 import { docDongBaoGia } from "@/lib/baoGia";
 import { dangDocAi } from "@/lib/phieuGiao";
 import { layT } from "@/lib/i18n/server";
@@ -104,7 +104,7 @@ export default async function BaoGiaChiTietPage({ params }: { params: Promise<{ 
               poNhap={poNhap.map((p) => ({ id: p.id, poNo: p.poNo }))}
               poItems={poItems}
               coSua={coSua}
-              laAdmin={user.role === "ADMIN"}
+              laAdmin={QUAN_LY_NCC.includes(user.role)}
             />
           </Card>
           {bg.loaiTep === "PDF" && (

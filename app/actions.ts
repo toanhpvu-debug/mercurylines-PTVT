@@ -60,7 +60,7 @@ import {
 import ExcelJS from "exceljs";
 import { BIEU_MAU_TEP, MAX_BIEU_MAU_BYTES } from "@/lib/bieuMau";
 import { sinhSoDonMua } from "@/lib/soDonMua";
-import { PO_DUOC_TU } from "@/lib/donMuaQuyTrinh";
+import { LAP_DON_MUA, NHAN_HANG_PO, PO_DUOC_TU, QUAN_LY_NCC, VAI_TRO_DUYET_PO } from "@/lib/donMuaQuyTrinh";
 import type { HamDich } from "@/lib/i18n";
 import { layT } from "@/lib/i18n/server";
 
@@ -1941,7 +1941,7 @@ export async function createSupplier(
   values?: Record<string, string>;
 }> {
   const { t } = await layT();
-  if (!(await requireActiveRole(["ADMIN"]))) {
+  if (!(await requireActiveRole([...QUAN_LY_NCC]))) {
     return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, [
@@ -1986,7 +1986,7 @@ export async function setSupplierActive(
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
   const { t } = await layT();
-  if (!(await requireActiveRole(["ADMIN"]))) {
+  if (!(await requireActiveRole([...QUAN_LY_NCC]))) {
     return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
@@ -2009,7 +2009,7 @@ export async function updateSupplier(
   values?: Record<string, string>;
 }> {
   const { t } = await layT();
-  if (!(await requireActiveRole(["ADMIN"]))) {
+  if (!(await requireActiveRole([...QUAN_LY_NCC]))) {
     return { message: t("chung.khongCoQuyen") };
   }
   const values = formValues(formData, [
@@ -2262,7 +2262,7 @@ export async function createDirectPurchaseOrder(
   formData: FormData
 ): Promise<{ message: string }> {
   const { t } = await layT();
-  const actor = await requireActiveRole(["ADMIN", "MASTER"]);
+  const actor = await requireActiveRole([...LAP_DON_MUA]);
   if (!actor) {
     return { message: t("chung.khongCoQuyen") };
   }
@@ -2426,7 +2426,7 @@ export async function createPurchaseOrder(
   formData: FormData
 ): Promise<{ message: string }> {
   const { t } = await layT();
-  const actor = await requireActiveRole(["ADMIN", "MASTER"]);
+  const actor = await requireActiveRole([...LAP_DON_MUA]);
   if (!actor) {
     return { message: t("chung.khongCoQuyen") };
   }
@@ -2631,7 +2631,7 @@ export async function updatePurchaseOrderStatus(
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
   const { t } = await layT();
-  const actor = await requireActiveRole(["ADMIN", "MASTER"]);
+  const actor = await requireActiveRole([...LAP_DON_MUA]);
   if (!actor) {
     return { message: t("chung.khongCoQuyen") };
   }
@@ -2667,7 +2667,7 @@ export async function receivePurchaseOrder(
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
   const { t } = await layT();
-  const actor = await requireActiveRole(["ADMIN", "MASTER"]);
+  const actor = await requireActiveRole([...NHAN_HANG_PO]);
   if (!actor) {
     return { message: t("chung.khongCoQuyen") };
   }
@@ -3487,6 +3487,9 @@ export async function updateUserRole(
       role,
       vesselId: vesselResult.vesselId,
       rankCode: chucDanh.rankCode,
+      // Đổi sang vai trò không được duyệt PO (chuyên viên mua sắm, chức danh
+      // trên tàu) thì bỏ luôn chỉ định lãnh đạo phòng KT-VT.
+      ...(VAI_TRO_DUYET_PO.includes(role) ? {} : { duyetDonMua: false }),
     },
   });
   // Ghi thẳng bằng ghiNhatKy — xem lý do ở createUser. Ở đây còn dễ sai hơn:

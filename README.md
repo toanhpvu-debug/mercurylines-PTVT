@@ -656,7 +656,8 @@ App yêu cầu đăng nhập (session cookie ký JWT, hạn 7 ngày). Tài kho�
 | Chức danh | Vai trò trong hệ thống | Phạm vi | Quyền |
 |---|---|---|---|
 | Quản trị hệ thống | `ADMIN` | Toàn đội | Toàn quyền + quản lý người dùng (trang **Người dùng**: tạo tài khoản, đổi chức danh, gán tàu, khóa/mở khóa) |
-| Quản lý kỹ thuật | `TECH_MANAGER` | Toàn đội (văn phòng) | **Duyệt cấp công ty** các yêu cầu tàu đã duyệt, xem toàn đội |
+| Quản lý kỹ thuật | `TECH_MANAGER` | Toàn đội (văn phòng) | **Duyệt cấp công ty** các yêu cầu tàu đã duyệt, xem toàn đội; duyệt PO khi được quản trị chỉ định là lãnh đạo phòng KT-VT (hoặc được lãnh đạo ủy quyền) |
+| Chuyên viên mua sắm | `PURCHASER` | Toàn đội (văn phòng) | Nhập báo giá, **lập / sửa / trình PO**, gửi NCC, ghi NCC xác nhận, quản lý nhà cung cấp. Không duyệt PO (xem *Kiểm soát duyệt PO*) |
 | Thuyền trưởng | `MASTER` | Tàu mình (hoặc toàn đội nếu không gán tàu) | **Duyệt cấp tàu mọi bộ phận**, nhập/xuất kho, danh mục tàu |
 | Máy trưởng | `CHIEF_ENGINEER` | Tàu mình | **Duyệt cấp tàu bộ phận Máy/Điện**, nhập/xuất kho, danh mục tàu |
 | Đại phó | `CHIEF_OFFICER` | Tàu mình | Lập và trình yêu cầu vật tư; **quản lý sơn của tàu** (nhập/xuất sơn, khu vực, sơ đồ, nhật ký thi công) và gửi yêu cầu cấp sơn. Không duyệt |
@@ -1659,12 +1660,11 @@ phí vận chuyển, phí giao lên tàu. PDF gốc hiện cạnh bảng trên m
 Đầu PO nhận NCC, loại tiền, Y/ref = số báo giá, chiết khấu và phí. PO nháp vẫn sửa tay được
 (*Sửa đơn (nháp)* trên trang PO).
 
-**4. Duyệt.** Người lập (quản trị, thuyền trưởng) bấm *Trình duyệt* — mọi dòng phải có đơn giá.
-Người duyệt là **lãnh đạo phòng Kỹ thuật – Vật tư**: trong app là vai trò *Quản lý kỹ thuật*
-(TECH_MANAGER) và quản trị. Danh sách *Đơn chờ duyệt* nằm đầu trang Mua sắm. *Duyệt đơn* (ghi
-chú tùy chọn) hoặc *Trả lại* (bắt buộc ghi lý do, đơn về Nháp). Không ai tự duyệt đơn mình
-trình, trừ quản trị (ghi rõ trong nhật ký). Đang chờ duyệt thì đơn khóa sửa; người lập *Rút lại*
-được để sửa tiếp.
+**4. Duyệt.** Người lập (chuyên viên mua sắm, quản trị, thuyền trưởng) bấm *Trình duyệt* — mọi
+dòng phải có đơn giá. Người duyệt là **lãnh đạo phòng Kỹ thuật – Vật tư** do quản trị chỉ định,
+hoặc người được lãnh đạo ủy quyền — xem *Kiểm soát duyệt PO* bên dưới. *Duyệt đơn* (ghi chú tùy
+chọn) hoặc *Trả lại* (bắt buộc ghi lý do, đơn về Nháp). Đang chờ duyệt thì đơn khóa sửa; người
+lập *Rút lại* được để sửa tiếp.
 
 **5. In / xuất và gửi NCC.** *In* (bản in PO theo biểu mẫu tàu, khối chữ ký Prepared / Approved /
 Supplier confirmation) hoặc *Xuất Excel PO* (logo + đầu chứng từ của biểu mẫu, bảng có công
@@ -1677,7 +1677,44 @@ lại (PDF, ảnh, Word, Excel). File nằm ở mục *Chứng từ kèm theo* c
 
 Báo giá và file kèm PO **không đồng bộ** giữa các bản cài (chỉ đơn mua đồng bộ). Kiểm ở
 `scripts/kiem-tra-bao-gia.ts` (đọc bảng EN/VN, file Excel / Word, ghép dòng, chuyển trạng thái,
-quyền duyệt, file Excel PO, database cuộn ngược).
+file Excel PO, database cuộn ngược).
+
+### Chuyên viên mua sắm và Kiểm soát duyệt PO (`/purchasing/duyet`)
+
+**Chuyên viên mua sắm** (vai trò `PURCHASER`, tài khoản văn phòng, toàn đội tàu): nhập báo giá,
+lập / sửa PO, trình duyệt, gửi NCC, ghi NCC xác nhận, thêm / sửa / ngừng dùng nhà cung cấp.
+**Không** duyệt PO, không nhận hàng vào kho tàu (việc của tàu), không xóa nhà cung cấp.
+
+**Ai duyệt PO** — chỉ hai nhóm, kể cả quản lý kỹ thuật khác cũng không:
+
+1. **Lãnh đạo phòng Kỹ thuật – Vật tư**: quản trị chỉ định trong mục *Kiểm soát duyệt PO* (thẻ
+   *Lãnh đạo phòng Kỹ thuật – Vật tư*), chọn trong các tài khoản Quản lý kỹ thuật / quản trị.
+   Chỉ định được nhiều người (trưởng phòng, phó phòng).
+2. **Người được lãnh đạo ủy quyền**: lãnh đạo đi công tác / nghỉ phép lập *Ủy quyền duyệt PO*
+   (người nhận, từ ngày – đến hết ngày, lý do; tối đa một năm; quản trị lập hộ được). Ủy quyền
+   này **chỉ** cho duyệt PO, không mở thêm quyền nào khác (khác ủy quyền chung ở trang Người
+   dùng — cái đó cho mượn toàn bộ thẩm quyền, kể cả duyệt PO nếu người giao là lãnh đạo). PO
+   duyệt theo ủy quyền ghi *"Trần B (ký thay Nguyễn A)"* trên bản in, Excel và lịch sử. Thu hồi
+   trước hạn được; bỏ chỉ định hay khóa tài khoản lãnh đạo thì ủy quyền của họ thôi tác dụng ngay.
+
+Không giao ủy quyền duyệt PO cho chuyên viên mua sắm hay chức danh trên tàu — người lập không
+duyệt. Không ai duyệt PO do chính mình trình; người ký thay cũng không duyệt PO do chính lãnh đạo
+đã ủy quyền trình. Ngoại lệ duy nhất: quản trị duyệt được PO mình trình (công ty ít người), có ghi
+trong nhật ký. Khi **chưa chỉ định lãnh đạo nào**, quản trị tạm duyệt để PO không kẹt (trang báo
+rõ điều này).
+
+Mục **Kiểm soát duyệt PO** (menu *Yêu cầu & mua sắm*, kèm số PO đang chờ với người duyệt):
+
+- Thẻ số: chờ duyệt (kèm tổng tiền theo loại tiền), chờ quá 48 giờ, đã duyệt / trả lại 30 ngày.
+- *PO chờ duyệt*: đơn chờ lâu nhất lên đầu, tàu, NCC, tổng tiền, người trình, đã chờ bao lâu,
+  link báo giá; **Duyệt / Trả lại ngay trên dòng** (trả lại phải ghi lý do), hoặc mở PO xem kỹ.
+- *Lịch sử duyệt*: mỗi lần trình / rút lại / duyệt / trả lại một dòng, không sửa không xóa — ai,
+  ký thay ai, lúc nào, tổng tiền lúc đó, ghi chú. Trang PO cũng có mục *Lịch sử trình / duyệt*.
+- *Lãnh đạo phòng KT-VT* và *Ủy quyền duyệt PO* như trên.
+
+Người duyệt PO xem / duyệt PO của **mọi tàu** dù tài khoản quản lý kỹ thuật của họ chỉ được phân
+công vài tàu. Lịch sử duyệt không đồng bộ giữa các bản cài (duyệt diễn ra ở văn phòng); kết quả
+duyệt đi theo đơn mua. Kiểm ở `scripts/kiem-tra-duyet-po.ts`.
 
 ### Tạo IFQ / PO trực tiếp từ Phòng Kỹ thuật – Vật tư (`/purchasing/direct`)
 

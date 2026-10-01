@@ -28,6 +28,7 @@ export {
 } from "@/lib/roles";
 
 import {
+  phanLoaiUyQuyen,
   trongPhamVi,
   vesselScopeDayDu,
   type VesselScope,
@@ -88,6 +89,7 @@ async function quyenDong(userId: number) {
             role: true,
             vesselId: true,
             isActive: true,
+            duyetDonMua: true,
             fleetAssignments: { select: { vesselId: true } },
           },
         },
@@ -98,18 +100,9 @@ async function quyenDong(userId: number) {
     fleetVesselIds: phanCong.map((x) => x.vesselId),
     // Người ủy quyền bị khóa tài khoản thì quyền mượn từ họ cũng hết hiệu lực:
     // khóa một người mà quyền của họ vẫn chạy qua tay người khác là khóa hụt.
-    uyQuyen: uyQuyen
-      .filter((u) => u.delegator.isActive)
-      .map((u) => ({
-        delegatorId: u.delegator.id,
-        delegatorName: u.delegator.name,
-        delegatorRole: u.delegator.role,
-        delegatorVesselId: u.delegator.vesselId,
-        delegatorFleetVesselIds: u.delegator.fleetAssignments.map(
-          (x) => x.vesselId
-        ),
-        endAt: u.endAt,
-      })),
+    // Chỉ ủy quyền TOÀN BỘ mới cho mượn vai trò; ủy quyền "chỉ duyệt PO" đi
+    // riêng ở duyetPoTu, và bỏ chỉ định lãnh đạo là nó thôi tác dụng ngay.
+    ...phanLoaiUyQuyen(uyQuyen),
   };
 }
 

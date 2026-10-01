@@ -12,6 +12,7 @@ export const labels = tuDien(
   {
     role_ADMIN: "Quản trị hệ thống",
     role_TECH_MANAGER: "Quản lý kỹ thuật (công ty)",
+    role_PURCHASER: "Chuyên viên mua sắm",
     role_MASTER: "Thuyền trưởng",
     role_CHIEF_OFFICER: "Đại phó",
     role_SECOND_OFFICER: "Phó 2",
@@ -80,6 +81,7 @@ export const labels = tuDien(
   {
     role_ADMIN: "Administrator",
     role_TECH_MANAGER: "Technical Manager (office)",
+    role_PURCHASER: "Purchasing Officer",
     role_MASTER: "Master",
     role_CHIEF_OFFICER: "Chief Officer",
     role_SECOND_OFFICER: "2nd Officer",

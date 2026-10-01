@@ -37,7 +37,7 @@ export default async function VesselFormsPage() {
   const { t, ngayGio } = await layT();
   const scope = vesselScopeDayDu(user);
   const canManage = user.role === "ADMIN";
-  if (!["ADMIN", "MASTER"].includes(user.role)) {
+  if (!["ADMIN", "MASTER", "PURCHASER"].includes(user.role)) {
     redirect("/purchasing");
   }
   const chonTep = {

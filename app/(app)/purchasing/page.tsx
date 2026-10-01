@@ -18,7 +18,8 @@ import {
   vesselWhere,
 } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
-import { DUYET_DON_MUA, LAP_DON_MUA, tongDonMua } from "@/lib/donMuaQuyTrinh";
+import { LAP_DON_MUA, coQuyenDuyetPo, tongDonMua } from "@/lib/donMuaQuyTrinh";
+import { coLanhDaoDuyetPo, phamViDonMua } from "@/lib/duyetPoServer";
 import {
   Badge,
   Card,
@@ -53,7 +54,10 @@ export default async function PurchasingPage() {
   const { t, tTuDo, so } = await layT();
   const scope = vesselScopeDayDu(user);
   const canManage = LAP_DON_MUA.includes(user.role);
-  const laNguoiDuyet = DUYET_DON_MUA.includes(user.role);
+  const coLanhDao = await coLanhDaoDuyetPo();
+  const laNguoiDuyet = coQuyenDuyetPo(user, coLanhDao);
+  // Đơn mua: người duyệt PO (lãnh đạo phòng KT-VT / được ủy quyền) thấy mọi tàu.
+  const scopePo = phamViDonMua(user, coLanhDao);
   // Xóa chứng từ mua sắm chỉ dành cho quản trị viên.
   const canDeletePo = user.role === "ADMIN";
 
@@ -67,7 +71,7 @@ export default async function PurchasingPage() {
       },
     }),
     prisma.purchaseOrder.findMany({
-      where: vesselWhere(scope),
+      where: vesselWhere(scopePo),
       orderBy: { createdAt: "desc" },
       include: {
         supplier: { select: { name: true } },
@@ -131,6 +135,12 @@ export default async function PurchasingPage() {
                 icon={<ShieldCheck className="size-4" />}
                 title={t("purchasing.donChoDuyet", { n: purchaseOrders.filter((po) => po.status === "PENDING_APPROVAL").length })}
                 subtitle={laNguoiDuyet ? t("purchasing.donChoDuyetMoTa") : t("purchasing.donChoDuyetMoTaLap")}
+                action={
+                  <Link href="/purchasing/duyet" className={buttonClass(laNguoiDuyet ? "primary" : "secondary", "sm")}>
+                    <ShieldCheck className="size-4" />
+                    {t("purchasing.moKiemSoatDuyet")}
+                  </Link>
+                }
               />
               <ul className="space-y-1.5 text-sm">
                 {purchaseOrders

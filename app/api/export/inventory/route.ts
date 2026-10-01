@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   // máy 2/3/4 đều TẢI LÊN / xem được ở giao diện, và quản lý kỹ thuật là người
   // soát chứng từ toàn đội. Chống xem chéo tàu vẫn do trongPhamVi() lo.
   const { t } = await layT();
-  const user = await requireActiveRole([...LAP_YEU_CAU, "TECH_MANAGER"]);
+  const user = await requireActiveRole([...LAP_YEU_CAU, "TECH_MANAGER", "PURCHASER"]);
   if (!user) {
     return NextResponse.json(
       { error: t("actionsModule.chuaDangNhap") },

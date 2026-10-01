@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireActiveRole } from "@/lib/auth";
-import { ROLES, trongPhamVi, vesselScopeDayDu } from "@/lib/roles";
+import { ROLES, trongPhamVi } from "@/lib/roles";
+import { coLanhDaoDuyetPo, phamViDonMua } from "@/lib/duyetPoServer";
 import { getStandardForVessel } from "@/lib/formStandardsDb";
 import { LOGO_MERCURY_LINES_PNG_BASE64 } from "@/lib/logoMercuryLinesPng";
 import { daDuyet } from "@/lib/donMuaQuyTrinh";
@@ -25,7 +26,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     where: { id },
     include: { supplier: true, vessel: true, items: { orderBy: { id: "asc" } } },
   });
-  if (!po || !trongPhamVi(vesselScopeDayDu(actor), po.vesselId)) return new Response("Not found", { status: 404 });
+  if (!po || !trongPhamVi(phamViDonMua(actor, await coLanhDaoDuyetPo()), po.vesselId)) return new Response("Not found", { status: 404 });
   const chuan = await getStandardForVessel(po.vessel.formStandard);
   // Logo: logo lấy từ file gốc của chuẩn biểu mẫu; chuẩn MLS không có thì logo Mercury Lines.
   const tep = await prisma.formStandardTep.findUnique({ where: { code: chuan.code }, select: { logo: true, logoMime: true } });

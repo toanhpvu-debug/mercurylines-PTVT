@@ -163,6 +163,8 @@ export const vessels = tuDien(
     roleDesc_ADMIN: "Toàn quyền trên toàn đội tàu, kể cả quản lý tài khoản.",
     roleDesc_TECH_MANAGER:
       "Văn phòng: duyệt cấp công ty các yêu cầu tàu đã duyệt, xem toàn đội.",
+    roleDesc_PURCHASER:
+      "Văn phòng: nhập báo giá, lập / sửa PO, trình lãnh đạo phòng KT-VT duyệt, gửi NCC, ghi NCC xác nhận, quản lý nhà cung cấp. Không duyệt PO.",
     roleDesc_MASTER:
       "Trên tàu: duyệt cấp tàu MỌI bộ phận, nhập xuất kho, danh mục tàu.",
     roleDesc_CHIEF_ENGINEER:
@@ -420,6 +422,8 @@ export const vessels = tuDien(
       "Full rights across the whole fleet, including account management.",
     roleDesc_TECH_MANAGER:
       "Office: gives office approval to requests the vessel has approved, sees the whole fleet.",
+    roleDesc_PURCHASER:
+      "Office: imports quotations, prepares / edits POs, submits them to the Technical & Purchasing department head, sends them to suppliers, records supplier confirmation, manages suppliers. Cannot approve POs.",
     roleDesc_MASTER:
       "On board: vessel approval for EVERY department, warehouse receipts and issues, vessel catalogue.",
     roleDesc_CHIEF_ENGINEER:

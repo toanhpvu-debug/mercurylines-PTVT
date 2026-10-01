@@ -7,6 +7,8 @@ import { COOKIE_CHU_DE, docChuDe } from "@/lib/chuDe";
 import { layT } from "@/lib/i18n/server";
 import { prisma } from "@/lib/prisma";
 import { vesselScopeDayDu } from "@/lib/roles";
+import { XEM_KIEM_SOAT_PO, tuCachDuyetPo } from "@/lib/donMuaQuyTrinh";
+import { coLanhDaoDuyetPo } from "@/lib/duyetPoServer";
 
 export default async function AppLayout({
   children,
@@ -26,6 +28,12 @@ export default async function AppLayout({
     }),
     cookies(),
   ]);
+
+  // Mục Kiểm soát duyệt PO: văn phòng (xem) và người có quyền duyệt; người duyệt
+  // thấy số PO đang chờ ngay trên menu (một truy vấn đếm, có chỉ mục status).
+  const coDuyetPo = tuCachDuyetPo(user, await coLanhDaoDuyetPo()).length > 0;
+  const hienKiemSoatPo = coDuyetPo || XEM_KIEM_SOAT_PO.includes(user.role);
+  const soPoChoDuyet = coDuyetPo ? await prisma.purchaseOrder.count({ where: { status: "PENDING_APPROVAL" } }) : 0;
 
   // Menu chia nhóm theo cách người trên tàu nghĩ về công việc, không theo thứ
   // tự trang được viết ra. Nhãn dịch ở đây (server) rồi trao xuống vỏ client;
@@ -47,6 +55,9 @@ export default async function AppLayout({
       items: [
         { href: "/requests", label: t("menu.yeuCau"), icon: "requests" },
         { href: "/purchasing", label: t("menu.muaSam"), icon: "purchasing" },
+        ...(hienKiemSoatPo
+          ? [{ href: "/purchasing/duyet", label: t("menu.kiemSoatDuyetPo"), icon: "duyetPo" as const, soDem: soPoChoDuyet }]
+          : []),
         { href: "/reports", label: t("menu.baoCao"), icon: "reports" },
       ],
     },

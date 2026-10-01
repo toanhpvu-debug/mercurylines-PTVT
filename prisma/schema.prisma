@@ -23,6 +23,10 @@ model User {
   // Để trống thì hệ thống tự suy từ `role` (máy hai → 2E, đại phó → CO...).
   rankCode            String?
   isActive            Boolean           @default(true)
+  // Lãnh đạo phòng Kỹ thuật – Vật tư: người DUYỆT đơn mua (PO), do quản trị chỉ
+  // định ở mục Kiểm soát duyệt PO. Không gắn vào `role` vì phòng có nhiều quản
+  // lý kỹ thuật mà chỉ lãnh đạo phòng (và người họ ủy quyền) mới duyệt PO.
+  duyetDonMua         Boolean           @default(false)
   vesselId            Int?
   vessel              Vessel?           @relation(fields: [vesselId], references: [id], onDelete: SetNull)
   documents           ReportDocument[]
@@ -414,6 +418,8 @@ model PurchaseOrder {
   deliveryFee     Float               @default(0)
   createdBy       String
   // Trình duyệt → lãnh đạo phòng Kỹ thuật – Vật tư duyệt (PENDING_APPROVAL → APPROVED).
+  // approvedBy ghi cả "ký thay" khi người duyệt là người được ủy quyền. Từng
+  // lần trình / duyệt / trả lại nằm ở LichSuDuyetPo.
   submittedBy         String?
   submittedAt         DateTime?
   approvedBy          String?
@@ -840,6 +846,10 @@ model Delegation {
   startAt     DateTime
   endAt       DateTime
   reason      String?
+  // Phạm vi: null = mượn TOÀN BỘ thẩm quyền của người giao (như trước);
+  // "DUYET_PO" = CHỈ được duyệt đơn mua thay lãnh đạo phòng KT-VT, không mượn
+  // vai trò nên không mở thêm cửa nào khác.
+  phamVi      String?
   revokedAt   DateTime?
   createdById Int?
   createdAt   DateTime  @default(now())
@@ -1173,6 +1183,30 @@ model BaoGiaNcc {
 }
 
 /** File đính kèm đơn mua (VD bản PO nhà cung cấp ký xác nhận gửi lại). Không đồng bộ. */
+// Lịch sử trình / duyệt / trả lại / rút lại của đơn mua — mỗi lần một dòng, không
+// sửa không xóa. Trả lời được "ai duyệt PO này, ký thay ai, lúc nào, tổng bao
+// nhiêu". Không khóa ngoại tới PurchaseOrder (bảng đó đồng bộ giữa các bản cài);
+// không đồng bộ: duyệt diễn ra ở bản cài văn phòng.
+model LichSuDuyetPo {
+  id        Int      @id @default(autoincrement())
+  poId      Int
+  poNo      String
+  // TRINH · RUT_LAI · DUYET · TRA_LAI
+  hanhDong  String
+  nguoiId   Int?
+  nguoi     String
+  // Người được ký thay (lãnh đạo phòng đã ủy quyền), nếu có.
+  kyThayId  Int?
+  kyThay    String?
+  ghiChu    String?
+  tong      Float    @default(0)
+  tienTe    String   @default("USD")
+  createdAt DateTime @default(now())
+
+  @@index([poId])
+  @@index([createdAt])
+}
+
 model TepDonMua {
   id         Int      @id @default(autoincrement())
   poId       Int

@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   Download,
   FileInput,
+  History,
   FileText,
   ListChecks,
   Mail,
@@ -15,11 +16,8 @@ import {
   X,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import {
-  requireScopedUser,
-  trongPhamVi,
-  vesselScopeDayDu,
-} from "@/lib/auth";
+import { requireScopedUser, trongPhamVi } from "@/lib/auth";
+import { coLanhDaoDuyetPo, nguoiTrinhId, phamViDonMua } from "@/lib/duyetPoServer";
 import { getStandardForVessel } from "@/lib/formStandardsDb";
 import FormDocHeader from "@/components/FormDocHeader";
 import PrintButton from "@/components/PrintButton";
@@ -31,7 +29,7 @@ import {
 import { layT } from "@/lib/i18n/server";
 import SuaDonMuaForm from "@/components/SuaDonMuaForm";
 import { DuyetDonMuaForm, RutLaiButton, TrinhDuyetButton, XacNhanNccForm } from "@/components/DonMuaQuyTrinh";
-import { DUYET_DON_MUA, LAP_DON_MUA, daDuyet, thuGuiNcc, tongDonMua } from "@/lib/donMuaQuyTrinh";
+import { LAP_DON_MUA, NHAN_HANG_PO, daDuyet, duocDuyet, thuGuiNcc, tongDonMua } from "@/lib/donMuaQuyTrinh";
 import {
   Badge,
   Card,
@@ -55,9 +53,10 @@ export default async function PurchaseOrderDetailPage({
   const skippedRows = Number(skippedRaw);
   const user = await requireScopedUser();
   const { t, tTuDo, ngayGio } = await layT();
-  const scope = vesselScopeDayDu(user);
+  const coLanhDao = await coLanhDaoDuyetPo();
+  // Lãnh đạo phòng KT-VT / người được ủy quyền duyệt PO của mọi tàu.
+  const scope = phamViDonMua(user, coLanhDao);
   const canManage = LAP_DON_MUA.includes(user.role);
-  const laNguoiDuyet = DUYET_DON_MUA.includes(user.role);
   const { id: idRaw } = await params;
   const id = Number(idRaw);
   if (!Number.isInteger(id) || id <= 0) {
@@ -80,7 +79,10 @@ export default async function PurchaseOrderDetailPage({
   if (!trongPhamVi(scope, po.vesselId)) {
     notFound();
   }
-  const [warehouses, suppliers, baoGiaGan, tepDinhKem] = await Promise.all([
+  const ktDuyet = duocDuyet(user, { ...po, submittedById: await nguoiTrinhId(po) }, coLanhDao);
+  const laNguoiDuyet = ktDuyet.ok;
+  const tuDuyet = !ktDuyet.ok && ktDuyet.lyDo === "tuDuyet";
+  const [warehouses, suppliers, baoGiaGan, tepDinhKem, lichSuDuyet] = await Promise.all([
     prisma.warehouse.findMany({
       where: { vesselId: po.vesselId },
       orderBy: { code: "asc" },
@@ -89,6 +91,7 @@ export default async function PurchaseOrderDetailPage({
     prisma.supplier.findMany({ where: { OR: [{ isActive: true }, { id: po.supplierId }] }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.baoGiaNcc.findMany({ where: { poId: po.id }, orderBy: { createdAt: "desc" }, select: { id: true, fileName: true, soBaoGia: true, createdAt: true } }),
     prisma.tepDonMua.findMany({ where: { poId: po.id }, orderBy: { createdAt: "desc" }, select: { id: true, fileName: true, loai: true, nguoiTai: true, createdAt: true } }),
+    prisma.lichSuDuyetPo.findMany({ where: { poId: po.id }, orderBy: { id: "asc" }, take: 50 }),
   ]);
 
   const standard = await getStandardForVessel(po.vessel.formStandard);
@@ -115,8 +118,9 @@ export default async function PurchaseOrderDetailPage({
   const [baoGiaCapNhat, baoGiaThem] = (baoGiaRaw ?? "").split("-").map(Number);
   const money = (n: number) =>
     n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Nhận hàng vào kho tàu: quản trị / thuyền trưởng (không phải chuyên viên mua sắm).
   const canReceive =
-    canManage &&
+    NHAN_HANG_PO.includes(user.role) &&
     ["SENT", "CONFIRMED", "PARTIALLY_RECEIVED"].includes(po.status);
   const orderDateStr = (po.orderDate ?? po.createdAt).toLocaleDateString(
     "vi-VN"
@@ -192,7 +196,15 @@ export default async function PurchaseOrderDetailPage({
       )}
       {po.status === "PENDING_APPROVAL" && (
         <Notice tone="info" className="no-print">
-          {t("purchasing.dangChoDuyet", { nguoi: po.submittedBy ?? "—", luc: po.submittedAt ? ngayGio(po.submittedAt) : "—" })}
+          {t("purchasing.dangChoDuyet", { nguoi: po.submittedBy ?? "—", luc: po.submittedAt ? ngayGio(po.submittedAt) : "—" })}{" "}
+          <Link href="/purchasing/duyet" className="font-medium underline">
+            {t("purchasing.moKiemSoatDuyet")}
+          </Link>
+        </Notice>
+      )}
+      {po.status === "PENDING_APPROVAL" && tuDuyet && (
+        <Notice tone="warning" className="no-print">
+          {t("purchasing.khongTuDuyet")}
         </Notice>
       )}
       {daQuaDuyet && po.approvedBy && (
@@ -484,7 +496,7 @@ export default async function PurchaseOrderDetailPage({
       </div>
 
       {/* Điều khiển quy trình */}
-      {(canManage || laNguoiDuyet) && po.status !== "CANCELLED" && po.status !== "CLOSED" && (
+      {(canManage || laNguoiDuyet || canReceive) && po.status !== "CANCELLED" && po.status !== "CLOSED" && (
         <Card className="no-print">
           <CardHeader
             icon={<ListChecks className="size-4" />}
@@ -492,7 +504,18 @@ export default async function PurchaseOrderDetailPage({
           />
           <div className="flex flex-wrap items-center gap-2">
             {canManage && po.status === "DRAFT" && <TrinhDuyetButton poId={po.id} />}
-            {po.status === "PENDING_APPROVAL" && laNguoiDuyet && <DuyetDonMuaForm poId={po.id} />}
+            {ktDuyet.ok && (
+              <div className="w-full space-y-1">
+                <p className="text-xs text-[var(--text-muted)]">
+                  {ktDuyet.kyThay
+                    ? t("purchasing.duyetKyThay", { ten: ktDuyet.kyThay.name })
+                    : ktDuyet.tamThoi
+                      ? t("purchasing.duyetTamThoi")
+                      : t("purchasing.duyetLanhDao")}
+                </p>
+                <DuyetDonMuaForm poId={po.id} />
+              </div>
+            )}
             {po.status === "PENDING_APPROVAL" && canManage && (!laNguoiDuyet || po.submittedBy === user.name) && <RutLaiButton poId={po.id} />}
             {canManage && po.status === "APPROVED" && (
               <>
@@ -541,6 +564,27 @@ export default async function PurchaseOrderDetailPage({
             )}
           </div>
           {canManage && po.status === "APPROVED" && <p className="mt-2 text-xs text-[var(--text-muted)]">{t("purchasing.goiYGuiNcc")}</p>}
+        </Card>
+      )}
+
+      {lichSuDuyet.length > 0 && (
+        <Card className="no-print">
+          <CardHeader icon={<History className="size-4" />} title={t("purchasing.lichSuDuyetPo")} />
+          <ol className="space-y-1.5 text-sm">
+            {lichSuDuyet.map((l) => (
+              <li key={l.id} className="flex flex-wrap items-baseline gap-x-2">
+                <span className="tabular text-xs text-[var(--text-muted)]">{ngayGio(l.createdAt)}</span>
+                <Badge tone={l.hanhDong === "DUYET" ? "success" : l.hanhDong === "TRA_LAI" ? "danger" : l.hanhDong === "TRINH" ? "info" : "muted"}>
+                  {tTuDo(`purchasing.hanhDong_${l.hanhDong}`)}
+                </Badge>
+                <span className="text-[var(--text-primary)]">
+                  {l.nguoi}
+                  {l.kyThay ? ` (${t("purchasing.kyThayNgan", { ten: l.kyThay })})` : ""}
+                </span>
+                {l.ghiChu && <span className="text-[var(--text-secondary)]">— {l.ghiChu}</span>}
+              </li>
+            ))}
+          </ol>
         </Card>
       )}
 

@@ -42,6 +42,7 @@ export const dynamic = "force-dynamic";
 const VAI_TRO_CO_MO_TA = [
   "ADMIN",
   "TECH_MANAGER",
+  "PURCHASER",
   "MASTER",
   "CHIEF_ENGINEER",
 ] as const;
@@ -362,7 +363,12 @@ export default async function UsersPage() {
                           </span>
                         </Td>
                         <Td className="text-[var(--text-secondary)]">
-                          {u.reason ?? "—"}
+                          {u.phamVi === "DUYET_PO" && (
+                            <Badge tone="info">
+                              {t("purchasing.phamViChiDuyetPo")}
+                            </Badge>
+                          )}{" "}
+                          {u.reason ?? (u.phamVi ? "" : "—")}
                         </Td>
                         <Td>
                           <NhanTrangThaiUyQuyen

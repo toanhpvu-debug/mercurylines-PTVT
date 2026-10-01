@@ -17,6 +17,7 @@ import {
   LogOut,
   Menu,
   Paintbrush,
+  ShieldCheck,
   Ship,
   ShoppingCart,
   Sparkles,
@@ -60,7 +61,8 @@ export type TenIcon =
   | "audit"
   | "qr"
   | "ai"
-  | "thietYeu";
+  | "thietYeu"
+  | "duyetPo";
 
 const ICON: Record<TenIcon, ReactNode> = {
   dashboard: <LayoutDashboard className="size-4" />,
@@ -79,6 +81,7 @@ const ICON: Record<TenIcon, ReactNode> = {
   qr: <QrCode className="size-4" />,
   ai: <Sparkles className="size-4" />,
   thietYeu: <Wrench className="size-4" />,
+  duyetPo: <ShieldCheck className="size-4" />,
 };
 
 export type MucMenu = {
@@ -89,6 +92,8 @@ export type MucMenu = {
   end?: boolean;
   /** Mục "Đội tàu": sổ ra danh sách từng tàu bên dưới. */
   doiTau?: boolean;
+  /** Số việc đang chờ (VD: PO chờ duyệt) — hiện thành nhãn tròn cuối dòng. */
+  soDem?: number;
 };
 
 export type NhomMenu = { label: string; items: MucMenu[] };
@@ -222,6 +227,11 @@ export default function AppShell({
                 >
                   {ICON[m.icon]}
                   {m.label}
+                  {m.soDem ? (
+                    <span className="tabular ml-auto rounded-full bg-[var(--tone-warning-bg)] px-2 py-0.5 text-xs font-semibold text-[var(--tone-warning-text)]">
+                      {m.soDem}
+                    </span>
+                  ) : null}
                 </Link>
               )
             )}

@@ -11,7 +11,7 @@ import ExcelJS from "exceljs";
 import JSZip from "jszip";
 import { PrismaClient } from "@prisma/client";
 import { dauTuHang, docDongBaoGia, dongTuBang, ghepVaoDonMua, ngayTuDdMm, sachDongBaoGiaNhap, tongBaoGia } from "@/lib/baoGia";
-import { DUYET_DON_MUA, LAP_DON_MUA, PO_DUOC_TU, daDuyet, duocChuyen, duocDuyet, laNhap, thuGuiNcc, tongDonMua } from "@/lib/donMuaQuyTrinh";
+import { LAP_DON_MUA, PO_DUOC_TU, daDuyet, duocChuyen, laNhap, thuGuiNcc, tongDonMua } from "@/lib/donMuaQuyTrinh";
 import { CONG_CU_GHI_BAO_GIA, chuanHoaKetQuaAi, loiNhac } from "@/lib/docPhieuBangAi";
 import { docBaoGiaKhongAi } from "@/lib/baoGiaTep";
 import { taoExcelDonMua } from "@/lib/xuatDonMuaExcel";
@@ -86,7 +86,7 @@ async function main() {
   })(), ["190405", null]);
 
   // ─── 2) Tổng, ghép PO, chuẩn hóa dòng nhập ─────────────────────────────────
-  console.log("\n=== 2) Tong, ghep PO, dong nhap ===");
+  console.log("\n=== 2) Cong tien, ghep PO, dong nhap ===");
   kiemTra("tong bao gia", tongBaoGia([{ soLuong: 2, donGia: 1250, boQua: false }, { soLuong: 10, donGia: 3.5, boQua: false }, { soLuong: 99, donGia: 99, boQua: true }], 5, 20, 15), {
     cong: 2535,
     giam: 126.75,
@@ -143,13 +143,8 @@ async function main() {
   kiemTra("da nhan hang khong huy", duocChuyen("RECEIVED", "CANCELLED"), false);
   kiemTra("chi nhap moi sua", [laNhap("DRAFT"), laNhap("PENDING_APPROVAL"), laNhap("APPROVED")], [true, false, false]);
   kiemTra("da duyet", [daDuyet("DRAFT"), daDuyet("PENDING_APPROVAL"), daDuyet("APPROVED"), daDuyet("CONFIRMED")], [false, false, true, true]);
-  kiemTra("vai tro", [LAP_DON_MUA.includes("MASTER"), DUYET_DON_MUA.includes("TECH_MANAGER"), DUYET_DON_MUA.includes("MASTER"), LAP_DON_MUA.includes("TECH_MANAGER")], [true, true, false, false]);
-  const choDuyet = { status: "PENDING_APPROVAL", submittedBy: "Nguyễn Văn A" };
-  kiemTra("TP KT-VT duyet don nguoi khac", duocDuyet({ role: "TECH_MANAGER", name: "Trần B" }, choDuyet), { ok: true });
-  kiemTra("khong tu duyet", duocDuyet({ role: "TECH_MANAGER", name: " Nguyễn Văn A " }, choDuyet), { ok: false, lyDo: "tuDuyet" });
-  kiemTra("quan tri duoc tu duyet", duocDuyet({ role: "ADMIN", name: "Nguyễn Văn A" }, choDuyet), { ok: true });
-  kiemTra("thuyen truong khong duyet", duocDuyet({ role: "MASTER", name: "C" }, choDuyet), { ok: false, lyDo: "khongQuyen" });
-  kiemTra("don nhap khong duyet", duocDuyet({ role: "ADMIN", name: "C" }, { status: "DRAFT", submittedBy: null }), { ok: false, lyDo: "khongChoDuyet" });
+  // Ai duyệt (lãnh đạo được chỉ định, ủy quyền, tự duyệt): scripts/kiem-tra-duyet-po.ts.
+  kiemTra("vai tro lap PO", [LAP_DON_MUA.includes("MASTER"), LAP_DON_MUA.includes("PURCHASER"), LAP_DON_MUA.includes("TECH_MANAGER")], [true, true, false]);
   kiemTra("tong don", tongDonMua([{ quantity: 2, unitPrice: 1250 }, { quantity: 3, unitPrice: 0.335 }], 10, 50, 0), { cong: 2501.01, giam: 250.1, sauGiam: 2250.91, tong: 2300.91 });
   const thu = thuGuiNcc({ poNo: "PO-MLS001-26-0007", congTy: "MERCURY", tau: "ODYSSEY", tong: "2,300.91", tienTe: "USD", lienHe: null });
   kiemTra("thu gui NCC", [thu.tieuDe, thu.noiDung.startsWith("Dear Sirs,"), thu.noiDung.includes("PO-MLS001-26-0007 for MV ODYSSEY (total 2,300.91 USD)")], ["Purchase Order PO-MLS001-26-0007 — MERCURY", true, true]);
@@ -290,7 +285,7 @@ async function main() {
         });
         kiemTra("bao gia luu dong JSON doc lai duoc", docDongBaoGia(bg.dong).length, 3);
         kiemTra("bao gia mac dinh cho xu ly", bg.trangThai, "CHO_XU_LY");
-        const tep = await tx.tepDonMua.create({ data: { poId: po.id, loai: "NCC_XAC_NHAN", fileName: "oc.pdf", storedName: `don-mua-kiem-thu-${Date.now()}.pdf`, mimeType: "application/pdf", size: 1, sha256: "x", nguoiTai: "kiem thu" } });
+        const tep = await tx.tepDonMua.create({ data: { poId: po.id, loai: "XAC_NHAN_NCC", fileName: "oc.pdf", storedName: `don-mua-kiem-thu-${Date.now()}.pdf`, mimeType: "application/pdf", size: 1, sha256: "x", nguoiTai: "kiem thu" } });
         kiemTra("tep don mua", tep.poId, po.id);
         throw new CuonNguoc();
       });

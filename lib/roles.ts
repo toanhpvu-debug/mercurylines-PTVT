@@ -30,6 +30,7 @@ import type { KhoaDich } from "@/lib/i18n/tuDien";
 export const ROLES = [
   "ADMIN",
   "TECH_MANAGER",
+  "PURCHASER",
   "MASTER",
   "CHIEF_OFFICER",
   "SECOND_OFFICER",
@@ -46,6 +47,7 @@ export type Role = (typeof ROLES)[number];
 export const ROLE_LABEL: Record<string, string> = {
   ADMIN: "Quản trị hệ thống",
   TECH_MANAGER: "Quản lý kỹ thuật (công ty)",
+  PURCHASER: "Chuyên viên mua sắm",
   MASTER: "Thuyền trưởng",
   CHIEF_OFFICER: "Đại phó",
   SECOND_OFFICER: "Phó 2",
@@ -69,6 +71,7 @@ export const ROLE_LABEL_EN: Record<string, string> = {
   FOURTH_ENGINEER: "4th Engineer",
   CREW: "Crew",
   TECH_MANAGER: "Technical Manager",
+  PURCHASER: "Purchasing Officer",
   ADMIN: "Administrator",
 };
 
@@ -112,7 +115,7 @@ export const NHOM_CHUC_DANH: { vaiTro: string[] }[] = [
     ],
   },
   { vaiTro: ["CREW"] },
-  { vaiTro: ["TECH_MANAGER", "ADMIN"] },
+  { vaiTro: ["TECH_MANAGER", "PURCHASER", "ADMIN"] },
 ];
 
 /**
@@ -392,6 +395,51 @@ export type UyQuyen = {
 };
 
 /**
+ * Chia các dòng ủy quyền ĐANG HIỆU LỰC (đã lọc thời hạn / thu hồi) thành:
+ *  - uyQuyen: ủy quyền TOÀN BỘ (phamVi null) — người nhận mượn vai trò;
+ *  - duyetPoTu: lãnh đạo phòng KT-VT (được chỉ định) đang cho người nhận
+ *    duyệt PO — qua ủy quyền "chỉ duyệt PO" hoặc ủy quyền toàn bộ.
+ *
+ * Người giao bị khóa thì cả hai loại đều mất tác dụng. Ủy quyền "chỉ duyệt PO"
+ * KHÔNG BAO GIỜ rơi vào uyQuyen: nó không được mở thêm cửa nào khác.
+ */
+export function phanLoaiUyQuyen(
+  rows: {
+    phamVi: string | null;
+    endAt: Date;
+    delegator: {
+      id: number;
+      name: string;
+      role: string;
+      vesselId: number | null;
+      isActive: boolean;
+      duyetDonMua: boolean;
+      fleetAssignments: { vesselId: number }[];
+    };
+  }[]
+): {
+  uyQuyen: (UyQuyen & { endAt: Date })[];
+  duyetPoTu: { delegatorId: number; delegatorName: string; endAt: Date }[];
+} {
+  const conHieuLuc = rows.filter((u) => u.delegator.isActive);
+  return {
+    uyQuyen: conHieuLuc
+      .filter((u) => u.phamVi == null)
+      .map((u) => ({
+        delegatorId: u.delegator.id,
+        delegatorName: u.delegator.name,
+        delegatorRole: u.delegator.role,
+        delegatorVesselId: u.delegator.vesselId,
+        delegatorFleetVesselIds: u.delegator.fleetAssignments.map((x) => x.vesselId),
+        endAt: u.endAt,
+      })),
+    duyetPoTu: conHieuLuc
+      .filter((u) => u.delegator.duyetDonMua && (u.phamVi == null || u.phamVi === "DUYET_PO"))
+      .map((u) => ({ delegatorId: u.delegator.id, delegatorName: u.delegator.name, endAt: u.endAt })),
+  };
+}
+
+/**
  * Các "danh tính" mà người này được dùng khi xét quyền: chính mình trước, rồi
  * tới quyền mượn từ người ủy quyền.
  *
@@ -451,7 +499,7 @@ export function trongPhamVi(scope: VesselScope, vesselId: number): boolean {
 }
 
 // Quy tắc phạm vi:
-//   ADMIN, TECH_MANAGER  -> toàn đội (vai trò văn phòng)
+//   ADMIN, TECH_MANAGER, PURCHASER -> toàn đội (vai trò văn phòng)
 //   có gán tàu           -> chỉ tàu đó
 //   MASTER không gán tàu -> toàn đội (giữ nguyên cách dùng cũ: thuyền trưởng
 //                           không gán tàu vẫn đang được dùng như tài khoản văn phòng)
@@ -473,6 +521,10 @@ export function vesselScope(user: NguoiThaoTac): VesselScope {
     return ds.length
       ? { all: false, vesselId: null, vesselIds: ds, unassigned: false }
       : { all: true, vesselId: null, vesselIds: null, unassigned: false };
+  }
+  // Chuyên viên mua sắm (văn phòng) lo đơn mua của mọi tàu.
+  if (user.role === "PURCHASER") {
+    return { all: true, vesselId: null, vesselIds: null, unassigned: false };
   }
   if (user.vesselId) {
     return {

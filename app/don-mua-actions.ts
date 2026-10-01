@@ -10,7 +10,8 @@ import { ghiNhatKyNguoiDung } from "@/lib/audit";
 import { layT } from "@/lib/i18n/server";
 import { docSo } from "@/lib/docSo";
 import { MAX_UPLOAD_BYTES, ensureUploadDir, fileExtension } from "@/lib/uploads";
-import { DUYET_DON_MUA, LAP_DON_MUA, duocDuyet, laNhap } from "@/lib/donMuaQuyTrinh";
+import { LAP_DON_MUA, VAI_TRO_DUYET_PO, duocDuyet, laNhap, tenNguoiDuyet } from "@/lib/donMuaQuyTrinh";
+import { coLanhDaoDuyetPo, ghiLichSuDuyet, nguoiTrinhId, phamViDonMua } from "@/lib/duyetPoServer";
 
 /*
  * QUY TRÌNH ĐƠN MUA: sửa đơn nháp → trình duyệt → lãnh đạo phòng Kỹ thuật –
@@ -130,16 +131,22 @@ export async function suaDonMua(poIdRaw: number, x: SuaDonMuaNhap): Promise<KetQ
 export async function trinhDuyetDonMua(poIdRaw: number): Promise<KetQuaDonMua> {
   const { t } = await layT();
   const actor = await requireActiveRole([...LAP_DON_MUA]);
-  const po = actor ? await prisma.purchaseOrder.findUnique({ where: { id: Number(poIdRaw) || -1 }, include: { items: { select: { unitPrice: true } } } }) : null;
+  const po = actor ? await prisma.purchaseOrder.findUnique({ where: { id: Number(poIdRaw) || -1 }, include: { items: { select: { unitPrice: true, quantity: true } } } }) : null;
   if (!actor || !po || !trongPhamVi(vesselScopeDayDu(actor), po.vesselId)) return { message: t("chung.khongCoQuyen") };
   if (!po.items.length) return { message: t("purchasing.donCanItNhatMotDong") };
   const chuaGia = po.items.filter((it) => !(it.unitPrice > 0)).length;
   if (chuaGia) return { message: t("purchasing.conDongChuaGia", { n: chuaGia }) };
-  const r = await prisma.purchaseOrder.updateMany({
-    where: { id: po.id, status: "DRAFT" },
-    data: { status: "PENDING_APPROVAL", submittedBy: actor.name, submittedAt: new Date(), approvalNote: null, approvedBy: null, approvedAt: null },
+  const daTrinh = await prisma.$transaction(async (tx) => {
+    const r = await tx.purchaseOrder.updateMany({
+      where: { id: po.id, status: "DRAFT" },
+      data: { status: "PENDING_APPROVAL", submittedBy: actor.name, submittedAt: new Date(), approvalNote: null, approvedBy: null, approvedAt: null },
+    });
+    if (r.count === 0) return false;
+    await ghiLichSuDuyet(tx, { po, hanhDong: "TRINH", nguoi: actor });
+    return true;
   });
-  if (r.count === 0) return { message: t("actions.donMua_daDoiTrangThai") };
+  if (!daTrinh) return { message: t("actions.donMua_daDoiTrangThai") };
+  revalidatePath("/purchasing/duyet");
   await ghiNhatKyNguoiDung(actor, { action: "don-mua-trinh", path: `/purchasing/${po.id}`, vesselId: po.vesselId, detail: `Trình duyệt đơn mua ${po.poNo}` });
   revalidatePath(`/purchasing/${po.id}`);
   revalidatePath("/purchasing");
@@ -150,23 +157,35 @@ export async function trinhDuyetDonMua(poIdRaw: number): Promise<KetQuaDonMua> {
 export async function rutLaiDonMua(poIdRaw: number): Promise<KetQuaDonMua> {
   const { t } = await layT();
   const actor = await requireActiveRole([...LAP_DON_MUA]);
-  const po = actor ? await prisma.purchaseOrder.findUnique({ where: { id: Number(poIdRaw) || -1 }, select: { id: true, poNo: true, vesselId: true } }) : null;
+  const po = actor ? await prisma.purchaseOrder.findUnique({ where: { id: Number(poIdRaw) || -1 }, include: { items: { select: { unitPrice: true, quantity: true } } } }) : null;
   if (!actor || !po || !trongPhamVi(vesselScopeDayDu(actor), po.vesselId)) return { message: t("chung.khongCoQuyen") };
-  const r = await prisma.purchaseOrder.updateMany({ where: { id: po.id, status: "PENDING_APPROVAL" }, data: { status: "DRAFT" } });
-  if (r.count === 0) return { message: t("actions.donMua_daDoiTrangThai") };
+  const daRut = await prisma.$transaction(async (tx) => {
+    const r = await tx.purchaseOrder.updateMany({ where: { id: po.id, status: "PENDING_APPROVAL" }, data: { status: "DRAFT" } });
+    if (r.count === 0) return false;
+    await ghiLichSuDuyet(tx, { po, hanhDong: "RUT_LAI", nguoi: actor });
+    return true;
+  });
+  if (!daRut) return { message: t("actions.donMua_daDoiTrangThai") };
+  revalidatePath("/purchasing/duyet");
   await ghiNhatKyNguoiDung(actor, { action: "don-mua-rut-lai", path: `/purchasing/${po.id}`, vesselId: po.vesselId, detail: `Rút đơn mua ${po.poNo} về nháp` });
   revalidatePath(`/purchasing/${po.id}`);
   revalidatePath("/purchasing");
   return { message: t("purchasing.daRutLai"), success: true };
 }
 
-/** Lãnh đạo phòng Kỹ thuật – Vật tư duyệt (kèm ghi chú tùy chọn) hoặc trả lại (bắt buộc lý do). */
+/**
+ * Lãnh đạo phòng Kỹ thuật – Vật tư (do quản trị chỉ định) hoặc người được lãnh
+ * đạo ủy quyền duyệt (kèm ghi chú tùy chọn) / trả lại (bắt buộc lý do).
+ */
 export async function duyetDonMua(poIdRaw: number, dongY: boolean, ghiChuRaw: string): Promise<KetQuaDonMua> {
   const { t } = await layT();
-  const actor = await requireActiveRole([...DUYET_DON_MUA]);
-  const po = actor ? await prisma.purchaseOrder.findUnique({ where: { id: Number(poIdRaw) || -1 }, select: { id: true, poNo: true, vesselId: true, status: true, submittedBy: true } }) : null;
-  if (!actor || !po || !trongPhamVi(vesselScopeDayDu(actor), po.vesselId)) return { message: t("purchasing.khongCoQuyenDuyet") };
-  const kt = duocDuyet({ role: actor.role, name: actor.name }, po);
+  const actor = await requireActiveRole([...VAI_TRO_DUYET_PO]);
+  const coLanhDao = await coLanhDaoDuyetPo();
+  const po = actor
+    ? await prisma.purchaseOrder.findUnique({ where: { id: Number(poIdRaw) || -1 }, include: { items: { select: { unitPrice: true, quantity: true } } } })
+    : null;
+  if (!actor || !po || !trongPhamVi(phamViDonMua(actor, coLanhDao), po.vesselId)) return { message: t("purchasing.khongCoQuyenDuyet") };
+  const kt = duocDuyet(actor, { ...po, submittedById: await nguoiTrinhId(po) }, coLanhDao);
   if (!kt.ok) {
     return {
       message: kt.lyDo === "tuDuyet" ? t("purchasing.khongTuDuyet") : kt.lyDo === "khongChoDuyet" ? t("actions.donMua_daDoiTrangThai") : t("purchasing.khongCoQuyenDuyet"),
@@ -174,21 +193,31 @@ export async function duyetDonMua(poIdRaw: number, dongY: boolean, ghiChuRaw: st
   }
   const ghiChu = String(ghiChuRaw ?? "").trim().slice(0, 500);
   if (!dongY && !ghiChu) return { message: t("purchasing.canLyDoTraLai") };
-  const r = await prisma.purchaseOrder.updateMany({
-    where: { id: po.id, status: "PENDING_APPROVAL" },
-    data: dongY
-      ? { status: "APPROVED", approvedBy: actor.name, approvedAt: new Date(), approvalNote: ghiChu || null }
-      : { status: "DRAFT", approvalNote: ghiChu, approvedBy: null, approvedAt: null },
+  const tenDuyet = tenNguoiDuyet(actor.name, kt.kyThay);
+  const daGhi = await prisma.$transaction(async (tx) => {
+    const r = await tx.purchaseOrder.updateMany({
+      where: { id: po.id, status: "PENDING_APPROVAL" },
+      data: dongY
+        ? { status: "APPROVED", approvedBy: tenDuyet, approvedAt: new Date(), approvalNote: ghiChu || null }
+        : { status: "DRAFT", approvalNote: ghiChu, approvedBy: null, approvedAt: null },
+    });
+    if (r.count === 0) return false;
+    await ghiLichSuDuyet(tx, { po, hanhDong: dongY ? "DUYET" : "TRA_LAI", nguoi: actor, kyThay: kt.kyThay, ghiChu });
+    return true;
   });
-  if (r.count === 0) return { message: t("actions.donMua_daDoiTrangThai") };
+  if (!daGhi) return { message: t("actions.donMua_daDoiTrangThai") };
   await ghiNhatKyNguoiDung(actor, {
     action: dongY ? "don-mua-duyet" : "don-mua-tra-lai",
     path: `/purchasing/${po.id}`,
     vesselId: po.vesselId,
-    detail: `${dongY ? "Duyệt" : "Trả lại"} đơn mua ${po.poNo}${ghiChu ? `: ${ghiChu}` : ""}${dongY && po.submittedBy === actor.name ? " (quản trị tự duyệt đơn mình trình)" : ""}`,
+    detail:
+      `${dongY ? "Duyệt" : "Trả lại"} đơn mua ${po.poNo}${kt.kyThay ? ` (ký thay ${kt.kyThay.name})` : ""}` +
+      `${kt.tamThoi ? " (quản trị tạm duyệt — chưa chỉ định lãnh đạo phòng KT-VT)" : ""}` +
+      `${ghiChu ? `: ${ghiChu}` : ""}${dongY && po.submittedBy === actor.name ? " (tự duyệt đơn mình trình)" : ""}`,
   });
   revalidatePath(`/purchasing/${po.id}`);
   revalidatePath("/purchasing");
+  revalidatePath("/purchasing/duyet");
   return { message: dongY ? t("purchasing.daDuyetDon") : t("purchasing.daTraLaiDon"), success: true };
 }
 

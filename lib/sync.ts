@@ -155,6 +155,9 @@ export function khoangIdRieng(dauDai: number): { dau: number; cuoi: number } {
  * - CauHinhHeThong: khóa API bộ đọc AI (đã mã hóa bằng SESSION_SECRET của bản
  *   cài) — bí mật không được rời khỏi bản cài qua gói đồng bộ, và bản cài khác
  *   cũng không giải mã được vì khác SESSION_SECRET.
+ * - LichSuDuyetPo: lịch sử trình / duyệt PO, ghi kèm id người dùng của bản cài
+ *   nơi duyệt (văn phòng) — id đó vô nghĩa ở bản cài khác. Kết quả duyệt
+ *   (trạng thái, người duyệt) vẫn đồng bộ theo PurchaseOrder.
  */
 export const BANG_KHONG_DONG_BO = [
   "User",
@@ -171,6 +174,7 @@ export const BANG_KHONG_DONG_BO = [
   "FormStandardTep",
   "BaoGiaNcc",
   "TepDonMua",
+  "LichSuDuyetPo",
   "CauHinhHeThong",
 ] as const;
 

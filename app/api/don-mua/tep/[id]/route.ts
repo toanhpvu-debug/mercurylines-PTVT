@@ -2,7 +2,8 @@ import path from "path";
 import { readFile } from "fs/promises";
 import { prisma } from "@/lib/prisma";
 import { requireActiveRole } from "@/lib/auth";
-import { ROLES, trongPhamVi, vesselScopeDayDu } from "@/lib/roles";
+import { ROLES, trongPhamVi } from "@/lib/roles";
+import { coLanhDaoDuyetPo, phamViDonMua } from "@/lib/duyetPoServer";
 import { getUploadDir } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const id = Number((await ctx.params).id);
   const tep = Number.isInteger(id) && id > 0 ? await prisma.tepDonMua.findUnique({ where: { id } }) : null;
   const po = tep ? await prisma.purchaseOrder.findUnique({ where: { id: tep.poId }, select: { vesselId: true } }) : null;
-  if (!tep || !po || !trongPhamVi(vesselScopeDayDu(actor), po.vesselId)) return new Response("Not found", { status: 404 });
+  if (!tep || !po || !trongPhamVi(phamViDonMua(actor, await coLanhDaoDuyetPo()), po.vesselId)) return new Response("Not found", { status: 404 });
   let data: Buffer;
   try {
     data = await readFile(path.join(getUploadDir(), path.basename(tep.storedName)));

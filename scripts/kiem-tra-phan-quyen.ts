@@ -211,6 +211,7 @@ const MONG_SON: Record<string, boolean> = {
   CHIEF_OFFICER: true,
   CHIEF_ENGINEER: true,
   TECH_MANAGER: false,
+  PURCHASER: false,
   SECOND_OFFICER: false,
   THIRD_OFFICER: false,
   SECOND_ENGINEER: false,
@@ -219,7 +220,7 @@ const MONG_SON: Record<string, boolean> = {
   CREW: false,
 };
 for (const r of ROLES) {
-  const vanPhong = r === "ADMIN" || r === "TECH_MANAGER";
+  const vanPhong = r === "ADMIN" || r === "TECH_MANAGER" || r === "PURCHASER";
   const user = { role: r, vesselId: vanPhong ? null : 1 };
   const tauMinh = coQuanLySon(user, 1);
   const tauKhac = coQuanLySon(user, 2);
@@ -246,6 +247,7 @@ const MONG_NL: Record<string, [boolean, boolean, boolean]> = {
   CHIEF_ENGINEER: [true, true, true],
   CHIEF_OFFICER: [false, false, true],
   TECH_MANAGER: [false, false, false],
+  PURCHASER: [false, false, false],
   SECOND_OFFICER: [false, false, false],
   THIRD_OFFICER: [false, false, false],
   SECOND_ENGINEER: [false, false, false],
@@ -254,7 +256,7 @@ const MONG_NL: Record<string, [boolean, boolean, boolean]> = {
   CREW: [false, false, false],
 };
 for (const r of ROLES) {
-  const vanPhong = r === "ADMIN" || r === "TECH_MANAGER";
+  const vanPhong = r === "ADMIN" || r === "TECH_MANAGER" || r === "PURCHASER";
   const user = { role: r, vesselId: vanPhong ? null : 1 };
   const thuc: [boolean, boolean, boolean] = [
     coQuanLyNhienLieu(user, 1, "FUEL"),
@@ -372,12 +374,13 @@ const MONG_XIN: Record<string, [boolean, boolean, boolean]> = {
   FOURTH_ENGINEER: [true, true, true],
   CHIEF_OFFICER: [false, false, true],
   TECH_MANAGER: [false, false, false],
+  PURCHASER: [false, false, false],
   SECOND_OFFICER: [false, false, false],
   THIRD_OFFICER: [false, false, false],
   CREW: [false, false, false],
 };
 for (const r of ROLES) {
-  const vanPhong = r === "ADMIN" || r === "TECH_MANAGER";
+  const vanPhong = r === "ADMIN" || r === "TECH_MANAGER" || r === "PURCHASER";
   const user = { role: r, vesselId: vanPhong ? null : 1 };
   const xin: [boolean, boolean, boolean] = [
     coXinCapNhienLieu(user, 1, "FUEL"),

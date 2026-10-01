@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, Building2, Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser } from "@/lib/auth";
+import { QUAN_LY_NCC } from "@/lib/donMuaQuyTrinh";
 import {
   SupplierActiveToggle,
   SupplierDeleteButton,
@@ -28,7 +29,8 @@ export const dynamic = "force-dynamic";
 export default async function SuppliersPage() {
   const user = await requireScopedUser();
   const { t } = await layT();
-  const canManage = user.role === "ADMIN";
+  // Chuyên viên mua sắm thêm / sửa / ngừng dùng nhà cung cấp; xóa hẳn chỉ quản trị.
+  const canManage = QUAN_LY_NCC.includes(user.role);
   const suppliers = await prisma.supplier.findMany({
     orderBy: { code: "asc" },
     include: { _count: { select: { purchaseOrders: true } } },
@@ -133,7 +135,7 @@ export default async function SuppliersPage() {
                               id={s.id}
                               isActive={s.isActive}
                             />
-                            <SupplierDeleteButton id={s.id} />
+                            {user.role === "ADMIN" && <SupplierDeleteButton id={s.id} />}
                           </div>
                         </Td>
                       )}

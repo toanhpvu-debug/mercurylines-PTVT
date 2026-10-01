@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { LAP_DON_MUA } from "@/lib/donMuaQuyTrinh";
 import {
   requireScopedUser,
   vesselIdWhere,
@@ -17,7 +18,7 @@ export default async function DirectPurchasePage() {
   const user = await requireScopedUser();
   const { t } = await layT();
   const scope = vesselScopeDayDu(user);
-  if (!["ADMIN", "MASTER"].includes(user.role)) {
+  if (!LAP_DON_MUA.includes(user.role)) {
     redirect("/purchasing");
   }
   const [vessels, suppliers] = await Promise.all([

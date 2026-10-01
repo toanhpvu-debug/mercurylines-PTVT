@@ -237,6 +237,8 @@ export async function thuHoiUyQuyen(
   });
 
   revalidatePath("/users");
+  // Ủy quyền duyệt PO cũng thu hồi bằng hàm này (mục Kiểm soát duyệt PO).
+  revalidatePath("/purchasing/duyet");
   return {
     message: t("actionsModule.quyen_daThuHoi", { ten: uq.delegate.name }),
     success: true,

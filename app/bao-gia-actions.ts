@@ -12,7 +12,7 @@ import { ghiNhatKyNguoiDung } from "@/lib/audit";
 import { layT } from "@/lib/i18n/server";
 import { MAX_UPLOAD_BYTES, ensureUploadDir, fileExtension, getUploadDir } from "@/lib/uploads";
 import { dangDocAi } from "@/lib/phieuGiao";
-import { LAP_DON_MUA } from "@/lib/donMuaQuyTrinh";
+import { LAP_DON_MUA, QUAN_LY_NCC } from "@/lib/donMuaQuyTrinh";
 import { sinhSoDonMua } from "@/lib/soDonMua";
 import { DUOI_BAO_GIA, ghepVaoDonMua, ngayTuDdMm, sachDongBaoGiaNhap, type DongBaoGia } from "@/lib/baoGia";
 
@@ -437,7 +437,7 @@ export async function taoPoTuBaoGia(id: number, x: LuuBaoGiaNhap): Promise<KetQu
 /** Thêm nhanh nhà cung cấp từ tên đọc được trên báo giá (quản trị). */
 export async function taoNccTuBaoGia(id: number, tenRaw: string): Promise<KetQuaBaoGia & { supplierId?: number }> {
   const { t } = await layT();
-  const actor = await requireActiveRole(["ADMIN"]);
+  const actor = await requireActiveRole([...QUAN_LY_NCC]);
   const bg = actor ? await timBaoGia(Number(id)) : null;
   if (!actor || !bg) return { message: t("chung.khongCoQuyen") };
   const ten = String(tenRaw ?? "").replace(/\s+/g, " ").trim().slice(0, 200);

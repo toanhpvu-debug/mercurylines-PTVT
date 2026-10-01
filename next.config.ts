@@ -59,6 +59,14 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Bản scan kiểm kê (PDF) xem ngay trong trang đối chiếu — cùng lý do.
+        source: "/api/kiem-ke/:id/file",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+        ],
+      },
+      {
         // Phông chữ tự host. Mặc định Next trả `Cache-Control: max-age=0` cho
         // mọi thứ trong public/ — trình duyệt phải hỏi lại server 5 tệp phông ở
         // MỖI lần mở trang đầy đủ (đăng nhập, đổi ngôn ngữ, F5), và trong lúc

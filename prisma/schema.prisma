@@ -89,6 +89,7 @@ model Vessel {
   documents              ReportDocument[]
   phieuGiaoNhan          PhieuGiaoNhan[]
   phuTungThietYeu        PhuTungThietYeu[]
+  kiemKeTep              KiemKeTep[]
   vesselMaterials        VesselMaterial[]
   purchaseOrders         PurchaseOrder[]
   paintAreas             PaintArea[]
@@ -1044,4 +1045,46 @@ model PhuTungThietYeuThang {
   updatedAt DateTime        @updatedAt
 
   @@unique([itemId, thang])
+}
+/**
+ * Một lần KIỂM KÊ THEO FILE (MLS-11-06 Excel hoặc PDF scan) của một tàu — hàng
+ * chờ đối chiếu. Các dòng đọc được nằm ở `dong` (JSON, sửa được trên trang đối
+ * chiếu); chưa dòng nào chạm vào tồn kho cho tới khi người có quyền bấm "Áp
+ * dụng": lúc đó mặt hàng ĐÃ CÓ được đặt tồn đúng bằng số đếm (ghi giao dịch điều
+ * chỉnh vào thẻ kho), mặt hàng chưa có chỉ được thêm khi người duyệt chọn.
+ * Bảng làm việc cục bộ, không đồng bộ — giao dịch kho sinh ra mới đồng bộ.
+ */
+model KiemKeTep {
+  id          Int       @id @default(autoincrement())
+  vesselId    Int
+  vessel      Vessel    @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  fileName    String
+  storedName  String    @unique
+  // EXCEL · PDF
+  loaiTep     String
+  size        Int
+  sha256      String
+  // Kho được kiểm: "AUTO" (theo sheet / nơi mặt hàng đang nằm) hoặc id kho.
+  khoChon     String    @default("AUTO")
+  ngayKiemKe  DateTime
+  // Các dòng đọc được (DongKiemKe[] — lib/kiemKe.ts).
+  dong        Json
+  // Ghi chú đọc file: sheet đã đọc, dòng bỏ qua, tóm tắt AI.
+  ghiChuDoc   String?
+  loiAi       String?
+  aiDangDocTu DateTime?
+  aiTienDo    String?
+  // CHO_DUYET · DA_AP_DUNG
+  trangThai   String    @default("CHO_DUYET")
+  nguoiTaiId  Int
+  nguoiTai    String
+  apDungBoi   String?
+  apDungLuc   DateTime?
+  // Tóm tắt khi áp dụng: số dòng đổi / không đổi / thêm mới / tăng / giảm.
+  ketQua      Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([vesselId])
+  @@index([trangThai])
 }

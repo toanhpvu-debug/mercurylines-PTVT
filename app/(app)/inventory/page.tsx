@@ -19,7 +19,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { QrCode, Tag } from "lucide-react";
+import { ClipboardCheck, QrCode, Tag } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   sortWithinDepartment,
@@ -359,6 +359,10 @@ export default async function InventoryPage({
         subtitle={t("inventory.moTa")}
         action={
           <>
+            <Link href="/inventory/kiem-ke" className={buttonClass("primary")}>
+              <ClipboardCheck className="size-4" />
+              {t("kiemKe.nutMo")}
+            </Link>
             <Link href="/quet" className={buttonClass("secondary")}>
               <QrCode className="size-4" />
               {t("qr.nutQuetMa")}

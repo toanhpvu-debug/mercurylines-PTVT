@@ -79,7 +79,15 @@ export type DongAi = DongPhieuGiao & {
   tenEn: string | null;
   trang: number | null;
   canhBao: string | null;
+  /**
+   * Ô số lượng để TRỐNG trên tài liệu (soLuong khi đó là 0). Phiếu giao không
+   * cần phân biệt; bảng kiểm kê thì phải: trống = chưa đếm, 0 = đếm được 0.
+   */
+  soLuongTrong?: boolean;
 };
+
+/** Loại tài liệu bộ đọc AI đang đọc — quyết định lời dặn và nghĩa cột số lượng. */
+export type BanDocAi = "phieuGiao" | "kiemKe";
 
 export type DauPhieu = {
   nhaCungCap: string | null;
@@ -174,6 +182,73 @@ const LOI_NHAC_NGUOI_DUNG = "Đọc phiếu giao hàng trong tài liệu đính 
 /** Khuôn JSON nhắc thêm cho Gemini — để khi phải bỏ responseSchema (API từ chối khuôn) mô hình vẫn trả đúng dạng. */
 const KHUON_JSON_GOI_Y =
   'Trả về DUY NHẤT một JSON dạng: {"nhaCungCap": string|null, "soPhieu": string|null, "ngayGiao": "dd/mm/yyyy"|null, "tau": string|null, "dong": [{"stt": number|null, "ten": string, "tenEn": string|null, "tenVi": string|null, "partNo": string|null, "impa": "6 chữ số"|null, "soLuong": number|null, "donVi": string|null, "loai": "STORE"|"SPARE", "thietBi": string|null, "trang": number|null, "canKiem": boolean, "lyDoKiem": string|null, "ghiChu": string|null}]}';
+
+// ─── Bảng KIỂM KÊ (MLS-11-06 Store & Spare Part Inventory) ───────────────────
+// Cùng khuôn kết quả với phiếu giao (một bộ chuẩn hóa / gộp lượt / soát dòng),
+// chỉ khác lời dặn: số lượng là SỐ TỒN ĐẾM ĐƯỢC, ô trống là null chứ không phải 0.
+
+const MO_TA_SO_TON =
+  "SỐ TỒN THỰC TẾ ĐẾM ĐƯỢC trên tàu — cột 'Tồn trên tàu' / 'R.O.B' / 'Remain on board' / 'Hiện có' / 'On board'. KHÔNG lấy cột tồn đợt trước, nhận trong kỳ, tiêu thụ hay tối thiểu. Ô để TRỐNG → null (đừng ghi 0); chỉ ghi 0 khi biểu mẫu ghi rõ 0 hoặc gạch ngang '-'.";
+
+export const CONG_CU_GHI_KIEM_KE = {
+  name: CONG_CU_GHI_PHIEU.name,
+  description:
+    "Ghi lại toàn bộ bảng kiểm kê vật tư / phụ tùng đã đọc: thông tin đầu biểu mẫu và TỪNG dòng mặt hàng, mỗi dòng trên bảng là một phần tử của mảng dong.",
+  input_schema: {
+    ...CONG_CU_GHI_PHIEU.input_schema,
+    properties: {
+      ...CONG_CU_GHI_PHIEU.input_schema.properties,
+      nhaCungCap: { type: ["string", "null"], description: "Luôn null — biểu mẫu kiểm kê không có nhà cung cấp." },
+      soPhieu: { type: ["string", "null"], description: "Mã biểu mẫu nếu in trên trang (VD MLS-11-06), không có thì null." },
+      ngayGiao: { type: ["string", "null"], description: "NGÀY KIỂM KÊ ghi trên biểu mẫu, dạng dd/mm/yyyy." },
+      tau: { type: ["string", "null"], description: "Tên tàu ghi trên biểu mẫu (Vessel / Ship's name)." },
+      dong: {
+        ...CONG_CU_GHI_PHIEU.input_schema.properties.dong,
+        description: "Mọi dòng mặt hàng trên bảng kiểm kê, theo thứ tự xuất hiện, qua hết các trang được yêu cầu.",
+        items: {
+          ...CONG_CU_GHI_PHIEU.input_schema.properties.dong.items,
+          properties: {
+            ...CONG_CU_GHI_PHIEU.input_schema.properties.dong.items.properties,
+            soLuong: { type: ["number", "null"], description: MO_TA_SO_TON },
+            thietBi: {
+              type: ["string", "null"],
+              description: "Nhóm của dòng: cột Group / Nhóm, hoặc tiêu đề nhóm phía trên (MAIN ENGINE, DECK STORES, PAINT...). Không có thì null.",
+            },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+export const HUONG_DAN_KIEM_KE = `Bạn là nhân viên kho của tàu biển, tỉ mỉ và không bao giờ đoán bừa. Nhiệm vụ: đọc BẢNG KIỂM KÊ vật tư / phụ tùng của tàu (biểu mẫu MLS-11-06 "Store & Spare Part Inventory" hoặc bảng tương tự) — có thể là bản scan nghiêng, mờ, nhiều trang, số viết tay — rồi ghi lại theo đúng cấu trúc yêu cầu.
+
+Quy tắc:
+1. MỖI dòng mặt hàng trên bảng là MỘT phần tử trong "dong". Không gộp, không bỏ sót, không bịa thêm. Đọc hết các trang được yêu cầu; dòng cuối mỗi trang và dòng đầu trang sau hay bị sót — kiểm kỹ.
+2. "ten" giữ nguyên như in: không dịch, không sửa chính tả, không rút gọn. Mô tả song ngữ thì tách thêm tenEn / tenVi; một ngôn ngữ thì hai trường đó null.
+3. IMPA là mã 6 chữ số của danh mục ship stores; Part No. là mã nhà sản xuất. Đừng lẫn hai cột; không có thì null.
+4. "soLuong" là ${MO_TA_SO_TON.charAt(0).toLowerCase()}${MO_TA_SO_TON.slice(1)} Số viết tay đọc thật kỹ (0/6/8, 1/7, 3/8, 4/9 hay lẫn); bị gạch sửa thì lấy số mới và đặt canKiem = true.
+5. "donVi" đúng cột đơn vị (PCS, SET, KG, LTR, M, BOX, ROLL, PAIR, CAN, DRUM, BTL...).
+6. "loai": STORE cho vật tư tiêu hao / ship stores (hàng theo IMPA, boong, buồng, bếp, dụng cụ, sơn, hóa chất); SPARE cho phụ tùng máy móc, thiết bị.
+7. "thietBi": nhóm của dòng (cột Group / Nhóm, hoặc tiêu đề nhóm trên bảng), ghi vào từng dòng thuộc nhóm đó.
+8. "trang": số trang (đánh từ 1). "canKiem" = true ở chỗ chữ / số mờ, bị che, sửa tay hoặc không chắc — thà đánh dấu thừa còn hơn để lọt số sai; nói lý do ở lyDoKiem.
+9. Không ghi dòng tiêu đề cột, dòng tổng, chữ ký vào "dong".
+10. Đầu biểu mẫu: tau, ngayGiao (= ngày kiểm kê, dd/mm/yyyy), soPhieu (mã biểu mẫu); nhaCungCap luôn null.`;
+
+const LOI_NHAC_KIEM_KE = "Đọc bảng kiểm kê vật tư / phụ tùng trong tài liệu đính kèm và ghi TOÀN BỘ dòng mặt hàng theo đúng cấu trúc yêu cầu.";
+
+/** Lời dặn, lời nhắc, công cụ và khuôn JSON theo loại tài liệu. */
+const BAN_DOC = {
+  phieuGiao: { huongDan: HUONG_DAN_HE_THONG, loiNhac: LOI_NHAC_NGUOI_DUNG, congCu: CONG_CU_GHI_PHIEU, khuonJson: KHUON_JSON_GOI_Y, taiLieu: "phiếu" },
+  kiemKe: {
+    huongDan: HUONG_DAN_KIEM_KE,
+    loiNhac: LOI_NHAC_KIEM_KE,
+    congCu: CONG_CU_GHI_KIEM_KE,
+    khuonJson: `${KHUON_JSON_GOI_Y} Trong bảng kiểm kê "soLuong" là số tồn đếm được (cột Tồn trên tàu / R.O.B), ô trống = null.`,
+    taiLieu: "bảng kiểm kê",
+  },
+} as const;
+const banDocCua = (tc: { banDoc?: BanDocAi }) => BAN_DOC[tc.banDoc ?? "phieuGiao"];
 
 /** Đơn vị bộ chuẩn hóa biết — ngoài danh sách này là "đơn vị lạ", cần người duyệt xem. */
 const DON_VI_BIET = new Set(["PCS", "SET", "KG", "G", "LTR", "ML", "M", "MM", "CM", "BOX", "PACK", "ROLL", "BAG", "CAN", "DRUM", "PAIR", "BTL", "TUBE", "CTN", "SHT"]);
@@ -275,8 +350,12 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
       else if (!partNo) partNo = impaTho; // mô hình nhét mã NSX vào cột IMPA
     }
     const soRaw = d.soLuong;
-    let soLuong = typeof soRaw === "number" ? soRaw : Number(String(soRaw ?? "").replace(/[^\d.,-]/g, "").replace(",", "."));
-    if (!Number.isFinite(soLuong) || soLuong < 0) soLuong = 0;
+    const soChu = typeof soRaw === "number" ? "" : String(soRaw ?? "").replace(/[^\d.,-]/g, "").replace(",", ".");
+    let soLuong = typeof soRaw === "number" ? soRaw : soChu ? Number(soChu) : NaN;
+    // Ô trống / không phải số: phiếu giao coi là 0 như trước; bảng kiểm kê cần
+    // biết đây là "chưa đếm" chứ không phải "đếm được 0" (soLuongTrong).
+    const soLuongTrong = !Number.isFinite(soLuong) || soLuong < 0;
+    if (soLuongTrong) soLuong = 0;
     const donViTho = chuoi(d.donVi, 20);
     const donVi = donViTho ? chuanDonVi(donViTho) : "PCS";
     const loaiTho = String(d.loai ?? "").toUpperCase();
@@ -303,6 +382,7 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
       thietBi,
       trang,
       canhBao: ghiChu && /gạch|thiếu|hủy|cancel|short|miss|thay/i.test(ghiChu) ? themCanhBao(canhBao, `Ghi chú trên phiếu: ${ghiChu}`) : canhBao,
+      soLuongTrong,
     });
   }
   return { ...dau, dong, chuTomTat: tomTat(dau, dong, []) };
@@ -374,6 +454,8 @@ export type FetchGia = (url: string, init: RequestInit) => Promise<Response>;
 
 type TuyChonDocAi = {
   fileName?: string;
+  /** Loại tài liệu (mặc định phiếu giao hàng). */
+  banDoc?: BanDocAi;
   /** Trần TỔNG thời gian của một lần gọi (ms). Mặc định TONG_MS_MAC_DINH. */
   timeoutMs?: number;
   /**
@@ -674,8 +756,8 @@ async function goiClaude(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, text: str
       model: ch.model,
       max_tokens: maxTokens,
       stream: true,
-      system: HUONG_DAN_HE_THONG,
-      tools: [CONG_CU_GHI_PHIEU],
+      system: banDocCua(tc).huongDan,
+      tools: [banDocCua(tc).congCu],
       tool_choice: { type: "tool", name: CONG_CU_GHI_PHIEU.name },
       messages: [
         {
@@ -727,20 +809,20 @@ async function goiGemini(pdf: Buffer, ch: CauHinhAi, tc: TuyChonDocAi, text: str
   // Ba mức: đủ đồ (khuôn + độ phân giải cao + ngân sách suy nghĩ) → chỉ khuôn → chỉ JSON.
   const body = (muc: 0 | 1 | 2) =>
     JSON.stringify({
-      systemInstruction: { parts: [{ text: HUONG_DAN_HE_THONG }] },
+      systemInstruction: { parts: [{ text: banDocCua(tc).huongDan }] },
       contents: [
         {
           role: "user",
           parts: [
             { inlineData: { mimeType: "application/pdf", data: pdf.toString("base64") } },
-            { text: `${text}${tc.fileName ? ` (tệp: ${tc.fileName.slice(0, 200)})` : ""}\n${KHUON_JSON_GOI_Y}` },
+            { text: `${text}${tc.fileName ? ` (tệp: ${tc.fileName.slice(0, 200)})` : ""}\n${banDocCua(tc).khuonJson}` },
           ],
         },
       ],
       generationConfig: {
         temperature: 0,
         responseMimeType: "application/json",
-        ...(muc <= 1 ? { responseSchema: schemaGemini(CONG_CU_GHI_PHIEU.input_schema) } : {}),
+        ...(muc <= 1 ? { responseSchema: schemaGemini(banDocCua(tc).congCu.input_schema) } : {}),
         // Bản scan chữ nhỏ: độ phân giải cao đọc số rõ hơn. Ngân sách "suy nghĩ"
         // cố định 4096 token: dòng flash mặc định không suy nghĩ (cấp để đối
         // chiếu cột kỹ hơn), dòng pro mặc định suy nghĩ không giới hạn — trong
@@ -812,7 +894,7 @@ async function goiDeepseek(ch: CauHinhAi, tc: TuyChonDocAi, text: string, pham: 
     stream_options: { include_usage: true },
     ...(laReasoner ? {} : { response_format: { type: "json_object" } }),
     messages: [
-      { role: "system", content: `${HUONG_DAN_HE_THONG}\n\nĐầu vào là CHỮ đã tách từ PDF (không có ảnh): mỗi trang mở đầu bằng "--- trang N ---", các cột của bảng cách nhau bằng " | ". ${KHUON_JSON_GOI_Y}` },
+      { role: "system", content: `${banDocCua(tc).huongDan}\n\nĐầu vào là CHỮ đã tách từ PDF (không có ảnh): mỗi trang mở đầu bằng "--- trang N ---", các cột của bảng cách nhau bằng " | ". ${banDocCua(tc).khuonJson}` },
       {
         role: "user",
         content: `${text}${tc.fileName ? ` (tệp: ${tc.fileName.slice(0, 200)})` : ""}\n\nVĂN BẢN PHIẾU:\n${chuCum.slice(0, 120_000)}`,
@@ -846,8 +928,9 @@ async function goiDeepseek(ch: CauHinhAi, tc: TuyChonDocAi, text: string, pham: 
 }
 
 /** Lời nhắc cho một lượt: phạm vi trang (nếu chia cụm) và bảng lượt 1 (nếu là lượt kiểm lại). */
-export function loiNhac(pham: [number, number] | null, luot1: DongAi[] | null): string {
-  let s = LOI_NHAC_NGUOI_DUNG;
+export function loiNhac(pham: [number, number] | null, luot1: DongAi[] | null, banDoc: BanDocAi = "phieuGiao"): string {
+  const bd = BAN_DOC[banDoc];
+  let s: string = bd.loiNhac;
   if (pham) {
     s += `\nCHỈ đọc các trang ${pham[0]} đến ${pham[1]} (đánh số từ 1) của tài liệu; bỏ hẳn các trang khác.${
       pham[0] > 1 ? " Thông tin đầu phiếu (nhà cung cấp, số phiếu, ngày, tàu) để null." : ""
@@ -866,7 +949,7 @@ export function loiNhac(pham: [number, number] | null, luot1: DongAi[] | null): 
       trang: d.trang,
     }));
     s +=
-      `\n\nĐây là bảng đã đọc ở LƯỢT 1 (JSON). Hãy ĐỐI CHIẾU LẠI TỪNG DÒNG với tài liệu: sửa chỗ đọc sai (số lượng, đơn vị, mã IMPA / Part No., tên), thêm dòng bị sót, xóa dòng không có trên phiếu, giữ nguyên dòng đã đúng. Chú ý số hay lẫn (0/6/8, 1/7, 3/8) và dòng ở mép trang. Trả về bảng ĐẦY ĐỦ đã sửa (không chỉ phần sửa), cùng cấu trúc, cùng thứ tự trên phiếu.\nLƯỢT 1:\n` +
+      `\n\nĐây là bảng đã đọc ở LƯỢT 1 (JSON). Hãy ĐỐI CHIẾU LẠI TỪNG DÒNG với tài liệu: sửa chỗ đọc sai (số lượng, đơn vị, mã IMPA / Part No., tên), thêm dòng bị sót, xóa dòng không có trên ${bd.taiLieu}, giữ nguyên dòng đã đúng. Chú ý số hay lẫn (0/6/8, 1/7, 3/8) và dòng ở mép trang. Trả về bảng ĐẦY ĐỦ đã sửa (không chỉ phần sửa), cùng cấu trúc, cùng thứ tự trên phiếu.\nLƯỢT 1:\n` +
       JSON.stringify(gon);
   }
   return s;
@@ -934,7 +1017,7 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
 
   const ketQua = await chayGioiHan(cac, tuyChon.songSong ?? SO_CUM_SONG_SONG, async (pham): Promise<KetQuaCum> => {
     const tenPham = pham ? `trang ${pham[0]}–${pham[1]}` : "cả phiếu";
-    const r1 = await goi(loiNhac(pham, null), pham);
+    const r1 = await goi(loiNhac(pham, null, tuyChon.banDoc), pham);
     if (!r1.ok) {
       baoTienDo(luotMoiCum);
       return { ok: false, loi: r1.loi, tenPham, luot: 1 };
@@ -945,7 +1028,7 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
     let ra = r1.tokenRa;
     const loiPhu: string[] = [];
     if (cheDo === "ky") {
-      const r2 = await goi(loiNhac(pham, chuan.dong), pham);
+      const r2 = await goi(loiNhac(pham, chuan.dong, tuyChon.banDoc), pham);
       baoTienDo(1);
       if (r2.ok) {
         vao += r2.tokenVao;

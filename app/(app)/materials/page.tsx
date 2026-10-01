@@ -9,6 +9,7 @@ import {
   Anchor,
   ArrowRight,
   Boxes,
+  ChevronDown,
   Cog,
   FileText,
   Filter,
@@ -580,28 +581,37 @@ export default async function MaterialsPage({
                 </Card>
               )
             : canManageMaster && (
-                <Card>
-                  <CardHeader
-                    icon={<Plus className="size-4" />}
-                    title={t("materials.themVaoDanhMucGoc")}
-                  />
-                  <MaterialForm
-                    categories={categories.map((c) => ({
-                      id: c.id,
-                      name: c.name,
-                    }))}
-                  />
-                </Card>
+                // Thu gọn mặc định: form thêm mặt hàng chỉ dùng thỉnh thoảng,
+                // còn bảng danh mục gốc là thứ xem hằng ngày — nhường cả chiều
+                // ngang cho bảng, bấm thanh này mới mở form.
+                <details className="group surface rounded-xl border p-4 xl:col-span-3">
+                  <summary className="flex cursor-pointer list-none items-center gap-3 [&::-webkit-details-marker]:hidden">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-700 dark:text-brand-400">
+                      <Plus className="size-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-[var(--text-primary)]">
+                        {t("materials.themVaoDanhMucGoc")}
+                      </span>
+                      <span className="block text-xs text-[var(--text-muted)] group-open:hidden">
+                        {t("materials.themGocBamDeMo")}
+                      </span>
+                    </span>
+                    <ChevronDown className="size-4 shrink-0 text-[var(--text-muted)] transition-transform group-open:rotate-180" />
+                  </summary>
+                  <div className="mt-4 max-w-3xl">
+                    <MaterialForm
+                      categories={categories.map((c) => ({
+                        id: c.id,
+                        name: c.name,
+                      }))}
+                    />
+                  </div>
+                </details>
               )}
 
           {/* Bảng danh sách */}
-          <Card
-            className={
-              isVesselMode || !canManageMaster
-                ? "xl:col-span-3"
-                : "xl:col-span-2"
-            }
-          >
+          <Card className="xl:col-span-3">
             <CardHeader
               icon={<Boxes className="size-4" />}
               title={

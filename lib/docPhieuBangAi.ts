@@ -87,10 +87,23 @@ export type DongAi = DongPhieuGiao & {
   soLuongTrong?: boolean;
   /** Đơn giá (chỉ bảng báo giá); null = không có / không đọc được. */
   donGia?: number | null;
+  /** Các cột số của báo cáo dụng cụ chằng buộc MLS-11-13 (chỉ chế độ "changBuoc"). */
+  cb?: SoChangBuoc;
+};
+
+/** Cột số của MLS-11-13: (1) tối thiểu, (2) chuẩn, (3) còn dùng, (4) hỏng, (5) toàn bộ, (6) thiếu, (7) yêu cầu. */
+export type SoChangBuoc = {
+  toiThieu: number | null;
+  chuan: number | null;
+  conDung: number | null;
+  hong: number | null;
+  tong: number | null;
+  thieu: number | null;
+  yeuCau: number | null;
 };
 
 /** Loại tài liệu bộ đọc AI đang đọc — quyết định lời dặn và nghĩa cột số lượng. */
-export type BanDocAi = "phieuGiao" | "kiemKe" | "baoGia";
+export type BanDocAi = "phieuGiao" | "kiemKe" | "baoGia" | "changBuoc";
 
 export type DauPhieu = {
   nhaCungCap: string | null;
@@ -99,6 +112,8 @@ export type DauPhieu = {
   tau: string | null;
   /** Loại tiền (chỉ bảng báo giá): USD, VND, SGD, EUR... */
   tienTe?: string | null;
+  /** Cảng (Port) — dòng "Ship's Name / Port / Date" của MLS-11-13. */
+  cang?: string | null;
 };
 
 export type DocAiThanhCong = DauPhieu & {
@@ -292,6 +307,67 @@ Quy tắc:
 
 const LOI_NHAC_BAO_GIA = "Đọc báo giá của nhà cung cấp trong tài liệu đính kèm và ghi TOÀN BỘ dòng hàng (kèm đơn giá) theo đúng cấu trúc yêu cầu.";
 
+// ─── BÁO CÁO DỤNG CỤ CHẰNG BUỘC CONTAINER (MLS-11-13) ─────────────────────────
+// Bảng 10 cột: Stt | Dụng cụ | Ký hiệu | (1) tối thiểu | (2) chuẩn | (3) còn dùng |
+// (4) hỏng | (5) toàn bộ | (6) thiếu | (7) yêu cầu. Không có đơn vị, không có loại.
+
+const SO_CB = (moTa: string) => ({ type: ["number", "null"], description: `${moTa} Ô trống → null; gạch ngang '-' → 0.` });
+
+export const CONG_CU_GHI_CHANG_BUOC = {
+  name: CONG_CU_GHI_PHIEU.name,
+  description:
+    "Ghi lại toàn bộ báo cáo dụng cụ chằng buộc container MLS-11-13 đã đọc: dòng Ship's Name / Port / Date và TỪNG dòng dụng cụ trong bảng, mỗi dòng là một phần tử của mảng dong.",
+  input_schema: {
+    type: "object",
+    properties: {
+      nhaCungCap: { type: ["string", "null"], description: "Luôn null." },
+      soPhieu: { type: ["string", "null"], description: "Mã biểu mẫu nếu in trên trang (VD MLS-11-13), không có thì null." },
+      tau: { type: ["string", "null"], description: "Tên tàu ở ô Ship's Name (Tên tàu)." },
+      cang: { type: ["string", "null"], description: "Cảng ở ô Port (Cảng)." },
+      ngayGiao: { type: ["string", "null"], description: "Ngày ở ô Date (Ngày), dạng dd/mm/yyyy." },
+      dong: {
+        type: "array",
+        description: "Mọi dòng dụng cụ CÓ TÊN trong bảng, theo thứ tự, qua hết các trang được yêu cầu. Bỏ dòng mẫu còn trống (chỉ có số thứ tự).",
+        items: {
+          type: "object",
+          properties: {
+            stt: { type: ["integer", "null"], description: "Số thứ tự (No. / Stt)." },
+            ten: { type: "string", description: "Tên dụng cụ (Type of fitting gear / Dụng cụ chằng buộc) ĐÚNG NHƯ VIẾT: không dịch, không sửa." },
+            partNo: { type: ["string", "null"], description: "Cột Part No. / Mark (Ký hiệu)." },
+            toiThieu: SO_CB("Cột (1) Minimum quantity for full load / SL tối thiểu."),
+            chuan: SO_CB("Cột (2) Standard out-fitting / Trang bị chuẩn."),
+            conDung: SO_CB("Cột (3) In order / Còn sử dụng được."),
+            hong: SO_CB("Cột (4) Out of order / Bị hỏng."),
+            tong: SO_CB("Cột (5)=(3+4) Total stock / Toàn bộ có trên tàu."),
+            thieu: SO_CB("Cột (6)=(1-3) Short of minimum qtty / SL thiếu tối thiểu."),
+            yeuCau: SO_CB("Cột (7) Order / Yêu cầu."),
+            trang: { type: ["integer", "null"], description: "Số trang của tài liệu (đánh từ 1) mà dòng này nằm." },
+            canKiem: { type: ["boolean", "null"], description: "true nếu chữ / số mờ, sửa tay hoặc bạn KHÔNG CHẮC đã đọc đúng." },
+            lyDoKiem: { type: ["string", "null"], description: "Khi canKiem = true: nói ngắn vì sao." },
+            ghiChu: { type: ["string", "null"], description: "Ghi chú riêng của dòng nếu có." },
+          },
+          required: ["ten"],
+        },
+      },
+    },
+    required: ["dong"],
+  },
+} as const;
+
+export const HUONG_DAN_CHANG_BUOC = `Bạn là sĩ quan boong của tàu container, tỉ mỉ và không bao giờ đoán bừa. Nhiệm vụ: đọc BÁO CÁO DỤNG CỤ CHẰNG BUỘC CONTAINER theo biểu mẫu MLS-11-13 — có thể là bản scan nghiêng, mờ, số viết tay, nhiều trang — rồi ghi lại theo đúng cấu trúc yêu cầu.
+
+Bảng có 10 cột theo thứ tự: No. / Stt | Type of fitting gear / Dụng cụ chằng buộc | Part No. / Mark / Ký hiệu | (1) Minimum quantity for full load / SL tối thiểu | (2) Standard out-fitting / Trang bị chuẩn | (3) In order / Còn sử dụng được | (4) Out of order / Bị hỏng | (5)=(3+4) Total stock / Toàn bộ | (6)=(1-3) Short of minimum / SL thiếu | (7) Order / Yêu cầu. Hàng đánh số "1 2 3 4 5=(3+4) 6=(1-3) 7" là hàng tiêu đề, không phải dữ liệu.
+
+Quy tắc:
+1. MỖI dòng dụng cụ CÓ TÊN là MỘT phần tử trong "dong". Dòng mẫu còn trống (chỉ có số thứ tự) thì bỏ. Không gộp, không bỏ sót, không bịa thêm; dòng cuối mỗi trang và dòng đầu trang sau hay bị sót — kiểm kỹ.
+2. "ten" giữ nguyên như viết (twistlock, lashing bar, turnbuckle, bridge fitting, stacking cone, D-ring...): không dịch, không sửa chính tả.
+3. Mỗi cột số ghi đúng vào trường của nó: toiThieu (1), chuan (2), conDung (3), hong (4), tong (5), thieu (6), yeuCau (7). Ô trống → null; gạch ngang '-' → 0. Đừng dồn số sang cột bên cạnh khi có ô trống. Số viết tay đọc thật kỹ (0/6/8, 1/7, 3/8, 4/9 hay lẫn); bị gạch sửa thì lấy số mới và đặt canKiem = true.
+4. "trang": số trang (đánh từ 1). "canKiem" = true ở chỗ mờ, sửa tay hoặc không chắc — thà đánh dấu thừa còn hơn để lọt số sai; nói lý do ở lyDoKiem.
+5. Không ghi hàng tiêu đề, hàng đánh số, dòng chữ ký (Người kiểm kê, Đại phó / Chief Officer, Thuyền trưởng / Captain) vào "dong".
+6. Đầu biểu mẫu: tau (Ship's Name), cang (Port), ngayGiao (Date, dd/mm/yyyy); soPhieu = mã biểu mẫu; nhaCungCap luôn null.`;
+
+const LOI_NHAC_CHANG_BUOC = "Đọc báo cáo dụng cụ chằng buộc MLS-11-13 trong tài liệu đính kèm và ghi TOÀN BỘ dòng dụng cụ có tên (kèm đủ các cột số) theo đúng cấu trúc yêu cầu.";
+
 /** Lời dặn, lời nhắc, công cụ và khuôn JSON theo loại tài liệu. */
 const BAN_DOC = {
   phieuGiao: { huongDan: HUONG_DAN_HE_THONG, loiNhac: LOI_NHAC_NGUOI_DUNG, congCu: CONG_CU_GHI_PHIEU, khuonJson: KHUON_JSON_GOI_Y, taiLieu: "phiếu" },
@@ -308,6 +384,14 @@ const BAN_DOC = {
     congCu: CONG_CU_GHI_BAO_GIA,
     khuonJson: `${KHUON_JSON_GOI_Y} Với báo giá: mỗi dòng thêm "donGia": number|null (đơn giá một đơn vị), đầu báo giá thêm "tienTe": string|null (USD, VND...).`,
     taiLieu: "báo giá",
+  },
+  changBuoc: {
+    huongDan: HUONG_DAN_CHANG_BUOC,
+    loiNhac: LOI_NHAC_CHANG_BUOC,
+    congCu: CONG_CU_GHI_CHANG_BUOC,
+    khuonJson:
+      'Trả về DUY NHẤT một JSON dạng: {"nhaCungCap": null, "soPhieu": string|null, "tau": string|null, "cang": string|null, "ngayGiao": "dd/mm/yyyy"|null, "dong": [{"stt": number|null, "ten": string, "partNo": string|null, "toiThieu": number|null, "chuan": number|null, "conDung": number|null, "hong": number|null, "tong": number|null, "thieu": number|null, "yeuCau": number|null, "trang": number|null, "canKiem": boolean, "lyDoKiem": string|null, "ghiChu": string|null}]}',
+    taiLieu: "báo cáo chằng buộc",
   },
 } as const;
 const banDocCua = (tc: { banDoc?: BanDocAi }) => BAN_DOC[tc.banDoc ?? "phieuGiao"];
@@ -362,6 +446,13 @@ type DongTho = {
   impa?: unknown;
   soLuong?: unknown;
   donGia?: unknown;
+  toiThieu?: unknown;
+  chuan?: unknown;
+  conDung?: unknown;
+  hong?: unknown;
+  tong?: unknown;
+  thieu?: unknown;
+  yeuCau?: unknown;
   donVi?: unknown;
   loai?: unknown;
   thietBi?: unknown;
@@ -395,6 +486,7 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
     ngayGiao: chuoi(o.ngayGiao, 20),
     tau: chuoi(o.tau, 80),
     tienTe: chuoi(o.tienTe, 10)?.toUpperCase() ?? null,
+    cang: chuoi(o.cang, 80),
   };
   const dong: DongAi[] = [];
   const tho = Array.isArray(o.dong) ? (o.dong as DongTho[]) : [];
@@ -424,6 +516,19 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
     const giaRaw = d.donGia;
     const giaSo = typeof giaRaw === "number" ? giaRaw : giaRaw === null || giaRaw === undefined ? null : docSoLoc(String(giaRaw));
     const donGia = giaSo !== null && Number.isFinite(giaSo) && giaSo >= 0 ? giaSo : null;
+    // Cột số MLS-11-13 (chế độ "changBuoc"): chỉ dựng khi AI trả ít nhất một cột.
+    const KHOA_CB = ["toiThieu", "chuan", "conDung", "hong", "tong", "thieu", "yeuCau"] as const;
+    const soCb = (v: unknown): number | null => {
+      if (v === null || v === undefined) return null;
+      if (typeof v === "number") return Number.isFinite(v) && v >= 0 ? v : null;
+      const s = String(v).trim();
+      if (/^[-–—]+$/.test(s)) return 0;
+      const n = docSoLoc(s);
+      return n !== null && Number.isFinite(n) && n >= 0 ? n : null;
+    };
+    const cb: SoChangBuoc | undefined = KHOA_CB.some((k) => k in d)
+      ? { toiThieu: soCb(d.toiThieu), chuan: soCb(d.chuan), conDung: soCb(d.conDung), hong: soCb(d.hong), tong: soCb(d.tong), thieu: soCb(d.thieu), yeuCau: soCb(d.yeuCau) }
+      : undefined;
     const donViTho = chuoi(d.donVi, 20);
     const donVi = donViTho ? chuanDonVi(donViTho) : "PCS";
     const loaiTho = String(d.loai ?? "").toUpperCase();
@@ -435,7 +540,11 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
     const canKiem = d.canKiem === true || String(d.canKiem).toLowerCase() === "true";
     const canhBao = canKiem ? `AI không chắc: ${chuoi(d.lyDoKiem, 160) ?? "chữ khó đọc"}` : null;
     const stt = Number.isInteger(d.stt) ? Number(d.stt) : i + 1;
-    const chuGoc = `${stt}. ${tenIn ?? ten}${partNo ? ` · P/N ${partNo}` : ""}${impa ? ` · IMPA ${impa}` : ""} — ${soLuong} ${donVi}${
+    const chuGoc = cb
+      ? `${stt}. ${tenIn ?? ten}${partNo ? ` · ${partNo}` : ""} — tối thiểu ${cb.toiThieu ?? "—"} · chuẩn ${cb.chuan ?? "—"} · còn dùng ${cb.conDung ?? "—"} · hỏng ${cb.hong ?? "—"}${
+          cb.yeuCau !== null ? ` · yêu cầu ${cb.yeuCau}` : ""
+        }${trang ? ` · tr.${trang}` : ""}`
+      : `${stt}. ${tenIn ?? ten}${partNo ? ` · P/N ${partNo}` : ""}${impa ? ` · IMPA ${impa}` : ""} — ${soLuong} ${donVi}${
       thietBi ? ` · ${thietBi}` : ""
     }${trang ? ` · tr.${trang}` : ""}${ghiChu ? ` (${ghiChu})` : ""}`;
     dong.push({
@@ -452,6 +561,7 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
       canhBao: ghiChu && /gạch|thiếu|hủy|cancel|short|miss|thay/i.test(ghiChu) ? themCanhBao(canhBao, `Ghi chú trên phiếu: ${ghiChu}`) : canhBao,
       soLuongTrong,
       donGia,
+      ...(cb ? { cb } : {}),
     });
   }
   return { ...dau, dong, chuTomTat: tomTat(dau, dong, []) };
@@ -464,6 +574,7 @@ export function tomTat(dau: DauPhieu, dong: DongAi[], loiPhu: string[]): string 
     dau.soPhieu ? `Số phiếu: ${dau.soPhieu}` : null,
     dau.ngayGiao ? `Ngày giao: ${dau.ngayGiao}` : null,
     dau.tau ? `Tàu: ${dau.tau}` : null,
+    dau.cang ? `Cảng: ${dau.cang}` : null,
   ].filter(Boolean);
   const canKiem = dong.filter((d) => d.canhBao).length;
   return [
@@ -491,6 +602,9 @@ export function gopLuot(luot1: DongAi[], luot2: DongAi[]): DongAi[] {
     if (cu.soLuong !== d.soLuong || cu.donVi !== d.donVi) {
       return { ...d, canhBao: themCanhBao(d.canhBao, `Lượt kiểm lại sửa số lượng/đơn vị (lượt 1: ${cu.soLuong} ${cu.donVi})`) };
     }
+    if (JSON.stringify(cu.cb ?? null) !== JSON.stringify(d.cb ?? null)) {
+      return { ...d, canhBao: themCanhBao(d.canhBao, "Lượt kiểm lại sửa cột số (lượt 1: " + JSON.stringify(cu.cb ?? null) + ")") };
+    }
     if ((cu.donGia ?? null) !== (d.donGia ?? null)) {
       return { ...d, canhBao: themCanhBao(d.canhBao, `Lượt kiểm lại sửa đơn giá (lượt 1: ${cu.donGia ?? "trống"})`) };
     }
@@ -511,8 +625,8 @@ export function soatDong(dong: DongAi[]): DongAi[] {
   });
   return dong.map((d, i) => {
     const lyDo: string[] = [];
-    if (!(d.soLuong > 0)) lyDo.push("Số lượng 0 hoặc trống");
-    if (!DON_VI_BIET.has(d.donVi)) lyDo.push(`Đơn vị lạ "${d.donVi}"`);
+    if (!d.cb && !(d.soLuong > 0)) lyDo.push("Số lượng 0 hoặc trống");
+    if (!d.cb && !DON_VI_BIET.has(d.donVi)) lyDo.push(`Đơn vị lạ "${d.donVi}"`);
     if (d.ten.length < 3) lyDo.push("Tên quá ngắn");
     if (/\(\?\)/.test(d.ten) || /\(\?\)/.test(d.partNo ?? "")) lyDo.push("Có chỗ mờ (?)");
     const truoc = dauTien.get(khoaDong(d));
@@ -1009,17 +1123,23 @@ export function loiNhac(pham: [number, number] | null, luot1: DongAi[] | null, b
     }`;
   }
   if (luot1) {
-    const gon = luot1.map((d) => ({
-      ten: d.ten,
-      tenEn: d.tenEn,
-      partNo: d.partNo,
-      impa: d.impa,
-      soLuong: d.soLuong,
-      donVi: d.donVi,
-      loai: d.loai,
-      thietBi: d.thietBi,
-      trang: d.trang,
-    }));
+    // Báo cáo chằng buộc: gửi lại đúng các cột số của mẫu (không có số lượng / đơn vị / loại).
+    const gon = luot1.map((d) =>
+      d.cb
+        ? { ten: d.ten, partNo: d.partNo, ...d.cb, trang: d.trang }
+        : {
+            ten: d.ten,
+            tenEn: d.tenEn,
+            partNo: d.partNo,
+            impa: d.impa,
+            soLuong: d.soLuong,
+            donVi: d.donVi,
+            loai: d.loai,
+            thietBi: d.thietBi,
+            trang: d.trang,
+            ...(d.donGia !== undefined ? { donGia: d.donGia } : {}),
+          }
+    );
     s +=
       `\n\nĐây là bảng đã đọc ở LƯỢT 1 (JSON). Hãy ĐỐI CHIẾU LẠI TỪNG DÒNG với tài liệu: sửa chỗ đọc sai (số lượng, đơn vị, mã IMPA / Part No., tên), thêm dòng bị sót, xóa dòng không có trên ${bd.taiLieu}, giữ nguyên dòng đã đúng. Chú ý số hay lẫn (0/6/8, 1/7, 3/8) và dòng ở mép trang. Trả về bảng ĐẦY ĐỦ đã sửa (không chỉ phần sửa), cùng cấu trúc, cùng thứ tự trên phiếu.\nLƯỢT 1:\n` +
       JSON.stringify(gon);
@@ -1113,6 +1233,7 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
           ngayGiao: c2.ngayGiao ?? chuan.ngayGiao,
           tau: c2.tau ?? chuan.tau,
           tienTe: c2.tienTe ?? chuan.tienTe,
+          cang: c2.cang ?? chuan.cang,
           dong: gopLuot(chuan.dong, c2.dong),
         };
       } else {
@@ -1144,6 +1265,7 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
     dau.ngayGiao ??= k.chuan.ngayGiao;
     dau.tau ??= k.chuan.tau;
     dau.tienTe ??= k.chuan.tienTe;
+    dau.cang ??= k.chuan.cang;
     dongTatCa.push(...k.chuan.dong);
   }
   const canhBaoChung = hong.length

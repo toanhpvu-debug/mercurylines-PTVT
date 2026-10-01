@@ -67,6 +67,14 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // File MLS-11-13 (PDF) xem ngay trong trang soát nhập dụng cụ chằng buộc.
+        source: "/api/chang-buoc/:id/file",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+        ],
+      },
+      {
         // Bản scan kiểm kê (PDF) xem ngay trong trang đối chiếu — cùng lý do.
         source: "/api/kiem-ke/:id/file",
         headers: [

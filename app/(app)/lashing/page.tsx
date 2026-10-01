@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Anchor, ClipboardList, FileText, Printer, Ship } from "lucide-react";
+import { Anchor, ClipboardList, FileText, FileUp, Printer, Ship } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   chonDuocTau,
@@ -8,6 +8,9 @@ import {
   vesselScopeDayDu,
 } from "@/lib/auth";
 import LashingReportForm from "@/components/LashingReportForm";
+import TaiChangBuocForm from "@/components/TaiChangBuocForm";
+import { NHAP_CHANG_BUOC } from "@/lib/changBuocNhap";
+import { dangDocAi } from "@/lib/phieuGiao";
 import {
   LashingGearAddForm,
   LashingGearRow,
@@ -39,10 +42,11 @@ export default async function LashingPage({
   searchParams: Promise<{ vessel?: string }>;
 }) {
   const user = await requireScopedUser();
-  const { t, ngay } = await layT();
+  const { t, ngay, ngayGio } = await layT();
   const scope = vesselScopeDayDu(user);
   const canReport = ["ADMIN", "MASTER"].includes(user.role);
   const canManageGear = user.role === "ADMIN";
+  const coNhapFile = NHAP_CHANG_BUOC.includes(user.role);
 
   const vessels = await prisma.vessel.findMany({
     where: vesselIdWhere(scope),
@@ -66,7 +70,7 @@ export default async function LashingPage({
     );
   }
 
-  const [gears, latestReport, reports] = await Promise.all([
+  const [gears, latestReport, reports, tepNhap, coAi] = await Promise.all([
     prisma.lashingGear.findMany({
       where: { vesselId: selectedVessel.id },
       orderBy: { sortOrder: "asc" },
@@ -82,6 +86,15 @@ export default async function LashingPage({
       take: 24,
       include: { lines: true },
     }),
+    coNhapFile
+      ? prisma.changBuocTep.findMany({
+          where: { vesselId: selectedVessel.id },
+          orderBy: { createdAt: "desc" },
+          take: 8,
+          select: { id: true, fileName: true, trangThai: true, aiDangDocTu: true, createdAt: true, nguoiTai: true, loaiTep: true },
+        })
+      : Promise.resolve([]),
+    coNhapFile ? import("@/lib/cauHinhAi").then(async (m) => Boolean(await m.layCauHinhAi())) : Promise.resolve(false),
   ]);
   const lastLineByGear = new Map(
     (latestReport?.lines ?? []).map((line) => [line.gearId, line])
@@ -167,6 +180,41 @@ export default async function LashingPage({
           </TableWrap>
         )}
       </Card>
+
+      {/* Nhập dụng cụ chằng buộc từ file biểu mẫu MLS-11-13 */}
+      {coNhapFile && (
+        <Card>
+          <CardHeader icon={<FileUp className="size-4" />} title={t("changBuoc.nhapTieuDe", { ten: selectedVessel.name })} subtitle={t("changBuoc.nhapMoTa")} />
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+            <TaiChangBuocForm vesselId={selectedVessel.id} coAi={coAi} />
+            <div className="min-w-0">
+              <p className="mb-2 text-sm font-semibold text-[var(--text-primary)]">{t("changBuoc.daTai", { n: tepNhap.length })}</p>
+              {tepNhap.length === 0 ? (
+                <p className="text-sm text-[var(--text-muted)]">{t("changBuoc.chuaTai")}</p>
+              ) : (
+                <ul className="space-y-1.5 text-sm">
+                  {tepNhap.map((tf) => {
+                    const dangDoc = tf.trangThai === "CHO_XU_LY" && dangDocAi(tf.aiDangDocTu);
+                    return (
+                      <li key={tf.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <Link href={`/lashing/nhap/${tf.id}`} className="font-medium text-[var(--text-brand)] hover:underline">
+                          {tf.fileName}
+                        </Link>
+                        <Badge tone={tf.trangThai === "DA_AP_DUNG" ? "success" : dangDoc ? "info" : "warning"}>
+                          {dangDoc ? t("changBuoc.aiDangDocNgan") : tf.trangThai === "DA_AP_DUNG" ? t("changBuoc.daApDungNhan") : t("changBuoc.choXuLy")}
+                        </Badge>
+                        <span className="text-xs text-[var(--text-muted)]">
+                          {tf.nguoiTai}, {ngayGio(tf.createdAt)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {canReport && gears.length > 0 && (
         <Card>

@@ -158,6 +158,9 @@ export function khoangIdRieng(dauDai: number): { dau: number; cuoi: number } {
  * - LichSuDuyetPo: lịch sử trình / duyệt PO, ghi kèm id người dùng của bản cài
  *   nơi duyệt (văn phòng) — id đó vô nghĩa ở bản cài khác. Kết quả duyệt
  *   (trạng thái, người duyệt) vẫn đồng bộ theo PurchaseOrder.
+ * - ChangBuocTep: file MLS-11-13 tải lên để nhập dụng cụ chằng buộc — gắn với
+ *   tệp trên đĩa của bản cài đã tải; kết quả áp dụng đồng bộ theo LashingGear /
+ *   LashingReport.
  */
 export const BANG_KHONG_DONG_BO = [
   "User",
@@ -175,6 +178,7 @@ export const BANG_KHONG_DONG_BO = [
   "BaoGiaNcc",
   "TepDonMua",
   "LichSuDuyetPo",
+  "ChangBuocTep",
   "CauHinhHeThong",
 ] as const;
 

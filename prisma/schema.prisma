@@ -95,6 +95,7 @@ model Vessel {
   phuTungThietYeu        PhuTungThietYeu[]
   kiemKeTep              KiemKeTep[]
   baoGiaNcc              BaoGiaNcc[]
+  changBuocTep           ChangBuocTep[]
   vesselMaterials        VesselMaterial[]
   purchaseOrders         PurchaseOrder[]
   paintAreas             PaintArea[]
@@ -309,6 +310,44 @@ model MaterialRequestEvent {
   createdAt  DateTime        @default(now())
 
   @@index([requestId])
+}
+
+// Nhập dụng cụ chằng buộc từ file biểu mẫu MLS-11-13 (Word / Excel / PDF / PDF
+// scan): file lưu ở thư mục upload, dòng đọc được lưu ở `dong` để người dùng
+// soát / sửa trước khi áp vào danh mục LashingGear (và, nếu chọn, lưu số còn
+// dùng / hỏng thành một LashingReport). Không đồng bộ — file nằm trên đĩa của
+// bản cài đã tải lên; kết quả áp dụng đồng bộ theo LashingGear / LashingReport.
+model ChangBuocTep {
+  id          Int       @id @default(autoincrement())
+  vesselId    Int
+  vessel      Vessel    @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  fileName    String
+  storedName  String    @unique
+  // WORD · EXCEL · PDF
+  loaiTep     String
+  size        Int
+  sha256      String
+  // Dòng "Ship's Name / Port / Date" đọc được trên biểu mẫu.
+  tenTauDoc   String?
+  cangDoc     String?
+  ngayDoc     DateTime?
+  dong        Json      @default("[]")
+  ghiChuDoc   String?
+  loiAi       String?
+  aiDangDocTu DateTime?
+  aiTienDo    String?
+  // CHO_XU_LY · DANG_AP_DUNG · DA_AP_DUNG
+  trangThai   String    @default("CHO_XU_LY")
+  nguoiTaiId  Int
+  nguoiTai    String
+  apDungBoi   String?
+  apDungLuc   DateTime?
+  reportId    Int?
+  ketQua      Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([vesselId])
 }
 
 model LashingGear {

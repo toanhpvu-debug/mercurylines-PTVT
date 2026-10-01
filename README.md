@@ -1984,6 +1984,33 @@ App tạo và in được 3 loại báo cáo đúng biểu mẫu Mercury Lines (
 
 Cả ba trang đều tuân theo phạm vi tàu (CREW chỉ thấy tàu mình, chỉ xem không lập).
 
+### Nhập dụng cụ chằng buộc từ file MLS-11-13 (`/lashing` → *Nhập dụng cụ từ file MLS-11-13*)
+
+Quản trị tải báo cáo MLS-11-13 tàu đã điền theo **mẫu gốc** — Word (.docx, .doc), Excel
+(.xlsx, .xls), PDF hoặc PDF scan — cho tàu đang xem:
+
+- Word / Excel đọc ngay. Cột nhận theo **hàng đánh số "1 2 3 4 5=(3+4) 6=(1-3) 7"** của mẫu
+  (chắc nhất), không có thì theo chữ tiêu đề (Minimum / Standard / In order / Out of order /
+  Total / Short of / Order và chữ Việt), cuối cùng theo khuôn 10 cột. Dòng mẫu còn trống (chỉ
+  có số thứ tự) bị bỏ; gặp dòng chữ ký (Người kiểm kê / Đại phó / Thuyền trưởng) thì dừng. Dòng
+  *Ship's Name / Port / Date* cho tên tàu (nhắc khi khác tàu đang nhập), cảng, ngày. Cột (5),
+  (6) dùng để đối chiếu: lệch với (3)+(4) hay (1)−(3) thì dòng có cảnh báo.
+- PDF / PDF scan do **bộ đọc AI** đọc nền (chế độ "changBuoc": đủ 7 cột số, ô trống = null,
+  gạch ngang = 0). Chưa có khóa AI thì chỉ đọc được PDF có lớp chữ (đoán cột theo thứ tự số,
+  mọi dòng gắn cảnh báo).
+- Trang soát `/lashing/nhap/[id]`: sửa tên / ký hiệu / số, tick *Bỏ qua*, thêm dòng; cột
+  *Trong danh mục* cho xem trước dòng nào **thêm mới**, dòng nào **cập nhật** dụng cụ đã có
+  (ghép theo tên — bỏ qua hoa thường, dấu câu — rồi theo ký hiệu; hai dòng cùng tên trong file
+  thì dòng sau bỏ qua). PDF gốc hiện cạnh bảng trên màn hình rộng.
+- *Áp dụng vào danh mục* (một giao dịch): thêm dụng cụ mới (xếp sau dụng cụ cuối cùng), bổ
+  sung / sửa ký hiệu, và — nếu tick — cập nhật SL tối thiểu, trang bị chuẩn của dụng cụ đã có.
+  Tick *Lưu số còn dùng / hỏng* thì lưu thêm một **báo cáo MLS-11-13** (ngày, cảng như trên) từ
+  các dòng có số; cột *Yêu cầu* của báo cáo vẫn do app tính (chuẩn − còn dùng).
+
+File gốc lưu trong `UPLOAD_DIR` (`chang-buoc-<uuid>.ext`), bảng `ChangBuocTep` không đồng bộ
+giữa bản cài; kết quả áp dụng đồng bộ theo LashingGear / LashingReport. Kiểm ở
+`scripts/kiem-tra-chang-buoc-nhap.ts` (có đọc ngược mẫu Word thật trong `templates/` nếu có).
+
 ### Tải file báo cáo từ tàu (`/documents` — "Báo cáo từ tàu")
 
 Tàu tải trực tiếp file báo cáo gốc (PDF hoặc Excel .xls/.xlsx, tối đa 20MB) lên app để quản lý tập trung. **File là bản lưu bất biến:** không có chức năng sửa/thay thế — thuyền viên sau khi nộp không thể chỉnh sửa; mỗi bản nộp được lưu vĩnh viễn kèm **mã toàn vẹn SHA-256** (tính trên máy chủ) để đối chiếu file không bị thay đổi; chỉ **quản trị viên ở bản cài văn phòng** mới gỡ được (bản cài trên tàu không gỡ). **Gỡ nhanh:** nút thùng rác ngay trên dòng, hoặc tick nhiều dòng (ô đầu bảng = chọn tất cả) rồi bấm *Gỡ N hồ sơ đã chọn* — xóa bản ghi lẫn tệp, mỗi hồ sơ gỡ đi để lại một dòng nhật ký riêng (ai gỡ, tên tệp, SHA-256, người nộp) — `app/ho-so-actions.ts`. Nộp nhầm thì tải bản đúng lên (bản mới nằm trên cùng). File lưu trong `UPLOAD_DIR` (mặc định `./uploads`, trong Docker là `/data/uploads` thuộc volume bền vững) với tên ngẫu nhiên; tải xuống qua route có kiểm tra đăng nhập + phạm vi tàu, ép Content-Type theo whitelist + `nosniff` nên PDF/Excel độc hại không chạy được script. CREW/MASTER chỉ thấy và tải file của tàu mình phụ trách.

@@ -16,6 +16,7 @@ import { phieuGiao } from "./dict/phieuGiao";
 import { cauHinhAi } from "./dict/cauHinhAi";
 import { thietYeu } from "./dict/thietYeu";
 import { kiemKe } from "./dict/kiemKe";
+import { changBuoc } from "./dict/changBuoc";
 import { requests } from "./dict/requests";
 import { vessels } from "./dict/vessels";
 
@@ -41,6 +42,7 @@ export const TU_DIEN = {
   cauHinhAi,
   thietYeu,
   kiemKe,
+  changBuoc,
   paint,
   consumables,
   vessels,

@@ -309,12 +309,15 @@ async function main() {
     { id: 2, code: "E-IMPA-0002", nameVn: "Giẻ lau (máy)", nameEn: null, impa: "232908", partNumber: null, uom: "KG", materialType: "STORE", cuaTau: true },
     { id: 3, code: "E-SPR-0001", nameVn: "Gioăng O", nameEn: "O-ring", impa: null, partNumber: "90512-0045", uom: "PCS", materialType: "SPARE", cuaTau: true },
     { id: 4, code: "D-IMPA-0003", nameVn: "Băng keo cách điện", nameEn: "Insulation tapes", impa: null, partNumber: null, uom: "PCS", materialType: "STORE", cuaTau: false },
+    // Ghép theo nửa tiếng Việt của mô tả song ngữ (ô gộp mất dấu ")").
+    { id: 5, code: "E-IMPA-0004", nameVn: "Găng tay hàn", nameEn: null, impa: null, partNumber: null, uom: "PAIR", materialType: "STORE", cuaTau: false },
   ];
-  kiemTra("ghep 05B", ghepDongYeuCau(b.dong, "STORE", vt).map((m) => m?.id ?? null), [null, 2, null, null, 4, null]);
+  kiemTra("ghep 05B", ghepDongYeuCau(b.dong, "STORE", vt).map((m) => m?.id ?? null), [5, 2, null, null, 4, null]);
   kiemTra("ghep 05A", ghepDongYeuCau(a.dong, "SPARE", vt).map((m) => m?.id ?? null), [3, null, null]);
   const form = dongFormTuFile(b.dong, ghepDongYeuCau(b.dong, "STORE", vt), (d) => (d.rob !== null ? `ROB ${d.rob}` : undefined));
   kiemTra("form dong khop", form[1], { mode: "existing", materialId: "2", itemName: "Wiping rags(giẻ lau)", itemCode: "232908", itemUom: "kg", quantity: "300", note: "", rob: "", goiY: "ROB 5" });
-  kiemTra("form dong moi", form[0], { mode: "new", materialId: "", itemName: "Welder gloves five finger(găng tay hàn", itemCode: "851163", itemUom: "pair", quantity: "2", note: "", rob: "0", goiY: "ROB 0" });
+  kiemTra("form dong moi", form[2], { mode: "new", materialId: "", itemName: "Hand cleaner paste", itemCode: "", itemUom: "botle", quantity: "12", note: "", rob: "", goiY: undefined });
+  kiemTra("form dong moi giu rob", [form[3].mode, form[3].rob, form[0].mode, form[0].rob], ["new", "1", "existing", ""]);
   kiemTra("form thieu so + phan", [form[3].quantity, form[4].note], ["", "ELECTRIC"]);
   kiemTra("doc lai JSON", docDongYeuCauFile(JSON.parse(JSON.stringify(b.dong))), b.dong);
 

@@ -483,9 +483,11 @@ export function ghepDongYeuCau(dong: DongYeuCauFile[], loai: LoaiYeuCau, vatTu: 
       const theoPn = cungLoai.filter((m) => khop(m.partNumber) === pn);
       if (theoPn.length) return chon(theoPn);
     }
-    const ten = khop(d.moTa);
-    if (ten.length >= 3) {
-      const theoTen = cungLoai.filter((m) => khop(m.nameVn) === ten || (m.nameEn && khop(m.nameEn) === ten));
+    // Tên trùng khít: cả mô tả, rồi từng nửa của mô tả song ngữ "Wiping rags(giẻ lau)".
+    const ngoac = /^(.+?)\s*\(([^()]+)\)?\s*\.?$/.exec(d.moTa.trim()); // ô gộp hay mất ")"
+    const ten = [d.moTa, ...(ngoac ? [ngoac[1], ngoac[2]] : [])].map(khop).filter((s) => s.length >= 4);
+    for (const s of ten) {
+      const theoTen = cungLoai.filter((m) => khop(m.nameVn) === s || (m.nameEn && khop(m.nameEn) === s));
       if (theoTen.length) return chon(theoTen);
     }
     return null;

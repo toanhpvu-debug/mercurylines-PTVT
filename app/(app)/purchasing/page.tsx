@@ -3,9 +3,11 @@ import {
   Building2,
   ClipboardList,
   Eye,
+  FileInput,
   FilePlus,
   FileText,
   Plus,
+  ShieldCheck,
   ShoppingCart,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
@@ -16,6 +18,7 @@ import {
   vesselWhere,
 } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
+import { DUYET_DON_MUA, LAP_DON_MUA, tongDonMua } from "@/lib/donMuaQuyTrinh";
 import {
   Badge,
   Card,
@@ -49,7 +52,8 @@ export default async function PurchasingPage() {
   const user = await requireScopedUser();
   const { t, tTuDo, so } = await layT();
   const scope = vesselScopeDayDu(user);
-  const canManage = ["ADMIN", "MASTER"].includes(user.role);
+  const canManage = LAP_DON_MUA.includes(user.role);
+  const laNguoiDuyet = DUYET_DON_MUA.includes(user.role);
   // Xóa chứng từ mua sắm chỉ dành cho quản trị viên.
   const canDeletePo = user.role === "ADMIN";
 
@@ -80,6 +84,12 @@ export default async function PurchasingPage() {
         subtitle={t("purchasing.moTa")}
         action={
           <>
+            {canManage && (
+              <Link href="/purchasing/bao-gia" className={buttonClass("secondary")}>
+                <FileInput className="size-4" />
+                {t("purchasing.nutNhapBaoGiaNcc")}
+              </Link>
+            )}
             {canManage && (
               <Link
                 href="/purchasing/direct"
@@ -114,6 +124,33 @@ export default async function PurchasingPage() {
         <Notice tone="warning">{t("purchasing.chuaGanTau")}</Notice>
       ) : (
         <>
+          {/* Đơn chờ lãnh đạo phòng Kỹ thuật – Vật tư duyệt */}
+          {(laNguoiDuyet || canManage) && purchaseOrders.some((po) => po.status === "PENDING_APPROVAL") && (
+            <Card>
+              <CardHeader
+                icon={<ShieldCheck className="size-4" />}
+                title={t("purchasing.donChoDuyet", { n: purchaseOrders.filter((po) => po.status === "PENDING_APPROVAL").length })}
+                subtitle={laNguoiDuyet ? t("purchasing.donChoDuyetMoTa") : t("purchasing.donChoDuyetMoTaLap")}
+              />
+              <ul className="space-y-1.5 text-sm">
+                {purchaseOrders
+                  .filter((po) => po.status === "PENDING_APPROVAL")
+                  .map((po) => (
+                    <li key={po.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <Link href={`/purchasing/${po.id}`} className={`font-display text-xs tracking-wide ${LINK}`}>
+                        {po.poNo}
+                      </Link>
+                      <span>{po.supplier.name}</span>
+                      <span className="text-[var(--text-muted)]">· {po.vessel.name}</span>
+                      <span className="tabular text-[var(--text-muted)]">
+                        · {so(tongDonMua(po.items, po.discountPercent, po.transportFee, po.deliveryFee).tong)} {po.currency}
+                      </span>
+                      <span className="text-xs text-[var(--text-muted)]">· {t("purchasing.trinhBoi", { nguoi: po.submittedBy ?? "—" })}</span>
+                    </li>
+                  ))}
+              </ul>
+            </Card>
+          )}
           {/* Bước 1: yêu cầu đã duyệt, chờ lập đơn mua */}
           <Card>
             <CardHeader

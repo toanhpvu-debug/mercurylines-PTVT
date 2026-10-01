@@ -169,6 +169,8 @@ export const BANG_KHONG_DONG_BO = [
   "PhieuGiaoNhanDong",
   "KiemKeTep",
   "FormStandardTep",
+  "BaoGiaNcc",
+  "TepDonMua",
   "CauHinhHeThong",
 ] as const;
 

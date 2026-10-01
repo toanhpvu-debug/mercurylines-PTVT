@@ -1611,7 +1611,7 @@ Module mua sắm (`/purchasing`) dẫn vật tư từ khi yêu cầu được du
 
 1. **Yêu cầu chờ mua sắm** — yêu cầu đã duyệt + chuyển mua sắm (IN_PROCUREMENT) hiện trong hàng chờ.
 2. **Tạo đơn mua hàng (PO)** — chọn tàu → tick các dòng vật tư cần mua (tự tính SL còn cần mua = SL duyệt − đã đặt) → nhập đơn giá → chọn **nhà cung cấp** → tạo PO (Nháp).
-3. **Tiến trình PO** — Nháp → **Gửi NCC** → **NCC xác nhận** → nhận hàng → **Hoàn tất**; có thể **Hủy** khi chưa nhận.
+3. **Tiến trình PO** — Nháp → **Trình duyệt** → **Lãnh đạo phòng Kỹ thuật – Vật tư duyệt** → **Gửi NCC** → **NCC xác nhận** → nhận hàng → **Hoàn tất**; có thể **Hủy** khi chưa nhận. PO chưa duyệt không gửi được cho nhà cung cấp (xem *Báo giá NCC → PO → duyệt* bên dưới).
 4. **Nhận hàng (Goods Receipt)** — nhập SL nhận từng dòng + chọn kho: vật tư trong danh mục **tự nhập kho** (tăng tồn + ghi giao dịch IN), cập nhật **tiến độ giao** của yêu cầu (Giao một phần / Giao đủ), và cuộn trạng thái PO (Nhận một phần / Nhận đủ).
 5. **Bản in PO** đúng biểu mẫu công ty: đầu chứng từ theo **biểu mẫu của tàu** (xem bên dưới), khối To/Attn/Y-ref (NCC) + From/Our ref/Date/Subject, bảng dòng (Item/Description/PN/Unit/Q'ty/U.Price/Amount), khối tổng **Total → Chiết khấu (%) → Phí vận chuyển → Phí giao lên tàu → TOTAL**, Terms & Condition và chữ ký công ty.
 6. **Yêu cầu báo giá (RFQ / Inquiry for Quote)** — từ trang PO bấm "Yêu cầu báo giá (RFQ)" để in bản Inquiry for Quote (cùng các dòng hàng nhưng **không có giá**, cột IMPA/PN) gửi NCC, cùng chuẩn biểu mẫu với PO.
@@ -1630,6 +1630,54 @@ lượng chứng từ: xóa một đơn giữa chừng mà đếm lại thì s�
 số cũ có thể đã nằm trên chứng từ gửi cho nhà cung cấp.
 
 Chứng từ phát hành trước khi đổi quy ước vẫn giữ số cũ — số đã in ra giấy thì không sửa lại.
+
+### Báo giá NCC → PO → duyệt → gửi NCC xác nhận (`/purchasing/bao-gia`)
+
+**1. Nhập báo giá.** Nút *Nhập báo giá NCC* (trang Mua sắm) hoặc *Nhập báo giá* (trang một PO
+nháp). Nhận Word (.docx, .doc), Excel (.xlsx, .xls), PDF và PDF scan, tối đa 20 MB:
+
+- Word / Excel đọc ngay, không cần AI: tự dò bảng theo dòng tiêu đề (Description / Tên hàng,
+  Part No., IMPA, Unit / ĐVT, Q'ty / Số lượng, Unit price / Đơn giá, Amount / Thành tiền), bỏ
+  dòng tiêu đề nhóm, dừng ở dòng Sub-total / Tổng / Chiết khấu. Thiếu đơn giá mà có thành tiền
+  thì suy ra và đánh dấu cần kiểm; thành tiền lệch SL × đơn giá cũng được đánh dấu. Số báo giá,
+  ngày, loại tiền và tên nhà cung cấp lấy từ phần đầu thư.
+- PDF / PDF scan do **bộ đọc AI** đọc nền (chế độ báo giá: thêm đơn giá + loại tiền), trang tự
+  làm mới khi xong. Chưa có khóa AI thì chỉ đọc được PDF có lớp chữ (kém chắc hơn).
+- Nhà cung cấp được nhận theo tên trong file; chưa có trong danh sách thì quản trị bấm
+  *Thêm NCC theo tên này*.
+
+**2. Soát và sửa.** Bảng sửa được từng ô (mô tả, Part No., IMPA, ĐVT, SL, đơn giá, ghi chú),
+tick *Bỏ qua* cho dòng không mua; đầu báo giá: NCC, số / ngày báo giá, loại tiền, chiết khấu %,
+phí vận chuyển, phí giao lên tàu. PDF gốc hiện cạnh bảng trên màn hình rộng.
+
+**3. Vào PO.** Hai cách:
+- *Áp giá vào PO nháp* — PO lập từ yêu cầu vật tư: dòng ghép được (Part No. → IMPA → mô tả)
+  được cập nhật đơn giá; tùy chọn thêm dòng báo giá chưa có, cập nhật cả số lượng (trừ dòng lấy
+  từ yêu cầu — số lượng đó theo yêu cầu đã duyệt). Cột *Ghép vào PO* cho xem trước.
+- *Tạo PO nháp từ báo giá* — số PO theo quy ước, dòng tự gắn danh mục tàu khi trùng Part No. / IMPA.
+
+Đầu PO nhận NCC, loại tiền, Y/ref = số báo giá, chiết khấu và phí. PO nháp vẫn sửa tay được
+(*Sửa đơn (nháp)* trên trang PO).
+
+**4. Duyệt.** Người lập (quản trị, thuyền trưởng) bấm *Trình duyệt* — mọi dòng phải có đơn giá.
+Người duyệt là **lãnh đạo phòng Kỹ thuật – Vật tư**: trong app là vai trò *Quản lý kỹ thuật*
+(TECH_MANAGER) và quản trị. Danh sách *Đơn chờ duyệt* nằm đầu trang Mua sắm. *Duyệt đơn* (ghi
+chú tùy chọn) hoặc *Trả lại* (bắt buộc ghi lý do, đơn về Nháp). Không ai tự duyệt đơn mình
+trình, trừ quản trị (ghi rõ trong nhật ký). Đang chờ duyệt thì đơn khóa sửa; người lập *Rút lại*
+được để sửa tiếp.
+
+**5. In / xuất và gửi NCC.** *In* (bản in PO theo biểu mẫu tàu, khối chữ ký Prepared / Approved /
+Supplier confirmation) hoặc *Xuất Excel PO* (logo + đầu chứng từ của biểu mẫu, bảng có công
+thức, tổng, chữ ký). Đơn chưa duyệt in / xuất ra có dấu **BẢN NHÁP — CHƯA DUYỆT**. *Soạn thư
+gửi NCC* mở trình gửi thư của máy với địa chỉ, tiêu đề, nội dung soạn sẵn — **đính kèm file
+Excel / PDF rồi gửi** (app không tự gửi email); xong bấm *Đánh dấu đã gửi NCC*.
+
+**6. NCC xác nhận.** *NCC xác nhận*: ngày, số / người xác nhận, kèm PO đã ký nhà cung cấp gửi
+lại (PDF, ảnh, Word, Excel). File nằm ở mục *Chứng từ kèm theo* của PO cùng báo giá gốc.
+
+Báo giá và file kèm PO **không đồng bộ** giữa các bản cài (chỉ đơn mua đồng bộ). Kiểm ở
+`scripts/kiem-tra-bao-gia.ts` (đọc bảng EN/VN, file Excel / Word, ghép dòng, chuyển trạng thái,
+quyền duyệt, file Excel PO, database cuộn ngược).
 
 ### Tạo IFQ / PO trực tiếp từ Phòng Kỹ thuật – Vật tư (`/purchasing/direct`)
 

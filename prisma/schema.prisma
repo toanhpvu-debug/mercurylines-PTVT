@@ -90,6 +90,7 @@ model Vessel {
   phieuGiaoNhan          PhieuGiaoNhan[]
   phuTungThietYeu        PhuTungThietYeu[]
   kiemKeTep              KiemKeTep[]
+  baoGiaNcc              BaoGiaNcc[]
   vesselMaterials        VesselMaterial[]
   purchaseOrders         PurchaseOrder[]
   paintAreas             PaintArea[]
@@ -399,7 +400,7 @@ model PurchaseOrder {
   supplier        Supplier            @relation(fields: [supplierId], references: [id])
   vesselId        Int
   vessel          Vessel              @relation(fields: [vesselId], references: [id])
-  // DRAFT, SENT, CONFIRMED, PARTIALLY_RECEIVED, RECEIVED, CLOSED, CANCELLED
+  // DRAFT, PENDING_APPROVAL, APPROVED, SENT, CONFIRMED, PARTIALLY_RECEIVED, RECEIVED, CLOSED, CANCELLED
   status          String              @default("DRAFT")
   currency        String              @default("USD")
   orderDate       DateTime?
@@ -412,6 +413,16 @@ model PurchaseOrder {
   transportFee    Float               @default(0)
   deliveryFee     Float               @default(0)
   createdBy       String
+  // Trình duyệt → lãnh đạo phòng Kỹ thuật – Vật tư duyệt (PENDING_APPROVAL → APPROVED).
+  submittedBy         String?
+  submittedAt         DateTime?
+  approvedBy          String?
+  approvedAt          DateTime?
+  // Lý do trả lại (khi người duyệt trả về Nháp) hoặc ghi chú khi duyệt.
+  approvalNote        String?
+  // Nhà cung cấp xác nhận đơn (SENT → CONFIRMED): ngày, số / người xác nhận.
+  supplierConfirmedAt DateTime?
+  supplierConfirmRef  String?
   items           PurchaseOrderItem[]
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
@@ -1112,4 +1123,68 @@ model FormStandardTep {
   uploadedBy String?
   uploadedAt DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+/**
+ * BÁO GIÁ của nhà cung cấp (Word / Excel / PDF / PDF scan) — hàng chờ xử lý.
+ * Đọc được các dòng (mô tả, Part No., ĐVT, số lượng, đơn giá) vào `dong`
+ * (JSON, sửa được trên trang báo giá); rồi hoặc áp giá vào một PO nháp có sẵn
+ * (poId), hoặc tạo PO nháp mới từ báo giá. Bảng làm việc ở văn phòng, không
+ * đồng bộ (PO sinh ra mới đồng bộ). poId / supplierId không khóa ngoại: PO và
+ * nhà cung cấp là bảng đồng bộ, xóa bên đó không được vướng ở đây.
+ */
+model BaoGiaNcc {
+  id           Int       @id @default(autoincrement())
+  vesselId     Int
+  vessel       Vessel    @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  supplierId   Int?
+  poId         Int?
+  fileName     String
+  storedName   String    @unique
+  // EXCEL · WORD · PDF
+  loaiTep      String
+  size         Int
+  sha256       String
+  // Đầu báo giá (đọc được, sửa được).
+  nhaCungCapDoc String?
+  soBaoGia     String?
+  ngayBaoGia   DateTime?
+  tienTe       String?
+  chietKhau    Float     @default(0)
+  phiVanChuyen Float     @default(0)
+  phiGiaoHang  Float     @default(0)
+  // Các dòng báo giá (DongBaoGia[] — lib/baoGia.ts).
+  dong         Json
+  ghiChuDoc    String?
+  loiAi        String?
+  aiDangDocTu  DateTime?
+  aiTienDo     String?
+  // CHO_XU_LY · DA_AP_DUNG
+  trangThai    String    @default("CHO_XU_LY")
+  nguoiTaiId   Int
+  nguoiTai     String
+  apDungBoi    String?
+  apDungLuc    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([vesselId])
+  @@index([poId])
+}
+
+/** File đính kèm đơn mua (VD bản PO nhà cung cấp ký xác nhận gửi lại). Không đồng bộ. */
+model TepDonMua {
+  id         Int      @id @default(autoincrement())
+  poId       Int
+  // XAC_NHAN_NCC · KHAC
+  loai       String
+  fileName   String
+  storedName String   @unique
+  mimeType   String
+  size       Int
+  sha256     String
+  nguoiTai   String
+  createdAt  DateTime @default(now())
+
+  @@index([poId])
 }

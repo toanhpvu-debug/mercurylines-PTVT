@@ -246,6 +246,8 @@ export const TONE_YEU_CAU: Record<string, Tone> = {
 
 export const TONE_DON_MUA: Record<string, Tone> = {
   DRAFT: "muted",
+  PENDING_APPROVAL: "warning",
+  APPROVED: "success",
   SENT: "brand",
   CONFIRMED: "info",
   PARTIALLY_RECEIVED: "warning",

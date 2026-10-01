@@ -25,6 +25,7 @@
  * bằng fetch giả: scripts/kiem-tra-doc-ai.ts.
  */
 import { chuanDonVi, type DongPhieuGiao } from "@/lib/phieuGiaoParse";
+import { docSoLoc } from "@/lib/docSo";
 
 /**
  * "deepseek": API của DeepSeek (OpenAI-compatible) CHỈ NHẬN CHỮ — không nhận
@@ -84,16 +85,20 @@ export type DongAi = DongPhieuGiao & {
    * cần phân biệt; bảng kiểm kê thì phải: trống = chưa đếm, 0 = đếm được 0.
    */
   soLuongTrong?: boolean;
+  /** Đơn giá (chỉ bảng báo giá); null = không có / không đọc được. */
+  donGia?: number | null;
 };
 
 /** Loại tài liệu bộ đọc AI đang đọc — quyết định lời dặn và nghĩa cột số lượng. */
-export type BanDocAi = "phieuGiao" | "kiemKe";
+export type BanDocAi = "phieuGiao" | "kiemKe" | "baoGia";
 
 export type DauPhieu = {
   nhaCungCap: string | null;
   soPhieu: string | null;
   ngayGiao: string | null;
   tau: string | null;
+  /** Loại tiền (chỉ bảng báo giá): USD, VND, SGD, EUR... */
+  tienTe?: string | null;
 };
 
 export type DocAiThanhCong = DauPhieu & {
@@ -237,6 +242,56 @@ Quy tắc:
 
 const LOI_NHAC_KIEM_KE = "Đọc bảng kiểm kê vật tư / phụ tùng trong tài liệu đính kèm và ghi TOÀN BỘ dòng mặt hàng theo đúng cấu trúc yêu cầu.";
 
+// ─── BÁO GIÁ của nhà cung cấp (quotation) ────────────────────────────────────
+// Cùng khuôn kết quả; thêm đơn giá từng dòng và loại tiền của báo giá.
+
+export const CONG_CU_GHI_BAO_GIA = {
+  name: CONG_CU_GHI_PHIEU.name,
+  description:
+    "Ghi lại toàn bộ báo giá đã đọc: thông tin đầu báo giá và TỪNG dòng hàng được chào giá, mỗi dòng trên báo giá là một phần tử của mảng dong.",
+  input_schema: {
+    ...CONG_CU_GHI_PHIEU.input_schema,
+    properties: {
+      ...CONG_CU_GHI_PHIEU.input_schema.properties,
+      nhaCungCap: { type: ["string", "null"], description: "Tên nhà cung cấp gửi báo giá, đúng như in trên báo giá." },
+      soPhieu: { type: ["string", "null"], description: "Số báo giá (Quotation No. / Our ref / Số báo giá)." },
+      ngayGiao: { type: ["string", "null"], description: "Ngày báo giá, dạng dd/mm/yyyy." },
+      tau: { type: ["string", "null"], description: "Tên tàu ghi trên báo giá (Vessel / M/V), nếu có." },
+      tienTe: { type: ["string", "null"], description: "Mã loại tiền của báo giá: USD, VND, SGD, EUR, JPY..." },
+      dong: {
+        ...CONG_CU_GHI_PHIEU.input_schema.properties.dong,
+        description: "Mọi dòng hàng được chào giá, theo thứ tự xuất hiện, qua hết các trang được yêu cầu.",
+        items: {
+          ...CONG_CU_GHI_PHIEU.input_schema.properties.dong.items,
+          properties: {
+            ...CONG_CU_GHI_PHIEU.input_schema.properties.dong.items.properties,
+            soLuong: { type: ["number", "null"], description: "Số lượng được chào giá (Q'ty), là số." },
+            donGia: {
+              type: ["number", "null"],
+              description: "ĐƠN GIÁ của một đơn vị (Unit price), là số — KHÔNG phải thành tiền (Amount / Total). Không có thì null.",
+            },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+export const HUONG_DAN_BAO_GIA = `Bạn là nhân viên mua hàng của công ty quản lý tàu biển, tỉ mỉ và không bao giờ đoán bừa. Nhiệm vụ: đọc BÁO GIÁ (quotation / offer) của nhà cung cấp — bản PDF hoặc bản scan, tiếng Anh hoặc tiếng Việt, nhiều trang — rồi ghi lại theo đúng cấu trúc yêu cầu.
+
+Quy tắc:
+1. MỖI dòng hàng được chào giá là MỘT phần tử trong "dong". Không gộp, không bỏ sót, không bịa thêm; dòng cuối mỗi trang và dòng đầu trang sau hay bị sót — kiểm kỹ.
+2. "ten" giữ nguyên như in: không dịch, không sửa, không rút gọn. Song ngữ thì tách thêm tenEn / tenVi.
+3. IMPA là mã 6 chữ số; Part No. là mã nhà sản xuất. Không có thì null.
+4. "soLuong" là số lượng chào giá; "donGia" là đơn giá MỘT đơn vị — không lấy cột thành tiền / Amount. Chỉ có thành tiền và số lượng thì donGia = thành tiền / số lượng và đặt canKiem = true. Số có dấu ngăn nghìn đọc đúng giá trị (1,250.00 = 1250; 1.250.000 VND = 1250000).
+5. "donVi" đúng cột đơn vị (PCS, SET, KG, LTR, M, BOX, ROLL, PAIR, CAN, DRUM...).
+6. "loai": STORE cho vật tư tiêu hao / ship stores; SPARE cho phụ tùng máy móc, thiết bị.
+7. "trang": số trang (đánh từ 1). "canKiem" = true ở chỗ mờ, sửa tay hoặc không chắc; nói lý do ở lyDoKiem. Ghi chú riêng của dòng (hàng thay thế, thời gian giao, hết hàng...) ghi vào ghiChu.
+8. Không ghi dòng tổng cộng, chiết khấu, phí vận chuyển, điều khoản, chữ ký vào "dong".
+9. Đầu báo giá: nhaCungCap, soPhieu (số báo giá), ngayGiao (ngày báo giá dd/mm/yyyy), tau, tienTe (mã loại tiền) — không rõ thì null.`;
+
+const LOI_NHAC_BAO_GIA = "Đọc báo giá của nhà cung cấp trong tài liệu đính kèm và ghi TOÀN BỘ dòng hàng (kèm đơn giá) theo đúng cấu trúc yêu cầu.";
+
 /** Lời dặn, lời nhắc, công cụ và khuôn JSON theo loại tài liệu. */
 const BAN_DOC = {
   phieuGiao: { huongDan: HUONG_DAN_HE_THONG, loiNhac: LOI_NHAC_NGUOI_DUNG, congCu: CONG_CU_GHI_PHIEU, khuonJson: KHUON_JSON_GOI_Y, taiLieu: "phiếu" },
@@ -246,6 +301,13 @@ const BAN_DOC = {
     congCu: CONG_CU_GHI_KIEM_KE,
     khuonJson: `${KHUON_JSON_GOI_Y} Trong bảng kiểm kê "soLuong" là số tồn đếm được (cột Tồn trên tàu / R.O.B), ô trống = null.`,
     taiLieu: "bảng kiểm kê",
+  },
+  baoGia: {
+    huongDan: HUONG_DAN_BAO_GIA,
+    loiNhac: LOI_NHAC_BAO_GIA,
+    congCu: CONG_CU_GHI_BAO_GIA,
+    khuonJson: `${KHUON_JSON_GOI_Y} Với báo giá: mỗi dòng thêm "donGia": number|null (đơn giá một đơn vị), đầu báo giá thêm "tienTe": string|null (USD, VND...).`,
+    taiLieu: "báo giá",
   },
 } as const;
 const banDocCua = (tc: { banDoc?: BanDocAi }) => BAN_DOC[tc.banDoc ?? "phieuGiao"];
@@ -299,6 +361,7 @@ type DongTho = {
   partNo?: unknown;
   impa?: unknown;
   soLuong?: unknown;
+  donGia?: unknown;
   donVi?: unknown;
   loai?: unknown;
   thietBi?: unknown;
@@ -331,6 +394,7 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
     soPhieu: chuoi(o.soPhieu, 80),
     ngayGiao: chuoi(o.ngayGiao, 20),
     tau: chuoi(o.tau, 80),
+    tienTe: chuoi(o.tienTe, 10)?.toUpperCase() ?? null,
   };
   const dong: DongAi[] = [];
   const tho = Array.isArray(o.dong) ? (o.dong as DongTho[]) : [];
@@ -356,6 +420,10 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
     // biết đây là "chưa đếm" chứ không phải "đếm được 0" (soLuongTrong).
     const soLuongTrong = !Number.isFinite(soLuong) || soLuong < 0;
     if (soLuongTrong) soLuong = 0;
+    // Đơn giá (báo giá): chuỗi có ngăn nghìn kiểu VN / quốc tế đọc bằng docSoLoc.
+    const giaRaw = d.donGia;
+    const giaSo = typeof giaRaw === "number" ? giaRaw : giaRaw === null || giaRaw === undefined ? null : docSoLoc(String(giaRaw));
+    const donGia = giaSo !== null && Number.isFinite(giaSo) && giaSo >= 0 ? giaSo : null;
     const donViTho = chuoi(d.donVi, 20);
     const donVi = donViTho ? chuanDonVi(donViTho) : "PCS";
     const loaiTho = String(d.loai ?? "").toUpperCase();
@@ -383,6 +451,7 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
       trang,
       canhBao: ghiChu && /gạch|thiếu|hủy|cancel|short|miss|thay/i.test(ghiChu) ? themCanhBao(canhBao, `Ghi chú trên phiếu: ${ghiChu}`) : canhBao,
       soLuongTrong,
+      donGia,
     });
   }
   return { ...dau, dong, chuTomTat: tomTat(dau, dong, []) };
@@ -421,6 +490,9 @@ export function gopLuot(luot1: DongAi[], luot2: DongAi[]): DongAi[] {
     if (!cu) return { ...d, canhBao: themCanhBao(d.canhBao, "Lượt kiểm lại thêm hoặc đổi tên dòng này") };
     if (cu.soLuong !== d.soLuong || cu.donVi !== d.donVi) {
       return { ...d, canhBao: themCanhBao(d.canhBao, `Lượt kiểm lại sửa số lượng/đơn vị (lượt 1: ${cu.soLuong} ${cu.donVi})`) };
+    }
+    if ((cu.donGia ?? null) !== (d.donGia ?? null)) {
+      return { ...d, canhBao: themCanhBao(d.canhBao, `Lượt kiểm lại sửa đơn giá (lượt 1: ${cu.donGia ?? "trống"})`) };
     }
     return d;
   });
@@ -1040,6 +1112,7 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
           soPhieu: c2.soPhieu ?? chuan.soPhieu,
           ngayGiao: c2.ngayGiao ?? chuan.ngayGiao,
           tau: c2.tau ?? chuan.tau,
+          tienTe: c2.tienTe ?? chuan.tienTe,
           dong: gopLuot(chuan.dong, c2.dong),
         };
       } else {
@@ -1070,6 +1143,7 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
     dau.soPhieu ??= k.chuan.soPhieu;
     dau.ngayGiao ??= k.chuan.ngayGiao;
     dau.tau ??= k.chuan.tau;
+    dau.tienTe ??= k.chuan.tienTe;
     dongTatCa.push(...k.chuan.dong);
   }
   const canhBaoChung = hong.length

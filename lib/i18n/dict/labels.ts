@@ -34,6 +34,8 @@ export const labels = tuDien(
     reqStatus_CANCELLED: "Đã hủy",
 
     poStatus_DRAFT: "Nháp",
+    poStatus_PENDING_APPROVAL: "Chờ duyệt",
+    poStatus_APPROVED: "Đã duyệt",
     poStatus_SENT: "Đã gửi NCC",
     poStatus_CONFIRMED: "NCC xác nhận",
     poStatus_PARTIALLY_RECEIVED: "Nhận một phần",
@@ -100,6 +102,8 @@ export const labels = tuDien(
     reqStatus_CANCELLED: "Cancelled",
 
     poStatus_DRAFT: "Draft",
+    poStatus_PENDING_APPROVAL: "Pending approval",
+    poStatus_APPROVED: "Approved",
     poStatus_SENT: "Sent to supplier",
     poStatus_CONFIRMED: "Supplier confirmed",
     poStatus_PARTIALLY_RECEIVED: "Partially received",

@@ -59,6 +59,14 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Báo giá nhà cung cấp (PDF) xem ngay trong trang báo giá — cùng lý do.
+        source: "/api/bao-gia/:id/file",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+        ],
+      },
+      {
         // Bản scan kiểm kê (PDF) xem ngay trong trang đối chiếu — cùng lý do.
         source: "/api/kiem-ke/:id/file",
         headers: [

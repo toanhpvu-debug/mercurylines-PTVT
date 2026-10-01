@@ -89,6 +89,10 @@ export type DongAi = DongPhieuGiao & {
   donGia?: number | null;
   /** Các cột số của báo cáo dụng cụ chằng buộc MLS-11-13 (chỉ chế độ "changBuoc"). */
   cb?: SoChangBuoc;
+  /** Còn tồn trên tàu (R.O.B) ghi trên phiếu yêu cầu MLS-11-05 (chỉ chế độ "yeuCau"). */
+  ton?: number | null;
+  /** Cột ITEM / Hạng mục của MLS-11-05A (chỉ chế độ "yeuCau"). */
+  hangMuc?: string | null;
 };
 
 /** Cột số của MLS-11-13: (1) tối thiểu, (2) chuẩn, (3) còn dùng, (4) hỏng, (5) toàn bộ, (6) thiếu, (7) yêu cầu. */
@@ -103,7 +107,17 @@ export type SoChangBuoc = {
 };
 
 /** Loại tài liệu bộ đọc AI đang đọc — quyết định lời dặn và nghĩa cột số lượng. */
-export type BanDocAi = "phieuGiao" | "kiemKe" | "baoGia" | "changBuoc";
+export type BanDocAi = "phieuGiao" | "kiemKe" | "baoGia" | "changBuoc" | "yeuCau";
+
+/** Đầu phiếu yêu cầu MLS-11-05A/B do AI đọc — chữ thô, lib/yeuCauNhap.ts chuẩn hóa. */
+export type DauYeuCauAi = {
+  boPhan: string | null;
+  loaiYeuCau: string | null;
+  mayThietBi: string | null;
+  hangSx: string | null;
+  kieuMay: string | null;
+  soMay: string | null;
+};
 
 export type DauPhieu = {
   nhaCungCap: string | null;
@@ -114,6 +128,8 @@ export type DauPhieu = {
   tienTe?: string | null;
   /** Cảng (Port) — dòng "Ship's Name / Port / Date" của MLS-11-13. */
   cang?: string | null;
+  /** Đầu phiếu yêu cầu vật tư / phụ tùng (chỉ chế độ "yeuCau"). */
+  yc?: DauYeuCauAi | null;
 };
 
 export type DocAiThanhCong = DauPhieu & {
@@ -368,6 +384,74 @@ Quy tắc:
 
 const LOI_NHAC_CHANG_BUOC = "Đọc báo cáo dụng cụ chằng buộc MLS-11-13 trong tài liệu đính kèm và ghi TOÀN BỘ dòng dụng cụ có tên (kèm đủ các cột số) theo đúng cấu trúc yêu cầu.";
 
+// ─── PHIẾU YÊU CẦU VẬT TƯ / PHỤ TÙNG (MLS-11-05B / MLS-11-05A) ────────────────
+// Bảng: Stt | Mô tả / Tên phụ tùng | (ITEM / Hạng mục) | Mã IMPA hoặc Part No. |
+// Đơn vị | R.O.B (còn tồn) | S.lượng yêu cầu | S.lượng duyệt. "soLuong" là số YÊU
+// CẦU, "ton" là R.O.B; cột duyệt bỏ qua (công ty điền sau).
+
+const CHUOI_NULL = (moTa: string) => ({ type: ["string", "null"], description: moTa });
+
+export const CONG_CU_GHI_YEU_CAU = {
+  name: CONG_CU_GHI_PHIEU.name,
+  description:
+    "Ghi lại toàn bộ phiếu yêu cầu vật tư / phụ tùng (MLS-11-05B / MLS-11-05A hoặc bảng tương tự) đã đọc: đầu phiếu và TỪNG dòng hàng, mỗi dòng trên bảng là một phần tử của mảng dong.",
+  input_schema: {
+    type: "object",
+    properties: {
+      nhaCungCap: { type: ["string", "null"], description: "Luôn null." },
+      soPhieu: CHUOI_NULL("Số yêu cầu ở ô Req. No. / Số y/cầu (VD 001/2026), KHÔNG phải mã biểu mẫu MLS-11-05."),
+      ngayGiao: CHUOI_NULL("Ngày ở ô Date / Ngày của phiếu, dạng dd/mm/yyyy (không lấy 'Ngày ban hành' của khung biểu mẫu)."),
+      tau: CHUOI_NULL("Tên tàu ở ô Vsl. / Tàu / M/V."),
+      boPhan: CHUOI_NULL("Ô Dept. / Bộ phận, đúng như viết (ENGINE DEPARTMENT, DECK, ELECTRIC...)."),
+      loaiYeuCau: CHUOI_NULL("Ghi STORE nếu tiêu đề là REQUISITION FOR STORES / Yêu cầu vật tư (MLS-11-05B); SPARE nếu REQUISITION FOR SPARE PARTS / Yêu cầu phụ tùng (MLS-11-05A); không rõ thì null."),
+      mayThietBi: CHUOI_NULL("Phiếu phụ tùng: ô Equipment / Machinery / Thiết bị."),
+      hangSx: CHUOI_NULL("Phiếu phụ tùng: ô Maker / Hãng SX."),
+      kieuMay: CHUOI_NULL("Phiếu phụ tùng: ô Type / Model / Kiểu."),
+      soMay: CHUOI_NULL("Phiếu phụ tùng: ô Serial No. / Engine No. / Số máy."),
+      dong: {
+        type: "array",
+        description: "Mọi dòng hàng CÓ MÔ TẢ trong bảng, theo thứ tự, qua hết các trang được yêu cầu.",
+        items: {
+          type: "object",
+          properties: {
+            stt: { type: ["integer", "null"], description: "Số thứ tự (S. No. / Stt)." },
+            ten: { type: "string", description: "Mô tả / tên phụ tùng ĐÚNG NHƯ VIẾT, giữ cả phần tiếng Việt trong ngoặc: không dịch, không sửa." },
+            impa: CHUOI_NULL("Cột IMPA Code / Mã IMPA: mã 6 chữ số (có thể in '23 29 08'). 'NA' hoặc trống → null."),
+            partNo: CHUOI_NULL("Cột Part No. / Số phụ tùng / Drawing No. (phiếu phụ tùng)."),
+            hangMuc: CHUOI_NULL("Cột ITEM / Hạng mục của phiếu phụ tùng nếu có."),
+            donVi: CHUOI_NULL("Cột Unit / Đơn vị đúng như viết (pcs, set, kg, ltr, pair, roll, can...)."),
+            ton: { type: ["number", "null"], description: "Cột R.O.B / Còn tồn trên tàu. Ô trống → null; gạch ngang '-' → 0." },
+            soLuong: { type: ["number", "null"], description: "Cột Q'ty Req. / S.lượng YÊU CẦU (không phải cột duyệt Q'ty App.). Ô trống → null." },
+            thietBi: CHUOI_NULL("Tiêu đề phần đứng phía trên dòng trong bảng (VD ELECTRIC, DECK) nếu bảng chia phần; không có thì null."),
+            trang: { type: ["integer", "null"], description: "Số trang của tài liệu (đánh từ 1) mà dòng này nằm." },
+            canKiem: { type: ["boolean", "null"], description: "true nếu chữ / số mờ, sửa tay hoặc bạn KHÔNG CHẮC đã đọc đúng." },
+            lyDoKiem: CHUOI_NULL("Khi canKiem = true: nói ngắn vì sao."),
+            ghiChu: CHUOI_NULL("Cột Remark / Ghi chú của dòng nếu có."),
+          },
+          required: ["ten"],
+        },
+      },
+    },
+    required: ["dong"],
+  },
+} as const;
+
+export const HUONG_DAN_YEU_CAU = `Bạn là sĩ quan / thủ kho của tàu biển, tỉ mỉ và không bao giờ đoán bừa. Nhiệm vụ: đọc PHIẾU YÊU CẦU VẬT TƯ (Requisition for Stores, MLS-11-05B) hoặc YÊU CẦU PHỤ TÙNG (Requisition for Spare Parts, MLS-11-05A) của công ty, hay bảng yêu cầu tương tự đã đổi phiên bản — có thể là bản scan nghiêng, mờ, số viết tay, nhiều trang — rồi ghi lại theo đúng cấu trúc yêu cầu.
+
+Bảng thường có các cột: S. No. / Stt | Description / Mô tả (phụ tùng: Name of part / Tên phụ tùng, có thể thêm ITEM / Hạng mục) | IMPA Code / Mã IMPA (phụ tùng: Part No. / Số phụ tùng) | Unit / Đơn vị | R.O.B / Còn tồn trên tàu | Q'ty Req. / S.lượng yêu cầu | Q'ty App. / S.lượng duyệt. Tiêu đề cột in hai hàng Anh / Việt.
+
+Quy tắc:
+1. MỖI dòng hàng có mô tả là MỘT phần tử trong "dong". Không gộp, không bỏ sót, không bịa thêm; dòng cuối mỗi trang và dòng đầu trang sau hay bị sót — kiểm kỹ.
+2. "ten" giữ nguyên như viết (kể cả phần tiếng Việt trong ngoặc): không dịch, không sửa chính tả.
+3. "soLuong" là cột S.lượng YÊU CẦU; "ton" là cột R.O.B / Còn tồn. KHÔNG lấy cột S.lượng duyệt. Ô trống → null; gạch ngang '-' → 0. Số viết tay đọc thật kỹ (0/6/8, 1/7, 3/8, 4/9 hay lẫn); bị gạch sửa thì lấy số mới và đặt canKiem = true.
+4. IMPA là mã 6 chữ số (có thể in cách "23 29 08"); Part No. là mã nhà sản xuất. Đừng lẫn hai cột; "NA" hay trống thì null.
+5. Dòng chỉ có chữ, không số thứ tự, không số lượng (VD "ELECTRIC") là TIÊU ĐỀ PHẦN: không ghi thành dòng, mà ghi vào "thietBi" của các dòng bên dưới nó.
+6. "trang": số trang (đánh từ 1). "canKiem" = true ở chỗ mờ, sửa tay hoặc không chắc — thà đánh dấu thừa còn hơn để lọt số sai; nói lý do ở lyDoKiem.
+7. Không ghi hàng tiêu đề cột, dòng chữ ký (Chief Engineer / Chief Officer, Captain, Tech.&Pur Dept, Vice Director, Máy trưởng, Thuyền trưởng...) vào "dong".
+8. Đầu phiếu: tau (Vsl. / Tàu), ngayGiao (Date / Ngày, dd/mm/yyyy — không lấy "Ngày ban hành" của khung biểu mẫu), soPhieu (Req. No. / Số y/cầu), boPhan (Dept. / Bộ phận), loaiYeuCau (STORE / SPARE theo tiêu đề), và với phiếu phụ tùng: mayThietBi, hangSx, kieuMay, soMay. nhaCungCap luôn null.`;
+
+const LOI_NHAC_YEU_CAU = "Đọc phiếu yêu cầu vật tư / phụ tùng trong tài liệu đính kèm và ghi TOÀN BỘ dòng hàng (kèm R.O.B và số lượng yêu cầu) theo đúng cấu trúc yêu cầu.";
+
 /** Lời dặn, lời nhắc, công cụ và khuôn JSON theo loại tài liệu. */
 const BAN_DOC = {
   phieuGiao: { huongDan: HUONG_DAN_HE_THONG, loiNhac: LOI_NHAC_NGUOI_DUNG, congCu: CONG_CU_GHI_PHIEU, khuonJson: KHUON_JSON_GOI_Y, taiLieu: "phiếu" },
@@ -392,6 +476,14 @@ const BAN_DOC = {
     khuonJson:
       'Trả về DUY NHẤT một JSON dạng: {"nhaCungCap": null, "soPhieu": string|null, "tau": string|null, "cang": string|null, "ngayGiao": "dd/mm/yyyy"|null, "dong": [{"stt": number|null, "ten": string, "partNo": string|null, "toiThieu": number|null, "chuan": number|null, "conDung": number|null, "hong": number|null, "tong": number|null, "thieu": number|null, "yeuCau": number|null, "trang": number|null, "canKiem": boolean, "lyDoKiem": string|null, "ghiChu": string|null}]}',
     taiLieu: "báo cáo chằng buộc",
+  },
+  yeuCau: {
+    huongDan: HUONG_DAN_YEU_CAU,
+    loiNhac: LOI_NHAC_YEU_CAU,
+    congCu: CONG_CU_GHI_YEU_CAU,
+    khuonJson:
+      'Trả về DUY NHẤT một JSON dạng: {"nhaCungCap": null, "soPhieu": string|null, "ngayGiao": "dd/mm/yyyy"|null, "tau": string|null, "boPhan": string|null, "loaiYeuCau": "STORE"|"SPARE"|null, "mayThietBi": string|null, "hangSx": string|null, "kieuMay": string|null, "soMay": string|null, "dong": [{"stt": number|null, "ten": string, "impa": string|null, "partNo": string|null, "hangMuc": string|null, "donVi": string|null, "ton": number|null, "soLuong": number|null, "thietBi": string|null, "trang": number|null, "canKiem": boolean, "lyDoKiem": string|null, "ghiChu": string|null}]}',
+    taiLieu: "phiếu yêu cầu",
   },
 } as const;
 const banDocCua = (tc: { banDoc?: BanDocAi }) => BAN_DOC[tc.banDoc ?? "phieuGiao"];
@@ -453,6 +545,8 @@ type DongTho = {
   tong?: unknown;
   thieu?: unknown;
   yeuCau?: unknown;
+  ton?: unknown;
+  hangMuc?: unknown;
   donVi?: unknown;
   loai?: unknown;
   thietBi?: unknown;
@@ -488,6 +582,18 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
     tienTe: chuoi(o.tienTe, 10)?.toUpperCase() ?? null,
     cang: chuoi(o.cang, 80),
   };
+  // Đầu phiếu yêu cầu MLS-11-05A/B (chế độ "yeuCau"): chỉ dựng khi AI trả ít nhất một ô.
+  const KHOA_YC = ["boPhan", "loaiYeuCau", "mayThietBi", "hangSx", "kieuMay", "soMay"] as const;
+  if (KHOA_YC.some((k) => k in o)) {
+    dau.yc = {
+      boPhan: chuoi(o.boPhan, 80),
+      loaiYeuCau: chuoi(o.loaiYeuCau, 20),
+      mayThietBi: chuoi(o.mayThietBi, 120),
+      hangSx: chuoi(o.hangSx, 120),
+      kieuMay: chuoi(o.kieuMay, 120),
+      soMay: chuoi(o.soMay, 120),
+    };
+  }
   const dong: DongAi[] = [];
   const tho = Array.isArray(o.dong) ? (o.dong as DongTho[]) : [];
   for (let i = 0; i < tho.length; i++) {
@@ -529,6 +635,10 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
     const cb: SoChangBuoc | undefined = KHOA_CB.some((k) => k in d)
       ? { toiThieu: soCb(d.toiThieu), chuan: soCb(d.chuan), conDung: soCb(d.conDung), hong: soCb(d.hong), tong: soCb(d.tong), thieu: soCb(d.thieu), yeuCau: soCb(d.yeuCau) }
       : undefined;
+    // Phiếu yêu cầu (chế độ "yeuCau"): R.O.B và cột ITEM / Hạng mục.
+    const coTon = "ton" in d;
+    const ton = coTon ? soCb(d.ton) : null;
+    const hangMuc = chuoi(d.hangMuc, 80);
     const donViTho = chuoi(d.donVi, 20);
     const donVi = donViTho ? chuanDonVi(donViTho) : "PCS";
     const loaiTho = String(d.loai ?? "").toUpperCase();
@@ -546,7 +656,7 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
         }${trang ? ` · tr.${trang}` : ""}`
       : `${stt}. ${tenIn ?? ten}${partNo ? ` · P/N ${partNo}` : ""}${impa ? ` · IMPA ${impa}` : ""} — ${soLuong} ${donVi}${
       thietBi ? ` · ${thietBi}` : ""
-    }${trang ? ` · tr.${trang}` : ""}${ghiChu ? ` (${ghiChu})` : ""}`;
+    }${coTon ? ` · ROB ${ton ?? "—"}` : ""}${trang ? ` · tr.${trang}` : ""}${ghiChu ? ` (${ghiChu})` : ""}`;
     dong.push({
       chuGoc: chuGoc.slice(0, 500),
       ten,
@@ -562,6 +672,8 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
       soLuongTrong,
       donGia,
       ...(cb ? { cb } : {}),
+      ...(coTon ? { ton } : {}),
+      ...(hangMuc ? { hangMuc } : {}),
     });
   }
   return { ...dau, dong, chuTomTat: tomTat(dau, dong, []) };
@@ -604,6 +716,9 @@ export function gopLuot(luot1: DongAi[], luot2: DongAi[]): DongAi[] {
     }
     if (JSON.stringify(cu.cb ?? null) !== JSON.stringify(d.cb ?? null)) {
       return { ...d, canhBao: themCanhBao(d.canhBao, "Lượt kiểm lại sửa cột số (lượt 1: " + JSON.stringify(cu.cb ?? null) + ")") };
+    }
+    if ((cu.ton ?? null) !== (d.ton ?? null)) {
+      return { ...d, canhBao: themCanhBao(d.canhBao, `Lượt kiểm lại sửa R.O.B (lượt 1: ${cu.ton ?? "trống"})`) };
     }
     if ((cu.donGia ?? null) !== (d.donGia ?? null)) {
       return { ...d, canhBao: themCanhBao(d.canhBao, `Lượt kiểm lại sửa đơn giá (lượt 1: ${cu.donGia ?? "trống"})`) };
@@ -1138,6 +1253,8 @@ export function loiNhac(pham: [number, number] | null, luot1: DongAi[] | null, b
             thietBi: d.thietBi,
             trang: d.trang,
             ...(d.donGia !== undefined ? { donGia: d.donGia } : {}),
+            ...(d.ton !== undefined ? { ton: d.ton } : {}),
+            ...(d.hangMuc ? { hangMuc: d.hangMuc } : {}),
           }
     );
     s +=
@@ -1234,6 +1351,7 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
           tau: c2.tau ?? chuan.tau,
           tienTe: c2.tienTe ?? chuan.tienTe,
           cang: c2.cang ?? chuan.cang,
+          yc: c2.yc ?? chuan.yc,
           dong: gopLuot(chuan.dong, c2.dong),
         };
       } else {
@@ -1266,6 +1384,7 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
     dau.tau ??= k.chuan.tau;
     dau.tienTe ??= k.chuan.tienTe;
     dau.cang ??= k.chuan.cang;
+    dau.yc ??= k.chuan.yc;
     dongTatCa.push(...k.chuan.dong);
   }
   const canhBaoChung = hong.length

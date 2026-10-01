@@ -150,7 +150,7 @@ export async function PATCH(
               robSnapshot:
                 item.materialId !== null
                   ? (robTheoVatTu.get(item.materialId) ?? 0)
-                  : 0,
+                  : (item.rob ?? 0),
               approvedQuantity: 0,
               note: item.note,
             })),

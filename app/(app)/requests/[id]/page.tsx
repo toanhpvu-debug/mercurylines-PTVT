@@ -87,12 +87,19 @@ export default async function RequestDetailPage({
     notFound();
   }
   // Xem ghi chú ở trang danh sách: nút Xóa hỏi câu khác khi đơn mua đang trỏ vào.
-  const soDongDonMua = await prisma.purchaseOrderItem.count({
-    where: {
-      requestItem: { requestId: request.id },
-      po: { status: { not: "CANCELLED" } },
-    },
-  });
+  // File MLS-11-05A/B gốc nếu yêu cầu được lập nhanh từ file.
+  const [soDongDonMua, tepGoc] = await Promise.all([
+    prisma.purchaseOrderItem.count({
+      where: {
+        requestItem: { requestId: request.id },
+        po: { status: { not: "CANCELLED" } },
+      },
+    }),
+    prisma.yeuCauTep.findFirst({
+      where: { requestId: request.id },
+      select: { id: true, fileName: true },
+    }),
+  ]);
   const isSpare = request.kind === "SPARE";
   const formCode = isSpare ? "MLS-11-05A" : "MLS-11-05B";
   // Hiển thị dòng: dùng vật tư có sẵn nếu có, ngược lại dùng dữ liệu nhập tay (vật tư mới).
@@ -191,6 +198,19 @@ export default async function RequestDetailPage({
               {request.vessel.name} ·{" "}
               {tTuDo(`labels.type_${isSpare ? "SPARE" : "STORE"}`)} ·{" "}
               <span className="font-display text-xs tracking-wide">{formCode}</span>
+              {tepGoc && (
+                <>
+                  {" · "}
+                  <a
+                    href={`/api/yeu-cau-tep/${tepGoc.id}/file`}
+                    target="_blank"
+                    rel="noopener"
+                    className="text-brand-700 hover:underline dark:text-brand-300"
+                  >
+                    {t("requests.tepFileGoc", { ten: tepGoc.fileName })}
+                  </a>
+                </>
+              )}
             </>
           }
           action={

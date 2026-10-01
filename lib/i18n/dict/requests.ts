@@ -135,6 +135,35 @@ export const requests = tuDien(
     xacNhanXoa:
       "Xóa yêu cầu “{ma}”? Toàn bộ dòng vật tư trong yêu cầu sẽ bị xóa theo. Hành động này không hoàn tác được.",
     dangXoa: "Đang xóa...",
+
+    // Yêu cầu nhanh từ file MLS-11-05A/B
+    tepTieuDe: "Yêu cầu nhanh từ file",
+    tepMoTa:
+      "Tải phiếu yêu cầu đã điền theo mẫu công ty MLS-11-05B (vật tư) hoặc MLS-11-05A (phụ tùng) — hay bảng tương tự đã đổi phiên bản. App đọc tàu, ngày, bộ phận, số y/cầu và từng dòng (mô tả, mã IMPA / Part No., đơn vị, R.O.B, số lượng yêu cầu), ghép với danh mục rồi điền sẵn vào form bên dưới để bạn soát và bấm tạo.",
+    tepDinhDang: "Word (.docx, .doc), Excel (.xlsx, .xls) và PDF có chữ đọc ngay; PDF scan do bộ đọc AI đọc nền trong vài phút.",
+    tepDinhDangKhongAi:
+      "Word (.docx, .doc), Excel (.xlsx, .xls) và PDF có chữ đọc ngay. PDF scan cần bộ đọc AI (quản trị nhập khóa ở Quản trị → Bộ đọc AI).",
+    tepChon: "File MLS-11-05A/B (.docx, .doc, .xlsx, .xls, .pdf)",
+    tepNutTai: "Tải lên & điền form",
+    tepDangDoc: "Đang đọc file...",
+    tepSaiDinhDang: "Chỉ nhận file Word (.docx, .doc), Excel (.xlsx, .xls) hoặc PDF.",
+    tepPdfCanAi: "PDF này là bản scan (không có lớp chữ) — cần bộ đọc AI để đọc; quản trị nhập khóa ở Quản trị → Bộ đọc AI.",
+    tepAiDangDoc: "Bộ đọc AI đang đọc file “{ten}”{tienDo} — form sẽ tự điền khi đọc xong.",
+    tepAiLoi: "Bộ đọc AI không đọc được file “{ten}”: {loi}",
+    tepKhongThay: "Không tìm thấy file yêu cầu này (đã bỏ, đã dùng, hoặc do người khác tải lên).",
+    tepDaDung: "File “{ten}” đã dùng để lập yêu cầu {ma}.",
+    tepDaDien:
+      "Đã điền sẵn từ file “{ten}”: {n} dòng — {khop} khớp danh mục, {moi} mặt hàng mới ngoài danh mục. Soát lại số lượng, đơn vị rồi bấm tạo yêu cầu.",
+    tepThieuSo: "{n} dòng chưa có số lượng yêu cầu trên file — điền vào trước khi tạo.",
+    tepCanhBao: "{n} dòng có cảnh báo khi đọc — xem ghi chú dưới từng dòng.",
+    tepChuaNhanTau: "Không nhận ra tàu trên file — chọn tàu trước khi tạo.",
+    tepTauKhac: "Ô tàu trên file ghi “{ten}”.",
+    tepPhan: "File chia phần: {ds} — tên phần ghi vào ghi chú của từng dòng.",
+    tepSoGoc: "Theo phiếu số {so}",
+    tepRobFile: "R.O.B trên file: {n}",
+    tepXemGoc: "Xem file gốc",
+    tepBo: "Bỏ file này",
+    tepFileGoc: "File gốc: {ten}",
   },
   {
     tieuDe: "Stores & spare parts requisitions",
@@ -265,5 +294,33 @@ export const requests = tuDien(
     xacNhanXoa:
       "Delete requisition “{ma}”? Every line item in it will be deleted as well. This action cannot be undone.",
     dangXoa: "Deleting...",
+
+    tepTieuDe: "Quick requisition from a file",
+    tepMoTa:
+      "Upload a requisition filled in on the company form MLS-11-05B (stores) or MLS-11-05A (spare parts) - or a similar table from a newer revision. The app reads the vessel, date, department, request number and every line (description, IMPA code / part no., unit, R.O.B, quantity requested), matches the catalogue and pre-fills the form below for you to check and submit.",
+    tepDinhDang: "Word (.docx, .doc), Excel (.xlsx, .xls) and text PDFs are read immediately; scanned PDFs are read by the AI reader in the background within a few minutes.",
+    tepDinhDangKhongAi:
+      "Word (.docx, .doc), Excel (.xlsx, .xls) and text PDFs are read immediately. Scanned PDFs need the AI reader (an administrator enters the key under Admin → AI reader).",
+    tepChon: "MLS-11-05A/B file (.docx, .doc, .xlsx, .xls, .pdf)",
+    tepNutTai: "Upload & fill the form",
+    tepDangDoc: "Reading the file...",
+    tepSaiDinhDang: "Only Word (.docx, .doc), Excel (.xlsx, .xls) or PDF files are accepted.",
+    tepPdfCanAi: "This PDF is a scan (no text layer) - it needs the AI reader; an administrator enters the key under Admin → AI reader.",
+    tepAiDangDoc: "The AI reader is reading “{ten}”{tienDo} - the form fills in automatically when it is done.",
+    tepAiLoi: "The AI reader could not read “{ten}”: {loi}",
+    tepKhongThay: "This requisition file was not found (removed, already used, or uploaded by someone else).",
+    tepDaDung: "File “{ten}” was already used for requisition {ma}.",
+    tepDaDien:
+      "Pre-filled from “{ten}”: {n} lines - {khop} matched in the catalogue, {moi} new items outside the catalogue. Check quantities and units, then create the requisition.",
+    tepThieuSo: "{n} lines have no requested quantity on the file - fill them in before submitting.",
+    tepCanhBao: "{n} lines have reading warnings - see the note under each line.",
+    tepChuaNhanTau: "The vessel on the file was not recognised - choose the vessel before submitting.",
+    tepTauKhac: "The vessel box on the file says “{ten}”.",
+    tepPhan: "The file is split into sections: {ds} - the section name goes into each line's remark.",
+    tepSoGoc: "Per requisition no. {so}",
+    tepRobFile: "R.O.B on file: {n}",
+    tepXemGoc: "View original file",
+    tepBo: "Discard this file",
+    tepFileGoc: "Original file: {ten}",
   }
 );

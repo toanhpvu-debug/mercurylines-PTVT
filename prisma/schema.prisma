@@ -96,6 +96,7 @@ model Vessel {
   kiemKeTep              KiemKeTep[]
   baoGiaNcc              BaoGiaNcc[]
   changBuocTep           ChangBuocTep[]
+  yeuCauTep              YeuCauTep[]
   vesselMaterials        VesselMaterial[]
   purchaseOrders         PurchaseOrder[]
   paintAreas             PaintArea[]
@@ -351,6 +352,38 @@ model ChangBuocTep {
   updatedAt   DateTime  @updatedAt
 
   @@index([vesselId])
+}
+
+// Yêu cầu nhanh từ file MLS-11-05B (vật tư) / MLS-11-05A (phụ tùng) — Word /
+// Excel / PDF / PDF scan. File lưu ở thư mục upload; đầu phiếu và dòng đọc được
+// lưu ở `dau` / `dong` để điền sẵn vào form lập yêu cầu (người lập soát rồi bấm
+// tạo). `requestId` ghi lại yêu cầu đã lập từ file này. Không đồng bộ — file
+// nằm trên đĩa của bản cài đã tải; yêu cầu lập ra đồng bộ như mọi yêu cầu khác.
+model YeuCauTep {
+  id          Int       @id @default(autoincrement())
+  // Tàu nhận ra từ ô "Vsl./Tàu" hoặc tên file; null = chưa nhận ra.
+  vesselId    Int?
+  vessel      Vessel?   @relation(fields: [vesselId], references: [id], onDelete: SetNull)
+  fileName    String
+  storedName  String    @unique
+  // WORD · EXCEL · PDF
+  loaiTep     String
+  size        Int
+  sha256      String
+  dau         Json      @default("{}")
+  dong        Json      @default("[]")
+  ghiChuDoc   String?
+  loiAi       String?
+  aiDangDocTu DateTime?
+  aiTienDo    String?
+  nguoiTaiId  Int
+  nguoiTai    String
+  requestId   Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([nguoiTaiId])
+  @@index([requestId])
 }
 
 model LashingGear {

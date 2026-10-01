@@ -21,6 +21,12 @@ export type DongYeuCau = {
   itemUom: string | null;
   quantity: number;
   note: string | null;
+  /**
+   * R.O.B người lập ghi cho hàng MỚI (ngoài danh mục — hệ thống không có tồn
+   * để chụp), VD lấy từ cột R.O.B của file MLS-11-05. Hàng có sẵn luôn null:
+   * ROB của chúng chụp từ tồn kho (chupROB).
+   */
+  rob: number | null;
 };
 
 /**
@@ -49,6 +55,7 @@ export function docDongYeuCau(raw: unknown): DongYeuCau[] {
           itemUom: item?.itemUom ? String(item.itemUom).trim() || "PCS" : "PCS",
           quantity,
           note,
+          rob: Number.isFinite(Number(item?.rob)) && item?.rob !== null && item?.rob !== "" && Number(item?.rob) >= 0 ? Number(item?.rob) : null,
         };
       }
       const materialId = Number(item?.materialId);
@@ -60,6 +67,7 @@ export function docDongYeuCau(raw: unknown): DongYeuCau[] {
         itemUom: null,
         quantity,
         note,
+        rob: null,
       };
     })
     .filter((x: DongYeuCau | null): x is DongYeuCau => x !== null);

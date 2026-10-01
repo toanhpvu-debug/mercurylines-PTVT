@@ -169,7 +169,7 @@ export async function POST(request: Request) {
             robSnapshot:
               item.materialId !== null
                 ? (robByMaterial.get(item.materialId) ?? 0)
-                : 0,
+                : (item.rob ?? 0),
             approvedQuantity: 0,
             note: item.note,
           })),
@@ -194,6 +194,14 @@ export async function POST(request: Request) {
       });
       return row;
     });
+    // Lập từ file MLS-11-05 (yêu cầu nhanh): ghi lại yêu cầu vào file gốc —
+    // chỉ file của chính người lập, chưa dùng cho yêu cầu nào.
+    const tuTep = Number(body.tuTep);
+    if (Number.isInteger(tuTep) && tuTep > 0) {
+      await prisma.yeuCauTep
+        .updateMany({ where: { id: tuTep, nguoiTaiId: user.id, requestId: null }, data: { requestId: created.id } })
+        .catch(() => undefined);
+    }
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
     console.error(error);

@@ -18,6 +18,9 @@ import RequestForm from "@/components/RequestForm";
 import RequestStatusForm from "@/components/RequestStatusForm";
 import RequestCancelForm from "@/components/RequestCancelForm";
 import RequestDeleteButton from "@/components/RequestDeleteButton";
+import TaiFileYeuCau, { BoFileYeuCauButton } from "@/components/TaiFileYeuCau";
+import TuLamMoi from "@/components/TuLamMoi";
+import { dangDocAi } from "@/lib/phieuGiao";
 import {
   canDeleteRequest,
   canEditRequest,
@@ -66,7 +69,7 @@ const TONE_UU_TIEN: Record<string, Tone> = {
 export default async function RequestsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vessel?: string; status?: string; vatTu?: string }>;
+  searchParams: Promise<{ vessel?: string; status?: string; vatTu?: string; tuTep?: string }>;
 }) {
   const user = await requireScopedUser();
   const { t, tTuDo, ngayGio } = await layT();
@@ -88,6 +91,8 @@ export default async function RequestsPage({
     .map((s) => Number(s))
     .filter((n) => Number.isInteger(n) && n > 0)
     .slice(0, 300);
+  // Phạm vi mặt hàng của ô chọn trong form — dùng chung cho phần ghép file MLS-11-05.
+  const phamViVatTu = scope.all ? {} : { vesselMaterials: { some: vesselWhere(scope) } };
   const [requests, vessels, materials] = await Promise.all([
     prisma.materialRequest.findMany({
       where: {
@@ -120,10 +125,7 @@ export default async function RequestsPage({
     // Chỉ mặt hàng thuộc các tàu người này phụ trách — người của một tàu không
     // cần cả 597 dòng danh mục đội tàu nhúng vào trang (đo: ~12,5 KB nén thừa).
     prisma.material.findMany({
-      where: {
-        isActive: true,
-        ...(scope.all ? {} : { vesselMaterials: { some: vesselWhere(scope) } }),
-      },
+      where: { isActive: true, ...phamViVatTu },
       orderBy: [{ materialType: "asc" }, { code: "asc" }],
       select: {
         id: true,
@@ -154,6 +156,31 @@ export default async function RequestsPage({
     if (rid) soDonMuaTheoYeuCau.set(rid, (soDonMuaTheoYeuCau.get(rid) ?? 0) + 1);
   }
   const dangLoc = Boolean(vesselFilter || statusFilter);
+  // Yêu cầu nhanh từ file MLS-11-05A/B (?tuTep=<id>, sau khi tải file lên):
+  // chỉ người tải (hoặc quản trị) mở được file của mình.
+  const tuTepId = Number(params.tuTep) || 0;
+  const tepTho =
+    tuTepId > 0 && !scope.unassigned
+      ? await prisma.yeuCauTep.findUnique({
+          where: { id: tuTepId },
+          select: { id: true, fileName: true, vesselId: true, dau: true, dong: true, loiAi: true, aiDangDocTu: true, aiTienDo: true, nguoiTaiId: true, requestId: true },
+        })
+      : null;
+  const tep = tepTho && (tepTho.nguoiTaiId === user.id || user.role === "ADMIN") ? tepTho : null;
+  const tepDangDoc = Boolean(tep && dangDocAi(tep.aiDangDocTu));
+  const yeuCauTuTep = tep?.requestId
+    ? await prisma.materialRequest.findUnique({ where: { id: tep.requestId }, select: { id: true, requestNo: true } })
+    : null;
+  const coDongTep = Array.isArray(tep?.dong) && tep.dong.length > 0;
+  const tuFile =
+    tep && !tepDangDoc && !tep.requestId && coDongTep
+      ? await (await import("@/lib/yeuCauTepServer")).dienFormTuTep(tep, phamViVatTu, {
+          robFile: (n) => t("requests.tepRobFile", { n }),
+          soGoc: (so) => t("requests.tepSoGoc", { so }),
+        })
+      : undefined;
+  const { layCauHinhAi } = await import("@/lib/cauHinhAi");
+  const coAi = Boolean(await layCauHinhAi());
   return (
     <div className="space-y-5">
       <PageHeader
@@ -163,13 +190,44 @@ export default async function RequestsPage({
       {scope.unassigned ? (
         <Notice tone="warning">{t("requests.chuaGanTau")}</Notice>
       ) : (
-        <RequestForm
-          vessels={vessels}
-          materials={materials}
-          defaultVesselId={scope.vesselId ?? undefined}
-          nguoiLap={{ name: user.name, role: user.role }}
-          mucBanDau={mucBanDau.length ? mucBanDau : undefined}
-        />
+        <>
+          <TaiFileYeuCau coAi={coAi} moSan={!tuFile} />
+          {tuTepId > 0 && !tep && <Notice tone="warning">{t("requests.tepKhongThay")}</Notice>}
+          {tep && (tepDangDoc || tuFile || (!tep.requestId && !coDongTep)) && (
+            <div className="space-y-2">
+              {tepDangDoc ? (
+                <Notice tone="info">
+                  {t("requests.tepAiDangDoc", { ten: tep.fileName, tienDo: tep.aiTienDo && tep.aiTienDo !== "0" ? ` (${tep.aiTienDo})` : "" })}
+                  <TuLamMoi giay={5} />
+                </Notice>
+              ) : !coDongTep ? (
+                <Notice tone="danger">{t("requests.tepAiLoi", { ten: tep.fileName, loi: tep.loiAi ?? "—" })}</Notice>
+              ) : null}
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <a href={`/api/yeu-cau-tep/${tep.id}/file`} target="_blank" rel="noopener" className={LINK}>
+                  {t("requests.tepXemGoc")}
+                </a>
+                <BoFileYeuCauButton id={tep.id} />
+              </div>
+            </div>
+          )}
+          {tep?.requestId && yeuCauTuTep && (
+            <Notice tone="info">
+              <Link href={`/requests/${yeuCauTuTep.id}`} className={LINK}>
+                {t("requests.tepDaDung", { ten: tep.fileName, ma: yeuCauTuTep.requestNo })}
+              </Link>
+            </Notice>
+          )}
+          <RequestForm
+            key={tuFile ? `tep-${tuFile.tepId}` : "moi"}
+            vessels={vessels}
+            materials={materials}
+            defaultVesselId={scope.vesselId ?? undefined}
+            nguoiLap={{ name: user.name, role: user.role }}
+            mucBanDau={mucBanDau.length ? mucBanDau : undefined}
+            tuFile={tuFile}
+          />
+        </>
       )}
       <Card>
         <CardHeader

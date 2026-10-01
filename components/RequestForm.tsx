@@ -40,6 +40,36 @@ type RequestItem = {
   itemUom: string;
   quantity: string;
   note: string;
+  /** R.O.B ghi cho hàng MỚI (ngoài danh mục) — từ file MLS-11-05 hoặc bản đã lập. */
+  rob?: string;
+  /** Dòng nhắc dưới mục (đọc từ file: R.O.B trên file, cảnh báo khi đọc). */
+  goiY?: string;
+};
+
+/**
+ * Điền sẵn từ file MLS-11-05A/B đã tải (/requests?tuTep=<id>) — trang dựng sẵn
+ * mọi dòng (đã ghép danh mục), form chỉ nhận vào và để người lập soát.
+ */
+export type DienTuFile = {
+  tepId: number;
+  ten: string;
+  kind: "STORE" | "SPARE";
+  vesselId: number | null;
+  department: string | null;
+  /** yyyy-mm-dd hoặc "". */
+  requiredDate: string;
+  purpose: string;
+  equipment: string;
+  maker: string;
+  serialNo: string;
+  items: RequestItem[];
+  khop: number;
+  moi: number;
+  thieuSo: number;
+  canhBao: number;
+  phan: string[];
+  /** Ô tàu trên file khi không nhận ra tàu. */
+  tauFile: string | null;
 };
 
 /**
@@ -106,6 +136,7 @@ export default function RequestForm({
   nguoiLap,
   dangSua,
   mucBanDau,
+  tuFile,
 }: {
   vessels: VesselOption[];
   materials: MaterialOption[];
@@ -116,32 +147,46 @@ export default function RequestForm({
   dangSua?: YeuCauDangSua;
   /** Id mặt hàng chọn sẵn từ danh mục (?vatTu=1,2,3). */
   mucBanDau?: number[];
+  /** Điền sẵn từ file MLS-11-05A/B (?tuTep=<id>). */
+  tuFile?: DienTuFile;
 }) {
   const { t, tTuDo } = useNgonNgu();
   const router = useRouter();
   const laSua = Boolean(dangSua);
-  const [dienSan] = useState(() => (dangSua ? null : dongTuDanhMuc(mucBanDau, materials)));
+  const [dienSan] = useState(() => (dangSua || tuFile ? null : dongTuDanhMuc(mucBanDau, materials)));
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [kind, setKind] = useState<"STORE" | "SPARE">(dangSua?.kind ?? dienSan?.kind ?? "STORE");
+  const [kind, setKind] = useState<"STORE" | "SPARE">(dangSua?.kind ?? tuFile?.kind ?? dienSan?.kind ?? "STORE");
   const [vesselId, setVesselId] = useState(
-    dangSua ? String(dangSua.vesselId) : defaultVesselId ? String(defaultVesselId) : ""
+    dangSua
+      ? String(dangSua.vesselId)
+      : tuFile?.vesselId
+        ? String(tuFile.vesselId)
+        : defaultVesselId
+          ? String(defaultVesselId)
+          : ""
   );
   // Bộ phận chọn sẵn theo chức danh: Máy 2 mở form là đã ở bộ phận Máy, Phó 3
   // là ở Boong. Chọn nhầm bộ phận nghĩa là yêu cầu đi lạc sang người duyệt khác.
   // Khi SỬA thì lấy đúng bộ phận của chứng từ, không đoán lại theo người đang mở.
   const [department, setDepartment] = useState(
-    dangSua?.department ?? boPhanCuaChucDanh(nguoiLap.role) ?? "ENGINE"
+    dangSua?.department ?? tuFile?.department ?? boPhanCuaChucDanh(nguoiLap.role) ?? "ENGINE"
   );
-  const [requiredDate, setRequiredDate] = useState(dangSua?.requiredDate ?? "");
+  const [requiredDate, setRequiredDate] = useState(dangSua?.requiredDate ?? tuFile?.requiredDate ?? "");
   const [priority, setPriority] = useState(dangSua?.priority ?? "NORMAL");
-  const [purpose, setPurpose] = useState(dangSua?.purpose ?? "");
-  const [equipment, setEquipment] = useState(dangSua?.equipment ?? "");
-  const [maker, setMaker] = useState(dangSua?.maker ?? "");
-  const [serialNo, setSerialNo] = useState(dangSua?.serialNo ?? "");
+  const [purpose, setPurpose] = useState(dangSua?.purpose ?? tuFile?.purpose ?? "");
+  const [equipment, setEquipment] = useState(dangSua?.equipment ?? tuFile?.equipment ?? "");
+  const [maker, setMaker] = useState(dangSua?.maker ?? tuFile?.maker ?? "");
+  const [serialNo, setSerialNo] = useState(dangSua?.serialNo ?? tuFile?.serialNo ?? "");
   const [items, setItems] = useState<RequestItem[]>(
-    dangSua?.items.length ? dangSua.items : dienSan?.items.length ? dienSan.items : [blankItem()]
+    dangSua?.items.length
+      ? dangSua.items
+      : tuFile?.items.length
+        ? tuFile.items
+        : dienSan?.items.length
+          ? dienSan.items
+          : [blankItem()]
   );
 
   const filteredMaterials = useMemo(
@@ -198,8 +243,10 @@ export default function RequestForm({
                   itemUom: item.itemUom.trim(),
                   quantity: Number(item.quantity),
                   note: item.note,
+                  rob: item.rob?.trim() ? Number(item.rob) : null,
                 }
           ),
+        ...(tuFile ? { tuTep: tuFile.tepId } : {}),
       };
       if (!payload.vesselId) {
         setMessage(t("requests.canChonTau"));
@@ -244,6 +291,8 @@ export default function RequestForm({
       );
       setPurpose("");
       setItems([blankItem()]);
+      // Lập từ file: rời ?tuTep để form về trống và file đã dùng không điền lại.
+      if (tuFile) router.replace("/requests");
       router.refresh();
     } catch {
       setMessage(t("requests.coLoi"));
@@ -271,6 +320,22 @@ export default function RequestForm({
         subtitle={laSua ? t("requests.suaMoTa") : undefined}
       />
       <form onSubmit={submit} className="space-y-4">
+        {tuFile && (
+          <Notice tone={tuFile.thieuSo || tuFile.canhBao || !tuFile.vesselId ? "warning" : "info"}>
+            <p>
+              {t("requests.tepDaDien", { ten: tuFile.ten, n: tuFile.items.length, khop: tuFile.khop, moi: tuFile.moi })}
+            </p>
+            {tuFile.thieuSo > 0 && <p>{t("requests.tepThieuSo", { n: tuFile.thieuSo })}</p>}
+            {tuFile.canhBao > 0 && <p>{t("requests.tepCanhBao", { n: tuFile.canhBao })}</p>}
+            {tuFile.phan.length > 0 && <p>{t("requests.tepPhan", { ds: tuFile.phan.join(", ") })}</p>}
+            {!tuFile.vesselId && (
+              <p>
+                {t("requests.tepChuaNhanTau")}
+                {tuFile.tauFile ? ` ${t("requests.tepTauKhac", { ten: tuFile.tauFile })}` : ""}
+              </p>
+            )}
+          </Notice>
+        )}
         {dienSan && dienSan.items.length > 0 && (
           <Notice tone={dienSan.boQua ? "warning" : "info"}>
             {t("requests.chonTuDanhMuc", { n: dienSan.items.length })}
@@ -545,6 +610,9 @@ export default function RequestForm({
                     placeholder={t("chung.ghiChu")}
                   />
                 </div>
+              )}
+              {item.goiY && (
+                <p className="text-xs text-[var(--text-muted)]">{item.goiY}</p>
               )}
             </div>
           ))}

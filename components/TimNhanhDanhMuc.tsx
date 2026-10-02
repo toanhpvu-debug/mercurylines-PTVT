@@ -22,7 +22,41 @@ import { useNgonNgu } from "@/lib/i18n/client";
  *     dòng; bấm là nhảy, không cuộn tay. Ô vàng = bộ phận đang bị cắt bớt.
  *   - Phím "/" đưa con trỏ vào ô tìm từ bất kỳ đâu trên trang.
  * Các tham số khác trên đường dẫn (loại, tàu, chức danh) giữ nguyên.
+ *
+ * Lọc TẠM ngay khi gõ: trong lúc chờ server (một vòng mạng + tải RSC 0,5–1,7 MB
+ * — đo 2026-10-02; trên đường vệ tinh là vài giây), các dòng ĐANG hiện trên
+ * trang được ẩn/hiện tức thì theo chữ của dòng, để người gõ thấy kết quả ngay.
+ * Chỉ là xem trước: kết quả đầy đủ vẫn từ server (gồm cả dòng chưa dựng), và
+ * khi nó về thì bỏ hết lọc tạm — thuộc tính hidden do mình gắn nằm ngoài props
+ * của React, để lại thì React dùng lại thẻ <tr> cũ mà vẫn ẩn.
  */
+const DAU_AN = "data-an-tim";
+
+function boLocTam() {
+  for (const e of document.querySelectorAll<HTMLElement>(`[${DAU_AN}]`)) {
+    e.hidden = false;
+    e.removeAttribute(DAU_AN);
+  }
+}
+
+function locTam(gt: string) {
+  boLocTam();
+  const q = gt.trim().toLowerCase();
+  if (!q) return;
+  const an = (e: HTMLElement) => {
+    e.hidden = true;
+    e.setAttribute(DAU_AN, "1");
+  };
+  for (const o of document.querySelectorAll<HTMLInputElement>("input[data-chon-vat-tu]")) {
+    const tr = o.closest("tr");
+    if (tr && !(tr.textContent ?? "").toLowerCase().includes(q)) an(tr);
+  }
+  // Bộ phận không còn dòng nào hiện thì ẩn cả khối (tiêu đề bộ phận / thiết bị).
+  for (const tb of document.querySelectorAll<HTMLElement>('tbody[id^="bo-phan-"]')) {
+    const conHien = [...tb.querySelectorAll<HTMLInputElement>("input[data-chon-vat-tu]")].some((o) => !o.closest("tr")?.hidden);
+    if (!conHien) an(tb);
+  }
+}
 export default function TimNhanhDanhMuc({
   nhom,
   tongDong,
@@ -62,11 +96,26 @@ export default function TimNhanhDanhMuc({
     });
   };
 
+  // Chữ đang gõ (ref, cập nhật trong sự kiện) — để hiệu ứng khi kết quả server về
+  // biết người dùng đã gõ tiếp hay chưa.
+  const qHienTai = useRef(qTrenUrl);
   const doiQ = (gt: string) => {
     setQ(gt);
+    qHienTai.current = gt;
+    locTam(gt);
     if (hen.current !== null) window.clearTimeout(hen.current);
-    hen.current = window.setTimeout(() => dayLenUrl(gt), 300);
+    // Đã lọc tạm ngay trên trang nên chờ lâu hơn một chút mới hỏi server: bớt
+    // các lượt tải cả trang giữa chừng khi người dùng còn đang gõ.
+    hen.current = window.setTimeout(() => dayLenUrl(gt), 500);
   };
+
+  // Kết quả server về (đường dẫn đổi): bỏ lọc tạm; nếu người dùng đã gõ tiếp
+  // sau lượt vừa về thì lọc tạm lại theo chữ hiện tại.
+  useEffect(() => {
+    boLocTam();
+    if (qHienTai.current.trim() !== qTrenUrl.trim()) locTam(qHienTai.current);
+  }, [qTrenUrl]);
+  useEffect(() => boLocTam, []);
 
   useEffect(() => {
     // Phím "/" như GitHub, Gmail: tới ô tìm ngay, không phải cuộn lên đầu trang.
@@ -117,6 +166,8 @@ export default function TimNhanhDanhMuc({
               type="button"
               onClick={() => {
                 setQ("");
+                qHienTai.current = "";
+                boLocTam();
                 if (hen.current !== null) window.clearTimeout(hen.current);
                 dayLenUrl("");
                 o.current?.focus();

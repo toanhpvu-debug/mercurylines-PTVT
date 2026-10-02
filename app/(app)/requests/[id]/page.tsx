@@ -124,9 +124,9 @@ export default async function RequestDetailPage({
     item.material ? item.material.nameVn : (item.itemName ?? t("requests.moi"));
   const lineDisplayCode = (item: Line) =>
     item.material ? item.material.code : t("requests.moi");
-  const dateStr = (request.requiredDate ?? request.createdAt).toLocaleDateString(
-    "vi-VN"
-  );
+  const dateStr = (request.requiredDate ?? request.createdAt).toLocaleDateString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+  });
   // Cấp duyệt mà NGƯỜI ĐANG XEM được phép làm ngay bây giờ (null = không phải
   // lượt của họ). Cùng một hàm với server action nên nút bấm và quyền thật
   // không thể lệch nhau.
@@ -324,6 +324,7 @@ export default async function RequestDetailPage({
           <p className="col-span-2">
             <span className="font-semibold">Lập lúc:</span>{" "}
             {request.createdAt.toLocaleString("vi-VN", {
+              timeZone: "Asia/Ho_Chi_Minh",
               day: "2-digit",
               month: "2-digit",
               year: "numeric",
@@ -332,6 +333,7 @@ export default async function RequestDetailPage({
             })}
             {request.submittedAt
               ? ` · Trình duyệt lúc ${request.submittedAt.toLocaleString("vi-VN", {
+              timeZone: "Asia/Ho_Chi_Minh",
                   day: "2-digit",
                   month: "2-digit",
                   year: "numeric",
@@ -444,6 +446,7 @@ export default async function RequestDetailPage({
             <p className="text-xs text-slate-500">
               {request.submittedAt
                 ? `Trình ${request.submittedAt.toLocaleString("vi-VN", {
+              timeZone: "Asia/Ho_Chi_Minh",
                     day: "2-digit",
                     month: "2-digit",
                     year: "numeric",
@@ -468,7 +471,7 @@ export default async function RequestDetailPage({
                     request.shipApprovedRole === "CHIEF_ENGINEER"
                       ? "Máy trưởng · "
                       : ""
-                  }Duyệt ngày ${request.shipApprovedAt.toLocaleDateString("vi-VN")}`
+                  }Duyệt ngày ${request.shipApprovedAt.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}`
                 : " "}
             </p>
           </div>
@@ -482,7 +485,7 @@ export default async function RequestDetailPage({
             </p>
             <p className="text-xs text-slate-500">
               {request.approvedAt
-                ? `Duyệt ngày ${request.approvedAt.toLocaleDateString("vi-VN")}`
+                ? `Duyệt ngày ${request.approvedAt.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}`
                 : " "}
             </p>
           </div>

@@ -52,7 +52,7 @@ export default async function LashingReportPage({
     return { line, index, total, shortOf, orderQty };
   });
   const needOrder = rows.filter((row) => row.orderQty > 0);
-  const dateStr = report.reportDate.toLocaleDateString("vi-VN");
+  const dateStr = report.reportDate.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
 
   return (
     <div className="space-y-5">

@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { ClipboardList, Droplets, Save } from "lucide-react";
-import { paintStockMove, savePaintStockMin } from "@/app/paint-actions";
+import { paintStockMove } from "@/app/paint-actions";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { PAINT_TYPE_LABEL } from "@/lib/paintTypes";
 import {
@@ -170,43 +170,6 @@ export function PaintStockMoveForm({
           {state.message}
         </Notice>
       )}
-    </form>
-  );
-}
-
-export function PaintStockMinForm({
-  vesselId,
-  productId,
-  minQty,
-}: {
-  vesselId: number;
-  productId: number;
-  minQty: number;
-}) {
-  const { t } = useNgonNgu();
-  const [state, action, pending] = useActionState(savePaintStockMin, {
-    message: "",
-  });
-  return (
-    <form action={action} className="flex items-center gap-1.5">
-      <input type="hidden" name="vesselId" value={vesselId} />
-      <input type="hidden" name="productId" value={productId} />
-      <Input
-        name="minQty"
-        type="number"
-        step="0.01"
-        min="0"
-        defaultValue={minQty || ""}
-        className="tabular w-20 px-2 py-1 text-right text-sm"
-      />
-      <Button
-        size="sm"
-        variant="ghost"
-        loading={pending}
-        icon={<Save className="size-4" />}
-        title={state.message || t("paint.luuDinhMucToiThieu")}
-        aria-label={t("paint.luuDinhMucToiThieu")}
-      />
     </form>
   );
 }

@@ -43,7 +43,7 @@ export default async function RfqPage({
     notFound();
   }
   const standard = await getStandardForVessel(po.vessel.formStandard);
-  const dateStr = new Date(po.createdAt).toLocaleDateString("vi-VN");
+  const dateStr = new Date(po.createdAt).toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
 
   return (
     <div className="space-y-5">

@@ -31,10 +31,9 @@ import {
   PaintAreaAddForm,
   PaintAreaCard,
 } from "@/components/PaintAreaManager";
-import { PaintStockMinForm, PaintStockMoveForm } from "@/components/PaintStockForm";
+import { PaintStockMoveForm } from "@/components/PaintStockForm";
 import { PaintJobDeleteButton, PaintJobForm } from "@/components/PaintJobForm";
 import PaintSchemeCopyForm from "@/components/PaintSchemeCopyForm";
-import PaintStockBulkForm from "@/components/PaintStockBulkForm";
 import TaiPhieuSon from "@/components/TaiPhieuSon";
 import ThaoTacTonSon, {
   NutXoaGiaoDichSon,
@@ -630,20 +629,11 @@ export default async function PaintVesselPage({
                             </div>
                           )}
                         </Td>
+                        {/* Sửa tồn tối thiểu ở nút Sửa của dòng (cùng chỗ sửa số đang có). */}
                         <Td align="right">
-                          {canEdit ? (
-                            <div className="flex justify-end print:hidden">
-                              <PaintStockMinForm
-                                vesselId={vesselId}
-                                productId={s.productId}
-                                minQty={s.minQty}
-                              />
-                            </div>
-                          ) : (
-                            <span className="text-[var(--text-muted)]">
-                              {s.minQty || "—"}
-                            </span>
-                          )}
+                          <span className="whitespace-nowrap text-[var(--text-muted)]">
+                            {s.minQty ? `${s.minQty} ${s.product.uom}` : "—"}
+                          </span>
                         </Td>
                         {canEdit && (
                           <Td align="right" className="print:hidden">
@@ -736,12 +726,6 @@ export default async function PaintVesselPage({
                       </ul>
                     </div>
                   )}
-                </div>
-                <div className="border-t border-[var(--border-subtle)] pt-4">
-                  <h3 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">
-                    {t("paint.hangLoatExcel")}
-                  </h3>
-                  <PaintStockBulkForm vesselId={vesselId} />
                 </div>
               </div>
             </details>

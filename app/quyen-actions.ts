@@ -182,7 +182,7 @@ export async function taoUyQuyen(
     vesselId: null,
     detail:
       `#${uq.id} ${delegator.email} (${ROLE_LABEL[delegator.role] ?? delegator.role})` +
-      ` → ${delegate.email}, ${startAt.toLocaleDateString("vi-VN")} → ${endAt.toLocaleDateString("vi-VN")}` +
+      ` → ${delegate.email}, ${startAt.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })} → ${endAt.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}` +
       (reason ? `, lý do: ${reason}` : ""),
   });
 

@@ -72,11 +72,20 @@ export type BoNgonNgu = {
  * gồm locale — thiếu là tiếng Anh hiện ngày theo kiểu Việt.
  */
 const boDinhDang = new Map<string, Intl.DateTimeFormat | Intl.NumberFormat>();
+
+/**
+ * Giờ hiển thị của cả app: giờ Việt Nam. Máy chủ Dokploy chạy giờ UTC — không
+ * đặt múi giờ thì trên site thật mọi giờ lùi 7 tiếng (phiếu tải lúc 10:35 hiện
+ * 03:35, sau 0 giờ còn nhảy sang ngày hôm trước), trong khi bản cài văn phòng
+ * (Windows giờ VN) lại đúng. Nơi gọi vẫn đổi được bằng `timeZone` riêng.
+ */
+export const MUI_GIO = "Asia/Ho_Chi_Minh";
+
 function dinhDangNgay(ma: string, tuyChon?: Intl.DateTimeFormatOptions) {
   const khoa = `d|${ma}|${JSON.stringify(tuyChon ?? null)}`;
   let f = boDinhDang.get(khoa) as Intl.DateTimeFormat | undefined;
   if (!f) {
-    f = new Intl.DateTimeFormat(ma, tuyChon);
+    f = new Intl.DateTimeFormat(ma, { timeZone: MUI_GIO, ...tuyChon });
     boDinhDang.set(khoa, f);
   }
   return f;

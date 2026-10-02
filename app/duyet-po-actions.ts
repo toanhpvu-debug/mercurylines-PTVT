@@ -100,7 +100,7 @@ export async function taoUyQuyenDuyetPo(_prev: ActionState, formData: FormData):
     vesselId: null,
     detail:
       `#${uq.id} ủy quyền duyệt PO: ${giao.email} → ${nhan.email} (${ROLE_LABEL[nhan.role] ?? nhan.role}), ` +
-      `${startAt.toLocaleDateString("vi-VN")} → ${endAt.toLocaleDateString("vi-VN")}${reason ? `, lý do: ${reason}` : ""}`,
+      `${startAt.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })} → ${endAt.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}${reason ? `, lý do: ${reason}` : ""}`,
   });
   revalidatePath(DUONG_DAN);
   revalidatePath("/users");

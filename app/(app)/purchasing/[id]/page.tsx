@@ -102,7 +102,7 @@ export default async function PurchaseOrderDetailPage({
   const afterDiscount = tongDon.sauGiam;
   const grandTotal = tongDon.tong;
   const daQuaDuyet = daDuyet(po.status);
-  const ngayVN = (d: Date | null) => (d ? d.toLocaleDateString("vi-VN") : "");
+  const ngayVN = (d: Date | null) => (d ? d.toLocaleDateString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }) : "");
   const homNay = new Date();
   const homNayStr = `${homNay.getFullYear()}-${String(homNay.getMonth() + 1).padStart(2, "0")}-${String(homNay.getDate()).padStart(2, "0")}`;
   const thu = thuGuiNcc({
@@ -123,9 +123,9 @@ export default async function PurchaseOrderDetailPage({
   const canReceive =
     NHAN_HANG_PO.includes(user.role) &&
     ["SENT", "CONFIRMED", "PARTIALLY_RECEIVED"].includes(po.status);
-  const orderDateStr = (po.orderDate ?? po.createdAt).toLocaleDateString(
-    "vi-VN"
-  );
+  const orderDateStr = (po.orderDate ?? po.createdAt).toLocaleDateString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+  });
 
   return (
     <div className="space-y-5">

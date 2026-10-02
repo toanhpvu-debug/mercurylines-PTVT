@@ -237,6 +237,7 @@ export default async function DashboardPage() {
   const maxPo = Math.max(1, ...poByStatus.map((r) => r._count));
 
   const today = new Date().toLocaleDateString(MA_LOCALE[locale], {
+    timeZone: "Asia/Ho_Chi_Minh",
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -676,6 +677,7 @@ export default async function DashboardPage() {
                         <p className="text-xs text-[var(--text-secondary)]">
                           {vessel?.name ?? "—"} · {ngay(tx.occurredAt)}{" "}
                           {tx.occurredAt.toLocaleTimeString(MA_LOCALE[locale], {
+                            timeZone: "Asia/Ho_Chi_Minh",
                             hour: "2-digit",
                             minute: "2-digit",
                           })}

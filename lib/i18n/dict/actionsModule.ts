@@ -66,8 +66,6 @@ export const actionsModule = tuDien(
     son_khongDuTonXuat: "Không đủ tồn: còn {con}, muốn xuất {muon}.",
     son_daNhapSon: "Đã nhập sơn.",
     son_daXuatSon: "Đã xuất sơn.",
-    son_thieuLoaiSon: "Thiếu loại sơn.",
-    son_daLuuDinhMucToiThieu: "Đã lưu định mức tối thiểu.",
     son_chonNgayThiCong: "Chọn ngày thi công.",
     son_ngayThiCongKhongHopLe: "Ngày thi công không hợp lệ.",
     son_khongGhiNgayTuongLai: "Không ghi được ngày ở tương lai.",
@@ -91,7 +89,6 @@ export const actionsModule = tuDien(
     son_boQuaKhuVucDaCo: "Bỏ qua {n} khu vực đã có sẵn.",
 
     // Nhập sơn từ file: chỗ hỏng trong file và các lỗi hạ tầng khi ghi.
-    son_khoanCongDon: "“{ten}” (cộng dồn từ các sheet: {ds})",
     son_dongDauTien: "dòng đầu tiên",
     son_loiTrungMa:
       "Có phiên nhập sơn khác chạy cùng lúc nên mã sơn tự sinh bị trùng khi ghi {viTri}. Chưa ghi dòng nào, hãy bấm nhập lại.",
@@ -124,26 +121,6 @@ export const actionsModule = tuDien(
     son_loaiSonKhongConTrongDanhMuc: "Có loại sơn không còn trong danh mục.",
     son_daGuiYeuCau: "Đã gửi yêu cầu {so} ({n} loại sơn) lên {noi}.",
 
-    son_chonNhapHoacXuat: "Chọn Nhập hoặc Xuất.",
-    son_chuaDocPdfHangLoat:
-      "Chưa đọc trực tiếp được file PDF. Mở PDF, bôi đen bảng (Ctrl+A), copy rồi dán vào ô bên dưới.",
-    son_chonFileHoacDanBang: "Hãy chọn file Excel hoặc dán nội dung bảng.",
-    son_fileKhongCoSoLuong:
-      "File không có dòng nào kèm số lượng. Bảng cần một cột số lượng (Tồn / Số lượng / Qty).",
-    son_dongThieuTon: "{mo}: cần {can}, còn {con}",
-    son_khongXuatDuocThieuTon:
-      "Không xuất được, {n} dòng thiếu tồn (chưa ghi gì cả):",
-    son_conNDongNua: "… và {n} dòng nữa",
-    son_khongDuTonCho: "Không đủ tồn cho {mo}: cần {can}, còn {con}.",
-    son_chuaGhiSuaFile: "Chưa ghi dòng nào, hãy sửa file rồi nhập lại.",
-    son_khongGhiDuocLo:
-      "Không ghi được lô nhập/xuất sơn, hỏng ở {viTri}. Chưa ghi dòng nào — hãy kiểm tra lại dòng đó trong file rồi thử lại.",
-    son_daNhapNLoai: "Đã nhập {n} loại sơn, tổng {tong}",
-    son_daXuatNLoai: "Đã xuất {n} loại sơn, tổng {tong}",
-    son_nLoaiMoiThemVaoDanhMuc: "{n} loại sơn mới được thêm vào danh mục",
-    son_boQuaNDongKhongDoc: "bỏ qua {n} dòng không đọc được",
-    son_fileBiCatHangLoat:
-      "⚠ File vượt quá giới hạn đọc nên phần cuối chưa được nhập — hãy tách phần còn lại ra file riêng rồi nhập nốt, đừng nhập lại cả file",
 
     // ── Dầu · dầu nhờn · hóa chất (app/consumable-actions.ts) ────────────────
     nhienLieu_nhomKhongHopLe: "Nhóm không hợp lệ.",
@@ -285,8 +262,6 @@ export const actionsModule = tuDien(
       "Not enough stock: {con} left, {muon} requested for issue.",
     son_daNhapSon: "Paint receipt recorded.",
     son_daXuatSon: "Paint issue recorded.",
-    son_thieuLoaiSon: "The paint type is missing.",
-    son_daLuuDinhMucToiThieu: "Minimum stock saved.",
     son_chonNgayThiCong: "Select the work date.",
     son_ngayThiCongKhongHopLe: "Invalid work date.",
     son_khongGhiNgayTuongLai: "A date in the future cannot be recorded.",
@@ -314,7 +289,6 @@ export const actionsModule = tuDien(
     son_daSaoChep: "Copied {kv} areas and {lop} paint layers.",
     son_boQuaKhuVucDaCo: "Skipped {n} areas that already existed.",
 
-    son_khoanCongDon: "“{ten}” (totalled from sheets: {ds})",
     son_dongDauTien: "the first line",
     son_loiTrungMa:
       "Another paint import was running at the same time, so the auto-generated paint code clashed while writing {viTri}. No line was saved; press import again.",
@@ -349,27 +323,6 @@ export const actionsModule = tuDien(
       "Some paint types are no longer in the catalogue.",
     son_daGuiYeuCau: "Request {so} ({n} paint types) has been sent to {noi}.",
 
-    son_chonNhapHoacXuat: "Choose Receipt or Issue.",
-    son_chuaDocPdfHangLoat:
-      "PDF files cannot be read directly yet. Open the PDF, select the table (Ctrl+A), copy it and paste it into the box below.",
-    son_chonFileHoacDanBang:
-      "Please choose an Excel file or paste the table content.",
-    son_fileKhongCoSoLuong:
-      "The file has no line with a quantity. The table needs a quantity column (ROB / Quantity / Qty).",
-    son_dongThieuTon: "{mo}: {can} needed, {con} left",
-    son_khongXuatDuocThieuTon:
-      "Cannot issue, {n} lines are short of stock (nothing was saved):",
-    son_conNDongNua: "… and {n} more lines",
-    son_khongDuTonCho: "Not enough stock for {mo}: {can} needed, {con} left.",
-    son_chuaGhiSuaFile: "No line was saved; fix the file and import again.",
-    son_khongGhiDuocLo:
-      "The paint receipt/issue batch could not be saved; it failed at {viTri}. No line was saved — check that line in the file and try again.",
-    son_daNhapNLoai: "Received {n} paint types, {tong} in total",
-    son_daXuatNLoai: "Issued {n} paint types, {tong} in total",
-    son_nLoaiMoiThemVaoDanhMuc: "{n} new paint types added to the catalogue",
-    son_boQuaNDongKhongDoc: "{n} unreadable lines skipped",
-    son_fileBiCatHangLoat:
-      "⚠ The file is over the reading limit, so its last part was not imported — put the rest in a separate file and import that, do not import the whole file again",
 
     nhienLieu_nhomKhongHopLe: "Invalid group.",
     nhienLieu_suaMatHangDungChung:

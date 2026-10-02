@@ -24,8 +24,9 @@ export default function TaiPhieuSon({ vesselId, coAi }: { vesselId: number; coAi
       className="space-y-3"
     >
       <input type="hidden" name="vesselId" value={vesselId} />
-      <p className="text-sm text-[var(--text-secondary)]">{t("paint.pgMoTa")}</p>
-      <p className="text-xs text-[var(--text-muted)]">{coAi ? t("paint.pgDinhDang") : t("paint.pgDinhDangKhongAi")}</p>
+      <p className="text-sm text-[var(--text-secondary)]">
+        {t("paint.pgMoTa")} <span className="text-[var(--text-muted)]">{coAi ? t("paint.pgDinhDang") : t("paint.pgDinhDangKhongAi")}</span>
+      </p>
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-3">
         <label className="min-w-64 flex-1">
           <span className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">

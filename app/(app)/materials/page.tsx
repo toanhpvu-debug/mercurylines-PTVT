@@ -227,7 +227,9 @@ export default async function MaterialsPage({
     const [links, daGan, allActive] = await Promise.all([
       prisma.vesselMaterial.findMany({
         where: { vesselId: selectedVesselId!, material: typeWhere },
-        include: { material: { include: { category: true } } },
+        // Không kéo kèm Category: tên nhóm lấy từ categoryNameById (kiểu dòng
+        // không mang quan hệ nên không ai đọc m.category) — join thừa gấp đôi byte.
+        include: { material: true },
         orderBy: { material: { code: "asc" } },
       }),
       canEditVessel
@@ -258,7 +260,6 @@ export default async function MaterialsPage({
     masterMaterials = await prisma.material.findMany({
       where: typeWhere,
       orderBy: [{ materialType: "asc" }, { code: "asc" }],
-      include: { category: true },
     });
   }
 

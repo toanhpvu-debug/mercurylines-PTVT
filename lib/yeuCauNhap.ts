@@ -471,23 +471,28 @@ const khop = (s: string | null | undefined) => boDau(String(s ?? "")).replace(/[
  * danh mục) với tên, mã, đơn vị theo file.
  */
 export function ghepDongYeuCau(dong: DongYeuCauFile[], loai: LoaiYeuCau, vatTu: VatTuGhep[]): (VatTuGhep | null)[] {
-  const cungLoai = vatTu.filter((m) => m.materialType === loai);
-  const chon = (ds: VatTuGhep[]) => ds.find((m) => m.cuaTau) ?? ds[0] ?? null;
+  // Chuẩn hóa mỗi mặt hàng MỘT lần trước vòng lặp: chuẩn hóa trong vòng (169
+  // dòng × 597 mặt hàng × tới 8 lần normalize + regex) tốn 249 ms CPU chặn cả
+  // server mỗi lần mở trang điền từ file; chuẩn hóa trước còn 7 ms, cùng kết quả.
+  const cungLoai = vatTu
+    .filter((m) => m.materialType === loai)
+    .map((m) => ({ m, impa: chuanImpa(m.impa), pn: khop(m.partNumber), vn: khop(m.nameVn), en: m.nameEn ? khop(m.nameEn) : null }));
+  const chon = (ds: typeof cungLoai) => (ds.find((x) => x.m.cuaTau) ?? ds[0])?.m ?? null;
   return dong.map((d) => {
     if (d.impa) {
-      const theoImpa = cungLoai.filter((m) => chuanImpa(m.impa) === d.impa);
+      const theoImpa = cungLoai.filter((x) => x.impa === d.impa);
       if (theoImpa.length) return chon(theoImpa);
     }
     const pn = khop(d.partNo);
     if (pn.length >= 3) {
-      const theoPn = cungLoai.filter((m) => khop(m.partNumber) === pn);
+      const theoPn = cungLoai.filter((x) => x.pn === pn);
       if (theoPn.length) return chon(theoPn);
     }
     // Tên trùng khít: cả mô tả, rồi từng nửa của mô tả song ngữ "Wiping rags(giẻ lau)".
     const ngoac = /^(.+?)\s*\(([^()]+)\)?\s*\.?$/.exec(d.moTa.trim()); // ô gộp hay mất ")"
     const ten = [d.moTa, ...(ngoac ? [ngoac[1], ngoac[2]] : [])].map(khop).filter((s) => s.length >= 4);
     for (const s of ten) {
-      const theoTen = cungLoai.filter((m) => khop(m.nameVn) === s || (m.nameEn && khop(m.nameEn) === s));
+      const theoTen = cungLoai.filter((x) => x.vn === s || (x.en !== null && x.en === s));
       if (theoTen.length) return chon(theoTen);
     }
     return null;

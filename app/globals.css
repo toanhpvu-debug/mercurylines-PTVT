@@ -390,6 +390,52 @@ tbody[data-thu-gon] > tr:not(:first-child) {
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * Kiểu GỐC của ô bảng (Td, Th) và nhãn (Badge) — components/ui.tsx.
+ *
+ * Trước đây mỗi ô mang nguyên chuỗi class Tailwind (76–120 ký tự). Chuỗi đó đi
+ * HAI lần trong mỗi trang (thẻ HTML + dữ liệu RSC) và một lần nữa mỗi lần chuyển
+ * trang: đo 2026-10-02, class của Td + Badge chiếm 311/818 KB RSC của /materials
+ * và 278/1.063 KB của /inventory. Gom về một lớp ngắn khai ở đây — cùng đúng các
+ * utility cũ (@apply), nên khai báo CSS không đổi.
+ *
+ * Đặt trong `@layer components` (dưới utilities) để class truyền thêm qua
+ * `className` (px-2, text-right, border-b-0, dense của Table…) luôn thắng kiểu
+ * gốc — đúng ý "kiểu gốc, ai cần thì đè".
+ */
+@layer components {
+  .o-td {
+    @apply border-b border-[var(--border-subtle)] px-4 py-3 text-[var(--text-primary)];
+  }
+  .o-th {
+    @apply border-b border-[var(--border-subtle)] px-4 py-3 text-xs font-semibold whitespace-nowrap text-[var(--text-secondary)] uppercase tracking-wide;
+  }
+  .o-nhan {
+    @apply inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap;
+  }
+  .nhan-neutral {
+    @apply bg-[var(--tone-neutral-bg)] text-[var(--tone-neutral-text)];
+  }
+  .nhan-brand {
+    @apply bg-[var(--tone-brand-bg)] text-[var(--tone-brand-text)];
+  }
+  .nhan-success {
+    @apply bg-[var(--tone-success-bg)] text-[var(--tone-success-text)];
+  }
+  .nhan-warning {
+    @apply bg-[var(--tone-warning-bg)] text-[var(--tone-warning-text)];
+  }
+  .nhan-danger {
+    @apply bg-[var(--tone-danger-bg)] text-[var(--tone-danger-text)];
+  }
+  .nhan-info {
+    @apply bg-[var(--tone-info-bg)] text-[var(--tone-info-text)];
+  }
+  .nhan-muted {
+    @apply bg-[var(--tone-muted-bg)] text-[var(--tone-muted-text)];
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

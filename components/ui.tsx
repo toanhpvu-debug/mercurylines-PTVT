@@ -213,14 +213,9 @@ export function Badge({
   title?: string;
 }) {
   return (
-    <span
-      title={title}
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap",
-        TONE_CLASS[tone],
-        className
-      )}
-    >
+    // Lớp gốc ngắn (globals.css, @layer components): nhãn lặp vài trăm lần mỗi
+    // trang danh mục, chuỗi Tailwind đầy đủ đi hai lần (HTML + RSC) mỗi lần.
+    <span title={title} className={cn("o-nhan", `nhan-${tone}`, className)}>
       {dot && <span className="size-1.5 rounded-full bg-current" />}
       {children}
     </span>
@@ -472,10 +467,9 @@ export function Th({
 }) {
   return (
     <th
-      colSpan={colSpan}
+      {...(colSpan !== undefined ? { colSpan } : {})}
       className={cn(
-        "border-b border-[var(--border-subtle)] px-4 py-3 text-xs font-semibold",
-        "whitespace-nowrap text-[var(--text-secondary)] uppercase tracking-wide",
+        "o-th",
         align === "right" && "text-right",
         align === "center" && "text-center",
         align === "left" && "text-left",
@@ -499,10 +493,13 @@ export function Td({
   colSpan?: number;
 }) {
   return (
+    // Lớp gốc ngắn "o-td" (globals.css): ô bảng lặp hàng nghìn lần mỗi trang
+    // (/inventory ~3.000 ô) — chuỗi Tailwind đầy đủ là 42% dữ liệu RSC của trang.
+    // colSpan chỉ truyền khi có: prop undefined vẫn bị ghi "$undefined" vào RSC.
     <td
-      colSpan={colSpan}
+      {...(colSpan !== undefined ? { colSpan } : {})}
       className={cn(
-        "border-b border-[var(--border-subtle)] px-4 py-3 text-[var(--text-primary)]",
+        "o-td",
         align === "right" && "text-right tabular",
         align === "center" && "text-center",
         className

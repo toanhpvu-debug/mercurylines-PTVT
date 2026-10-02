@@ -29,6 +29,9 @@ export default function TaiFileYeuCau({ coAi, moSan = true, son }: { coAi: boole
         </summary>
         {/* Gửi thủ công qua startTransition để React không reset form (mất file) khi lỗi. */}
         <form
+          // action: trang chưa kịp nạp JS (máy chậm) mà người dùng đã bấm thì form vẫn
+          // gửi thẳng server action thay vì rơi về GET; nạp xong thì onSubmit lo.
+          action={formAction}
           onSubmit={(e) => {
             e.preventDefault();
             const fd = new FormData(e.currentTarget);

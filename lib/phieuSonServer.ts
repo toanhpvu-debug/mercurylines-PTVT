@@ -27,7 +27,15 @@ export type KetQuaNhapPhieuSon = {
 
 export async function nhapPhieuSonTx(
   tx: Prisma.TransactionClient,
-  input: { vesselId: number; dong: DongNhanSon[]; ghiChu: string; ngayNhan: Date; nguoi: string }
+  input: {
+    vesselId: number;
+    dong: DongNhanSon[];
+    ghiChu: string;
+    ngayNhan: Date;
+    nguoi: string;
+    /** Phiếu giao sinh ra các dòng nhập — gắn vào để gỡ được cả phiếu khi nhập nhầm. */
+    phieuSonId?: number | null;
+  }
 ): Promise<KetQuaNhapPhieuSon> {
   const gop = gopDongNhap(input.dong);
   const ketQua: KetQuaNhapPhieuSon = { soLoai: 0, soDong: 0, taoMoi: 0, tongSoLuong: 0, sanPham: [] };
@@ -89,6 +97,7 @@ export async function nhapPhieuSonTx(
         note: input.ghiChu.slice(0, 300),
         occurredAt: input.ngayNhan,
         performedBy: input.nguoi,
+        phieuSonId: input.phieuSonId ?? null,
       },
     });
     ketQua.soLoai++;

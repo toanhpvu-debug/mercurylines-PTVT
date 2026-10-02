@@ -686,11 +686,18 @@ model PaintTransaction {
   occurredAt  DateTime     @default(now())
   performedBy String?
   createdAt   DateTime     @default(now())
+  // Dòng ĐIỀU CHỈNH (sửa số tồn đã nhập, gỡ một loại khỏi danh sách tồn) — không
+  // phải nhận hay dùng sơn thật nên không tính vào tiêu thụ.
+  dieuChinh   Boolean      @default(false)
+  // Phiếu giao sơn (SonPhieuTep) sinh ra dòng nhập này — để gỡ cả phiếu khi nhập
+  // nhầm. Không khóa ngoại: SonPhieuTep không đồng bộ giữa các bản cài.
+  phieuSonId  Int?
 
   @@index([vesselId])
   @@index([productId])
   @@index([jobId])
   @@index([occurredAt])
+  @@index([phieuSonId])
 }
 
 // Một lần thi công sơn.

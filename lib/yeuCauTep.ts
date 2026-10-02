@@ -83,7 +83,21 @@ async function docDocCu(buffer: Buffer): Promise<KetQuaDocYeuCau> {
 
 async function docExcel(buffer: Buffer): Promise<KetQuaDocYeuCau> {
   const XLSX = await import("xlsx");
-  const wb = XLSX.read(buffer, { type: "buffer", sheetRows: 800 });
+  const wb = XLSX.read(buffer, { type: "buffer", sheetRows: 800, cellNF: true });
+  // Ô NGÀY thật của Excel: đọc dạng chữ đã định dạng thì ra theo định dạng của ô
+  // — mẫu MLS-11-05 để "mm-dd-yy" nên ngày 01/10/2026 thành "10/1/26", rồi bị hiểu
+  // theo kiểu Việt (ngày/tháng) thành 10/01/2026. Viết lại thành yyyy-mm-dd từ
+  // chính số ngày của ô (không qua Date, không lệch múi giờ).
+  for (const ten of wb.SheetNames) {
+    const ws = wb.Sheets[ten];
+    for (const dc of Object.keys(ws)) {
+      if (dc.startsWith("!")) continue;
+      const o = ws[dc] as { t?: string; v?: unknown; z?: unknown; w?: string };
+      if (o.t !== "n" || typeof o.v !== "number" || typeof o.z !== "string" || !XLSX.SSF.is_date(o.z)) continue;
+      const n = XLSX.SSF.parse_date_code(o.v);
+      if (n && n.y > 1900) o.w = `${n.y}-${String(n.m).padStart(2, "0")}-${String(n.d).padStart(2, "0")}`;
+    }
+  }
   const ungVien = wb.SheetNames.map((ten) => ({
     rows: (XLSX.utils.sheet_to_json(wb.Sheets[ten], { header: 1, raw: false, blankrows: false, defval: "" }) as unknown[][]).map((r) =>
       r.map((c) => sach(String(c ?? "")))

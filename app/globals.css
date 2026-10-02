@@ -523,6 +523,20 @@ tbody[data-thu-gon] > tr:not(:first-child) {
 }
 
 /*
+ * Ô đã sửa tay trên bản in báo cáo sơn (components/BaoCaoSonSua.tsx) — tô vàng
+ * nhạt trên màn hình khi đang sửa để biết chỗ nào khác số liệu hệ thống; tờ
+ * giấy luôn trắng nên dùng màu cố định như .print-area, và không in ra.
+ */
+.print-area .o-da-sua {
+  background: #fff1bf;
+}
+@media print {
+  .print-area .o-da-sua {
+    background: transparent !important;
+  }
+}
+
+/*
  * IN GIẤY: chứng từ luôn đen trên trắng, bất kể người dùng đang để chế độ tối.
  * Ép lại bộ biến sáng ngay trong @media print — mọi thẻ, bảng, chữ dùng biến
  * đều theo, không phải sửa từng trang. Thanh bên, thanh trên và họa tiết nền

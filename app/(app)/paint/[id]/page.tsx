@@ -11,6 +11,7 @@ import {
   Layers,
   Paintbrush,
   Plus,
+  Printer,
   Ruler,
   Send,
 } from "lucide-react";
@@ -35,7 +36,10 @@ import { PaintJobDeleteButton, PaintJobForm } from "@/components/PaintJobForm";
 import PaintSchemeCopyForm from "@/components/PaintSchemeCopyForm";
 import PaintStockBulkForm from "@/components/PaintStockBulkForm";
 import TaiPhieuSon from "@/components/TaiPhieuSon";
-import PrintButton from "@/components/PrintButton";
+import ThaoTacTonSon, {
+  NutXoaGiaoDichSon,
+  ThongBaoTonSon,
+} from "@/components/ThaoTacTonSon";
 import VesselSwitcher from "@/components/VesselSwitcher";
 import {
   Badge,
@@ -172,6 +176,52 @@ export default async function PaintVesselPage({
       })
     : [];
 
+  // Sửa / gỡ sơn đã nhập: loại nào đang dùng ở tàu khác (đổi tên/hãng/màu là đổi
+  // cho cả tàu đó — chỉ thuyền trưởng/quản trị), loại nào đã thi công trên tàu này
+  // (không xóa hẳn được). Chỉ hỏi khi người xem sửa được.
+  const idsSon = stocks.map((s) => s.productId);
+  const [dungTauKhac, thiCongTheoSon] =
+    canEdit && idsSon.length
+      ? await Promise.all([
+          Promise.all([
+            prisma.paintStock.findMany({
+              where: { productId: { in: idsSon }, vesselId: { not: vesselId } },
+              select: { productId: true },
+              distinct: ["productId"],
+            }),
+            prisma.paintTransaction.findMany({
+              where: { productId: { in: idsSon }, vesselId: { not: vesselId } },
+              select: { productId: true },
+              distinct: ["productId"],
+            }),
+            prisma.paintSchemeLayer.findMany({
+              where: { productId: { in: idsSon }, area: { vesselId: { not: vesselId } } },
+              select: { productId: true },
+              distinct: ["productId"],
+            }),
+            prisma.materialRequestItem.findMany({
+              where: { paintProductId: { in: idsSon }, request: { vesselId: { not: vesselId } } },
+              select: { paintProductId: true },
+              distinct: ["paintProductId"],
+            }),
+          ]).then(
+            ([a, b, c, d]) =>
+              new Set<number>([
+                ...[...a, ...b, ...c].map((x) => x.productId),
+                ...d.map((x) => x.paintProductId ?? 0),
+              ])
+          ),
+          prisma.paintJobLine
+            .groupBy({
+              by: ["productId"],
+              where: { productId: { in: idsSon }, job: { vesselId } },
+              _count: { _all: true },
+            })
+            .then((r) => new Map(r.map((x) => [x.productId, x._count._all]))),
+        ])
+      : [new Set<number>(), new Map<number, number>()];
+  const toanDoiSon = ["ADMIN", "MASTER"].includes(user.role);
+
   const productOptions = products.map((p) => ({
     id: p.id,
     label: productLabel(p, tenLoaiSon),
@@ -244,7 +294,8 @@ export default async function PaintVesselPage({
     { name: string; uom: string; qty: number }
   >();
   for (const tx of transactions) {
-    if (tx.type !== "OUT" || tx.occurredAt < since) continue;
+    // Dòng điều chỉnh (sửa số đã nhập, gỡ khỏi danh sách) không phải sơn đã dùng.
+    if (tx.type !== "OUT" || tx.dieuChinh || tx.occurredAt < since) continue;
     const cur = consumption.get(tx.productId) ?? {
       name: tx.product.name,
       uom: tx.product.uom,
@@ -279,7 +330,15 @@ export default async function PaintVesselPage({
               {t("paint.nLanThiCongGanDay", { n: jobs.length })}
             </>
           }
-          action={<PrintButton />}
+          action={
+            <Link
+              href={`/paint/${vesselId}/bao-cao`}
+              className={buttonClass("primary")}
+            >
+              <Printer className="size-4" />
+              {t("paint.bcNutIn")}
+            </Link>
+          }
         />
       </div>
 
@@ -477,12 +536,14 @@ export default async function PaintVesselPage({
       )}
 
       {/* ── Tồn sơn ───────────────────────────────────────────────────── */}
-      <section className="space-y-4">
+      <section id="ton-son" className="scroll-mt-20 space-y-4">
         <Card>
           <CardHeader
             icon={<Droplets className="size-4" />}
             title={t("paint.tonSonTrenTau")}
+            subtitle={canEdit && stocks.length > 0 ? t("paint.tsGoiYBang") : undefined}
           />
+          {canEdit && <ThongBaoTonSon kenh="ton" />}
           {stocks.length === 0 ? (
             <EmptyState
               icon={<Droplets className="size-5" />}
@@ -490,7 +551,7 @@ export default async function PaintVesselPage({
             />
           ) : (
             <TableWrap>
-              <Table dense>
+              <Table dense xuongDong={canEdit}>
                 <thead>
                   <tr>
                     <Th>{t("paint.son")}</Th>
@@ -498,6 +559,11 @@ export default async function PaintVesselPage({
                     <Th>{t("paint.cotMau")}</Th>
                     <Th align="right">{t("paint.cotConLai")}</Th>
                     <Th align="right">{t("paint.cotToiThieu")}</Th>
+                    {canEdit && (
+                      <Th align="right" className="print:hidden">
+                        {t("chung.thaoTac")}
+                      </Th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -536,7 +602,9 @@ export default async function PaintVesselPage({
                           </div>
                         </Td>
                         <Td>
-                          <Badge tone="neutral">
+                          {/* Nhãn hệ sơn dài ("Chống ăn mòn (Anti-corrosive)") được xuống dòng — để
+                              nguyên một dòng thì bảng tràn ngang và cột Thao tác khuất ở màn 1366px. */}
+                          <Badge tone="neutral" className="whitespace-normal">
                             {tenLoaiSon(s.product.paintType)}
                           </Badge>
                         </Td>
@@ -548,7 +616,7 @@ export default async function PaintVesselPage({
                         <Td align="right">
                           <span
                             className={cn(
-                              "font-semibold",
+                              "font-semibold whitespace-nowrap",
                               low
                                 ? "text-[var(--text-danger)]"
                                 : "text-[var(--text-primary)]"
@@ -577,6 +645,29 @@ export default async function PaintVesselPage({
                             </span>
                           )}
                         </Td>
+                        {canEdit && (
+                          <Td align="right" className="print:hidden">
+                            <ThaoTacTonSon
+                              dong={{
+                                vesselId,
+                                productId: s.productId,
+                                ten: s.product.name,
+                                hang: s.product.maker,
+                                loai: s.product.paintType,
+                                mau: s.product.colorName,
+                                maMau: s.product.colorCode,
+                                dvt: s.product.uom,
+                                dungTich: s.product.packSize,
+                                soLuong: s.quantity,
+                                minQty: s.minQty,
+                                suaSanPham:
+                                  toanDoiSon || !dungTauKhac.has(s.productId),
+                                dungChung: dungTauKhac.has(s.productId),
+                                soThiCong: thiCongTheoSon.get(s.productId) ?? 0,
+                              }}
+                            />
+                          </Td>
+                        )}
                       </Tr>
                     );
                   })}
@@ -832,7 +923,9 @@ export default async function PaintVesselPage({
         <CardHeader
           icon={<History className="size-4" />}
           title={t("paint.lichSuNhapXuat")}
+          subtitle={canEdit && transactions.length > 0 ? t("paint.gdGoiY") : undefined}
         />
+        {canEdit && <ThongBaoTonSon kenh="lich-su" />}
         {transactions.length === 0 ? (
           <EmptyState
             icon={<History className="size-5" />}
@@ -849,6 +942,7 @@ export default async function PaintVesselPage({
                   <Th align="right">{t("paint.cotSL")}</Th>
                   <Th>{t("chung.nguoiThucHien")}</Th>
                   <Th>{t("chung.ghiChu")}</Th>
+                  {canEdit && <Th className="print:hidden"></Th>}
                 </tr>
               </thead>
               <tbody>
@@ -858,11 +952,15 @@ export default async function PaintVesselPage({
                       {ngayGio(tx.occurredAt)}
                     </Td>
                     <Td>
-                      <Badge tone={tx.type === "IN" ? "success" : "warning"}>
-                        {tx.type === "IN"
-                          ? t("paint.giaoDichNhan")
-                          : t("paint.giaoDichXuat")}
-                      </Badge>
+                      {tx.dieuChinh ? (
+                        <Badge tone="info">{t("paint.gdDieuChinh")}</Badge>
+                      ) : (
+                        <Badge tone={tx.type === "IN" ? "success" : "warning"}>
+                          {tx.type === "IN"
+                            ? t("paint.giaoDichNhan")
+                            : t("paint.giaoDichXuat")}
+                        </Badge>
+                      )}
                     </Td>
                     <Td>{tx.product.name}</Td>
                     <Td align="right">
@@ -875,6 +973,35 @@ export default async function PaintVesselPage({
                         {tx.note ?? ""}
                       </span>
                     </Td>
+                    {canEdit && (
+                      <Td align="right" className="whitespace-nowrap print:hidden">
+                        {tx.jobId !== null ? (
+                          <span className="text-xs text-[var(--text-muted)]">
+                            {t("paint.gdTheoThiCong")}
+                          </span>
+                        ) : tx.phieuSonId !== null ? (
+                          <Link
+                            href={`/paint/${vesselId}/nhan/${tx.phieuSonId}`}
+                            className="text-xs text-[var(--text-brand)] hover:underline"
+                          >
+                            {t("paint.gdPhieuGiao")}
+                          </Link>
+                        ) : (
+                          <NutXoaGiaoDichSon
+                            vesselId={vesselId}
+                            giaoDich={{
+                              id: tx.id,
+                              ten: tx.product.name,
+                              type: tx.type,
+                              soLuong: tx.quantity,
+                              dvt: tx.product.uom,
+                              luc: ngayGio(tx.occurredAt),
+                              note: tx.note,
+                            }}
+                          />
+                        )}
+                      </Td>
+                    )}
                   </Tr>
                 ))}
               </tbody>

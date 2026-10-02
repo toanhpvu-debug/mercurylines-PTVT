@@ -894,8 +894,52 @@ rồi **soát trước khi nhập** — giống phiếu giao vật tư, kết qu
   PaintProduct / PaintStock / PaintTransaction. Mã: [`lib/phieuSon.ts`](lib/phieuSon.ts) (thuần, kiểm
   ở `scripts/kiem-tra-phieu-son.ts`), [`lib/phieuSonTep.ts`](lib/phieuSonTep.ts),
   [`lib/phieuSonServer.ts`](lib/phieuSonServer.ts), [`app/son-phieu-actions.ts`](app/son-phieu-actions.ts).
+- Ô **ngày thật** của Excel đọc theo chính số ngày của ô (không theo chữ đã định dạng): mẫu MLS-11-05
+  Paint để định dạng kiểu Mỹ "mm-dd-yy" nên trước đây 01/10/2026 bị đọc thành 10/01/2026.
 
 Đường cũ *Hàng loạt từ file Excel / dán bảng* vẫn giữ cho nhập / **xuất** nhanh không qua soát.
+
+#### Sửa / gỡ sơn đã nhập
+
+Nhập sai (số, tên, nhầm tàu, nhầm cả phiếu) thì sửa ngay trên trang sơn của tàu — quyền như nhập/xuất
+sơn (VAN_HANH_SON, quản sơn của đúng tàu), mỗi thao tác bắt ghi **lý do** và vào nhật ký hệ thống:
+
+- **Bảng Tồn sơn → Sửa**: số đang có trên tàu (ghi một dòng **Điều chỉnh** đúng phần chênh lệch kèm
+  lý do; số trên tàu vừa đổi vì người khác nhập/xuất thì dừng, không ghi đè), tồn tối thiểu, tên /
+  hãng / hệ sơn / màu / mã màu / ĐVT / dung tích lon. Loại sơn đang dùng ở tàu khác thì chỉ thuyền
+  trưởng / quản trị sửa được thông tin (đổi là đổi cho cả đội).
+- **Bảng Tồn sơn → Gỡ**: *giữ lịch sử* (dòng điều chỉnh về 0 rồi bỏ khỏi bảng tồn) hoặc *nhập nhầm —
+  xóa hẳn* (xóa mọi dòng nhập/điều chỉnh của loại đó trên tàu như chưa từng nhập; loại sơn sinh ra từ
+  chính lần nhập đó mà không còn ai dùng thì xóa khỏi danh mục). Đã có thi công dùng sơn thì không
+  xóa hẳn được.
+- **Lịch sử nhập/xuất → xóa dòng** nhập/xuất tay nhầm: tồn được hoàn lại (không đủ tồn để trừ lại thì
+  chặn). Dòng của thi công xóa theo thi công; dòng của phiếu giao gỡ theo phiếu.
+- **Trang phiếu giao đã nhập → Gỡ phiếu đã nhập**: trừ lại đúng số đã nhập theo phiếu, xóa các dòng
+  nhập của phiếu (gắn bằng `PaintTransaction.phieuSonId`; phiếu nhập trước khi có cột được migration
+  gắn lại theo ghi chú + giờ nhập), loại do phiếu tạo mới mà chưa ai dùng thì xóa khỏi danh mục; phiếu
+  trở về *chờ xử lý* để sửa rồi nhập lại hoặc xóa. Sơn của phiếu đã dùng / xuất / điều chỉnh bớt thì
+  không gỡ cả phiếu được — sửa từng dòng tồn.
+- Dòng điều chỉnh mang `dieuChinh = true` (nhãn *Điều chỉnh* ở lịch sử) và **không** cộng vào *Tiêu thụ
+  12 tháng*. Mã: [`lib/tonSonServer.ts`](lib/tonSonServer.ts) (giao dịch, kiểm ở
+  `scripts/kiem-tra-sua-ton-son.ts` trên database thật rồi cuộn ngược),
+  [`app/ton-son-actions.ts`](app/ton-son-actions.ts), [`components/ThaoTacTonSon.tsx`](components/ThaoTacTonSon.tsx).
+
+#### Báo cáo sơn in theo mẫu MLS-11-05
+
+Nút **In báo cáo** ở trang sơn của tàu mở `/paint/<tàu>/bao-cao`: tờ *REQUISITION FOR STORES / YÊU
+CẦU VẬT TƯ* MLS-11-05 dựng lại đúng tệp Excel mẫu của công ty (MLS-11-05 - CO - Paint): 9 cột đúng
+tỉ lệ, Times New Roman đúng cỡ từng ô, chiều cao hàng như tệp, khung đôi ở đầu biểu mẫu và đầu bảng,
+logo + tên công ty, ô ký *Chief Engineer/ Chief Officer · Captain · Tech.&Pur Dept · Vice Director*,
+chân trang *Người làm báo cáo: CE, CO · Thời điểm làm báo cáo: Khi cần thiết | Thời gian lưu: 3 năm ·
+Lưu VP: Vật tư*; A4 dọc, lề như tệp (trái 0,2" · phải 0,25" · trên/dưới 0,75"). R.O.B = tồn trên tàu;
+mô tả in "HÃNG TÊN MÃ-MÀU MÀU" như tàu vẫn ghi; cột Mã IMPA để trống (không in mã nội bộ `SON-####`).
+
+**Sửa trước khi in**: sửa ô (đầu phiếu, mô tả, R.O.B, S.lượng yêu cầu / duyệt…), bỏ / thêm / đổi thứ tự
+dòng, *Bỏ các dòng tồn 0*, *Điền S.lượng yêu cầu theo định mức* (thiếu so với tồn tối thiểu). Chỉ đổi
+tờ in — một "bản sửa" cất trong trình duyệt theo tàu, ghi riêng những ô đã đổi và áp lên số liệu mới
+nhất mỗi lần mở (nhập thêm sơn thì ô không sửa tay vẫn hiện số mới); ô đã sửa tô vàng khi đang sửa,
+màn hình nói rõ số chỗ khác hệ thống, *Đặt lại số liệu gốc* để bỏ. Ô *Page* tự ước số trang. Mã:
+[`components/BaoCaoSonSua.tsx`](components/BaoCaoSonSua.tsx), phần thuần [`lib/tonSon.ts`](lib/tonSon.ts).
 
 **Yêu cầu sơn từ tàu** (trang `/paint/<tàu>/yeu-cau` — nút *Lập yêu cầu sơn* ở trang Quản lý
 sơn và ở trang sơn của tàu; cột *Yêu cầu sơn* ở bảng các tàu) **không** dựng một đường phê

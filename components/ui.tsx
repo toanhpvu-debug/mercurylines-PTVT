@@ -431,20 +431,28 @@ export function TableWrap({
   );
 }
 
-/** `dense` giảm đệm cho bảng dữ liệu dài — nhìn được nhiều dòng hơn một màn hình. */
+/**
+ * `dense` giảm đệm cho bảng dữ liệu dài — nhìn được nhiều dòng hơn một màn hình.
+ * `xuongDong`: cho chữ trong ô xuống dòng thay vì giữ mọi cột đủ rộng một dòng
+ * (`min-w-max`, mặc định) — dùng cho bảng có cột Thao tác bên phải để cột đó
+ * không bị đẩy khuất ở màn 1366px vì một nhãn dài.
+ */
 export function Table({
   children,
   className,
   dense,
+  xuongDong,
 }: {
   children: ReactNode;
   className?: string;
   dense?: boolean;
+  xuongDong?: boolean;
 }) {
   return (
     <table
       className={cn(
-        "w-full min-w-max text-sm",
+        "w-full text-sm",
+        !xuongDong && "min-w-max",
         dense && "[&_td]:px-3 [&_td]:py-2 [&_th]:px-3 [&_th]:py-2",
         className
       )}

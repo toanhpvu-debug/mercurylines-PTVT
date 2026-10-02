@@ -263,18 +263,24 @@ export async function apDungPhieuSon(id: number, dongSua: unknown, dauSua: DauPh
     const { nhapPhieuSonTx } = await import("@/lib/phieuSonServer");
     const ngay = dau.ngayNhan && dau.ngayNhan <= new Date() ? dau.ngayNhan : new Date();
     const soPhieu = dau.soPhieu ?? tep.fileName;
+    const { ghiChuNhapPhieu } = await import("@/lib/tonSonServer");
+    // Trạng thái "đã nhập" ghi CÙNG giao dịch với tồn: không bao giờ có cảnh tồn
+    // đã cộng mà phiếu vẫn treo "đang nhập" (khi đó không gỡ phiếu được).
     const kq = await prisma.$transaction(
-      (tx) =>
-        nhapPhieuSonTx(tx, {
+      async (tx) => {
+        const k = await nhapPhieuSonTx(tx, {
           vesselId: tep.vesselId,
           dong: r.dong,
-          ghiChu: `Phiếu giao ${soPhieu}${dau.nhaCungCap ? ` · ${dau.nhaCungCap}` : ""}`,
+          ghiChu: ghiChuNhapPhieu(soPhieu, dau.nhaCungCap),
           ngayNhan: ngay,
           nguoi: actor.name,
-        }),
+          phieuSonId: tep.id,
+        });
+        await tx.sonPhieuTep.update({ where: { id: tep.id }, data: { trangThai: "DA_AP_DUNG", apDungBoi: actor.name, apDungLuc: new Date(), ketQua: k } });
+        return k;
+      },
       { timeout: 60000, maxWait: 10000 }
     );
-    await prisma.sonPhieuTep.update({ where: { id: tep.id }, data: { trangThai: "DA_AP_DUNG", apDungBoi: actor.name, apDungLuc: new Date(), ketQua: kq } });
     await ghiNhatKyNguoiDung(actor, {
       action: "phieu-son-nhap",
       path: `/paint/${tep.vesselId}/nhan/${tep.id}`,
@@ -313,4 +319,46 @@ export async function xoaPhieuSon(id: number): Promise<KetQuaPhieuSon> {
   });
   revalidatePath(`/paint/${tep.vesselId}`);
   redirect(`/paint/${tep.vesselId}`);
+}
+
+// ─── 5. Gỡ phiếu đã nhập (nhập nhầm) ─────────────────────────────────────────
+
+/**
+ * Hoàn tác một phiếu giao sơn đã nhập: trừ lại đúng số đã nhập theo phiếu, xóa
+ * các dòng nhập của phiếu, loại sơn do phiếu tạo mới mà chưa ai dùng thì xóa
+ * khỏi danh mục; phiếu trở lại "chờ xử lý" để sửa dòng rồi nhập lại (hoặc xóa).
+ * Sơn của phiếu đã dùng / xuất bớt thì không gỡ được — khi đó sửa từng dòng tồn.
+ */
+export async function goPhieuSon(id: number, lyDo: string): Promise<KetQuaPhieuSon> {
+  const { t, ngayGio } = await layT();
+  const actor = await requireActiveRole([...VAN_HANH_SON]);
+  const tep =
+    actor && Number.isInteger(id) && id > 0
+      ? await prisma.sonPhieuTep.findUnique({ where: { id }, select: { id: true, vesselId: true, fileName: true, vessel: { select: { code: true } } } })
+      : null;
+  if (!actor || !tep || !coQuanLySon(actor, tep.vesselId)) return { message: t("chung.khongCoQuyen") };
+  const { LoiTonSon, chuLoiTonSon, goPhieuSonTx } = await import("@/lib/tonSonServer");
+  const lyDoGon = String(lyDo ?? "").trim().slice(0, 200);
+  try {
+    const kq = await prisma.$transaction(
+      (tx) => goPhieuSonTx(tx, { tepId: tep.id, lyDo: lyDoGon, nguoi: actor.name, luc: ngayGio(new Date()) }),
+      { timeout: 60000, maxWait: 10000 }
+    );
+    await ghiNhatKyNguoiDung(actor, {
+      action: "phieu-son-go",
+      path: `/paint/${tep.vesselId}/nhan/${tep.id}`,
+      vesselId: tep.vesselId,
+      detail: `Gỡ phiếu giao sơn đã nhập ${kq.soPhieu} (${tep.vessel.code}): trừ lại ${kq.soLoai} loại / ${kq.soDong} dòng, tổng ${kq.tong}, xóa ${kq.xoaLoai} loại sơn khỏi danh mục; lý do: ${lyDoGon}`,
+    });
+    revalidatePath("/paint");
+    revalidatePath("/paint/products");
+    revalidatePath(`/paint/${tep.vesselId}`);
+    revalidatePath(`/paint/${tep.vesselId}/bao-cao`);
+    revalidatePath(`/paint/${tep.vesselId}/nhan/${tep.id}`);
+    return { message: t("paint.pgDaGo", { loai: kq.soLoai, sl: kq.tong, xoa: kq.xoaLoai }), success: true };
+  } catch (e) {
+    if (e instanceof LoiTonSon) return { message: chuLoiTonSon(e, t) };
+    console.error(`[phieu-son] Gỡ #${tep.id} lỗi:`, e);
+    return { message: t("paint.pgLoiNhap", { loi: e instanceof Error ? e.message.slice(0, 200) : String(e) }) };
+  }
 }

@@ -9,6 +9,7 @@ import { docDongNhanSon } from "@/lib/phieuSon";
 import { PAINT_TYPE_LABEL } from "@/lib/paintTypes";
 import { layT } from "@/lib/i18n/server";
 import BangNhanSon from "@/components/BangNhanSon";
+import GoPhieuSon from "@/components/GoPhieuSon";
 import TuLamMoi from "@/components/TuLamMoi";
 import { Badge, Card, Notice, PageHeader, buttonClass } from "@/components/ui";
 
@@ -77,10 +78,18 @@ export default async function NhanSonPage({ params }: { params: Promise<{ id: st
         </Notice>
       )}
       {tep.ghiChuDoc && <p className="text-xs text-[var(--text-muted)]">{tep.ghiChuDoc}</p>}
+      {/* Vừa gỡ lần nhập (goPhieuSon ghi vết vào ghiChuDoc): nói rõ phiếu đã mở lại. */}
+      {tep.trangThai === "CHO_XU_LY" && !dangDoc && (tep.ghiChuDoc ?? "").includes("Đã gỡ lần nhập") && (
+        <Notice tone="info">{t("paint.pgDaGoMoLai")}</Notice>
+      )}
       {tep.trangThai === "DA_AP_DUNG" && (
-        <Notice tone="success">
-          {t("paint.pgDaNhapLuc", { nguoi: tep.apDungBoi ?? "—", luc: tep.apDungLuc ? ngayGio(tep.apDungLuc) : "—" })}{" "}
-          {kq && t("paint.pgKetQua", { loai: kq.soLoai ?? 0, sl: so(kq.tongSoLuong ?? 0), moi: kq.taoMoi ?? 0 })}
+        <Notice tone="success" className="flex flex-wrap items-center gap-3">
+          <span className="min-w-0 flex-1">
+            {t("paint.pgDaNhapLuc", { nguoi: tep.apDungBoi ?? "—", luc: tep.apDungLuc ? ngayGio(tep.apDungLuc) : "—" })}{" "}
+            {kq && t("paint.pgKetQua", { loai: kq.soLoai ?? 0, sl: so(kq.tongSoLuong ?? 0), moi: kq.taoMoi ?? 0 })}
+          </span>
+          {/* Nhập nhầm phiếu: gỡ để trừ lại tồn và mở phiếu ra sửa (app/son-phieu-actions.ts goPhieuSon). */}
+          {coQuyen && <GoPhieuSon id={tep.id} />}
         </Notice>
       )}
       {!dangDoc && (

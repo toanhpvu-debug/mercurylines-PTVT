@@ -196,6 +196,18 @@ async function main() {
   // ── Excel / Word qua bộ đọc file ──
   const x = await docYeuCauKhongAi(await xlsxTuLuoi(LUOI_05B, "4-2026"), "MLS-11-05B 4-2026.xlsx");
   kiemTra("excel ok", x.ok && [x.dong.length, x.dau.tau, x.dau.ngay, x.dau.soYeuCau, x.dau.loai], [6, "M.ODYSSEY", "2026-04-01", "001/2026", "STORE"]);
+  // Ô ngày THẬT của Excel, định dạng kiểu Mỹ "mm-dd-yy" (như mẫu MLS-11-05 Paint):
+  // 01/10/2026 hiện "10-01-26" — phải ra 2026-10-01, không phải 10/01/2026.
+  {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("PAINT");
+    for (const r of LUOI_05B) ws.addRow(r);
+    const o = ws.getCell("H5");
+    o.value = new Date(Date.UTC(2026, 9, 1));
+    o.numFmt = "mm-dd-yy";
+    const xd = await docYeuCauKhongAi(Buffer.from(await wb.xlsx.writeBuffer()), "MLS-11-05 Paint.xlsx");
+    kiemTra("excel o ngay mm-dd-yy", xd.ok && xd.dau.ngay, "2026-10-01");
+  }
   const w = await docYeuCauKhongAi(await docxMau(), "yeu-cau.docx");
   kiemTra(
     "word ok",

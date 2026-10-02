@@ -14,6 +14,14 @@ const nextConfig: NextConfig = {
   // header này để chọn đúng lỗ hổng theo framework. Bỏ đi không ảnh hưởng gì.
   poweredByHeader: false,
 
+  // Nén phản hồi của chính Next: BẬT mặc định — máy văn phòng chạy `next start`
+  // không có proxy đứng trước. Next xả luồng (full flush) giữa phần HTML và phần
+  // dữ liệu RSC nên gzip mất ~1/3 hiệu quả (đo 2026-10-02: /login 15,8 KB so với
+  // 10,5 KB nén một lần) và không có brotli. Bản sau proxy biết nén (Traefik của
+  // Dokploy với middleware `compress`) đặt NEXT_COMPRESS=0 để proxy nén thay.
+  // Đọc lúc `next start` — đổi biến rồi khởi động lại là xong, không cần build.
+  compress: process.env.NEXT_COMPRESS !== "0",
+
   experimental: {
     serverActions: {
       // Cho phép upload file báo cáo PDF/Excel tới 25MB qua server action

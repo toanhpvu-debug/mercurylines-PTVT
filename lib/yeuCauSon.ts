@@ -38,7 +38,7 @@ export function tenDongSon(p: Pick<SonGhep, "name" | "maker" | "colorName">): st
  *      đúng MỘT loại sơn thỏa (nhiều loại cùng tên khác màu mà file không ghi
  *      màu thì để người lập chọn, không đoán).
  */
-export function ghepSon(dong: DongYeuCauFile[], son: SonGhep[]): (SonGhep | null)[] {
+export function ghepSon(dong: { moTa: string; partNo: string | null; impa: string | null }[], son: SonGhep[]): (SonGhep | null)[] {
   const khoa = son.map((p) => {
     const ten = khop(p.name);
     const mau = khop(p.colorName);

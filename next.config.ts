@@ -83,6 +83,14 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Phiếu giao sơn (PDF) xem ngay trong trang soát nhập tồn sơn — cùng lý do.
+        source: "/api/son-phieu/:id/file",
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+        ],
+      },
+      {
         // Bản scan kiểm kê (PDF) xem ngay trong trang đối chiếu — cùng lý do.
         source: "/api/kiem-ke/:id/file",
         headers: [

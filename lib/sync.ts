@@ -161,6 +161,8 @@ export function khoangIdRieng(dauDai: number): { dau: number; cuoi: number } {
  * - ChangBuocTep: file MLS-11-13 tải lên để nhập dụng cụ chằng buộc — gắn với
  *   tệp trên đĩa của bản cài đã tải; kết quả áp dụng đồng bộ theo LashingGear /
  *   LashingReport.
+ * - SonPhieuTep: phiếu giao sơn tải lên để nhập tồn sơn — gắn với tệp trên đĩa của
+ *   bản cài đã tải; kết quả đồng bộ theo PaintProduct / PaintStock / PaintTransaction.
  * - YeuCauTep: file MLS-11-05A/B tải lên để lập yêu cầu nhanh — gắn với tệp trên
  *   đĩa của bản cài đã tải; yêu cầu lập ra đồng bộ theo MaterialRequest.
  */
@@ -182,6 +184,7 @@ export const BANG_KHONG_DONG_BO = [
   "LichSuDuyetPo",
   "ChangBuocTep",
   "YeuCauTep",
+  "SonPhieuTep",
   "CauHinhHeThong",
 ] as const;
 

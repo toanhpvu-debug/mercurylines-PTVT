@@ -39,6 +39,11 @@ export type DongYeuCauFile = {
   rob: number | null;
   /** S.lượng yêu cầu; null = ô trống trên file. */
   soLuong: number | null;
+  /**
+   * S.lượng duyệt / Q'ty App. trên file (cột công ty điền) — phiếu yêu cầu không
+   * dùng; phiếu giao theo mẫu MLS-11-05 ghi số GIAO ở cột này. Trống = null.
+   */
+  duyet?: number | null;
   ghiChu: string | null;
   /** Tiêu đề nhóm đứng trên dòng (VD "ELECTRIC") nếu file chia phần. */
   phan: string | null;
@@ -174,7 +179,7 @@ function chuTheoCot(rows: string[][], tu: number, den: number): string[] {
 export function timCotYeuCau(rows: string[][]): { hangDau: number; cot: CotYeuCau } | null {
   for (let r = 0; r < Math.min(rows.length, 60); r++) {
     const hang = rows[r].map((x) => boDau(sach(x)));
-    if (!hang.some((x) => /descript|mo ta|name of part|ten (phu tung|vat tu|hang)/.test(x))) continue;
+    if (!hang.some((x) => /descript|mo ta|name of part|ten (phu tung|vat tu|hang|son)|\bproduct\b|\bpaint\b/.test(x))) continue;
     // Hàng tiêu đề thứ hai (bản tiếng Việt) nếu hàng ngay dưới không phải dữ liệu.
     const duoi = rows[r + 1] ?? [];
     const laDuLieu = (o: string[]) => /^\d+$/.test(sach(o[0])) && o.slice(1).some((x) => sach(x).length > 2);
@@ -196,7 +201,7 @@ export function timCotYeuCau(rows: string[][]): { hangDau: number; cot: CotYeuCa
     const hangMuc = tim(/^item\b|hang muc/);
     const donVi = tim(/unit|don vi|dvt|uom/);
     const ghiChu = tim(/remark|ghi chu|note/);
-    const moTa = tim(/descript|mo ta|name of part|ten (phu tung|vat tu|hang)/);
+    const moTa = tim(/descript|mo ta|name of part|ten (phu tung|vat tu|hang|son)|\bproduct\b|\bpaint\b/);
     const stt = tim(/s\.? ?no|^stt|\bstt\b|^no\.?/);
     if (moTa < 0 || soLuong < 0) continue;
     return { hangDau: den + 1, cot: { stt, moTa, hangMuc, impa, partNo, donVi, rob, soLuong, duyet, ghiChu } };
@@ -245,6 +250,7 @@ export function dongTuLuoiYeuCau(rowsVao: unknown[][]): { dau: DauYeuCauFile; do
       donVi: sach(lay(o, cot.donVi)).slice(0, 20) || null,
       rob: soYeuCauO(lay(o, cot.rob)),
       soLuong,
+      duyet: soYeuCauO(lay(o, cot.duyet)),
       ghiChu: sach(lay(o, cot.ghiChu)).slice(0, 200) || null,
       phan,
       canhBao: soLuong === null || soLuong <= 0 ? "Thiếu số lượng yêu cầu trên file" : null,
@@ -268,7 +274,7 @@ export function dongTuChuPdfYeuCau(chu: string): { dau: DauYeuCauFile; dong: Don
   const rows = dongChu.map((l) => l.split(/\s*\|\s*|\t/).map(sach));
   const iDau = rows.findIndex((r) => {
     const s = boDau(r.join(" "));
-    return /descript|mo ta|name of part|ten phu tung/.test(s) && /q'?ty|so luong|quantity|\breq\b|s\.? ?l\.? yeu cau/.test(s);
+    return /descript|mo ta|name of part|ten (phu tung|son)|\bproduct\b|\bpaint\b/.test(s) && /q'?ty|so luong|quantity|\breq\b|s\.? ?l\.? yeu cau/.test(s);
   });
   const dau = dauYeuCau(rows.slice(0, iDau >= 0 ? iDau : 25));
   // Bản in của app (và vài phiên bản mẫu) có cột Ghi chú SAU các cột số.
@@ -310,6 +316,7 @@ export function dongTuChuPdfYeuCau(chu: string): { dau: DauYeuCauFile; dong: Don
     const moTa = o2.join(" ").slice(0, 300);
     if (moTa.length < 2 || !so.length) continue;
     const [rob, soLuong] = so.length === 1 ? [null, so[0]] : [so[0], so[1]];
+    const duyet = so.length === 3 ? so[2] : null;
     dong.push({
       moTa,
       impa,
@@ -318,6 +325,7 @@ export function dongTuChuPdfYeuCau(chu: string): { dau: DauYeuCauFile; dong: Don
       donVi,
       rob,
       soLuong,
+      duyet,
       ghiChu,
       phan,
       canhBao: so.length === 1 ? "Đọc từ lớp chữ PDF: chỉ thấy một cột số — đã coi là số lượng yêu cầu, đối chiếu với bản gốc" : null,
@@ -386,6 +394,7 @@ export function docDongYeuCauFile(v: unknown): DongYeuCauFile[] {
       donVi: ch(d.donVi, 20),
       rob: sn(d.rob),
       soLuong: sn(d.soLuong),
+      duyet: sn(d.duyet),
       ghiChu: ch(d.ghiChu, 200),
       phan: ch(d.phan, 80),
       canhBao: ch(d.canhBao, 300),

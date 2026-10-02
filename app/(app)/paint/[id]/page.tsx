@@ -34,6 +34,7 @@ import { PaintStockMinForm, PaintStockMoveForm } from "@/components/PaintStockFo
 import { PaintJobDeleteButton, PaintJobForm } from "@/components/PaintJobForm";
 import PaintSchemeCopyForm from "@/components/PaintSchemeCopyForm";
 import PaintStockBulkForm from "@/components/PaintStockBulkForm";
+import TaiPhieuSon from "@/components/TaiPhieuSon";
 import PrintButton from "@/components/PrintButton";
 import VesselSwitcher from "@/components/VesselSwitcher";
 import {
@@ -109,6 +110,18 @@ export default async function PaintVesselPage({
   const canCopyScheme = ["ADMIN", "MASTER"].includes(user.role);
   const canRequest = canEdit && LAP_YEU_CAU.includes(user.role);
 
+  // Phiếu giao sơn đã tải (chờ nhập trước, rồi mới nhất) và bộ đọc AI có sẵn chưa.
+  const [phieuSon, coAi] = canEdit
+    ? await Promise.all([
+        prisma.sonPhieuTep.findMany({
+          where: { vesselId },
+          orderBy: [{ trangThai: "asc" }, { createdAt: "desc" }],
+          take: 10,
+          select: { id: true, fileName: true, soPhieu: true, trangThai: true, createdAt: true, aiDangDocTu: true },
+        }),
+        import("@/lib/cauHinhAi").then(async (m) => Boolean(await m.layCauHinhAi())),
+      ])
+    : [[], false];
   const [areas, products, stocks, jobs, transactions] = await Promise.all([
     prisma.paintArea.findMany({
       where: { vesselId },
@@ -599,6 +612,39 @@ export default async function PaintVesselPage({
                       uom: p.uom,
                     }))}
                   />
+                </div>
+                <div className="border-t border-[var(--border-subtle)] pt-4">
+                  <h3 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">
+                    {t("paint.pgTieuDe")}
+                  </h3>
+                  <TaiPhieuSon vesselId={vesselId} coAi={coAi} />
+                  {phieuSon.length > 0 && (
+                    <div className="mt-3 space-y-1">
+                      <p className="text-xs font-medium text-[var(--text-secondary)]">
+                        {t("paint.pgGanDay", { n: phieuSon.length })}
+                      </p>
+                      <ul className="divide-y divide-[var(--border-subtle)] rounded-lg border border-[var(--border-subtle)] text-sm">
+                        {phieuSon.map((p) => (
+                          <li key={p.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                            <Link href={`/paint/${vesselId}/nhan/${p.id}`} className="font-medium text-[var(--text-brand)] hover:underline">
+                              {p.soPhieu || p.fileName}
+                            </Link>
+                            <span className="text-xs text-[var(--text-muted)]">{ngayGio(p.createdAt)}</span>
+                            <Badge
+                              tone={p.trangThai === "DA_AP_DUNG" ? "success" : p.aiDangDocTu ? "info" : "warning"}
+                              className="ml-auto"
+                            >
+                              {p.trangThai === "DA_AP_DUNG"
+                                ? t("paint.pgDaNhapNhan")
+                                : p.aiDangDocTu
+                                  ? t("paint.pgAiDangDocNgan")
+                                  : t("paint.pgChoXuLy")}
+                            </Badge>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
                 <div className="border-t border-[var(--border-subtle)] pt-4">
                   <h3 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">

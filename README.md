@@ -870,6 +870,33 @@ Vài điểm của phần hàng loạt:
 - Cột nhận diện tự động: tên sơn, hãng, loại, mã màu, tên màu, ĐVT, dung tích, độ phủ, DFT,
   dung môi, số lượng — cùng bộ đọc với trang nhập danh mục.
 
+#### Nhập sơn từ phiếu giao (Excel MLS-11-05, Excel, Word, PDF, PDF scan)
+
+Ở trang sơn của tàu, mục **Nhập / xuất sơn** → *Nhập sơn từ phiếu giao*: tải phiếu giao / nhận sơn
+rồi **soát trước khi nhập** — giống phiếu giao vật tư, kết quả đọc máy không bao giờ lọt thẳng vào tồn.
+
+- **Đọc không cần AI** (thử mọi cách hợp với loại file, giữ cách ra nhiều dòng có số lượng nhất):
+  mẫu **MLS-11-05** của công ty (Excel / Word / PDF có chữ — số nhận lấy cột *S.lượng duyệt*, phiếu
+  không ghi thì lấy *S.lượng yêu cầu* và gắn cảnh báo đối chiếu); **bảng sơn** của nhà cung cấp
+  (Excel / PDF có chữ: tên, hãng, màu, ĐVT, dung tích, số lượng); **phiếu giao** dạng chữ (lớp chữ
+  PDF, OCR Windows cho bản scan ở máy văn phòng). Hai cách ra cùng số dòng thì mẫu công ty có tiêu đề
+  biểu mẫu thắng, còn lại bảng sơn thắng (giữ được hãng / màu).
+- **PDF scan** không đọc được thì bộ đọc AI đọc nền (chế độ phiếu giao); chưa có khóa AI thì vẫn lưu
+  phiếu để gõ tay các dòng.
+- **Trang soát** `/paint/<tàu>/nhan/<id>` (PDF hiện song song bên phải ở màn hình rộng): sửa tên /
+  số lượng, chọn loại sơn trong danh mục (ghép sẵn theo mã → tên / tên + màu / hãng + tên → mô tả
+  chứa tên và màu) hoặc để **tạo loại sơn mới** (mã `SON-####`, trùng tên + hãng + màu với loại đang
+  có thì dùng lại), bỏ tick dòng rác; số phiếu, nhà cung cấp, ngày nhận.
+- **Nhập vào tồn sơn**: dòng cùng loại được gộp; mỗi loại cộng tồn (upsert + increment như nhập tay)
+  và ghi một phiếu nhập "Phiếu giao <số> · <nhà cung cấp>" đúng ngày nhận. Một lần bấm duy nhất được
+  đi tiếp (giữ chỗ trạng thái), nhập xong phiếu chỉ còn xem.
+- Bảng `SonPhieuTep` không đồng bộ (file nằm trên đĩa bản cài tải lên); kết quả đồng bộ theo
+  PaintProduct / PaintStock / PaintTransaction. Mã: [`lib/phieuSon.ts`](lib/phieuSon.ts) (thuần, kiểm
+  ở `scripts/kiem-tra-phieu-son.ts`), [`lib/phieuSonTep.ts`](lib/phieuSonTep.ts),
+  [`lib/phieuSonServer.ts`](lib/phieuSonServer.ts), [`app/son-phieu-actions.ts`](app/son-phieu-actions.ts).
+
+Đường cũ *Hàng loạt từ file Excel / dán bảng* vẫn giữ cho nhập / **xuất** nhanh không qua soát.
+
 **Yêu cầu sơn từ tàu** (trang `/paint/<tàu>/yeu-cau` — nút *Lập yêu cầu sơn* ở trang Quản lý
 sơn và ở trang sơn của tàu; cột *Yêu cầu sơn* ở bảng các tàu) **không** dựng một đường phê
 duyệt riêng. Nó tạo một yêu cầu vật tư MLS-11-05B bình thường và đi đúng dây chuyền đang có:

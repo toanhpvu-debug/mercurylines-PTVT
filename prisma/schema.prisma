@@ -97,6 +97,7 @@ model Vessel {
   baoGiaNcc              BaoGiaNcc[]
   changBuocTep           ChangBuocTep[]
   yeuCauTep              YeuCauTep[]
+  sonPhieuTep            SonPhieuTep[]
   vesselMaterials        VesselMaterial[]
   purchaseOrders         PurchaseOrder[]
   paintAreas             PaintArea[]
@@ -575,6 +576,43 @@ model PaintProduct {
   jobLines     PaintJobLine[]
   transactions PaintTransaction[]
   requestItems MaterialRequestItem[]
+}
+
+// Phiếu giao / nhận SƠN tải lên để nhập tồn sơn (Excel MLS-11-05, Excel, Word,
+// PDF, PDF scan): dòng đọc được lưu ở `dong` để người dùng soát, ghép loại sơn
+// rồi mới NHẬP vào tồn sơn của tàu. Không đồng bộ — file nằm trên đĩa của bản
+// cài đã tải; kết quả đồng bộ theo PaintProduct / PaintStock / PaintTransaction.
+model SonPhieuTep {
+  id          Int       @id @default(autoincrement())
+  vesselId    Int
+  vessel      Vessel    @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  fileName    String
+  storedName  String    @unique
+  // WORD · EXCEL · PDF
+  loaiTep     String
+  size        Int
+  sha256      String
+  // Cách đọc ra dòng: MLS-11-05 · BANG · PHIEU_GIAO · OCR · AI · TAY
+  nguonDoc    String?
+  soPhieu     String?
+  nhaCungCap  String?
+  ngayNhan    DateTime?
+  dong        Json      @default("[]")
+  ghiChuDoc   String?
+  loiAi       String?
+  aiDangDocTu DateTime?
+  aiTienDo    String?
+  // CHO_XU_LY · DANG_AP_DUNG · DA_AP_DUNG
+  trangThai   String    @default("CHO_XU_LY")
+  nguoiTaiId  Int
+  nguoiTai    String
+  apDungBoi   String?
+  apDungLuc   DateTime?
+  ketQua      Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([vesselId])
 }
 
 // Khu vực sơn của từng tàu — do người dùng tự khai báo (không seed sẵn).

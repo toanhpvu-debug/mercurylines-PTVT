@@ -29,6 +29,13 @@ function docO(el: HTMLInputElement): { id: number; chon: Chon } | null {
   return { id, chon: { loai: el.dataset.loai === "SPARE" ? "SPARE" : "STORE", ma: el.dataset.ma ?? "" } };
 }
 
+/**
+ * Ô tick ĐANG THẤY: thanh tìm nhanh (TimNhanhDanhMuc) ẩn tạm dòng bằng [hidden]
+ * trong lúc chờ server — chọn tất cả mà tick cả dòng ẩn thì Xóa / Gỡ / Sửa hàng
+ * loạt chạy lên mặt hàng người dùng không nhìn thấy.
+ */
+const dangThay = (o: HTMLInputElement) => !o.closest("[hidden]");
+
 export default function ChonHangLoat({
   quyen,
   categories,
@@ -59,7 +66,7 @@ export default function ChonHangLoat({
     let daChon = 0;
     document.querySelectorAll<HTMLInputElement>(O_DONG).forEach((el) => {
       const o = docO(el);
-      if (!o) return;
+      if (!o || !dangThay(el)) return;
       tong++;
       const nhom = el.dataset.nhom ?? "";
       const tk = theoNhom.get(nhom) ?? { tong: 0, chon: 0 };
@@ -90,9 +97,13 @@ export default function ChonHangLoat({
       if (el.dataset.chonNhom !== undefined) {
         document
           .querySelectorAll<HTMLInputElement>(`${O_DONG}[data-nhom="${CSS.escape(el.dataset.chonNhom)}"]`)
-          .forEach((o) => (o.checked = el.checked));
+          .forEach((o) => {
+            if (dangThay(o)) o.checked = el.checked;
+          });
       } else if (el.dataset.chonTatCa !== undefined) {
-        document.querySelectorAll<HTMLInputElement>(O_DONG).forEach((o) => (o.checked = el.checked));
+        document.querySelectorAll<HTMLInputElement>(O_DONG).forEach((o) => {
+          if (dangThay(o)) o.checked = el.checked;
+        });
       } else if (el.dataset.chonVatTu === undefined) {
         return;
       }

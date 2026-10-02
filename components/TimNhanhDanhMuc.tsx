@@ -32,11 +32,19 @@ import { useNgonNgu } from "@/lib/i18n/client";
  */
 const DAU_AN = "data-an-tim";
 
+/** Báo cho ChonHangLoat đếm lại ô tick (nó nghe sự kiện change nổi bọt). */
+function baoDoiChon() {
+  document.querySelector<HTMLInputElement>("input[data-chon-vat-tu]")?.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 function boLocTam() {
+  let co = false;
   for (const e of document.querySelectorAll<HTMLElement>(`[${DAU_AN}]`)) {
     e.hidden = false;
     e.removeAttribute(DAU_AN);
+    co = true;
   }
+  if (co) baoDoiChon();
 }
 
 function locTam(gt: string) {
@@ -49,13 +57,18 @@ function locTam(gt: string) {
   };
   for (const o of document.querySelectorAll<HTMLInputElement>("input[data-chon-vat-tu]")) {
     const tr = o.closest("tr");
-    if (tr && !(tr.textContent ?? "").toLowerCase().includes(q)) an(tr);
+    if (tr && !(tr.textContent ?? "").toLowerCase().includes(q)) {
+      an(tr);
+      // Dòng bị ẩn thì bỏ tick — không để thao tác hàng loạt chạy lên dòng không thấy.
+      o.checked = false;
+    }
   }
   // Bộ phận không còn dòng nào hiện thì ẩn cả khối (tiêu đề bộ phận / thiết bị).
   for (const tb of document.querySelectorAll<HTMLElement>('tbody[id^="bo-phan-"]')) {
     const conHien = [...tb.querySelectorAll<HTMLInputElement>("input[data-chon-vat-tu]")].some((o) => !o.closest("tr")?.hidden);
     if (!conHien) an(tb);
   }
+  baoDoiChon();
 }
 export default function TimNhanhDanhMuc({
   nhom,
@@ -87,10 +100,14 @@ export default function TimNhanhDanhMuc({
   const thuGonHref = duongDanVoi((p) => p.delete("full"));
 
   const dayLenUrl = (gt: string) => {
-    const href = duongDanVoi((p) => {
-      if (gt.trim()) p.set("q", gt.trim());
-      else p.delete("q");
-    });
+    // Dựng từ đường dẫn LÚC CHẠY, không từ params của lượt vẽ cũ: hẹn giờ 500 ms
+    // có thể chạy sau khi người dùng đã bấm đổi tab loại / tàu — dùng params cũ
+    // là kéo đường dẫn về tab trước.
+    const p = new URLSearchParams(window.location.search);
+    if (gt.trim()) p.set("q", gt.trim());
+    else p.delete("q");
+    const qs = p.toString();
+    const href = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
     batDauTim(() => {
       router.replace(href, { scroll: false });
     });
@@ -102,7 +119,12 @@ export default function TimNhanhDanhMuc({
   const doiQ = (gt: string) => {
     setQ(gt);
     qHienTai.current = gt;
-    locTam(gt);
+    // Chữ trùng kết quả đang hiện (gõ rồi xóa lại, thêm dấu cách, Enter cùng chữ):
+    // đường dẫn không đổi nên kết quả server không "về" lại — trả trang về
+    // nguyên kết quả server thay vì lọc tạm (lọc theo chữ trên dòng có thể ẩn
+    // dòng khớp theo trường không in ra, như thiết bị).
+    if (gt.trim() === qTrenUrl.trim()) boLocTam();
+    else locTam(gt);
     if (hen.current !== null) window.clearTimeout(hen.current);
     // Đã lọc tạm ngay trên trang nên chờ lâu hơn một chút mới hỏi server: bớt
     // các lượt tải cả trang giữa chừng khi người dùng còn đang gõ.

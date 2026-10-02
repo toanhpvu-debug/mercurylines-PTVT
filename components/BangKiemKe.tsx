@@ -154,7 +154,7 @@ export default function BangKiemKe({
               <Th className="text-right">{t("kiemKe.cot_tonHienTai")}</Th>
               <Th className="text-right">{t("kiemKe.cot_tonDem")}</Th>
               <Th className="text-right">{t("kiemKe.cot_chenhLech")}</Th>
-              {dangSua && <Th className="text-center">{t("kiemKe.cot_chon")}</Th>}
+              {dangSua && <Th align="center">{t("kiemKe.cot_chon")}</Th>}
             </tr>
           </thead>
           <tbody>

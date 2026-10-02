@@ -36,6 +36,8 @@ Prompt chung cho mỗi agent (điền `{ten}`):
 
 Gọi cả năm trong **một** thông điệp, `run_in_background: true`. Chờ thông báo hoàn tất; agent nào chết/không ra tệp → gọi lại một lần; vẫn không → ghi "thiếu kiểm toán {ten}" trong tổng hợp và đi tiếp.
 
+**Trang cần đăng nhập** (agent không có phiên, leader không dùng mật khẩu thật): trong lúc agent chạy, leader chép dữ liệu thật cục bộ sang một schema thử (`migrate deploy` + INSERT…SELECT theo thứ tự khóa ngoại, đặt lại bộ đếm id, thay mọi hash mật khẩu bằng mật khẩu thử, thêm tài khoản `@kiem-thu.local`), chạy `next start` cổng 3100 trên schema đó và đo bằng `fetch` cùng nguồn (HTML, RSC với header `RSC: 1`, thời gian), DOM / tác vụ dài, độ trễ thao tác. Ghi `_workspace/01_{ten}_do-trang-leader.md`. Trước khi sửa thành phần dùng chung (ui.tsx, globals.css) chụp "vân tay" `getComputedStyle` mọi ô trên các trang liên quan để so sau sửa. Dọn: chỉ xóa file `uploads/` mà schema gốc KHÔNG tham chiếu (dòng chép sang trỏ tới file thật), rồi DROP SCHEMA. (Lượt 2026-10-02: cách này đo được 17 trang; QA vẫn bắt thêm 7 ô đổi màu ngoài các trang đã so và một lỗi thật ở thao tác hàng loạt — QA không bỏ.)
+
 ## Phase 3 — Gộp và quyết (leader)
 Đọc năm tệp, viết `_workspace/02_tong-hop.md`:
 - Bảng mọi phát hiện: mức · tác động lên người dùng · công sửa · rủi ro · agent. Trùng nhau thì gộp, ghi cả hai nguồn.

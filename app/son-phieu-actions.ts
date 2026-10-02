@@ -13,7 +13,7 @@ import { layT } from "@/lib/i18n/server";
 import { VAN_HANH_SON, coQuanLySon } from "@/lib/roles";
 import { MAX_UPLOAD_BYTES, ensureUploadDir, fileExtension, getUploadDir } from "@/lib/uploads";
 import { dangDocAi } from "@/lib/phieuGiao";
-import { DUOI_PHIEU_SON, boTickDongThieuSo, dongLoiKhiNhap, dongTuAiSon, ghepDongSon, ngayNhanTuChu, sachDongNhanSon, type DongNhanSon } from "@/lib/phieuSon";
+import { DUOI_PHIEU_SON, boSungNhanDang, boTickDongThieuSo, dongLoiKhiNhap, dongTuAiSon, ghepDongSon, ngayNhanTuChu, sachDongNhanSon, type DongNhanSon } from "@/lib/phieuSon";
 
 /*
  * NHẬP SƠN TỪ PHIẾU GIAO / NHẬN (Excel MLS-11-05, Excel, Word, PDF, PDF scan):
@@ -89,7 +89,7 @@ async function chayDocAiSon(id: number, actor: NguoiThaoTac): Promise<void> {
       await ketThuc({ loiAi: ai.loi.slice(0, 500) });
       return;
     }
-    const dong = boTickDongThieuSo(ghepDongSon(dongTuAiSon(ai.dong), await sonDeGhep()));
+    const dong = boTickDongThieuSo(ghepDongSon(boSungNhanDang(dongTuAiSon(ai.dong)), await sonDeGhep()));
     const ngay = ngayNhanTuChu(ai.ngayGiao);
     await ketThuc({
       dong,
@@ -151,7 +151,7 @@ export async function taiPhieuSon(_prev: KetQuaPhieuSon, formData: FormData): Pr
     return { message: kq.loi };
   }
   // Dòng không có số lượng bỏ tick sẵn (kèm lời nhắc) — không để cả phiếu kẹt ở bước Nhập.
-  const dong = kq.ok ? boTickDongThieuSo(ghepDongSon(kq.dong, await sonDeGhep())) : [];
+  const dong = kq.ok ? boTickDongThieuSo(ghepDongSon(boSungNhanDang(kq.dong), await sonDeGhep())) : [];
   const ngay = kq.ok ? kq.ngay : null;
   const tep = await prisma.sonPhieuTep.create({
     data: {

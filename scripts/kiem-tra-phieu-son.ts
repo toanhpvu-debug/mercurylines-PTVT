@@ -13,6 +13,7 @@ import ExcelJS from "exceljs";
 import { PrismaClient } from "@prisma/client";
 import {
   CANH_BAO_THIEU_SO,
+  boSungNhanDang,
   boTickDongThieuSo,
   demPhieuSon,
   docDongNhanSon,
@@ -214,6 +215,17 @@ async function main() {
   );
   kiemTra("pdf ban in app: khong lay 'Req.' lam nhom", inApp.dong.map((d) => [d.moTa, d.phan ?? null, d.ghiChu ?? null]), [["JOTA PRIME 510A GREY", null, null]]);
 
+  // ── 4c. Nhận dạng tên trên phiếu giao thật ("SON JOTAFIX PU TC RAL 3000 A 18L") ──
+  const tho = (ten: string, soLuong = 1): DongNhanSon => ({ ten, hang: null, mau: null, maMau: null, ma: null, dvt: "PAIL", soLuong, dungTich: null, loaiSon: null, paintProductId: null, boQua: false, canhBao: null, ghiChu: null });
+  const bs = boSungNhanDang([tho("SON JOTAFIX PU TC STD038 GREY A18L")])[0];
+  kiemTra("bo sung nhan dang", [bs.ten, bs.hang, bs.mau, bs.maMau, bs.dungTich, bs.loaiSon], ["SON JOTAFIX PU TC STD038 GREY A18L", "Jotun", "GREY", "STD 038", 18, "TOPCOAT"]);
+  const SON2: SonGhep[] = [...SON, { id: 9, code: "SON-0009", name: "JOTAFIX PU TC COMP A", maker: "Jotun", colorName: null, colorCode: "RAL 3000", uom: "PAIL" }];
+  kiemTra(
+    "ghep danh muc theo ten chuan + ma mau",
+    ghepDongSon(boSungNhanDang([tho("SON JOTAFIX PU TC RAL 3000 A 18L"), tho("JOTAFIX PU TC RAL 3000 A 18L"), tho("SON JOTAFIX PU TC RAL 5002 A 17.91L")]), SON2).map((d) => d.paintProductId),
+    [9, 9, null]
+  );
+
   // ── 5. Dòng sửa gửi lên, gộp, kiểm trước khi nhập ──
   const sua = sachDongNhanSon([
     { ten: "Hempadur 45143", paintProductId: "1", soLuong: "60", boQua: false },
@@ -285,6 +297,23 @@ async function main() {
           nguoi: "Kiểm thử",
         });
         kiemTra("nhap lan 2 dung lai loai", [kq2.taoMoi, kq2.sanPham[0].productId === moi.productId], [0, true]);
+        // Dòng phiếu thô (chữ hoa không dấu) → loại sơn TÊN CHUẨN, hãng, hệ sơn, mã màu, dung tích.
+        const kq3 = await nhapPhieuSonTx(tx, { vesselId: tau.id, dong: boSungNhanDang([tho("SON JOTAFIX PU TC RAL 3000 A 18L", 2)]), ghiChu: "Phiếu giao THU-03", ngayNhan: ngay, nguoi: "Kiểm thử" });
+        const sp3 = await tx.paintProduct.findUniqueOrThrow({ where: { id: kq3.sanPham[0].productId } });
+        kiemTra("nhap dong tho: loai ten chuan", [kq3.taoMoi, sp3.name, sp3.maker, sp3.paintType, sp3.colorCode, sp3.colorName, sp3.packSize, sp3.uom, sp3.notes], [
+          1,
+          "JOTAFIX PU TC COMP A",
+          "Jotun",
+          "TOPCOAT",
+          "RAL 3000",
+          null,
+          18,
+          "PAIL",
+          "Tên trên phiếu: SON JOTAFIX PU TC RAL 3000 A 18L",
+        ]);
+        // Cùng loại, phiếu ghi khác chữ → dùng lại; khác mã màu → loại khác.
+        const kq4 = await nhapPhieuSonTx(tx, { vesselId: tau.id, dong: boSungNhanDang([tho("JOTAFIX PU TC RAL 3000 A 18L", 1), tho("SON JOTAFIX PU TC RAL 5002 A 17.91L", 1)]), ghiChu: "Phiếu giao THU-04", ngayNhan: ngay, nguoi: "Kiểm thử" });
+        kiemTra("nhap dong tho: dung lai / tach ma mau", [kq4.taoMoi, kq4.sanPham[0].productId === sp3.id, kq4.sanPham[1].productId === sp3.id], [1, true, false]);
         throw new CuonNguoc();
       });
     } catch (e) {

@@ -894,6 +894,15 @@ rồi **soát trước khi nhập** — giống phiếu giao vật tư, kết qu
   cầu* (đánh dấu cần kiểm) — không bao giờ lấy R.O.B; số AI trả dạng chữ ("1.000,00", "1,250.00",
   "4 x 20L") đọc đúng bằng `lib/docSo.ts` (trước đây "1.000,00" bị coi là trống). Lớp chữ PDF phiếu giao
   nhận số có ngăn nghìn ("1.000,00 L"); "20.000 L" in từ phần mềm vẫn là 20 lít.
+- **Nhận dạng tên sơn** ([`lib/tenSon.ts`](lib/tenSon.ts), kiểm ở `scripts/kiem-tra-ten-son.ts` với các
+  dòng phiếu giao thật): mô tả thô "SON JOTAFIX PU TC RAL 5002 A 17.91L" tách thành tên chuẩn *JOTAFIX PU
+  TC COMP A* · hãng *Jotun* · hệ *Sơn phủ* · mã màu *RAL 5002* · dung tích *17,91 L* (bỏ tiền tố SON /
+  CHẤT ĐÓNG RẮN / DUNG MÔI, nhận COMP / PART / CPB / A·B cuối dòng, mã RAL / STD, màu viết tắt GRE / GRN,
+  "17. 1L", "A18L"). Dòng phiếu ghép loại có sẵn theo tên chuẩn + mã màu trước, rồi mới theo tên gần
+  đúng; loại mới tạo theo tên chuẩn (ghi chú giữ "Tên trên phiếu: …"), màn soát hiện trước "→ Sẽ tạo:
+  …". Loại đã nhập nguyên chuỗi phiếu thì nút **Nhận dạng tên sơn** ở bảng Tồn sơn đề xuất tên / hãng /
+  hệ / màu / dung tích cho từng loại để soát rồi áp dụng hàng loạt (số tồn không đổi; loại dùng chung
+  tàu khác chỉ thuyền trưởng / quản trị đổi được).
 
 
 #### Sửa / gỡ sơn đã nhập
@@ -921,22 +930,35 @@ sơn (VAN_HANH_SON, quản sơn của đúng tàu), mỗi thao tác bắt ghi **
   `scripts/kiem-tra-sua-ton-son.ts` trên database thật rồi cuộn ngược),
   [`app/ton-son-actions.ts`](app/ton-son-actions.ts), [`components/ThaoTacTonSon.tsx`](components/ThaoTacTonSon.tsx).
 
-#### Báo cáo sơn in theo mẫu MLS-11-05
+#### Báo cáo lượng sơn tồn in theo mẫu MLS-11-14
 
-Nút **In báo cáo** ở trang sơn của tàu mở `/paint/<tàu>/bao-cao`: tờ *REQUISITION FOR STORES / YÊU
-CẦU VẬT TƯ* MLS-11-05 dựng lại đúng tệp Excel mẫu của công ty (MLS-11-05 - CO - Paint): 9 cột đúng
-tỉ lệ, Times New Roman đúng cỡ từng ô, chiều cao hàng như tệp, khung đôi ở đầu biểu mẫu và đầu bảng,
-logo + tên công ty, ô ký *Chief Engineer/ Chief Officer · Captain · Tech.&Pur Dept · Vice Director*,
-chân trang *Người làm báo cáo: CE, CO · Thời điểm làm báo cáo: Khi cần thiết | Thời gian lưu: 3 năm ·
-Lưu VP: Vật tư*; A4 dọc, lề như tệp (trái 0,2" · phải 0,25" · trên/dưới 0,75"). R.O.B = tồn trên tàu;
-mô tả in "HÃNG TÊN MÃ-MÀU MÀU" như tàu vẫn ghi; cột Mã IMPA để trống (không in mã nội bộ `SON-####`).
+Nút **In báo cáo** ở trang sơn của tàu mở `/paint/<tàu>/bao-cao`: tờ *BÁO CÁO LƯỢNG SƠN TỒN / PAINT
+INVENTORY* MLS-11-14 (báo cáo **hàng quý**) dựng lại đúng tệp Word mẫu của công ty (BC LUONG SON TON):
+lưới cột, chiều cao hàng, lề ô và khung lấy từ XML của tệp rồi đối chiếu với bản Word tự dựng ra (mọi
+đường kẻ, dòng chữ lệch ≤ 0,01"); Times New Roman nghiêng như kiểu Normal của tệp, ô *Tên tàu · Quý ·
+Năm* Arial nghiêng, logo cắt khung đúng như tệp; đầu trang (logo, MLS-11-14, *Issued date 10/01/2024*,
+*Page: 1/2*) và chân trang (*Người làm báo cáo: CE, CO · Thời điểm làm báo cáo: Hàng quý | Thời gian lưu:
+3 năm · Lưu VP: K/thuật, v/tư*) lặp lại mọi trang; ký *Thuyền Trưởng / Captain · Đại Phó / Chief Officer*.
+Tệp gốc khổ Letter — tờ in dùng **A4**, giữ nguyên kích thước, căn giữa. Tối thiểu 7 dòng như tờ mẫu;
+dài hơn thì tự sang trang theo chiều cao đo được của từng dòng (trang sau lặp hàng tiêu đề bảng, khối ký
+luôn đi cùng ít nhất dòng cuối).
 
-**Sửa trước khi in**: sửa ô (đầu phiếu, mô tả, R.O.B, S.lượng yêu cầu / duyệt…), bỏ / thêm / đổi thứ tự
-dòng, *Bỏ các dòng tồn 0*, *Điền S.lượng yêu cầu theo định mức* (thiếu so với tồn tối thiểu). Chỉ đổi
-tờ in — một "bản sửa" cất trong trình duyệt theo tàu, ghi riêng những ô đã đổi và áp lên số liệu mới
-nhất mỗi lần mở (nhập thêm sơn thì ô không sửa tay vẫn hiện số mới); ô đã sửa tô vàng khi đang sửa,
-màn hình nói rõ số chỗ khác hệ thống, *Đặt lại số liệu gốc* để bỏ. Ô *Page* tự ước số trang. Mã:
-[`components/BaoCaoSonSua.tsx`](components/BaoCaoSonSua.tsx), phần thuần [`lib/tonSon.ts`](lib/tonSon.ts).
+Chọn **quý / năm** ở đầu trang (`?quy=4&nam=2026`, mặc định quý hiện tại, ranh giới quý theo giờ Việt
+Nam). Bốn cột tính từ lịch sử nhập / xuất, neo vào tồn hiện tại (`tinhTonQuy`): *Tồn cuối kỳ* = tồn lúc
+hết quý (quý đang chạy = tồn hiện tại), *Tồn đầu kỳ* = tồn lúc đầu quý, *Nhận* = các dòng nhập trong quý
+(phiếu giao, nhận hàng PO, nhập tay), *Tiêu thụ trong kỳ* = các dòng xuất trong quý (thi công, xuất
+dùng). Dòng **Điều chỉnh** (Sửa số tồn / Gỡ khỏi danh sách) không tính là sơn đã dùng — nó được coi là
+sửa số để bốn cột vẫn cân: quý có nhận loại đó thì sửa vào *Nhận* (không xuống dưới 0), không thì sửa vào
+*Tồn đầu kỳ*; màn hình liệt kê từng điều chỉnh đã sửa vào cột nào. Loại có cả bốn cột bằng 0 (gỡ trước
+quý) không in. Tên in "HÃNG TÊN MÃ-MÀU MÀU … DUNG TÍCH" như tàu vẫn ghi, không in mã nội bộ `SON-####`.
+
+**Sửa trước khi in**: sửa ô (tên tàu, quý, năm, tên sơn, đơn vị, bốn cột số), bỏ / thêm / đổi thứ tự
+dòng. Chỉ đổi tờ in — một "bản sửa" cất trong trình duyệt theo **tàu + quý**, ghi riêng những ô đã đổi và
+áp lên số liệu mới nhất mỗi lần mở; ô đã sửa tô vàng khi đang sửa, màn hình nói rõ số chỗ khác hệ thống
+và dòng nào *Tồn đầu kỳ + Nhận − Tiêu thụ ≠ Tồn cuối kỳ*; *Đặt lại số liệu gốc* để bỏ. Mã:
+[`components/BaoCaoSonSua.tsx`](components/BaoCaoSonSua.tsx), trang
+[`app/(app)/paint/[id]/bao-cao/page.tsx`](app/(app)/paint/[id]/bao-cao/page.tsx), phần thuần
+[`lib/tonSon.ts`](lib/tonSon.ts) (kiểm ở `scripts/kiem-tra-sua-ton-son.ts`).
 
 **Yêu cầu sơn từ tàu** (trang `/paint/<tàu>/yeu-cau` — nút *Lập yêu cầu sơn* ở trang Quản lý
 sơn và ở trang sơn của tàu; cột *Yêu cầu sơn* ở bảng các tàu) **không** dựng một đường phê

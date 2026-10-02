@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Check, ListX, Pencil, Plus, Printer, RotateCcw, Trash2, Wand2 } from "lucide-react";
-import { LogoLockup } from "@/components/MercuryLogo";
+import { ArrowDown, ArrowUp, Check, Pencil, Plus, Printer, RotateCcw, Trash2 } from "lucide-react";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { cn } from "@/lib/cn";
 import { Button, Notice } from "@/components/ui";
@@ -12,13 +11,15 @@ import {
   apDungBanSua,
   banSuaRong,
   boDongBanIn,
+  chiaTrangBaoCao,
   demChoKhac,
   docBanSua,
   doiChoDongBanIn,
+  dongTrongBaoCao,
   gonBanSua,
+  lechCanDoi,
   suaDauBanIn,
   suaOBanIn,
-  uocSoTrang,
   type BanSuaBaoCaoSon,
   type CotDauSon,
   type CotDongSon,
@@ -27,40 +28,70 @@ import {
 } from "@/lib/tonSon";
 
 /*
- * BÁO CÁO SƠN in đúng mẫu MLS-11-05 "REQUISITION FOR STORES / YÊU CẦU VẬT TƯ"
- * của công ty — dựng lại từ chính tệp Excel mẫu (MLS-11-05 - CO - Paint):
- *   - 9 cột A–I đúng tỉ lệ bề rộng, chữ Times New Roman đúng cỡ từng ô (pt),
- *     chiều cao hàng đúng như tệp, khung đôi ở đầu biểu mẫu và đầu bảng;
- *   - A4 dọc, lề trái 0,2" · phải 0,25" · trên/dưới 0,75", căn giữa ngang;
- *   - chân trang "Người làm báo cáo: CE, CO · Thời điểm làm báo cáo: Khi cần
- *     thiết | Thời gian lưu: 3 năm · Lưu VP: Vật tư".
- * Chữ, khung, bố cục của mẫu không đổi; chỉ điền số liệu.
+ * BÁO CÁO LƯỢNG SƠN TỒN in đúng mẫu MLS-11-14 "BÁO CÁO LƯỢNG SƠN TỒN / PAINT
+ * INVENTORY" của công ty — dựng lại từ chính tệp Word mẫu (BC LUONG SON TON):
+ *   - kích thước lấy từ XML của tệp (lưới cột, chiều cao hàng, lề ô, khung) và
+ *     đối chiếu với bản Word tự dựng ra (vị trí từng đường kẻ, từng dòng chữ);
+ *   - Times New Roman nghiêng như kiểu Normal của tệp, ô "Tên tàu / Quý / Năm"
+ *     Arial nghiêng (kiểu Heading 5), logo cắt đúng khung ảnh của tệp;
+ *   - đầu trang (logo, tên biểu mẫu, MLS-11-14, Page) và chân trang (Người làm
+ *     báo cáo: CE, CO…) lặp lại ở mọi trang như đầu/chân trang của Word.
+ * Tệp gốc khổ Letter; tờ in dùng giấy A4 của văn phòng, giữ nguyên mọi kích
+ * thước, căn giữa theo chiều ngang, chân trang cách mép dưới như tệp gốc.
+ * Bảng dài thì tự sang trang (đo chiều cao từng dòng): trang sau lặp hàng tiêu
+ * đề bảng; khối ký luôn đi cùng ít nhất dòng cuối.
  *
- * "Sửa trước khi in": đổi ô, bỏ dòng, thêm dòng, đổi thứ tự, điền số yêu cầu —
- * chỉ đổi tờ in (lib/tonSon.ts: bản sửa cất trong localStorage theo tàu, áp lên
- * số liệu mới nhất), không đổi tồn sơn của tàu.
+ * "Sửa trước khi in": đổi ô, bỏ / thêm / đổi thứ tự dòng — chỉ đổi tờ in
+ * (lib/tonSon.ts: bản sửa cất trong localStorage theo tàu + quý, áp lên số liệu
+ * mới nhất), không đổi tồn sơn của tàu.
  */
 
-// Bề rộng cột A–I theo tệp mẫu (đơn vị ký tự Excel 7,29 · 5 · 18,29 · 17,43 · 13,43 · 6,71 · 8,29 · 9,29 · 12,71).
-const COT = [7.402, 5.081, 18.58, 17.707, 13.642, 6.819, 8.418, 9.435, 12.916];
-const pt = (n: number) => `${n}pt`;
-const VIEN = "1px solid #000";
-const VIEN_DOI = "3px double #000";
-const VIEN_CHAM = "1px dotted #000";
+// ── Kích thước (inch) theo tệp Word: twip / 1440 ──
+/** Giấy A4 rộng 8,27" — tệp Letter 8,5": dời mọi thứ sang trái để căn giữa như tệp. */
+const DX = (8.2677 - 8.5) / 2;
+const x = (inchTrenLetter: number) => `${(inchTrenLetter + DX).toFixed(4)}in`;
+const LE_TRAI = 0.375; // lề trái 540 twip
+const DAU_TRANG = { top: 0.4417, left: 0.44755, cot: [1.5528, 4.0625, 1.8646], cao: 0.943 };
+const COT_THONG_TIN = [1725, 222, 2418, 1604, 222, 1339, 1364, 1816].map((tw) => tw / 1440);
+const COT_BANG = [813, 3687, 900, 1350, 1292, 1276, 1417].map((tw) => tw / 1440);
+const COT_CHAN = [8460, 2250].map((tw) => tw / 1440);
+/** Bảng thụt 288 twip, chế độ Word 2003 tính tới chữ nên khung lùi một lề ô (108 twip). */
+const THUT_BANG = (288 - 108) / 1440;
+const THAN_TREN = 1.625; // lề trên 2340 twip
+/** Khung chân trang: cách mép dưới 0,5" + đoạn trống sau bảng (12 pt) + cao bảng (2 dòng 9 pt). */
+const CHAN_CAO = 0.2931;
+const CHAN_TREN = 11.6929 - 0.5 - 0.1917 - CHAN_CAO;
+const CAO_THAN_IN = CHAN_TREN - THAN_TREN;
+/** Chiều cao "ít nhất" của hàng theo tệp (640 / 1205 twip): Word không tính nét kẻ vào, bảng CSS gộp khung thì có — cộng 0,5 pt cho bằng bước dòng của Word. */
+const CAO_HANG = `calc(${640 / 1440}in + 0.5pt)`;
+const CAO_TIEU_DE = `calc(${1205 / 1440}in + 0.5pt)`;
+const DONG_TOI_THIEU = 7; // tờ mẫu có 7 dòng trống
+const PX_INCH = 96;
+/** Chiều cao (px) theo tệp mẫu — dùng khi trình duyệt chưa dựng bố cục (thẻ đang ẩn) nên đo ra 0. */
+const CAO_CHUAN = { thongTin: 0.774 * PX_INCH, tieuDe: 0.842 * PX_INCH, dong: 0.4514 * PX_INCH, ky: ((3 * 13.8) / 72) * PX_INCH };
+
+const VIEN = "0.5pt solid #000";
+const VIEN_DAY = "1pt solid #000";
+const VIEN_TT = "0.75pt solid #000";
+const VIEN_DOI = "1.6pt double #000";
 
 const CSS_TO_IN = `
-@page { size: A4 portrait; margin: 19.05mm 6.35mm 19.05mm 5.08mm; }
-.to-son-a4 { width: 210mm; min-height: 297mm; padding: 19.05mm 6.35mm 19.05mm 5.08mm; margin: 0 auto;
-  display: flex; flex-direction: column; background: #fff; color: #000;
-  font-family: "Times New Roman", Times, "Liberation Serif", serif;
+@page { size: A4 portrait; margin: 0; }
+.ds-trang-son { display: flex; flex-direction: column; align-items: center; gap: 6mm; padding: 0 0 6mm; }
+.trang-son { position: relative; flex: none; width: 210mm; height: 297mm; overflow: hidden; background: #fff; color: #000;
+  font-family: "Times New Roman", Times, "Liberation Serif", serif; font-style: italic; font-size: 12pt; line-height: 1.15;
   box-shadow: 0 1px 3px rgba(15, 23, 42, .18), 0 10px 30px rgba(15, 23, 42, .14); }
-.to-son-a4.dang-sua { margin-right: 32mm; }
-.to-son-a4 table.bm { width: 100%; max-width: 196mm; margin: 0 auto; border-collapse: collapse; table-layout: fixed; }
-.to-son-a4 table.bm td, .to-son-a4 table.bm th { padding: 0 3px; vertical-align: middle; line-height: 1.15; font-weight: 400; overflow-wrap: anywhere; }
-.to-son-a4 table.bm tr { break-inside: avoid; }
-.to-son-a4 p { margin: 0; }
+.trang-son.dang-sua { overflow: visible; margin-right: 30mm; }
+.trang-son table { border-collapse: collapse; table-layout: fixed; }
+.trang-son td { padding: 0 0.075in; vertical-align: middle; text-align: left; font-weight: 400; overflow-wrap: anywhere; }
+.trang-son p { margin: 0; }
+.trang-son .arial { font-family: Arial, "Liberation Sans", Helvetica, sans-serif; }
+.trang-son textarea.o-sua { field-sizing: content; resize: none; overflow: hidden; }
+.do-son { position: absolute; left: -10000px; top: 0; visibility: hidden; pointer-events: none; }
 @media print {
-  .to-son-a4, .to-son-a4.dang-sua { width: auto; min-height: 250mm; padding: 0; margin: 0; box-shadow: none; }
+  .ds-trang-son { display: block; padding: 0; }
+  .trang-son, .trang-son.dang-sua { height: 296mm; margin: 0; box-shadow: none; overflow: hidden; break-after: page; }
+  .trang-son:last-child { break-after: auto; }
 }
 `;
 
@@ -69,29 +100,149 @@ function O({
   sua,
   giaTri,
   onDoi,
-  canh = "center",
   nhan,
-  goiY,
+  nhieuDong,
 }: {
   sua: boolean;
   giaTri: string;
   onDoi: (v: string) => void;
-  canh?: "left" | "center" | "right";
   nhan: string;
-  goiY?: string;
+  nhieuDong?: boolean;
 }) {
   if (!sua) return <>{giaTri}</>;
+  const lop = "o-sua block w-full min-w-0 border-0 bg-transparent p-0 focus:outline-none focus:ring-1 focus:ring-brand-500";
+  return nhieuDong ? (
+    <textarea rows={1} value={giaTri} onChange={(e) => onDoi(e.target.value)} aria-label={nhan} className={lop} />
+  ) : (
+    <input value={giaTri} onChange={(e) => onDoi(e.target.value)} aria-label={nhan} className={lop} />
+  );
+}
+
+/** Đầu trang của mẫu (lặp lại mọi trang). */
+function DauTrang({ trang }: { trang: string }) {
+  // Lề ô 71 twip hai bên, lề trên 72 twip của bảng: hai ô chữ ghi đè lề trên = 0 nhưng Word (chế độ
+  // 2003) vẫn chừa nó khi canh giữa theo chiều dọc — đo trên bản Word dựng ra, chữ thấp hơn đúng nửa lề đó.
+  const o = { borderTop: VIEN_DAY, padding: "0.05in 0.0493in 0" } as const;
   return (
-    <input
-      value={giaTri}
-      onChange={(e) => onDoi(e.target.value)}
-      aria-label={nhan}
-      placeholder={goiY}
-      className={cn(
-        "o-sua block w-full min-w-0 border-0 bg-transparent p-0 focus:outline-none focus:ring-1 focus:ring-brand-500",
-        canh === "left" ? "text-left" : canh === "right" ? "text-right" : "text-center"
-      )}
-    />
+    <table style={{ position: "absolute", top: `${DAU_TRANG.top}in`, left: x(DAU_TRANG.left), width: `${DAU_TRANG.cot.reduce((a, b) => a + b, 0)}in` }}>
+      <colgroup>
+        {DAU_TRANG.cot.map((w, i) => (
+          <col key={i} style={{ width: `${w}in` }} />
+        ))}
+      </colgroup>
+      <tbody>
+        <tr style={{ height: `${DAU_TRANG.cao}in` }}>
+          <td style={{ ...o, borderLeft: VIEN_DAY, borderBottom: VIEN_DAY, verticalAlign: "top", textAlign: "center" }}>
+            {/* Logo = CHÍNH ảnh trong tệp mẫu (trùng từng byte với public/bieu-mau), khung 105,6 × 33 pt và
+                phần cắt mép (crop) đúng như tệp: ảnh hiện ra đúng như Word vẽ. */}
+            <div style={{ position: "relative", width: "105.6pt", height: "33pt", margin: "6pt 0 2pt", overflow: "hidden" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- tờ in: ảnh gốc của biểu mẫu, không tối ưu / tải chậm */}
+              <img
+                src="/bieu-mau/logo-mercury-lines.png"
+                alt="Mercury Lines"
+                style={{ position: "absolute", maxWidth: "none", width: "123.385pt", height: "56.956pt", left: "-7.623pt", top: "-12.374pt" }}
+              />
+            </div>
+            <p style={{ margin: "6pt 0 2pt", fontSize: "7pt", textTransform: "uppercase" }}>
+              Mercury Lines
+              <br />
+              Company Limited
+            </p>
+          </td>
+          <td style={{ ...o, borderLeft: VIEN, borderBottom: VIEN_DAY, textAlign: "center", fontSize: "16pt" }}>
+            <p style={{ margin: "6pt 0 3pt" }}>BÁO CÁO LƯỢNG SƠN TỒN</p>
+            <p style={{ margin: "6pt 0 3pt" }}>PAINT INVENTORY</p>
+          </td>
+          <td style={{ ...o, borderLeft: VIEN, borderBottom: VIEN, borderRight: VIEN_DAY, textAlign: "right", fontSize: "10pt" }}>
+            <p>MLS-11-14</p>
+            <p>
+              Issued date: <span style={{ fontStyle: "normal" }}>10/01/2024</span>
+            </p>
+            <p>Revision:0</p>
+            <p>Revised date:</p>
+            <p>Page: {trang}</p>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
+/** Chân trang của mẫu (lặp lại mọi trang). */
+function ChanTrang() {
+  const o = { border: VIEN, fontSize: "9pt", verticalAlign: "top" } as const;
+  return (
+    <table style={{ position: "absolute", top: `${CHAN_TREN}in`, left: x(LE_TRAI + THUT_BANG), width: `${COT_CHAN[0] + COT_CHAN[1]}in` }}>
+      <colgroup>
+        {COT_CHAN.map((w, i) => (
+          <col key={i} style={{ width: `${w}in` }} />
+        ))}
+      </colgroup>
+      <tbody>
+        <tr>
+          <td style={o}>
+            <p>Người làm báo cáo: CE, CO</p>
+            <p>Thời điểm làm báo cáo: Hàng quý</p>
+          </td>
+          <td style={o}>
+            <p>Thời gian lưu: 3 năm</p>
+            <p>Lưu VP: K/thuật, v/tư</p>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
+const ColBang = () => (
+  <colgroup>
+    {COT_BANG.map((w, i) => (
+      <col key={i} style={{ width: `${w}in` }} />
+    ))}
+  </colgroup>
+);
+
+const oBang = { border: VIEN } as const;
+
+/** Hàng tiêu đề bảng — chữ như tệp mẫu (kể cả "Recive" và dấu cách trước "Paint name"). */
+function HangTieuDe({ lop }: { lop?: string }) {
+  const cot: [string, string][] = [
+    ["Stt", "No."],
+    ["Tên sơn", " Paint name"],
+    ["Đơn vị", "Unit"],
+    ["Tồn đầu kỳ", "In stock"],
+    ["Nhận", "Recive"],
+    ["Tiêu thụ trong kỳ", "Consume"],
+    ["Tồn cuối kỳ", "Remain"],
+  ];
+  return (
+    <tr className={lop} style={{ height: CAO_TIEU_DE }}>
+      {cot.map(([vi, en]) => (
+        <td key={vi} style={oBang}>
+          <p>{vi}</p>
+          <p>{en}</p>
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+/** Khối ký sau bảng: Thuyền Trưởng / Captain bên trái, Đại Phó / Chief Officer bên phải (vị trí như tab của tệp). */
+function KhoiKy() {
+  const dong = { position: "relative", height: "13.8pt" } as const;
+  const chu = (trai: number) => ({ position: "absolute", left: `${trai}in`, top: 0, whiteSpace: "nowrap" }) as const;
+  return (
+    <div>
+      <div style={dong} />
+      <div style={dong}>
+        <span style={chu(1)}>Thuyền Trưởng</span>
+        <span style={chu(5.5)}>Đại Phó</span>
+      </div>
+      <div style={dong}>
+        <span style={chu(1.1667)}>Captain</span>
+        <span style={chu(5.325)}>Chief Officer</span>
+      </div>
+    </div>
   );
 }
 
@@ -102,7 +253,7 @@ export default function BaoCaoSonSua({
   vesselId,
   coSuaTon,
 }: {
-  /** Khóa localStorage — theo tàu. */
+  /** Khóa localStorage — theo tàu + quý. */
   khoaLuu: string;
   dauGoc: DauBaoCaoSon;
   dongGoc: DongBaoCaoSon[];
@@ -115,11 +266,11 @@ export default function BaoCaoSonSua({
   const [ban, setBan] = useState<BanSuaBaoCaoSon>(banSuaRong);
   const [daNap, setDaNap] = useState(false);
   const [sua, setSua] = useState(false);
-  const [soTrang, setSoTrang] = useState(1);
-  const noiDung = useRef<HTMLDivElement>(null);
+  const [trang, setTrang] = useState<number[][] | null>(null);
+  const vungDo = useRef<HTMLDivElement>(null);
 
   // Nạp bản sửa lần trước (nếu có); bắt đầu trong setTimeout để không setState
-  // ngay trong thân effect. Phần trỏ tới loại sơn đã gỡ khỏi tàu thì bỏ.
+  // ngay trong thân effect. Phần trỏ tới loại sơn không còn trong quý thì bỏ.
   useEffect(() => {
     const id = window.setTimeout(() => {
       try {
@@ -135,22 +286,40 @@ export default function BaoCaoSonSua({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [khoaLuu]);
 
-  // Ước số trang (ô "Page: 1 of N" của mẫu): tờ xem trước dựng đúng khổ giấy nên
-  // chiều cao đo trên màn hình là chiều cao khi in.
-  useEffect(() => {
-    const el = noiDung.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => setSoTrang(uocSoTrang(el.getBoundingClientRect().height + 50)));
-    ro.observe(el);
-    return () => ro.disconnect();
+  // Chia trang theo chiều cao THẬT của từng dòng (tên dài xuống dòng thì dòng cao hơn): đo ở
+  // một bản dựng ẩn đúng khổ, rồi xếp dòng vào trang. Kích thước tính bằng inch nên đo trên
+  // màn hình cũng là kích thước khi in.
+  const doChiaTrang = useCallback((): number[][] | null => {
+    const el = vungDo.current;
+    if (!el) return null;
+    const cao = (sel: string, chuan: number) => el.querySelector(sel)?.getBoundingClientRect().height || chuan;
+    const caoDong = [...el.querySelectorAll("tbody.do-dong > tr")].map((tr) => tr.getBoundingClientRect().height || CAO_CHUAN.dong);
+    const than = CAO_THAN_IN * PX_INCH;
+    const tieuDe = cao("tr.do-tieu-de", CAO_CHUAN.tieuDe);
+    return chiaTrangBaoCao(caoDong, { trangDau: than - cao(".do-thong-tin", CAO_CHUAN.thongTin) - tieuDe, trangSau: than - tieuDe, ky: cao(".do-ky", CAO_CHUAN.ky) });
+  }, []);
+  const datTrang = useCallback((moi: number[][] | null) => {
+    if (moi) setTrang((cu) => (cu && JSON.stringify(cu) === JSON.stringify(moi) ? cu : moi));
   }, []);
 
-  // In lúc đang sửa (Ctrl+P): thoát chế độ sửa trước để không in chữ gợi ý trong ô trống.
+  // In (kể cả Ctrl+P lúc đang sửa): thoát chế độ sửa và chia trang lại ngay trước khi in;
+  // thẻ trình duyệt mở ở nền rồi mới xem thì đo lại khi hiện ra.
   useEffect(() => {
-    const truocKhiIn = () => flushSync(() => setSua(false));
+    const truocKhiIn = () =>
+      flushSync(() => {
+        setSua(false);
+        datTrang(doChiaTrang());
+      });
+    const khiHien = () => {
+      if (!document.hidden) datTrang(doChiaTrang());
+    };
     window.addEventListener("beforeprint", truocKhiIn);
-    return () => window.removeEventListener("beforeprint", truocKhiIn);
-  }, []);
+    document.addEventListener("visibilitychange", khiHien);
+    return () => {
+      window.removeEventListener("beforeprint", truocKhiIn);
+      document.removeEventListener("visibilitychange", khiHien);
+    };
+  }, [doChiaTrang, datTrang]);
 
   const luu = (moi: BanSuaBaoCaoSon) => {
     setBan(moi);
@@ -162,37 +331,34 @@ export default function BaoCaoSonSua({
   };
 
   const { dau, dong } = apDungBanSua(goc, ban);
+  // Tờ mẫu có 7 dòng; ít loại sơn hơn thì chừa dòng trống để ghi tay.
+  const dongIn: (DongBaoCaoSon | null)[] = [...dong, ...Array.from({ length: Math.max(0, DONG_TOI_THIEU - dong.length) }, () => null)];
+  const khoaDo = JSON.stringify([dau, dong]);
+
+  // Đo sau khi bản dựng ẩn đã có mặt (microtask, trước khi trình duyệt vẽ); phông có thể nạp
+  // xong sau lần dựng đầu → đo lại. Các trang ẩn cho tới lần chia đầu tiên.
+  useLayoutEffect(() => {
+    let huy = false;
+    const chia = () => {
+      if (!huy) datTrang(doChiaTrang());
+    };
+    queueMicrotask(chia);
+    void document.fonts?.ready.then(chia);
+    return () => {
+      huy = true;
+    };
+  }, [khoaDo, doChiaTrang, datTrang]);
+
   const soChoKhac = demChoKhac(goc, ban);
-  const gocTheoId = new Map(goc.dong.map((d) => [d.id, d]));
   const oDaSua = (d: DongBaoCaoSon, cot: CotDongSon) => d.id.startsWith("them-") || ban.sua[d.id]?.[cot] !== undefined;
   const dauDaSua = (cot: CotDauSon) => ban.dau[cot] !== undefined;
-  const coDongTon0 = dong.some((d) => !d.id.startsWith("them-") && (d.rob.trim() === "" || d.rob.trim() === "0"));
-  const coGoiY = dong.some((d) => gocTheoId.get(d.id)?.goiY && !d.yeuCau.trim());
-  const soDongTrong = Math.max(3, 14 - dong.length);
-  const trang = dau.trang.trim() || `1 of ${soTrang}`;
+  const dongLech = dong.flatMap((d, i) => (lechCanDoi(d) ? [i + 1] : []));
 
   const suaDau = (cot: CotDauSon) => (v: string) => luu(suaDauBanIn(goc, ban, cot, v));
   const suaO = (id: string, cot: CotDongSon) => (v: string) => luu(suaOBanIn(goc, ban, id, cot, v));
   const themDong = () => {
     const id = `them-${Date.now().toString(36)}`;
-    luu({
-      ...ban,
-      them: [...ban.them, { id, moTa: "", impa: "", donVi: "", rob: "", yeuCau: "", duyet: "" }],
-      thuTu: ban.thuTu ? [...ban.thuTu, id] : null,
-    });
-  };
-  const boDongTon0 = () => {
-    let moi = ban;
-    for (const d of dong) if (!d.id.startsWith("them-") && (d.rob.trim() === "" || d.rob.trim() === "0")) moi = boDongBanIn(moi, d.id);
-    luu(moi);
-  };
-  const dienTheoDinhMuc = () => {
-    let moi = ban;
-    for (const d of dong) {
-      const g = gocTheoId.get(d.id);
-      if (g?.goiY && !d.yeuCau.trim()) moi = suaOBanIn(goc, moi, d.id, "yeuCau", g.goiY);
-    }
-    luu(moi);
+    luu({ ...ban, them: [...ban.them, dongTrongBaoCao(id)], thuTu: ban.thuTu ? [...ban.thuTu, id] : null });
   };
   const datLai = () => {
     if (!window.confirm(t("paint.bcXacNhanDatLai"))) return;
@@ -209,8 +375,98 @@ export default function BaoCaoSonSua({
     window.print();
   };
 
-  const th = (style: React.CSSProperties = {}): React.CSSProperties => ({ borderLeft: VIEN, borderRight: VIEN, textAlign: "center", padding: "0 1px", ...style });
-  const td = (style: React.CSSProperties = {}): React.CSSProperties => ({ borderLeft: VIEN, borderRight: VIEN, borderBottom: VIEN_CHAM, fontSize: pt(13), ...style });
+  /** Bảng thông tin tàu / quý / năm (trang đầu). */
+  const bangThongTin = (choSua: boolean) => {
+    const o = (them: React.CSSProperties = {}) => ({ borderTop: VIEN_TT, borderBottom: VIEN_DOI, verticalAlign: "top", ...them }) as React.CSSProperties;
+    const p = { margin: "6pt 0", textAlign: "justify" } as const;
+    const oSua = (cot: CotDauSon, nhan: string) => (
+      <p style={p}>
+        <O sua={choSua} giaTri={dau[cot]} onDoi={suaDau(cot)} nhan={nhan} />
+      </p>
+    );
+    return (
+      <table className="arial" style={{ marginLeft: `${THUT_BANG}in`, width: `${COT_THONG_TIN.reduce((a, b) => a + b, 0)}in` }}>
+        <colgroup>
+          {COT_THONG_TIN.map((w, i) => (
+            <col key={i} style={{ width: `${w}in` }} />
+          ))}
+        </colgroup>
+        <tbody>
+          <tr style={{ height: `${525 / 1440}in` }}>
+            <td style={o({ borderLeft: VIEN_TT })}>
+              <p style={{ ...p, textAlign: "left" }}>Tên tàu Vessel:</p>
+            </td>
+            <td style={o()} />
+            <td className={cn(choSua && dauDaSua("tenTau") && "o-da-sua")} style={o({ borderLeft: VIEN_TT, borderRight: VIEN_TT })}>
+              {oSua("tenTau", "Tên tàu / Vessel")}
+            </td>
+            {/* Word đặt vừa một dòng; trình duyệt đo chữ rộng hơn một chút — không cho ngắt ":" xuống dòng. */}
+            <td style={o()}>
+              <p style={{ ...p, whiteSpace: "nowrap" }}>Quý/Quarter:</p>
+            </td>
+            <td style={o()} />
+            <td className={cn(choSua && dauDaSua("quy") && "o-da-sua")} style={o({ borderLeft: VIEN_TT, borderRight: VIEN_TT })}>
+              {oSua("quy", "Quý / Quarter")}
+            </td>
+            <td style={o({ borderRight: VIEN_TT })}>
+              <p style={{ ...p, whiteSpace: "nowrap" }}>Năm/Year:</p>
+            </td>
+            <td className={cn(choSua && dauDaSua("nam") && "o-da-sua")} style={o({ borderRight: VIEN_TT })}>
+              {oSua("nam", "Năm / Year")}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    );
+  };
+
+  /** Một dòng bảng: dữ liệu (sửa được) hoặc dòng trống của mẫu. */
+  const hangDong = (d: DongBaoCaoSon | null, stt: number, choSua: boolean, key: string) => {
+    if (!d) {
+      return (
+        <tr key={key} style={{ height: CAO_HANG }}>
+          {COT_BANG.map((_, i) => (
+            <td key={i} style={oBang} />
+          ))}
+        </tr>
+      );
+    }
+    const o = (cot: CotDongSon, nhan: string, nhieuDong = false) => (
+      <td className={cn(choSua && oDaSua(d, cot) && "o-da-sua")} style={oBang}>
+        <O sua={choSua} giaTri={d[cot]} onDoi={suaO(d.id, cot)} nhan={`${stt} · ${nhan}`} nhieuDong={nhieuDong} />
+      </td>
+    );
+    const viTri = dong.findIndex((x) => x.id === d.id);
+    return (
+      <tr key={key} style={{ height: CAO_HANG }}>
+        <td style={oBang}>{stt}</td>
+        {o("moTa", "Tên sơn / Paint name", true)}
+        {o("donVi", "Đơn vị / Unit")}
+        {o("tonDau", "Tồn đầu kỳ / In stock")}
+        {o("nhan", "Nhận / Recive")}
+        {o("tieuThu", "Tiêu thụ trong kỳ / Consume")}
+        <td className={cn(choSua && oDaSua(d, "tonCuoi") && "o-da-sua")} style={{ ...oBang, position: "relative" }}>
+          <O sua={choSua} giaTri={d.tonCuoi} onDoi={suaO(d.id, "tonCuoi")} nhan={`${stt} · Tồn cuối kỳ / Remain`} />
+          {choSua && (
+            <span className="no-print absolute top-1/2 left-full ml-3 flex -translate-y-1/2 gap-0.5 font-sans not-italic">
+              <button type="button" onClick={() => luu(doiChoDongBanIn(goc, ban, d.id, -1))} disabled={viTri <= 0} title={t("paint.bcLenDong")} aria-label={t("paint.bcLenDong")} className="rounded p-0.5 text-slate-500 hover:bg-slate-500/10 hover:text-slate-800 disabled:opacity-30">
+                <ArrowUp className="size-3.5" />
+              </button>
+              <button type="button" onClick={() => luu(doiChoDongBanIn(goc, ban, d.id, 1))} disabled={viTri === dong.length - 1} title={t("paint.bcXuongDong")} aria-label={t("paint.bcXuongDong")} className="rounded p-0.5 text-slate-500 hover:bg-slate-500/10 hover:text-slate-800 disabled:opacity-30">
+                <ArrowDown className="size-3.5" />
+              </button>
+              <button type="button" onClick={() => luu(boDongBanIn(ban, d.id))} title={t("paint.bcBoDong")} aria-label={t("paint.bcBoDong")} className="rounded p-0.5 text-slate-500 hover:bg-rose-500/10 hover:text-rose-600">
+                <Trash2 className="size-3.5" />
+              </button>
+            </span>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
+  const dsTrang = trang ?? [dongIn.map((_, i) => i)];
+  const soTrang = dsTrang.length;
 
   return (
     <div className="space-y-3">
@@ -223,12 +479,6 @@ export default function BaoCaoSonSua({
             </Button>
             <Button type="button" size="sm" onClick={themDong} icon={<Plus className="size-4" />}>
               {t("paint.bcThemDong")}
-            </Button>
-            <Button type="button" size="sm" onClick={boDongTon0} disabled={!coDongTon0} icon={<ListX className="size-4" />}>
-              {t("paint.bcBoDongTon0")}
-            </Button>
-            <Button type="button" size="sm" onClick={dienTheoDinhMuc} disabled={!coGoiY} icon={<Wand2 className="size-4" />}>
-              {t("paint.bcDienTheoDinhMuc")}
             </Button>
           </>
         ) : (
@@ -258,234 +508,65 @@ export default function BaoCaoSonSua({
           {t("paint.bcDaSuaTay", { n: soChoKhac })}
         </Notice>
       )}
+      {dongLech.length > 0 && (
+        <Notice tone="warning" className="no-print">
+          {t("paint.bcLechCanDoi", { ds: dongLech.join(", ") })}
+        </Notice>
+      )}
       {dongGoc.length === 0 && (
         <Notice tone="info" className="no-print">
           {t("paint.bcChuaCoSon")}
         </Notice>
       )}
 
-      <div className="overflow-x-auto pb-6 print:overflow-visible print:pb-0">
-        <div className={cn("print-area to-son-a4", sua && "dang-sua")}>
-          <div ref={noiDung}>
-            {/* ── Đầu biểu mẫu (dòng 1–10 của tệp mẫu) ── */}
-            <table className="bm">
-              <colgroup>
-                {COT.map((w, i) => (
-                  <col key={i} style={{ width: `${w}%` }} />
-                ))}
-              </colgroup>
-              <tbody>
-                <tr style={{ height: pt(21) }}>
-                  <td colSpan={3} rowSpan={5} style={{ borderTop: VIEN, borderLeft: VIEN, borderRight: VIEN, borderBottom: VIEN_DOI, textAlign: "center", verticalAlign: "top", padding: "0 4px" }}>
-                    {/* Như tệp mẫu: logo neo phía trên ô (phần thấy được ~132×23 px), tên công ty
-                        chữ đậm nghiêng cỡ 11 nằm ở đáy ô gộp A1:C5. */}
-                    <div className="logo-bieu-mau" style={{ height: pt(87), display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between", paddingTop: pt(11), paddingBottom: pt(2) }}>
-                      <LogoLockup height={26} className="h-[26px] w-auto" />
-                      <p style={{ fontSize: pt(11), fontWeight: 700, fontStyle: "italic", lineHeight: 1.15 }}>MERCURY LINES COMPANY LIMITED</p>
-                    </div>
-                  </td>
-                  <td colSpan={4} style={{ borderTop: VIEN, borderRight: VIEN, fontSize: pt(16), fontWeight: 700, textAlign: "center" }}>
-                    REQUISITION FOR STORES
-                  </td>
-                  <td colSpan={2} style={{ borderTop: VIEN, borderRight: VIEN_DOI, fontSize: pt(10), fontStyle: "italic", textAlign: "right" }}>
-                    MLS-11-05
-                  </td>
-                </tr>
-                <tr style={{ height: pt(18.75) }}>
-                  <td colSpan={4} style={{ borderRight: VIEN, fontSize: pt(14), fontWeight: 700, textAlign: "center" }}>
-                    YÊU CẦU VẬT TƯ
-                  </td>
-                  <td colSpan={2} style={{ borderRight: VIEN_DOI, fontSize: pt(10), fontStyle: "italic", textAlign: "right" }}>
-                    Issued date: 10/01/2024
-                  </td>
-                </tr>
-                <tr style={{ height: pt(16.5) }}>
-                  <td colSpan={4} rowSpan={3} style={{ borderRight: VIEN, borderBottom: VIEN_DOI, fontSize: pt(13), fontStyle: "italic", textAlign: "center", verticalAlign: "bottom", paddingBottom: 3 }}>
-                    Phù hợp: Bộ luật ISM 5.2,6.1.3,10.1
-                  </td>
-                  <td colSpan={2} style={{ borderRight: VIEN_DOI, fontSize: pt(10), fontStyle: "italic", textAlign: "right" }}>
-                    Revision: 0
-                  </td>
-                </tr>
-                <tr style={{ height: pt(16.5) }}>
-                  <td colSpan={2} style={{ borderRight: VIEN_DOI, fontSize: pt(10), fontStyle: "italic", textAlign: "center" }}>
-                    Revised date:
-                  </td>
-                </tr>
-                <tr style={{ height: pt(17.25) }}>
-                  <td colSpan={2} className={cn(sua && dauDaSua("trang") && "o-da-sua")} style={{ borderRight: VIEN_DOI, borderBottom: VIEN_DOI, fontSize: pt(10), fontStyle: "italic", textAlign: "center" }}>
-                    {sua ? (
-                      <span className="flex items-baseline justify-center gap-1">
-                        Page:
-                        <span className="w-16">
-                          <O sua giaTri={dau.trang} onDoi={suaDau("trang")} nhan="Page" goiY={`1 of ${soTrang}`} />
-                        </span>
-                      </span>
-                    ) : (
-                      `Page: ${trang}`
-                    )}
-                  </td>
-                </tr>
-                <tr style={{ height: pt(10.5) }}>
-                  <td colSpan={9} style={{ padding: 0 }} />
-                </tr>
-                <tr style={{ height: pt(16.5) }}>
-                  <td colSpan={2} style={{ border: VIEN, fontSize: pt(11), fontWeight: 700, textAlign: "center" }}>
-                    Vsl./Tàu:
-                  </td>
-                  <td colSpan={4} className={cn(sua && dauDaSua("tenTau") && "o-da-sua")} style={{ border: VIEN, fontSize: pt(13), fontWeight: 700, textAlign: "center" }}>
-                    <O sua={sua} giaTri={dau.tenTau} onDoi={suaDau("tenTau")} nhan="Vsl./Tàu" />
-                  </td>
-                  {/* Cột G hẹp hơn chữ "Date/Ngày:" cỡ 11 (Excel cắt mất đuôi chữ): giữ một dòng, cỡ 9,5 cho vừa ô. */}
-                  <td style={{ border: VIEN, fontSize: pt(9.5), whiteSpace: "nowrap", padding: "0 2px" }}>Date/Ngày:</td>
-                  <td colSpan={2} className={cn(sua && dauDaSua("ngay") && "o-da-sua")} style={{ border: VIEN, fontSize: pt(11), textAlign: "center" }}>
-                    <O sua={sua} giaTri={dau.ngay} onDoi={suaDau("ngay")} nhan="Date/Ngày" />
-                  </td>
-                </tr>
-                <tr style={{ height: pt(36) }}>
-                  <td colSpan={2} style={{ border: VIEN, fontSize: pt(11), fontWeight: 700 }}>
-                    Dept./
-                    <br />
-                    Bộ phận:
-                  </td>
-                  <td colSpan={4} className={cn(sua && dauDaSua("boPhan") && "o-da-sua")} style={{ border: VIEN, fontSize: pt(13), fontWeight: 700, textAlign: "center" }}>
-                    <O sua={sua} giaTri={dau.boPhan} onDoi={suaDau("boPhan")} nhan="Dept./Bộ phận" />
-                  </td>
-                  <td style={{ border: VIEN, fontSize: pt(11) }}>
-                    <span style={{ fontWeight: 700 }}>Req. No.</span>
-                    <br />
-                    <span style={{ fontStyle: "italic" }}>Số y/cầu:</span>
-                  </td>
-                  <td colSpan={2} className={cn(sua && dauDaSua("soYeuCau") && "o-da-sua")} style={{ border: VIEN, fontSize: pt(11), fontWeight: 700, textAlign: "center" }}>
-                    <O sua={sua} giaTri={dau.soYeuCau} onDoi={suaDau("soYeuCau")} nhan="Req. No." />
-                  </td>
-                </tr>
-                <tr style={{ height: pt(12.75) }}>
-                  <td colSpan={9} style={{ padding: 0 }} />
-                </tr>
-              </tbody>
-            </table>
-
-            {/* ── Bảng (dòng 11 trở đi) — đầu bảng lặp lại nếu sang trang ── */}
-            <table className="bm">
-              <colgroup>
-                {COT.map((w, i) => (
-                  <col key={i} style={{ width: `${w}%` }} />
-                ))}
-              </colgroup>
-              <thead>
-                <tr style={{ height: pt(33.75), fontSize: pt(13) }}>
-                  <th style={th({ borderTop: VIEN_DOI, borderLeft: VIEN_DOI, fontWeight: 700 })}>S. No.</th>
-                  <th colSpan={3} style={th({ borderTop: VIEN_DOI, fontWeight: 700 })}>
-                    Description
-                  </th>
-                  <th style={th({ borderTop: VIEN_DOI, fontWeight: 700 })}>IMPA Code</th>
-                  <th style={th({ borderTop: VIEN_DOI, fontWeight: 700 })}>Unit</th>
-                  <th style={th({ borderTop: VIEN_DOI, fontWeight: 700 })}>R.O.B</th>
-                  <th style={th({ borderTop: VIEN_DOI, fontWeight: 700 })}>Q&apos;ty. Req.</th>
-                  <th style={th({ borderTop: VIEN_DOI, borderRight: VIEN_DOI, fontWeight: 700 })}>Q&apos;ty. App.</th>
-                </tr>
-                <tr style={{ height: pt(63), fontSize: pt(12), fontStyle: "italic" }}>
-                  <th style={th({ borderLeft: VIEN_DOI, borderBottom: VIEN })}>Stt.</th>
-                  <th colSpan={3} style={th({ borderBottom: VIEN })}>
-                    Mô tả
-                  </th>
-                  <th style={th({ borderBottom: VIEN })}>Mã IMPA</th>
-                  <th style={th({ borderBottom: VIEN })}>Đơn vị</th>
-                  <th style={th({ borderBottom: VIEN })}>Còn tồn trên tàu</th>
-                  <th style={th({ borderBottom: VIEN })}>S.lượng yêu cầu</th>
-                  <th style={th({ borderRight: VIEN_DOI, borderBottom: VIEN })}>S.lượng duyệt</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dong.map((d, i) => (
-                  <tr key={d.id} style={{ height: pt(16.5) }}>
-                    <td style={td({ textAlign: "center" })}>{i + 1}</td>
-                    <td colSpan={3} className={cn(sua && oDaSua(d, "moTa") && "o-da-sua")} style={td({ fontSize: pt(12), textAlign: "left" })}>
-                      <O sua={sua} giaTri={d.moTa} onDoi={suaO(d.id, "moTa")} canh="left" nhan={`${i + 1} · Description`} />
-                    </td>
-                    <td className={cn(sua && oDaSua(d, "impa") && "o-da-sua")} style={td({ textAlign: "center" })}>
-                      <O sua={sua} giaTri={d.impa} onDoi={suaO(d.id, "impa")} nhan={`${i + 1} · IMPA Code`} />
-                    </td>
-                    <td className={cn(sua && oDaSua(d, "donVi") && "o-da-sua")} style={td({ fontSize: pt(12), textAlign: "center" })}>
-                      <O sua={sua} giaTri={d.donVi} onDoi={suaO(d.id, "donVi")} nhan={`${i + 1} · Unit`} />
-                    </td>
-                    <td className={cn(sua && oDaSua(d, "rob") && "o-da-sua")} style={td({ textAlign: "right" })}>
-                      <O sua={sua} giaTri={d.rob} onDoi={suaO(d.id, "rob")} canh="right" nhan={`${i + 1} · R.O.B`} />
-                    </td>
-                    <td className={cn(sua && oDaSua(d, "yeuCau") && "o-da-sua")} style={td({ textAlign: "right" })}>
-                      <O sua={sua} giaTri={d.yeuCau} onDoi={suaO(d.id, "yeuCau")} canh="right" nhan={`${i + 1} · Q'ty. Req.`} goiY={gocTheoId.get(d.id)?.goiY || undefined} />
-                    </td>
-                    <td className={cn(sua && oDaSua(d, "duyet") && "o-da-sua")} style={td({ textAlign: "right", position: "relative" })}>
-                      <O sua={sua} giaTri={d.duyet} onDoi={suaO(d.id, "duyet")} canh="right" nhan={`${i + 1} · Q'ty. App.`} />
-                      {sua && (
-                        <span className="no-print absolute top-1/2 left-full ml-2 flex -translate-y-1/2 gap-0.5 font-sans">
-                          <button type="button" onClick={() => luu(doiChoDongBanIn(goc, ban, d.id, -1))} disabled={i === 0} title={t("paint.bcLenDong")} aria-label={t("paint.bcLenDong")} className="rounded p-0.5 text-slate-500 hover:bg-slate-500/10 hover:text-slate-800 disabled:opacity-30">
-                            <ArrowUp className="size-3.5" />
-                          </button>
-                          <button type="button" onClick={() => luu(doiChoDongBanIn(goc, ban, d.id, 1))} disabled={i === dong.length - 1} title={t("paint.bcXuongDong")} aria-label={t("paint.bcXuongDong")} className="rounded p-0.5 text-slate-500 hover:bg-slate-500/10 hover:text-slate-800 disabled:opacity-30">
-                            <ArrowDown className="size-3.5" />
-                          </button>
-                          <button type="button" onClick={() => luu(boDongBanIn(ban, d.id))} title={t("paint.bcBoDong")} aria-label={t("paint.bcBoDong")} className="rounded p-0.5 text-slate-500 hover:bg-rose-500/10 hover:text-rose-600">
-                            <Trash2 className="size-3.5" />
-                          </button>
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {Array.from({ length: soDongTrong }, (_, i) => (
-                  <tr key={`trong-${i}`} style={{ height: pt(16.5) }}>
-                    <td style={td()} />
-                    <td colSpan={3} style={td()} />
-                    <td style={td()} />
-                    <td style={td()} />
-                    <td style={td()} />
-                    <td style={td()} />
-                    <td style={td()} />
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* ── Ô ký (dòng 28–29 của tệp mẫu) ── */}
-            <table className="bm" style={{ marginTop: pt(16.5) }}>
-              <colgroup>
-                {COT.map((w, i) => (
-                  <col key={i} style={{ width: `${w}%` }} />
-                ))}
-              </colgroup>
-              <tbody>
-                <tr style={{ height: pt(16.5), fontSize: pt(13), fontWeight: 700, textAlign: "center" }}>
-                  <td colSpan={3} style={{ fontWeight: 700 }}>Chief Engineer/ Chief Officer</td>
-                  <td style={{ fontWeight: 700 }}>Captain</td>
-                  <td colSpan={3} style={{ fontWeight: 700 }}>Tech.&amp;Pur Dept</td>
-                  <td colSpan={2} style={{ fontWeight: 700 }}>Vice Director</td>
-                </tr>
-                <tr style={{ height: pt(16.5), fontSize: pt(13), fontStyle: "italic", textAlign: "center" }}>
-                  <td colSpan={3}>Máy Trưởng/ Đại Phó</td>
-                  <td>Thuyền Trưởng</td>
-                  <td colSpan={3}>Phòng Kỹ Thuật Vật Tư</td>
-                  <td colSpan={2}>Phó Giám Đốc</td>
-                </tr>
-                <tr style={{ height: "26mm" }}>
-                  <td colSpan={9} />
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          {/* Chân trang của mẫu (ở tệp Excel là chân trang in, chữ nghiêng cỡ 9). */}
-          <div style={{ marginTop: "auto", paddingTop: "6mm", display: "flex", justifyContent: "space-between", gap: "8mm", fontSize: pt(9), fontStyle: "italic", lineHeight: 1.3 }}>
-            <div>
-              <p>Người làm báo cáo: CE, CO</p>
-              <p>Thời điểm làm báo cáo: Khi cần thiết</p>
+      {/* Bản dựng ẩn để đo chiều cao (luôn ở chế độ xem, không in). */}
+      <div ref={vungDo} className="do-son no-print" aria-hidden>
+        <div className="trang-son">
+          <div style={{ position: "absolute", top: `${THAN_TREN}in`, left: x(LE_TRAI) }}>
+            <div className="do-thong-tin">
+              {bangThongTin(false)}
+              <div style={{ height: "13.8pt" }} />
             </div>
-            <div style={{ textAlign: "right" }}>
-              <p>Thời gian lưu: 3 năm</p>
-              <p>Lưu VP: Vật tư</p>
+            <table style={{ marginLeft: `${THUT_BANG}in`, width: `${COT_BANG.reduce((a, b) => a + b, 0)}in` }}>
+              <ColBang />
+              <tbody>
+                <HangTieuDe lop="do-tieu-de" />
+              </tbody>
+              <tbody className="do-dong">{dongIn.map((d, i) => hangDong(d, i + 1, false, d?.id ?? `trong-${i}`))}</tbody>
+            </table>
+            <div className="do-ky">
+              <KhoiKy />
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto print:overflow-visible">
+        <div className="ds-trang-son" style={trang ? undefined : { visibility: "hidden" }}>
+          {dsTrang.map((chiSo, p) => (
+            <div key={p} className={cn("print-area trang-son", sua && "dang-sua")}>
+              <DauTrang trang={`${p + 1}/${soTrang}`} />
+              <div style={{ position: "absolute", top: `${THAN_TREN}in`, left: x(LE_TRAI), width: "7.625in" }}>
+                {p === 0 && (
+                  <>
+                    {bangThongTin(sua)}
+                    <div style={{ height: "13.8pt" }} />
+                  </>
+                )}
+                {(chiSo.length > 0 || p === 0) && (
+                  <table style={{ marginLeft: `${THUT_BANG}in`, width: `${COT_BANG.reduce((a, b) => a + b, 0)}in` }}>
+                    <ColBang />
+                    <tbody>
+                      <HangTieuDe />
+                      {chiSo.map((i) => hangDong(dongIn[i], i + 1, sua, dongIn[i]?.id ?? `trong-${i}`))}
+                    </tbody>
+                  </table>
+                )}
+                {p === soTrang - 1 && <KhoiKy />}
+              </div>
+              <ChanTrang />
+            </div>
+          ))}
         </div>
       </div>
     </div>

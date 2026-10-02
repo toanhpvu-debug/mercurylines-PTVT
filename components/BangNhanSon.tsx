@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { PackagePlus, Plus, Save, Sparkles, Trash2 } from "lucide-react";
 import { apDungPhieuSon, docLaiPhieuSonAi, luuPhieuSon, xoaPhieuSon, type DauPhieuSon } from "@/app/son-phieu-actions";
 import { CANH_BAO_THIEU_SO, demPhieuSon, type DongNhanSon } from "@/lib/phieuSon";
+import { nhanDangTenSon } from "@/lib/tenSon";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Badge, Button, Field, Input, Notice } from "@/components/ui";
 
@@ -66,7 +67,7 @@ export default function BangNhanSon({
   /** PDF + có bộ đọc AI: hiện nút Đọc lại bằng AI. */
   docLaiAi: boolean;
 }) {
-  const { t } = useNgonNgu();
+  const { t, tTuDo } = useNgonNgu();
   const [dong, setDong] = useState<Dong[]>(() => (dongGoc.length ? dongGoc.map(sang) : coSua ? [dongTrong()] : []));
   const [dau, setDau] = useState(dauGoc);
   const [thongBao, setThongBao] = useState<{ ok: boolean; chu: string } | null>(null);
@@ -99,6 +100,15 @@ export default function BangNhanSon({
       setThongBao({ ok: Boolean(r.success), chu: r.message });
     });
   const soSai = (s: string) => s.trim() !== "" && soO(s) === null;
+  // Loại sơn MỚI sẽ được tạo thế nào (lib/tenSon.ts — cùng cách lib/phieuSonServer.ts tạo):
+  // tên chuẩn · hãng · hệ sơn · mã màu / màu · dung tích một thùng.
+  const moTaSeTao = (d: Dong) => {
+    const n = nhanDangTenSon(d.ten);
+    const maLoai = d.loaiSon.trim() || n.loaiSon;
+    const loai = maLoai ? tTuDo(`paint.loaiSon_${maLoai}`) : null;
+    const dungTich = d.dungTich.trim() || (n.dungTich ? String(n.dungTich) : "");
+    return [n.ten, d.hang.trim() || n.hang, loai, d.maMau.trim() || n.maMau, d.mau.trim() || n.mau, dungTich ? `${dungTich} L` : null].filter(Boolean).join(" · ");
+  };
   const coSo = (s: string) => (soO(s) ?? 0) > 0;
   // Dòng bộ đọc đã tự bỏ tick vì không có số lượng (lib/phieuSon.ts boTickDongThieuSo) mà chưa được điền.
   const soDongTuBo = dong.filter((d) => d.boQua && !coSo(d.soLuong) && d.canhBao.includes(CANH_BAO_THIEU_SO)).length;
@@ -183,6 +193,7 @@ export default function BangNhanSon({
                   <td className="w-72 p-1">
                     <input className={O} value={d.ten} disabled={!coSua} onChange={(e) => doi(i, { ten: e.target.value })} />
                     {d.ma && <span className="mt-0.5 block text-xs text-[var(--text-muted)]">{d.ma}</span>}
+                    {moi && d.ten.trim() && <span className="mt-0.5 block text-xs text-[var(--text-secondary)]">{t("paint.pgSeTao", { mo: moTaSeTao(d) })}</span>}
                   </td>
                   <td className="w-72 p-1">
                     <select className={O} value={d.paintProductId} disabled={!coSua} onChange={(e) => doi(i, { paintProductId: e.target.value })} aria-label={t("paint.pgCotLoai")}>

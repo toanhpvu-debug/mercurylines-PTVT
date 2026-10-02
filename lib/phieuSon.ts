@@ -12,6 +12,7 @@ import type { DongPhieuGiao } from "@/lib/phieuGiaoParse";
 import type { ImportedPaint } from "@/lib/paintImport";
 import type { DongYeuCauFile } from "@/lib/yeuCauNhap";
 import { ghepSon, type SonGhep } from "@/lib/yeuCauSon";
+import { nhanDangTenSon } from "@/lib/tenSon";
 import { chuanNgayYeuCau } from "@/lib/yeuCauNhap";
 
 export const DUOI_PHIEU_SON = [".xlsx", ".xls", ".docx", ".doc", ".pdf"] as const;
@@ -114,13 +115,46 @@ export function dongTuAiSon(dong: DongAi[]): DongNhanSon[] {
   );
 }
 
+const chuanKhoa = (s: string | null | undefined) => (s ?? "").normalize("NFC").toLowerCase().replace(/\s+/g, " ").trim();
+
+/** Khóa một loại sơn theo tên chuẩn + màu + mã màu (lib/tenSon.ts) — "SON JOTAFIX PU TC RAL 3000 A 18L" ↔ "JOTAFIX PU TC COMP A" / RAL 3000. */
+const khoaLoaiSon = (ten: string, mau: string | null | undefined, maMau: string | null | undefined) =>
+  [ten, mau, maMau].map(chuanKhoa).join("|");
+
+/**
+ * Điền hãng / màu / mã màu / dung tích / hệ sơn nhận dạng từ mô tả trên phiếu
+ * (lib/tenSon.ts) — chỉ ô còn trống; mô tả gốc giữ nguyên để soát với phiếu.
+ */
+export function boSungNhanDang(dong: DongNhanSon[]): DongNhanSon[] {
+  return dong.map((d) => {
+    const n = nhanDangTenSon(d.ten);
+    return {
+      ...d,
+      hang: d.hang ?? n.hang,
+      mau: d.mau ?? n.mau,
+      maMau: d.maMau ?? n.maMau,
+      dungTich: d.dungTich ?? n.dungTich,
+      loaiSon: d.loaiSon ?? n.loaiSon,
+    };
+  });
+}
+
 /** Ghép mỗi dòng (chưa chọn loại sơn) với danh mục sơn — mô tả ghép kèm hãng / màu nếu phiếu tách cột. */
 export function ghepDongSon(dong: DongNhanSon[], son: SonGhep[]): DongNhanSon[] {
+  // Trước hết: đúng loại đã tạo từ lần nhập trước (tên chuẩn + màu + mã màu trùng hệt) —
+  // cách ghép theo chữ bên dưới không thấy "COMP A" trong "… RAL 3000 A 18L".
+  const theoKhoa = new Map(son.map((s) => [khoaLoaiSon(s.name, s.colorName, s.colorCode), s]));
+  const daKhop = dong.map((d) => {
+    if (d.paintProductId !== null) return d;
+    const n = nhanDangTenSon(d.ten);
+    const s = theoKhoa.get(khoaLoaiSon(n.ten, d.mau ?? n.mau, d.maMau ?? n.maMau));
+    return s ? { ...d, paintProductId: s.id } : d;
+  });
   const ghep = ghepSon(
-    dong.map((d) => ({ moTa: [d.hang, d.ten, d.mau].filter(Boolean).join(" "), partNo: d.ma, impa: null })),
+    daKhop.map((d) => ({ moTa: [d.hang, d.ten, d.mau].filter(Boolean).join(" "), partNo: d.ma, impa: null })),
     son
   );
-  return dong.map((d, i) => (d.paintProductId === null && ghep[i] ? { ...d, paintProductId: ghep[i]!.id } : d));
+  return daKhop.map((d, i) => (d.paintProductId === null && ghep[i] ? { ...d, paintProductId: ghep[i]!.id } : d));
 }
 
 /** Đếm cho dòng tóm tắt: dòng sẽ nhập, khớp danh mục, loại sơn mới, thiếu số lượng, cảnh báo. */

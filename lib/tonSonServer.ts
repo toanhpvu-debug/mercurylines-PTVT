@@ -270,6 +270,48 @@ export async function suaTonSonTx(
   return kq;
 }
 
+// ─── 1b. Nhận dạng lại tên các loại sơn đã nhập (hàng loạt) ─────────────────
+
+export type SuaNhanDang = ThongTinSonSua & { productId: number };
+
+/**
+ * Ghi thông tin loại sơn người dùng đã duyệt từ bộ nhận dạng tên (lib/tenSon.ts):
+ * chỉ loại đang có trong tồn của tàu này; loại dùng ở tàu khác thì chỉ thuyền
+ * trưởng / quản trị (đổi định nghĩa dùng chung). Không đụng số tồn.
+ */
+export async function apDungNhanDangTx(
+  tx: Prisma.TransactionClient,
+  v: { vesselId: number; ds: SuaNhanDang[]; toanDoi: boolean }
+): Promise<{ soLoai: number; ten: string[] }> {
+  const ten: string[] = [];
+  for (const sp of v.ds) {
+    const dong = await tx.paintStock.findUnique({
+      where: { vesselId_productId: { vesselId: v.vesselId, productId: sp.productId } },
+      select: { product: { select: { id: true, name: true } } },
+    });
+    if (!dong) throw new LoiTonSon("khongCoDong");
+    const name = sp.name.trim();
+    if (!name) throw new LoiTonSon("tenTrong");
+    if (!PAINT_TYPE_VALUES.includes(sp.paintType)) throw new LoiTonSon("loaiKhongHopLe");
+    if (!Number.isFinite(sp.packSize) || sp.packSize < 0 || sp.packSize > 1000) throw new LoiTonSon("soKhongHopLe");
+    if (!v.toanDoi && (await sonDungOTauKhac(tx, sp.productId, v.vesselId))) throw new LoiTonSon("sanPhamDungChung", { ten: dong.product.name });
+    await tx.paintProduct.update({
+      where: { id: sp.productId },
+      data: {
+        name: name.slice(0, 200),
+        maker: sp.maker?.trim().slice(0, 100) || null,
+        paintType: sp.paintType,
+        colorName: sp.colorName?.trim().slice(0, 100) || null,
+        colorCode: sp.colorCode?.trim().slice(0, 60) || null,
+        uom: (sp.uom.trim() || "L").slice(0, 20),
+        packSize: sp.packSize,
+      },
+    });
+    ten.push(`${dong.product.name} → ${name}`);
+  }
+  return { soLoai: v.ds.length, ten };
+}
+
 // ─── 2. Gỡ một loại sơn khỏi tồn của tàu ─────────────────────────────────────
 
 export type CachGoSon = "GIU" | "XOA";

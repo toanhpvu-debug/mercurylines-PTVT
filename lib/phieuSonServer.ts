@@ -3,6 +3,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { PAINT_TYPE_VALUES } from "@/lib/paintTypes";
 import { gopDongNhap, type DongNhanSon } from "@/lib/phieuSon";
+import { nhanDangTenSon } from "@/lib/tenSon";
 
 /*
  * NHẬP PHIẾU GIAO SƠN VÀO TỒN SƠN CỦA TÀU — phần ghi database, chạy trong giao
@@ -56,26 +57,38 @@ export async function nhapPhieuSonTx(
       sp = await tx.paintProduct.findUnique({ where: { id: d.paintProductId }, select: { id: true, code: true, name: true } });
       if (!sp) throw new Error(`Loại sơn #${d.paintProductId} không còn trong danh mục (dòng "${d.ten}")`);
     } else {
+      // Loại sơn mới đặt theo TÊN CHUẨN nhận dạng từ mô tả trên phiếu (lib/tenSon.ts):
+      // "SON JOTAFIX PU TC RAL 5002 A 17.91L" → JOTAFIX PU TC COMP A · Jotun · Sơn phủ ·
+      // RAL 5002 · 17,91 L — ô người soát đã điền (hãng, màu…) thắng phần nhận dạng.
+      const nd = nhanDangTenSon(d.ten);
+      const ten = (nd.ten || d.ten).trim().slice(0, 200);
+      const hang = d.hang?.trim() || nd.hang;
+      const mau = d.mau?.trim() || nd.mau;
+      const maMau = d.maMau?.trim() || nd.maMau;
+      const loai = [d.loaiSon, nd.loaiSon].find((x): x is string => Boolean(x && loaiHopLe.has(x))) ?? "OTHER";
       sp = await tx.paintProduct.findFirst({
         where: {
-          name: { equals: d.ten.trim(), mode: "insensitive" },
-          maker: d.hang ? { equals: d.hang.trim(), mode: "insensitive" } : null,
-          colorName: d.mau ? { equals: d.mau.trim(), mode: "insensitive" } : null,
+          name: { equals: ten, mode: "insensitive" },
+          maker: hang ? { equals: hang, mode: "insensitive" } : null,
+          colorName: mau ? { equals: mau, mode: "insensitive" } : null,
+          // Cùng tên, khác mã màu (RAL 3000 / RAL 5002) là hai loại sơn khác nhau.
+          colorCode: maMau ? { equals: maMau, mode: "insensitive" } : null,
         },
         select: { id: true, code: true, name: true },
       });
       if (!sp) {
+        const ghiChu = [d.ma ? `Mã trên phiếu giao: ${d.ma}` : null, ten !== d.ten.trim() ? `Tên trên phiếu: ${d.ten.trim()}` : null].filter(Boolean);
         sp = await tx.paintProduct.create({
           data: {
             code: `SON-${String(soKe++).padStart(4, "0")}`,
-            name: d.ten.trim().slice(0, 200),
-            maker: d.hang,
-            colorName: d.mau,
-            colorCode: d.maMau,
-            paintType: d.loaiSon && loaiHopLe.has(d.loaiSon) ? d.loaiSon : "OTHER",
+            name: ten,
+            maker: hang,
+            colorName: mau,
+            colorCode: maMau,
+            paintType: loai,
             uom: (d.dvt || "L").slice(0, 20),
-            packSize: d.dungTich ?? 0,
-            notes: d.ma ? `Mã trên phiếu giao: ${d.ma}` : null,
+            packSize: d.dungTich ?? nd.dungTich ?? 0,
+            notes: ghiChu.length ? ghiChu.join(" · ").slice(0, 500) : null,
           },
           select: { id: true, code: true, name: true },
         });

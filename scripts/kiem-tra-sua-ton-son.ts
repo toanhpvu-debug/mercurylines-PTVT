@@ -1,9 +1,11 @@
 /**
- * Kiểm SỬA / GỠ SƠN ĐÃ NHẬP và BẢN IN BÁO CÁO SƠN MLS-11-05:
+ * Kiểm SỬA / GỠ SƠN ĐÃ NHẬP và BẢN IN BÁO CÁO LƯỢNG SƠN TỒN MLS-11-14:
  *   - phần thuần (lib/tonSon.ts): mô tả sơn trên tờ in, số in kiểu Việt Nam, đọc
- *     số tồn, dòng báo cáo từ tồn (gợi ý theo định mức), bản sửa tay áp lên số
- *     liệu mới (sửa ô / gõ lại số gốc / bỏ / thêm / đổi chỗ / dọn dòng đã gỡ /
- *     đếm chỗ khác / đọc từ localStorage hỏng), ước số trang;
+ *     số tồn / số trên tờ in, quý theo giờ Việt Nam (mốc, đọc từ địa chỉ trang),
+ *     bốn cột của quý từ lịch sử nhập / xuất (điều chỉnh sửa vào Nhận / Tồn đầu
+ *     kỳ, giao dịch sau kỳ, loại đã gỡ), dòng báo cáo, kiểm cân đối, bản sửa tay
+ *     áp lên số liệu mới (sửa ô / gõ lại số gốc / bỏ / thêm / đổi chỗ / dọn dòng
+ *     đã gỡ / đếm chỗ khác / đọc từ localStorage hỏng), chia trang;
  *   - trên database thật trong MỘT giao dịch rồi cuộn ngược (lib/tonSonServer.ts):
  *     sửa số tồn (dòng điều chỉnh, số đổi giữa chừng, thiếu lý do), sửa tên loại
  *     sơn riêng / dùng chung, xóa dòng nhập/xuất (hoàn tồn, chặn dòng của phiếu),
@@ -19,20 +21,29 @@ import {
   apDungBanSua,
   banSuaRong,
   boDongBanIn,
+  chiaTrangBaoCao,
   demChoKhac,
   docBanSua,
+  docKyQuy,
+  docSoBaoCao,
   docSoTon,
   doiChoDongBanIn,
-  dongBaoCaoTuTon,
+  dongBaoCaoQuy,
+  dongTrongBaoCao,
   gonBanSua,
+  lechCanDoi,
+  mocQuy,
   moTaSonIn,
+  quyCua,
   soIn,
   suaDauBanIn,
   suaOBanIn,
-  uocSoTrang,
+  tinhTonQuy,
   type DauBaoCaoSon,
+  type GiaoDichSonKy,
 } from "@/lib/tonSon";
-import { LoiTonSon, goPhieuSonTx, goTonSonTx, suaTonSonTx, xoaGiaoDichSonTx } from "@/lib/tonSonServer";
+import { LoiTonSon, apDungNhanDangTx, goPhieuSonTx, goTonSonTx, suaTonSonTx, xoaGiaoDichSonTx } from "@/lib/tonSonServer";
+import { deXuatThongTinSon } from "@/lib/tenSon";
 import { nhapPhieuSonTx } from "@/lib/phieuSonServer";
 import type { DongNhanSon } from "@/lib/phieuSon";
 
@@ -50,7 +61,14 @@ class CuonNguoc extends Error {}
 
 function phanThuan() {
   // ── Mô tả sơn trên tờ in: HÃNG TÊN MÃ-MÀU MÀU, không lặp phần đã có trong tên ──
-  kiemTra("mo ta day du", moTaSonIn({ name: "HARDTOP XP", maker: "Jotun", colorCode: "RAL 9003", colorName: "White" }), "Jotun HARDTOP XP RAL 9003 White");
+  // Tên viết hoa (như mẫu công ty) thì cả dòng viết hoa.
+  kiemTra("mo ta day du", moTaSonIn({ name: "HARDTOP XP", maker: "Jotun", colorCode: "RAL 9003", colorName: "White" }), "JOTUN HARDTOP XP RAL 9003 WHITE");
+  // Tên chuẩn của bộ nhận dạng: màu đứng trước thành phần, đơn vị thùng thì ghi dung tích.
+  kiemTra("mo ta comp + thung", moTaSonIn({ name: "JOTAFIX PU TC COMP A", maker: "Jotun", colorCode: "RAL 3000", colorName: null, packSize: 18, uom: "PAIL" }), "JOTUN JOTAFIX PU TC RAL 3000 COMP A 18L");
+  kiemTra("mo ta dong ran", moTaSonIn({ name: "JOTAFIX PU TC COMP B (ĐÓNG RẮN)", maker: "Jotun", colorCode: null, colorName: null, packSize: 2, uom: "PAIL" }), "JOTUN JOTAFIX PU TC COMP B (ĐÓNG RẮN) 2L");
+  kiemTra("mo ta thinner (hang trong ten)", moTaSonIn({ name: "JOTUN THINNER NO.10", maker: "Jotun", colorCode: null, colorName: null, packSize: 20, uom: "PAIL" }), "JOTUN THINNER NO.10 20L");
+  kiemTra("mo ta don vi lit: khong ghi dung tich", moTaSonIn({ name: "Hardtop XP", maker: "Jotun", colorCode: null, colorName: "Red", packSize: 20, uom: "Ltr" }), "Jotun Hardtop XP Red");
+  kiemTra("mo ta dung tich le", moTaSonIn({ name: "JOTAFIX PU TC COMP A", maker: "Jotun", colorCode: "RAL 5002", colorName: null, packSize: 17.91, uom: "PAIL" }), "JOTUN JOTAFIX PU TC RAL 5002 COMP A 17,91L");
   kiemTra("mo ta khong lap", moTaSonIn({ name: "JOTUN HARTOP PAL 9003A WHITE", maker: "Jotun", colorCode: null, colorName: "white" }), "JOTUN HARTOP PAL 9003A WHITE");
   kiemTra("mo ta chi ten + hang", moTaSonIn({ name: " Thinner  No.17 ", maker: "JOTUN", colorCode: null, colorName: null }), "JOTUN Thinner No.17");
   kiemTra("mo ta ma mau = ten mau", moTaSonIn({ name: "Pilot II", maker: null, colorCode: "1023", colorName: "1023" }), "Pilot II 1023");
@@ -62,45 +80,132 @@ function phanThuan() {
   kiemTra("doc so ton", [docSoTon("18"), docSoTon("1.5"), docSoTon("1,5"), docSoTon(" 20 "), docSoTon("1.500"), docSoTon("0")], [18, 1.5, 1.5, 20, 1.5, 0]);
   kiemTra("doc so ton sai", [docSoTon(""), docSoTon("-1"), docSoTon("abc"), docSoTon("1e3"), docSoTon("2..5")], [null, null, null, null, null]);
 
-  // ── Dòng báo cáo từ tồn: R.O.B, IMPA trống (không in mã SON-####), gợi ý thiếu định mức ──
-  const ton = [
-    { productId: 7, quantity: 12.5, minQty: 40, product: { name: "Hardtop XP", maker: "Jotun", colorCode: "RAL 9003", colorName: "White", uom: "Ltr" } },
-    { productId: 9, quantity: 0, minQty: 0, product: { name: "Thinner No.17", maker: "Jotun", colorCode: null, colorName: null, uom: "Ltr" } },
+  // ── Đọc số trên tờ in (kiểu soIn in ra, hoặc gõ tay) ──
+  kiemTra("doc so bao cao", [docSoBaoCao("1.234,5"), docSoBaoCao("12,5"), docSoBaoCao("12.5"), docSoBaoCao("1.500"), docSoBaoCao(" 16 "), docSoBaoCao("-2")], [1234.5, 12.5, 12.5, 1500, 16, -2]);
+  kiemTra("doc so bao cao sai", [docSoBaoCao(""), docSoBaoCao("abc"), docSoBaoCao("1,2,3"), docSoBaoCao("1e3")], [null, null, null, null]);
+
+  // ── Quý theo giờ Việt Nam (máy chủ chạy UTC): 0 giờ 01/10 VN = 17 giờ 30/09 UTC ──
+  kiemTra(
+    "quy cua thoi diem",
+    [quyCua(new Date("2026-09-30T16:59:59Z")), quyCua(new Date("2026-09-30T17:00:00Z")), quyCua(new Date("2026-12-31T17:00:00Z"))],
+    [{ nam: 2026, quy: 3 }, { nam: 2026, quy: 4 }, { nam: 2027, quy: 1 }]
+  );
+  const q4 = mocQuy({ nam: 2026, quy: 4 });
+  kiemTra("moc quy IV/2026", [q4.batDau.toISOString(), q4.ketThuc.toISOString(), mocQuy({ nam: 2027, quy: 1 }).batDau.toISOString()], ["2026-09-30T17:00:00.000Z", "2026-12-31T17:00:00.000Z", "2026-12-31T17:00:00.000Z"]);
+  const homNay = new Date("2026-10-02T03:00:00Z");
+  kiemTra(
+    "doc ky tu dia chi trang",
+    [docKyQuy("2026", "3", homNay), docKyQuy("2027", "1", homNay), docKyQuy("2026", "5", homNay), docKyQuy("abc", "2", homNay), docKyQuy(["2025"], ["4"], homNay), docKyQuy("1999", "1", homNay), docKyQuy(undefined, undefined, homNay)],
+    [{ nam: 2026, quy: 3 }, { nam: 2026, quy: 4 }, { nam: 2026, quy: 4 }, { nam: 2026, quy: 4 }, { nam: 2025, quy: 4 }, { nam: 2026, quy: 4 }, { nam: 2026, quy: 4 }]
+  );
+
+  // ── Bốn cột của quý từ lịch sử nhập / xuất, neo vào tồn hiện tại ──
+  const gd = (productId: number, type: "IN" | "OUT", quantity: number, luc: string, dieuChinh = false): GiaoDichSonKy => ({ productId, type, quantity, dieuChinh, occurredAt: new Date(luc) });
+  const lichSu: GiaoDichSonKy[] = [
+    gd(1, "IN", 18, "2026-10-02T02:00:00Z"), // 1: tồn 10 từ trước, nhận 18, thi công 3
+    gd(1, "OUT", 3, "2026-11-05T02:00:00Z"),
+    gd(2, "IN", 18, "2026-10-02T02:00:00Z"), // 2: nhập theo phiếu 18, sửa nhầm về 16
+    gd(2, "OUT", 2, "2026-10-03T02:00:00Z", true),
+    gd(3, "OUT", 5, "2026-11-10T02:00:00Z", true), // 3: tồn 35 mang sang, kiểm kê sửa còn 30
+    gd(4, "OUT", 10, "2026-11-10T02:00:00Z", true), // 4: gỡ khỏi danh sách (dòng tồn đã xóa)
+    gd(5, "IN", 5, "2026-10-20T02:00:00Z"), // 5: nhận 5, sửa thêm 1
+    gd(5, "IN", 1, "2026-10-21T02:00:00Z", true),
+    gd(6, "IN", 2, "2026-12-01T02:00:00Z", true), // 6: tồn 4 mang sang, sửa thêm 2
+    gd(7, "IN", 4, "2026-10-05T02:00:00Z"), // 7: tồn 5, nhận 4, sửa bớt 7 → Nhận về 0, còn 3 vào tồn đầu
+    gd(7, "OUT", 7, "2026-10-06T02:00:00Z", true),
+    gd(8, "IN", 1, "2026-09-30T16:30:00Z"), // 8: 23 giờ 30 ngày 30/09 giờ VN → quý III
+    gd(8, "IN", 2, "2026-09-30T17:30:00Z"), //    0 giờ 30 ngày 01/10 giờ VN → quý IV
+    gd(1, "IN", 10, "2026-08-20T02:00:00Z"), // trước quý IV: bỏ qua (tồn neo vào hiện tại); trong quý III
   ];
-  const dongGoc = dongBaoCaoTuTon(ton);
-  kiemTra("dong bao cao", dongGoc, [
-    { id: "p7", moTa: "Jotun Hardtop XP RAL 9003 White", impa: "", donVi: "Ltr", rob: "12,5", yeuCau: "", duyet: "", goiY: "27,5" },
-    { id: "p9", moTa: "Jotun Thinner No.17", impa: "", donVi: "Ltr", rob: "0", yeuCau: "", duyet: "", goiY: "" },
+  const tonNay = new Map([
+    [1, 25],
+    [2, 16],
+    [3, 30],
+    [5, 6],
+    [6, 6],
+    [7, 2],
+    [8, 3],
+    [9, 0], // 9: dòng tồn 0, không phát sinh → không in
   ]);
+  const cot = (r: ReturnType<typeof tinhTonQuy>) => Object.fromEntries(r.map((s) => [s.productId, [s.tonDau, s.nhan, s.tieuThu, s.tonCuoi, s.dieuChinh, s.dieuChinhVao]]));
+  kiemTra("bon cot quy IV", cot(tinhTonQuy(tonNay, lichSu, q4)), {
+    1: [10, 18, 3, 25, 0, null],
+    2: [0, 16, 0, 16, -2, "nhan"],
+    3: [30, 0, 0, 30, -5, "tonDau"],
+    5: [0, 6, 0, 6, 1, "nhan"],
+    6: [6, 0, 0, 6, 2, "tonDau"],
+    7: [2, 0, 0, 2, -7, "ca-hai"],
+    8: [1, 2, 0, 3, 0, null],
+  });
+  // Quý III (đã qua): giao dịch quý IV trừ ngược khỏi tồn hiện tại để ra tồn cuối quý III.
+  kiemTra("bon cot quy III", cot(tinhTonQuy(tonNay, lichSu, mocQuy({ nam: 2026, quy: 3 }))), {
+    1: [0, 10, 0, 10, 0, null],
+    3: [35, 0, 0, 35, 0, null],
+    4: [10, 0, 0, 10, 0, null],
+    6: [4, 0, 0, 4, 0, null],
+    7: [5, 0, 0, 5, 0, null],
+    8: [0, 1, 0, 1, 0, null],
+  });
+  // Mọi dòng đều cân: đầu + nhận − tiêu thụ = cuối.
+  kiemTra(
+    "moi dong can",
+    tinhTonQuy(tonNay, lichSu, q4).every((s) => Math.abs(s.tonDau + s.nhan - s.tieuThu - s.tonCuoi) < 1e-9),
+    true
+  );
+
+  // ── Dòng báo cáo: xếp theo tên, mô tả như tàu ghi, đơn vị, số kiểu Việt Nam ──
+  const sanPham = [
+    { id: 2, name: "JOTAFIX PU TC COMP A", maker: "Jotun", colorCode: "RAL 5002", colorName: null, uom: "PAIL", packSize: 17.91 },
+    { id: 1, name: "HARDTOP XP", maker: "Jotun", colorCode: "RAL 9003", colorName: "WHITE", uom: "PAIL", packSize: 20 },
+  ];
+  const dongGoc = dongBaoCaoQuy(
+    [
+      { productId: 2, tonDau: 0, nhan: 16, tieuThu: 0, tonCuoi: 16, dieuChinh: -2, dieuChinhVao: "nhan" },
+      { productId: 1, tonDau: 10, nhan: 18, tieuThu: 3.5, tonCuoi: 24.5, dieuChinh: 0, dieuChinhVao: null },
+      { productId: 99, tonDau: 1, nhan: 0, tieuThu: 0, tonCuoi: 1, dieuChinh: 0, dieuChinhVao: null },
+    ],
+    sanPham
+  );
+  kiemTra("dong bao cao quy", dongGoc, [
+    { id: "p1", moTa: "JOTUN HARDTOP XP RAL 9003 WHITE 20L", donVi: "PAIL", tonDau: "10", nhan: "18", tieuThu: "3,5", tonCuoi: "24,5" },
+    { id: "p2", moTa: "JOTUN JOTAFIX PU TC RAL 5002 COMP A 17,91L", donVi: "PAIL", tonDau: "0", nhan: "16", tieuThu: "0", tonCuoi: "16" },
+  ]);
+  kiemTra("can doi sau sua tay", [lechCanDoi(dongGoc[0]), lechCanDoi({ ...dongGoc[0], tonCuoi: "24" }), lechCanDoi({ ...dongGoc[0], tonCuoi: "" }), lechCanDoi({ ...dongGoc[0], nhan: "1.018" })], [false, true, false, true]);
 
   // ── Bản sửa tay áp lên số liệu mới nhất ──
-  const dau: DauBaoCaoSon = { tenTau: "M. KEPLER", ngay: "02/10/2026", boPhan: "BOONG", soYeuCau: "", trang: "" };
+  const dau: DauBaoCaoSon = { tenTau: "M. KEPLER", quy: "IV", nam: "2026" };
   const goc = { dau, dong: dongGoc };
   let ban = banSuaRong();
-  kiemTra("ban rong = goc", [apDungBanSua(goc, ban).dong.map((d) => d.id), demChoKhac(goc, ban)], [["p7", "p9"], 0]);
-  ban = suaOBanIn(goc, ban, "p7", "yeuCau", "40");
-  ban = suaDauBanIn(goc, ban, "soYeuCau", "SON-01/2026");
-  kiemTra("sua o + dau", [apDungBanSua(goc, ban).dong[0].yeuCau, apDungBanSua(goc, ban).dau.soYeuCau, demChoKhac(goc, ban)], ["40", "SON-01/2026", 2]);
-  ban = suaOBanIn(goc, ban, "p7", "yeuCau", "");
-  kiemTra("go lai so goc la xoa cho sua", [ban.sua.p7 ?? null, demChoKhac(goc, ban)], [null, 1]);
-  ban = boDongBanIn(ban, "p9");
-  kiemTra("bo dong", [apDungBanSua(goc, ban).dong.map((d) => d.id), demChoKhac(goc, ban)], [["p7"], 2]);
-  ban = { ...ban, them: [{ id: "them-a", moTa: "Brush 2 inch", impa: "", donVi: "pcs", rob: "", yeuCau: "10", duyet: "" }] };
+  kiemTra("ban rong = goc", [apDungBanSua(goc, ban).dong.map((d) => d.id), demChoKhac(goc, ban)], [["p1", "p2"], 0]);
+  ban = suaOBanIn(goc, ban, "p1", "tieuThu", "4");
+  ban = suaDauBanIn(goc, ban, "tenTau", "MERCURY KEPLER");
+  kiemTra("sua o + dau", [apDungBanSua(goc, ban).dong[0].tieuThu, apDungBanSua(goc, ban).dau.tenTau, demChoKhac(goc, ban)], ["4", "MERCURY KEPLER", 2]);
+  ban = suaOBanIn(goc, ban, "p1", "tieuThu", "3,5");
+  kiemTra("go lai so goc la xoa cho sua", [ban.sua.p1 ?? null, demChoKhac(goc, ban)], [null, 1]);
+  ban = boDongBanIn(ban, "p2");
+  kiemTra("bo dong", [apDungBanSua(goc, ban).dong.map((d) => d.id), demChoKhac(goc, ban)], [["p1"], 2]);
+  ban = { ...ban, them: [{ ...dongTrongBaoCao("them-a"), moTa: "Thinner No.10", donVi: "PAIL", tonCuoi: "2" }] };
   ban = doiChoDongBanIn(goc, ban, "them-a", -1);
-  kiemTra("them + doi cho", [apDungBanSua(goc, ban).dong.map((d) => d.id), demChoKhac(goc, ban)], [["them-a", "p7"], 4]);
-  ban = suaOBanIn(goc, ban, "them-a", "moTa", "Brush 3 inch");
-  kiemTra("sua dong them tay", apDungBanSua(goc, ban).dong[0].moTa, "Brush 3 inch");
-  // Số liệu mới: p7 vừa nhập thêm (ROB đổi), p9 đã gỡ khỏi tàu, p11 mới nhập — ô không sửa tay hiện số mới, dòng mới nối cuối.
-  const moi = { dau, dong: [{ ...dongGoc[0], rob: "30" }, { id: "p11", moTa: "Jotun Pilot II", impa: "", donVi: "Ltr", rob: "5", yeuCau: "", duyet: "" }] };
+  kiemTra("them + doi cho", [apDungBanSua(goc, ban).dong.map((d) => d.id), demChoKhac(goc, ban)], [["them-a", "p1"], 4]);
+  ban = suaOBanIn(goc, ban, "them-a", "moTa", "Thinner No.17");
+  kiemTra("sua dong them tay", apDungBanSua(goc, ban).dong[0].moTa, "Thinner No.17");
+  // Số liệu mới: p1 vừa nhập thêm (tồn cuối đổi), p2 không còn trong quý, p3 mới nhập — ô không sửa tay hiện số mới, dòng mới nối cuối.
+  const moi = { dau, dong: [{ ...dongGoc[0], tonCuoi: "30" }, { ...dongTrongBaoCao("p3"), moTa: "JOTUN PILOT II", donVi: "PAIL", tonCuoi: "5" }] };
   const banGon = gonBanSua(moi, ban);
-  kiemTra("so lieu moi + don dong da go", [apDungBanSua(moi, banGon).dong.map((d) => [d.id, d.rob]), banGon.bo], [[["them-a", ""], ["p7", "30"], ["p11", "5"]], []]);
-  // Đọc từ localStorage: hỏng / khác phiên bản → bỏ; kiểu sai từng ô → bỏ ô đó.
-  kiemTra("doc ban sua hong", [docBanSua(null), docBanSua("x"), docBanSua({ v: 2 })], [null, null, null]);
-  const doc = docBanSua({ v: 1, dau: { ngay: "03/10/2026", tenTau: 5 }, sua: { p7: { rob: "9", moTa: 1 } }, bo: ["p9", 3], them: [{ id: "x" }, { id: "them-b", moTa: "A" }], thuTu: null });
-  kiemTra("doc ban sua loc kieu", doc, { v: 1, dau: { ngay: "03/10/2026" }, sua: { p7: { rob: "9" } }, bo: ["p9"], them: [{ id: "them-b", moTa: "A", impa: "", donVi: "", rob: "", yeuCau: "", duyet: "" }], thuTu: null });
+  kiemTra("so lieu moi + don dong da go", [apDungBanSua(moi, banGon).dong.map((d) => [d.id, d.tonCuoi]), banGon.bo], [[["them-a", "2"], ["p1", "30"], ["p3", "5"]], []]);
+  // Đọc từ localStorage: hỏng / bản MLS-11-05 cũ (v1) → bỏ; kiểu sai từng ô → bỏ ô đó.
+  kiemTra("doc ban sua hong", [docBanSua(null), docBanSua("x"), docBanSua({ v: 1 })], [null, null, null]);
+  const doc = docBanSua({ v: 2, dau: { quy: "III", tenTau: 5 }, sua: { p1: { nhan: "9", moTa: 1 } }, bo: ["p2", 3], them: [{ id: "x" }, { id: "them-b", moTa: "A" }], thuTu: null });
+  kiemTra("doc ban sua loc kieu", doc, { v: 2, dau: { quy: "III" }, sua: { p1: { nhan: "9" } }, bo: ["p2"], them: [{ ...dongTrongBaoCao("them-b"), moTa: "A" }], thuTu: null });
 
-  // ── Ước số trang A4 dọc (vùng in 978 px) ──
-  kiemTra("so trang", [uocSoTrang(0), uocSoTrang(500), uocSoTrang(978), uocSoTrang(1100), uocSoTrang(2400)], [1, 1, 1, 2, 3]);
+  // ── Chia trang theo chiều cao đo được ──
+  kiemTra("chia trang", chiaTrangBaoCao([10, 10, 10, 10], { trangDau: 25, trangSau: 35, ky: 8 }), [[0, 1], [2, 3]]);
+  kiemTra("khoi ky keo dong cuoi sang trang", chiaTrangBaoCao([10, 10], { trangDau: 25, trangSau: 30, ky: 8 }), [[0], [1]]);
+  kiemTra("khong co dong", chiaTrangBaoCao([], { trangDau: 25, trangSau: 30, ky: 8 }), [[]]);
+  kiemTra("mot dong khong du cho ky", chiaTrangBaoCao([10], { trangDau: 12, trangSau: 30, ky: 8 }), [[0], []]);
+  // M. KEPLER 16 loại: dòng 0,451" (43,3 px), trang đầu còn 717 px, khối ký 55 px → 15 dòng + 1 dòng cùng chữ ký.
+  const chia16 = chiaTrangBaoCao(Array(16).fill(43.3), { trangDau: 717.4, trangSau: 791.2, ky: 55.2 });
+  kiemTra("16 dong", chia16.map((t) => t.length), [15, 1]);
 }
 
 const dongNhan = (ten: string, soLuong: number, paintProductId: number | null = null): DongNhanSon => ({
@@ -237,6 +342,21 @@ async function phanDatabase() {
         const tonE = await ton(V.id, E);
         const g2 = await goPhieuSonTx(tx, { tepId: p2.id, lyDo: "phieu cu", nguoi: "K", luc: "x" });
         kiemTra("go phieu cu (khong phieuSonId)", [g2.soDong, g2.tong, g2.xoaLoai, (tonE ?? 0) - ((await ton(V.id, E)) ?? 0)], [1, 4, 0, 4]);
+
+        // ── Nhận dạng lại tên loại sơn đã nhập nguyên chuỗi phiếu giao ──
+        const tho = await tx.paintProduct.create({ data: { code: `THU-${randomUUID().slice(0, 8)}`, name: "SON JOTAFIX PU TC RAL 5002 A 17.91L", uom: "PAIL" } });
+        await tx.paintStock.create({ data: { vesselId: V.id, productId: tho.id, quantity: 2 } });
+        const dx = deXuatThongTinSon({ name: tho.name, maker: tho.maker, paintType: tho.paintType, colorName: tho.colorName, colorCode: tho.colorCode, packSize: tho.packSize });
+        kiemTra("de xuat nhan dang", [dx.name, dx.maker, dx.paintType, dx.colorCode, dx.colorName, dx.packSize, dx.coDoi], ["JOTAFIX PU TC COMP A", "Jotun", "TOPCOAT", "RAL 5002", null, 17.91, true]);
+        const nd = { productId: tho.id, name: dx.name, maker: dx.maker, paintType: dx.paintType, colorName: dx.colorName, colorCode: dx.colorCode, packSize: dx.packSize, uom: "PAIL" };
+        const nd1 = await apDungNhanDangTx(tx, { vesselId: V.id, ds: [nd], toanDoi: false });
+        const sau = await tx.paintProduct.findUniqueOrThrow({ where: { id: tho.id } });
+        kiemTra("ap dung nhan dang", [nd1.soLoai, sau.name, sau.maker, sau.paintType, sau.colorCode, sau.packSize, sau.uom, await ton(V.id, tho.id)], [1, "JOTAFIX PU TC COMP A", "Jotun", "TOPCOAT", "RAL 5002", 17.91, "PAIL", 2]);
+        await loiCua("nhan dang: loai khong co trong ton tau", () => apDungNhanDangTx(tx, { vesselId: W.id, ds: [nd], toanDoi: true }), "khongCoDong");
+        await loiCua("nhan dang: ten trong", () => apDungNhanDangTx(tx, { vesselId: V.id, ds: [{ ...nd, name: " " }], toanDoi: false }), "tenTrong");
+        await tx.paintStock.create({ data: { vesselId: W.id, productId: tho.id, quantity: 1 } });
+        await loiCua("nhan dang: dung chung tau khac -> chan", () => apDungNhanDangTx(tx, { vesselId: V.id, ds: [nd], toanDoi: false }), "sanPhamDungChung");
+        await loiCua("nhan dang: thuyen truong duoc", () => apDungNhanDangTx(tx, { vesselId: V.id, ds: [nd], toanDoi: true }), "khong loi");
 
         throw new CuonNguoc();
       },

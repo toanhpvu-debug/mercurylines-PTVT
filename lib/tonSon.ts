@@ -1,39 +1,37 @@
 /*
- * SỬA / GỠ SƠN ĐÃ NHẬP và BẢN IN BÁO CÁO SƠN THEO MẪU MLS-11-05 — phần thuần
- * (không database): dùng chung cho trang in (client), server action và script
- * kiểm thử.
+ * SỬA / GỠ SƠN ĐÃ NHẬP và BẢN IN BÁO CÁO LƯỢNG SƠN TỒN THEO MẪU MLS-11-14 —
+ * phần thuần (không database): dùng chung cho trang in (client), trang server,
+ * server action và script kiểm thử.
  *
- * Bản in là tờ "REQUISITION FOR STORES / YÊU CẦU VẬT TƯ" MLS-11-05 của công ty
- * (bản Excel "MLS-11-05 - CO - Paint"): chân trang ghi "Người làm báo cáo: CE,
- * CO · Thời điểm làm báo cáo: Khi cần thiết" — chính công ty gọi tờ này là báo
- * cáo sơn. Cột R.O.B lấy tồn sơn trên tàu; S.lượng yêu cầu / duyệt để trống cho
- * người lập điền.
+ * Bản in là tờ "BÁO CÁO LƯỢNG SƠN TỒN / PAINT INVENTORY" MLS-11-14 của công ty
+ * (bản Word "MLS-11-14 BC LUONG SON TON"): báo cáo HÀNG QUÝ, chân trang ghi
+ * "Người làm báo cáo: CE, CO · Thời điểm làm báo cáo: Hàng quý". Mỗi loại sơn
+ * một dòng: Tồn đầu kỳ · Nhận · Tiêu thụ trong kỳ · Tồn cuối kỳ, tính từ lịch
+ * sử nhập / xuất của tàu (tinhTonQuy).
  *
- * Người lập hay phải chỉnh tay trước khi ký (bỏ dòng không báo, sửa mô tả, điền
- * số yêu cầu, thêm dòng ngoài sổ). Chỉnh đó KHÔNG đổi số liệu hệ thống: nó là
- * một "bản sửa" cất ở trình duyệt, chỉ ghi những ô người dùng đổi — áp lên số
- * liệu mới nhất mỗi lần mở, nên tồn sơn nhập/xuất sau đó vẫn hiện đúng ở những
+ * Người lập hay phải chỉnh tay trước khi ký (bỏ dòng không báo, sửa tên, sửa
+ * số, thêm dòng ngoài sổ). Chỉnh đó KHÔNG đổi số liệu hệ thống: nó là một "bản
+ * sửa" cất ở trình duyệt theo tàu + quý, chỉ ghi những ô người dùng đổi — áp lên
+ * số liệu mới nhất mỗi lần mở, nên sơn nhập / xuất sau đó vẫn hiện đúng ở những
  * ô không sửa tay.
  */
 
-export type CotDongSon = "moTa" | "impa" | "donVi" | "rob" | "yeuCau" | "duyet";
-export type CotDauSon = "tenTau" | "ngay" | "boPhan" | "soYeuCau" | "trang";
+export type CotDongSon = "moTa" | "donVi" | "tonDau" | "nhan" | "tieuThu" | "tonCuoi";
+export type CotDauSon = "tenTau" | "quy" | "nam";
 
-export const COT_DONG_SON: readonly CotDongSon[] = ["moTa", "impa", "donVi", "rob", "yeuCau", "duyet"];
-export const COT_DAU_SON: readonly CotDauSon[] = ["tenTau", "ngay", "boPhan", "soYeuCau", "trang"];
+export const COT_DONG_SON: readonly CotDongSon[] = ["moTa", "donVi", "tonDau", "nhan", "tieuThu", "tonCuoi"];
+export const COT_DAU_SON: readonly CotDauSon[] = ["tenTau", "quy", "nam"];
+/** Bốn cột số của tờ in (Tồn đầu kỳ + Nhận − Tiêu thụ = Tồn cuối kỳ). */
+export const COT_SO_SON: readonly CotDongSon[] = ["tonDau", "nhan", "tieuThu", "tonCuoi"];
 
 /** Một dòng trên tờ in — mọi ô là chuỗi để người dùng gõ tự do. */
-export type DongBaoCaoSon = Record<CotDongSon, string> & {
-  id: string;
-  /** Gợi ý S.lượng yêu cầu = thiếu so với tồn tối thiểu ("" nếu không thiếu). Không in. */
-  goiY?: string;
-};
+export type DongBaoCaoSon = Record<CotDongSon, string> & { id: string };
 
 export type DauBaoCaoSon = Record<CotDauSon, string>;
 
-/** Những chỗ người dùng đã sửa tay trên bản in (cất trong localStorage theo tàu). */
+/** Những chỗ người dùng đã sửa tay trên bản in (cất trong localStorage theo tàu + quý). */
 export type BanSuaBaoCaoSon = {
-  v: 1;
+  v: 2;
   dau: Partial<DauBaoCaoSon>;
   /** id dòng gốc → các ô đã sửa. */
   sua: Record<string, Partial<Record<CotDongSon, string>>>;
@@ -45,7 +43,10 @@ export type BanSuaBaoCaoSon = {
   thuTu: string[] | null;
 };
 
-export const banSuaRong = (): BanSuaBaoCaoSon => ({ v: 1, dau: {}, sua: {}, bo: [], them: [], thuTu: null });
+export const banSuaRong = (): BanSuaBaoCaoSon => ({ v: 2, dau: {}, sua: {}, bo: [], them: [], thuTu: null });
+
+/** Dòng thêm tay trống. */
+export const dongTrongBaoCao = (id: string): DongBaoCaoSon => ({ id, moTa: "", donVi: "", tonDau: "", nhan: "", tieuThu: "", tonCuoi: "" });
 
 const chuoi = (x: unknown, max = 300) => (typeof x === "string" ? x.slice(0, max) : "");
 
@@ -53,7 +54,7 @@ const chuoi = (x: unknown, max = 300) => (typeof x === "string" ? x.slice(0, max
 export function docBanSua(raw: unknown): BanSuaBaoCaoSon | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
-  if (r.v !== 1) return null;
+  if (r.v !== 2) return null;
   const ban = banSuaRong();
   if (r.dau && typeof r.dau === "object") {
     for (const k of COT_DAU_SON) {
@@ -78,7 +79,9 @@ export function docBanSua(raw: unknown): BanSuaBaoCaoSon | null {
       if (!d || typeof d !== "object") continue;
       const o = d as Record<string, unknown>;
       if (typeof o.id !== "string" || !o.id.startsWith("them-")) continue;
-      ban.them.push({ id: o.id.slice(0, 40), moTa: chuoi(o.moTa), impa: chuoi(o.impa), donVi: chuoi(o.donVi), rob: chuoi(o.rob), yeuCau: chuoi(o.yeuCau), duyet: chuoi(o.duyet) });
+      const dong = dongTrongBaoCao(o.id.slice(0, 40));
+      for (const k of COT_DONG_SON) dong[k] = chuoi(o[k]);
+      ban.them.push(dong);
     }
   }
   if (Array.isArray(r.thuTu)) ban.thuTu = r.thuTu.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 40));
@@ -198,54 +201,244 @@ export function soIn(n: number): string {
 }
 
 /**
- * Mô tả một loại sơn trên tờ in theo cách tàu vẫn ghi ở MLS-11-05:
+ * Mô tả một loại sơn trên tờ in theo cách tàu vẫn ghi trên giấy:
  * HÃNG · TÊN · MÃ MÀU · MÀU ("JOTUN HARTOP PAL 9003A WHITE"). Phần nào đã nằm
  * sẵn trong tên thì không lặp lại.
  */
-export function moTaSonIn(p: { name: string; maker: string | null; colorCode: string | null; colorName: string | null }): string {
+export function moTaSonIn(p: {
+  name: string;
+  maker: string | null;
+  colorCode: string | null;
+  colorName: string | null;
+  packSize?: number | null;
+  uom?: string | null;
+}): string {
   const ten = p.name.replace(/\s+/g, " ").trim();
+  // Tên chuẩn của bộ nhận dạng (lib/tenSon.ts) là "… COMP A (ĐÓNG RẮN)": màu đứng
+  // TRƯỚC thành phần như cách tàu ghi ("JOTAFIX PU TC RAL 3000 COMP A 18L").
+  const m = /^(.*?)((?:\s+COMP\.?\s*[AB])?)((?:\s+\([^)]*\))?)$/i.exec(ten);
+  const goc = m?.[1] || ten;
+  const thanhPhan = (m?.[2] ?? "").trim();
+  const vaiTro = (m?.[3] ?? "").trim();
   const thuong = ten.toLocaleLowerCase("vi");
   const coSan = (x: string) => thuong.includes(x.toLocaleLowerCase("vi"));
   const phan: string[] = [];
   const hang = (p.maker ?? "").trim();
   if (hang && !coSan(hang)) phan.push(hang);
-  phan.push(ten);
+  phan.push(goc);
   for (const x of [p.colorCode, p.colorName]) {
     const v = (x ?? "").trim();
     if (v && !coSan(v) && !phan.some((y) => y.toLocaleLowerCase("vi") === v.toLocaleLowerCase("vi"))) phan.push(v);
   }
-  return phan.join(" ").replace(/\s+/g, " ").trim();
+  if (thanhPhan) phan.push(thanhPhan);
+  if (vaiTro) phan.push(vaiTro);
+  // Đơn vị là thùng / lon (PAIL, CAN…): ghi dung tích một thùng — "1 PAIL" không nói được bao nhiêu sơn.
+  const dv = (p.uom ?? "").trim();
+  if (p.packSize && p.packSize > 0 && dv && !/^(l|lt|ltr|lit|lít|litre|liter)s?$/i.test(dv) && !/\d\s*L\b/i.test(goc)) phan.push(`${soIn(p.packSize)}L`);
+  const moTa = phan.join(" ").replace(/\s+/g, " ").trim();
+  // Tên viết HOA (như tàu vẫn ghi: "JOTUN HARTOP …") thì cả dòng viết hoa cho đều.
+  return /\p{Lu}/u.test(ten) && ten === ten.toLocaleUpperCase("vi") ? moTa.toLocaleUpperCase("vi") : moTa;
 }
 
-/** Dòng gốc của bản in từ tồn sơn của tàu (đã xếp theo tên). */
-export function dongBaoCaoTuTon(
-  ton: { productId: number; quantity: number; minQty: number; product: { name: string; maker: string | null; colorCode: string | null; colorName: string | null; uom: string } }[]
-): DongBaoCaoSon[] {
-  return ton.map((s) => {
-    const thieu = s.minQty > 0 && s.quantity < s.minQty ? Math.round((s.minQty - s.quantity) * 1000) / 1000 : 0;
-    return {
-      id: `p${s.productId}`,
-      moTa: moTaSonIn(s.product),
-      // Mẫu in mã IMPA — danh mục sơn không có, và không bao giờ in mã nội bộ SON-####.
-      impa: "",
-      donVi: s.product.uom,
-      rob: soIn(s.quantity),
-      yeuCau: "",
-      duyet: "",
-      goiY: thieu > 0 ? soIn(thieu) : "",
-    };
-  });
+// ─── Kỳ báo cáo: quý theo giờ Việt Nam ──────────────────────────────────────
+
+/** Việt Nam UTC+7 quanh năm (không đổi giờ mùa hè) — máy chủ Dokploy chạy giờ UTC. */
+const LECH_VN_MS = 7 * 3600_000;
+
+export type KyQuy = { nam: number; quy: 1 | 2 | 3 | 4 };
+export const QUY_LA_MA = ["I", "II", "III", "IV"] as const;
+
+/** Quý chứa thời điểm `d` theo giờ Việt Nam. */
+export function quyCua(d: Date): KyQuy {
+  const vn = new Date(d.getTime() + LECH_VN_MS);
+  return { nam: vn.getUTCFullYear(), quy: (Math.floor(vn.getUTCMonth() / 3) + 1) as KyQuy["quy"] };
+}
+
+/** Mốc đầu (tính) và cuối (không tính) của quý: 0 giờ ngày đầu quý, giờ Việt Nam. */
+export function mocQuy(k: KyQuy): { batDau: Date; ketThuc: Date } {
+  return {
+    batDau: new Date(Date.UTC(k.nam, (k.quy - 1) * 3, 1) - LECH_VN_MS),
+    ketThuc: new Date(Date.UTC(k.nam, k.quy * 3, 1) - LECH_VN_MS),
+  };
+}
+
+/** Quý / năm từ địa chỉ trang (?quy=4&nam=2026) — sai hoặc chưa tới thì lấy quý hiện tại. */
+export function docKyQuy(nam: unknown, quy: unknown, bayGio: Date): KyQuy {
+  const hienTai = quyCua(bayGio);
+  const n = Number(Array.isArray(nam) ? nam[0] : nam);
+  const q = Number(Array.isArray(quy) ? quy[0] : quy);
+  if (!Number.isInteger(n) || !Number.isInteger(q) || q < 1 || q > 4 || n < 2000) return hienTai;
+  if (n > hienTai.nam || (n === hienTai.nam && q > hienTai.quy)) return hienTai;
+  return { nam: n, quy: q as KyQuy["quy"] };
+}
+
+// ─── Số liệu một quý ─────────────────────────────────────────────────────────
+
+export type GiaoDichSonKy = { productId: number; type: string; quantity: number; dieuChinh: boolean; occurredAt: Date };
+
+export type SoLieuQuySon = {
+  productId: number;
+  tonDau: number;
+  nhan: number;
+  tieuThu: number;
+  tonCuoi: number;
+  /** Tổng các dòng ĐIỀU CHỈNH (Sửa số tồn / Gỡ khỏi danh sách) trong quý, có dấu. */
+  dieuChinh: number;
+  /** Phần điều chỉnh đã sửa vào cột nào để bốn cột vẫn cân. */
+  dieuChinhVao: "nhan" | "tonDau" | "ca-hai" | null;
+};
+
+const lam3 = (n: number) => {
+  const r = Math.round(n * 1000) / 1000;
+  return Math.abs(r) < 1e-9 ? 0 : r;
+};
+
+/**
+ * Bốn cột MLS-11-14 của từng loại sơn trong một quý, NEO vào tồn hiện tại:
+ *   Tồn cuối kỳ = tồn bây giờ − (nhập − xuất) ghi từ cuối quý tới nay;
+ *   Tồn đầu kỳ  = Tồn cuối kỳ − (nhập − xuất) trong quý;
+ *   Nhận        = các dòng NHẬP trong quý (phiếu giao, nhận hàng theo PO, nhập tay);
+ *   Tiêu thụ    = các dòng XUẤT trong quý (thi công, xuất dùng).
+ * Dòng ĐIỀU CHỈNH (Sửa số tồn / Gỡ khỏi danh sách) không phải sơn nhận, cũng
+ * không phải sơn đã dùng — hộp thoại Sửa đã nói rõ "không tính là sơn đã dùng" —
+ * nhưng nó làm tồn đổi, nên để tờ in cân (đầu + nhận − tiêu thụ = cuối) nó được
+ * coi là SỬA SỐ:
+ *   - quý có nhận loại sơn đó → sửa vào Nhận (thường là sửa số nhập nhầm từ phiếu
+ *     giao); Nhận không xuống dưới 0, phần còn lại sửa vào Tồn đầu kỳ;
+ *   - quý không có nhận → sửa vào Tồn đầu kỳ (sửa số mang sang từ trước).
+ * Loại sơn có cả bốn cột bằng 0 (gỡ trước quý, chưa từng có) không trả về.
+ */
+export function tinhTonQuy(
+  tonHienTai: ReadonlyMap<number, number>,
+  giaoDich: readonly GiaoDichSonKy[],
+  ky: { batDau: Date; ketThuc: Date }
+): SoLieuQuySon[] {
+  type Cong = { sau: number; vao: number; ra: number; dc: number };
+  const theoLoai = new Map<number, Cong>();
+  const lay = (id: number) => {
+    let c = theoLoai.get(id);
+    if (!c) theoLoai.set(id, (c = { sau: 0, vao: 0, ra: 0, dc: 0 }));
+    return c;
+  };
+  for (const id of tonHienTai.keys()) lay(id);
+  const dau = ky.batDau.getTime();
+  const cuoi = ky.ketThuc.getTime();
+  for (const g of giaoDich) {
+    const t = g.occurredAt.getTime();
+    if (t < dau) continue;
+    const c = lay(g.productId);
+    const so = g.type === "IN" ? g.quantity : -g.quantity;
+    if (t >= cuoi) c.sau += so;
+    else if (g.dieuChinh) c.dc += so;
+    else if (g.type === "IN") c.vao += g.quantity;
+    else c.ra += g.quantity;
+  }
+  const ra: SoLieuQuySon[] = [];
+  for (const [productId, c] of theoLoai) {
+    const tonCuoi = lam3((tonHienTai.get(productId) ?? 0) - c.sau);
+    const tonDauThat = lam3(tonCuoi - (c.vao - c.ra + c.dc));
+    const dc = lam3(c.dc);
+    let nhan = lam3(c.vao);
+    let tonDau = tonDauThat;
+    let vao: SoLieuQuySon["dieuChinhVao"] = null;
+    if (dc < 0) {
+      const truNhan = Math.min(nhan, -dc);
+      nhan = lam3(nhan - truNhan);
+      tonDau = lam3(tonDauThat + dc + truNhan);
+      vao = truNhan <= 0 ? "tonDau" : truNhan < -dc ? "ca-hai" : "nhan";
+    } else if (dc > 0) {
+      if (nhan > 0) {
+        nhan = lam3(nhan + dc);
+        vao = "nhan";
+      } else {
+        tonDau = lam3(tonDauThat + dc);
+        vao = "tonDau";
+      }
+    }
+    const tieuThu = lam3(c.ra);
+    if (tonDau === 0 && nhan === 0 && tieuThu === 0 && tonCuoi === 0) continue;
+    ra.push({ productId, tonDau, nhan, tieuThu, tonCuoi, dieuChinh: dc, dieuChinhVao: vao });
+  }
+  return ra;
+}
+
+export type SanPhamBaoCao = {
+  id: number;
+  name: string;
+  maker: string | null;
+  colorCode: string | null;
+  colorName: string | null;
+  uom: string;
+  packSize?: number | null;
+};
+
+/** Dòng gốc của tờ in MLS-11-14, xếp theo tên như bảng Tồn sơn. Không in mã nội bộ SON-####. */
+export function dongBaoCaoQuy(soLieu: readonly SoLieuQuySon[], sanPham: readonly SanPhamBaoCao[]): DongBaoCaoSon[] {
+  const theoId = new Map(sanPham.map((p) => [p.id, p]));
+  return soLieu
+    .flatMap((s) => {
+      const p = theoId.get(s.productId);
+      return p ? [{ s, p }] : [];
+    })
+    .sort((a, b) => a.p.name.localeCompare(b.p.name, "vi") || a.p.id - b.p.id)
+    .map(({ s, p }) => ({
+      id: `p${p.id}`,
+      moTa: moTaSonIn(p),
+      donVi: p.uom,
+      tonDau: soIn(s.tonDau),
+      nhan: soIn(s.nhan),
+      tieuThu: soIn(s.tieuThu),
+      tonCuoi: soIn(s.tonCuoi),
+    }));
 }
 
 /**
- * Ước số trang khi in: chiều cao vùng in A4 dọc trừ lề trên/dưới 0,75" của mẫu
- * (297 − 38,1 = 258,9 mm ≈ 978 px ở 96 dpi). Tờ xem trước dựng đúng bề rộng
- * giấy nên chiều cao đo trên màn hình là chiều cao khi in.
+ * Đọc một số trên tờ in: "1.234,5" kiểu Việt Nam như soIn in ra; gõ tay "12.5"
+ * cũng nhận ("1.500" có đúng nhóm ba chữ số là một nghìn năm trăm). null nếu
+ * không phải số.
  */
-export const CAO_TRANG_IN_PX = 978;
-export function uocSoTrang(caoPx: number): number {
-  if (!Number.isFinite(caoPx) || caoPx <= 0) return 1;
-  return Math.max(1, Math.ceil((caoPx - 2) / CAO_TRANG_IN_PX));
+export function docSoBaoCao(raw: string): number | null {
+  const s = raw.trim().replace(/\s+/g, "");
+  if (!s) return null;
+  let chuan = s;
+  if (s.includes(",")) {
+    if (s.indexOf(",") !== s.lastIndexOf(",")) return null;
+    chuan = s.replace(/\./g, "").replace(",", ".");
+  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) chuan = s.replace(/\./g, "");
+  if (!/^-?\d+(\.\d+)?$/.test(chuan)) return null;
+  const n = Number(chuan);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Dòng có Tồn đầu kỳ + Nhận − Tiêu thụ ≠ Tồn cuối kỳ (thường do sửa tay một ô) — nhắc trên màn hình, không chặn in. */
+export function lechCanDoi(d: DongBaoCaoSon): boolean {
+  const [dau, nhan, tieuThu, cuoi] = COT_SO_SON.map((k) => docSoBaoCao(d[k]));
+  if (dau === null || nhan === null || tieuThu === null || cuoi === null) return false;
+  return Math.abs(dau + nhan - tieuThu - cuoi) > 0.0005;
+}
+
+/**
+ * Chia dòng bảng vào các trang của tờ in theo chiều cao ĐO được (cùng một đơn
+ * vị): trang đầu còn bảng thông tin tàu nên chứa ít dòng hơn trang sau; khối ký
+ * phải ở cùng trang với ít nhất dòng cuối — không để một trang chỉ có chữ ký.
+ * Trả về chỉ số dòng của từng trang.
+ */
+export function chiaTrangBaoCao(caoDong: readonly number[], cho: { trangDau: number; trangSau: number; ky: number }): number[][] {
+  const trang: number[][] = [[]];
+  let con = cho.trangDau;
+  caoDong.forEach((h, i) => {
+    if (h > con + 0.5 && trang[trang.length - 1].length > 0) {
+      trang.push([]);
+      con = cho.trangSau;
+    }
+    trang[trang.length - 1].push(i);
+    con -= h;
+  });
+  if (cho.ky > con + 0.5) {
+    const cuoi = trang[trang.length - 1];
+    trang.push(cuoi.length > 1 ? [cuoi.pop()!] : []);
+  }
+  return trang;
 }
 
 /**

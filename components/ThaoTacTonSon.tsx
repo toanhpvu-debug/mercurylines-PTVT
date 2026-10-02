@@ -21,6 +21,11 @@ import { Modal } from "@/components/ui-client";
 const BAO = "mercury:ton-son-bao";
 type Kenh = "ton" | "lich-su";
 
+/** Báo kết quả lên đầu bảng (ThongBaoTonSon cùng kênh) — dùng chung cho các hộp thoại sửa tồn sơn. */
+export function baoTonSon(kenh: Kenh, chu: string) {
+  bao(kenh, chu);
+}
+
 function bao(kenh: Kenh, chu: string) {
   window.dispatchEvent(new CustomEvent(BAO, { detail: { kenh, chu } }));
 }

@@ -183,3 +183,50 @@ export async function xoaGiaoDichSon(_prev: KetQuaTonSon, fd: FormData): Promise
     throw e;
   }
 }
+
+// ─── Nhận dạng lại tên các loại sơn đã nhập (hàng loạt) ─────────────────────
+
+/**
+ * Ghi tên / hãng / hệ sơn / màu / mã màu / dung tích người dùng đã duyệt trong hộp
+ * "Nhận dạng tên sơn" (đề xuất từ lib/tenSon.ts, sửa tay được) cho các loại sơn
+ * đang có trong tồn của tàu. Gọi thẳng với mảng (không qua FormData).
+ */
+export async function apDungNhanDangSon(vesselId: number, ds: unknown): Promise<KetQuaTonSon> {
+  const { t } = await layT();
+  const mo = await moTau(vesselId);
+  if (!mo) return { message: t("chung.khongCoQuyen") };
+  const { actor, tau } = mo;
+  if (!Array.isArray(ds) || ds.length === 0 || ds.length > 500) return { message: t("chung.duLieuKhongHopLe") };
+  const chuoi = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  const sach = ds.map((x) => {
+    const o = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+    const pack = typeof o.packSize === "number" ? o.packSize : docSoTon(chuoi(o.packSize, 20)) ?? 0;
+    return {
+      productId: Number(o.productId),
+      name: chuoi(o.name, 200),
+      maker: chuoi(o.maker, 100) || null,
+      paintType: chuoi(o.paintType, 40) || "OTHER",
+      colorName: chuoi(o.colorName, 100) || null,
+      colorCode: chuoi(o.colorCode, 60) || null,
+      uom: chuoi(o.uom, 20) || "L",
+      packSize: pack,
+    };
+  });
+  if (sach.some((s) => !Number.isInteger(s.productId) || s.productId <= 0)) return { message: t("chung.duLieuKhongHopLe") };
+  const toanDoi = ["ADMIN", "MASTER"].includes(actor.role) || actor.uyQuyen.some((u) => u.delegatorRole === "MASTER");
+  try {
+    const { apDungNhanDangTx } = await import("@/lib/tonSonServer");
+    const kq = await prisma.$transaction((tx) => apDungNhanDangTx(tx, { vesselId, ds: sach, toanDoi }), { timeout: 60000, maxWait: 10000 });
+    await ghiNhatKyNguoiDung(actor, {
+      action: "son-nhan-dang-ten",
+      path: `/paint/${vesselId}`,
+      vesselId,
+      detail: `Nhận dạng lại tên ${kq.soLoai} loại sơn (${tau.code}): ${kq.ten.join("; ")}`.slice(0, 2000),
+    });
+    lamMoi(vesselId, true);
+    return { message: t("paint.ndDaApDung", { n: kq.soLoai }), success: true };
+  } catch (e) {
+    if (e instanceof LoiTonSon) return { message: chuLoiTonSon(e, t) };
+    throw e;
+  }
+}

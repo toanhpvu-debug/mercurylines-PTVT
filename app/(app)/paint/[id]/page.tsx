@@ -40,6 +40,7 @@ import ThaoTacTonSon, {
   ThongBaoTonSon,
 } from "@/components/ThaoTacTonSon";
 import VesselSwitcher from "@/components/VesselSwitcher";
+import NhanDangTenSon from "@/components/NhanDangTenSon";
 import {
   Badge,
   Card,
@@ -541,6 +542,24 @@ export default async function PaintVesselPage({
             icon={<Droplets className="size-4" />}
             title={t("paint.tonSonTrenTau")}
             subtitle={canEdit && stocks.length > 0 ? t("paint.tsGoiYBang") : undefined}
+            action={
+              canEdit && stocks.length > 0 ? (
+                <NhanDangTenSon
+                  vesselId={vesselId}
+                  ds={stocks.map((s) => ({
+                    productId: s.productId,
+                    name: s.product.name,
+                    maker: s.product.maker,
+                    paintType: s.product.paintType,
+                    colorName: s.product.colorName,
+                    colorCode: s.product.colorCode,
+                    packSize: s.product.packSize,
+                    uom: s.product.uom,
+                    suaDuoc: toanDoiSon || !dungTauKhac.has(s.productId),
+                  }))}
+                />
+              ) : undefined
+            }
           />
           {canEdit && <ThongBaoTonSon kenh="ton" />}
           {stocks.length === 0 ? (
@@ -623,6 +642,12 @@ export default async function PaintVesselPage({
                           >
                             {s.quantity} {s.product.uom}
                           </span>
+                          {/* Đơn vị là thùng / lon: ghi kèm dung tích một thùng (nhận từ phiếu giao). */}
+                          {s.product.packSize > 0 && !/^(l|lt|ltr|lit|lít|litre|liter)s?$/i.test(s.product.uom.trim()) && (
+                            <span className="block text-xs whitespace-nowrap text-[var(--text-muted)]">
+                              × {so(s.product.packSize)} L
+                            </span>
+                          )}
                           {low && (
                             <div className="mt-1 ml-auto w-16">
                               <Meter value={pct} tone={toneThieu(pct)} />

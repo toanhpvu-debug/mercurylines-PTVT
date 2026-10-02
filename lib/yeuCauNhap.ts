@@ -261,6 +261,8 @@ export function dongTuLuoiYeuCau(rowsVao: unknown[][]): { dau: DauYeuCauFile; do
 }
 
 const RE_DON_VI = /^[a-z.'’]{1,8}$/i;
+/** Mảnh tiêu đề cột in hai hàng (đã bỏ dấu): "Req.", "App.", "Q'ty.", "yêu cầu", "trên tàu"… */
+const RE_MANH_TIEU_DE_COT = /^(q'?ty\.?|req\.?|app\.?|r\.?o\.?b\.?|unit|uom|don vi|so luong|s\.?\s?luong|yeu cau|duyet|con ton|tren tau|ma impa|impa code|mo ta|description)$/i;
 const laO_So = (s: string) => /^[\d\s.,]+$|^[-–—]$/.test(s) && soYeuCauO(s) !== null;
 
 /**
@@ -292,7 +294,10 @@ export function dongTuChuPdfYeuCau(chu: string): { dau: DauYeuCauFile; dong: Don
     const dau0 = /^(\d{1,3})[.)]?\s+(.+)$/.exec(o[0]);
     if (dau0) o.splice(0, 1, dau0[1], dau0[2]);
     if (!/^\d{1,3}[.)]?$/.test(o[0])) {
-      if (o.length === 1 && /[a-z]{3}/i.test(o[0]) && o[0].length <= 40) phan = o[0];
+      // Tiêu đề nhóm ("ELECTRIC", "DECK STORES"). Mảnh tiêu đề cột bị xuống dòng
+      // ("Q'ty." / "Req.", "S.lượng" / "yêu cầu") không phải tên nhóm — trước đây
+      // "Req." bị gắn vào ghi chú của mọi dòng.
+      if (o.length === 1 && /[a-z]{3}/i.test(o[0]) && o[0].length <= 40 && !RE_MANH_TIEU_DE_COT.test(boDau(o[0]).trim())) phan = o[0];
       continue;
     }
     const o2 = o.slice(1);

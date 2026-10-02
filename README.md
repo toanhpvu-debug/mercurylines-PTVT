@@ -886,6 +886,14 @@ rồi **soát trước khi nhập** — giống phiếu giao vật tư, kết qu
   [`lib/phieuSonServer.ts`](lib/phieuSonServer.ts), [`app/son-phieu-actions.ts`](app/son-phieu-actions.ts).
 - Ô **ngày thật** của Excel đọc theo chính số ngày của ô (không theo chữ đã định dạng): mẫu MLS-11-05
   Paint để định dạng kiểu Mỹ "mm-dd-yy" nên trước đây 01/10/2026 bị đọc thành 10/01/2026.
+- **Dòng không đọc được số lượng** (tiêu đề nhóm, ô trống, chữ mờ) được **bỏ tick sẵn** kèm lời nhắc —
+  phiếu không còn kẹt ở bước Nhập với lỗi "Dòng 1: chưa có số lượng nhận". Gõ số vào dòng đó thì dòng
+  tự tick lại; bấm Nhập khi còn dòng tick mà thiếu số thì app hỏi bỏ qua các dòng đó và nhập phần còn lại.
+- **PDF đọc ra dòng mà không dòng nào có số lượng** thì để bộ đọc AI đọc luôn (nếu đã cấu hình). AI đọc
+  phiếu sơn theo chế độ riêng `phieuSon`: mẫu MLS-11-05 lấy *S.lượng duyệt*, ô trống thì *S.lượng yêu
+  cầu* (đánh dấu cần kiểm) — không bao giờ lấy R.O.B; số AI trả dạng chữ ("1.000,00", "1,250.00",
+  "4 x 20L") đọc đúng bằng `lib/docSo.ts` (trước đây "1.000,00" bị coi là trống). Lớp chữ PDF phiếu giao
+  nhận số có ngăn nghìn ("1.000,00 L"); "20.000 L" in từ phần mềm vẫn là 20 lít.
 
 
 #### Sửa / gỡ sơn đã nhập

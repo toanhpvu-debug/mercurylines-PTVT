@@ -12,6 +12,8 @@ import { existsSync, readFileSync } from "node:fs";
 import ExcelJS from "exceljs";
 import { PrismaClient } from "@prisma/client";
 import {
+  CANH_BAO_THIEU_SO,
+  boTickDongThieuSo,
   demPhieuSon,
   docDongNhanSon,
   dongLoiKhiNhap,
@@ -25,7 +27,7 @@ import {
 } from "@/lib/phieuSon";
 import { dongTuChuPdfYeuCau } from "@/lib/yeuCauNhap";
 import { docPhieuGiaoTuChu } from "@/lib/phieuGiaoParse";
-import { chuanHoaKetQuaAi } from "@/lib/docPhieuBangAi";
+import { chuanHoaKetQuaAi, docSoLuongAi } from "@/lib/docPhieuBangAi";
 import { docPhieuSonKhongAi } from "@/lib/phieuSonTep";
 import { nhapPhieuSonTx } from "@/lib/phieuSonServer";
 import type { SonGhep } from "@/lib/yeuCauSon";
@@ -152,6 +154,65 @@ async function main() {
     [5, 1, false],
     [null, null, true],
   ]);
+
+  // ── 4b. Số lượng AI trả dạng chữ + dòng thiếu số tự bỏ tick ──
+  // Trước đây "1.000,00" bị đọc thành "1.000.00" (không phải số) → dòng mất số lượng →
+  // phiếu kẹt ở "Dòng 1: chưa có số lượng nhận".
+  kiemTra(
+    "ai so luong dang chu",
+    [400, "1.000,00", "1,250.00", "20 L", "4 x 20L", "12 (sửa 10)", "N/A", "-", null, -5, "20,5"].map((v) => docSoLuongAi(v)),
+    [
+      { so: 400, nhan: null },
+      { so: 1000, nhan: null },
+      { so: 1250, nhan: null },
+      { so: 20, nhan: null },
+      { so: 4, nhan: "4 x 20L" },
+      { so: 12, nhan: null },
+      { so: null, nhan: null },
+      { so: null, nhan: null },
+      { so: null, nhan: null },
+      { so: null, nhan: null },
+      { so: 20.5, nhan: null },
+    ]
+  );
+  const aiChu = chuanHoaKetQuaAi({
+    dong: [
+      { stt: 1, ten: "JOTUN HARDTOP XP WHITE", soLuong: "1.000,00", donVi: "LTR", loai: "STORE" },
+      { stt: 2, ten: "JOTUN THINNER NO.17", soLuong: "4 x 20L", donVi: "CAN", loai: "STORE" },
+      { stt: 3, ten: "PAINT", soLuong: null, donVi: null, loai: "STORE" },
+    ],
+  });
+  kiemTra("ai chuan hoa so chu", aiChu.dong.map((d) => [d.soLuong, d.soLuongTrong ?? false, /4 x 20L/.test(d.canhBao ?? "")]), [
+    [1000, false, false],
+    [4, false, true],
+    [0, true, false],
+  ]);
+  const dTick = boTickDongThieuSo(dongTuAiSon(aiChu.dong));
+  kiemTra("thieu so tu bo tick", dTick.map((d) => [d.soLuong, d.boQua, (d.canhBao ?? "").includes(CANH_BAO_THIEU_SO)]), [
+    [1000, false, false],
+    [4, false, false],
+    [null, true, true],
+  ]);
+  kiemTra("bo tick xong thi nhap duoc", dongLoiKhiNhap(dTick), null);
+  // Lớp chữ PDF phiếu giao: số có ngăn nghìn; "20.000 L" in từ phần mềm vẫn là 20 lít.
+  const pgSo = docPhieuGiaoTuChu(
+    ["DELIVERY NOTE No. DN-9001", "1 | Hardtop XP White | 1.000,00 | LTR", "2 | Thinner No.17 | 20.000 | LTR", "3 | Jotamastic 87 | 1,250 | LTR"].join("\n")
+  );
+  kiemTra("pdf phieu giao so ngan nghin", dongTuChuPhieuGiao(pgSo.dong).map((d) => d.soLuong), [1000, 20, 1250]);
+  // Bản in MLS-11-05 của app: tiêu đề cột in hai hàng ("Q'ty." / "Req.") không thành tên nhóm.
+  const inApp = dongTuChuPdfYeuCau(
+    [
+      "REQUISITION FOR STORES | MLS-11-05",
+      "Q'ty.",
+      "S. No. | Description | IMPA Code | Unit | R.O.B | Q'ty. App.",
+      "Req.",
+      "Còn tồn | S.lượng",
+      "Stt. | Mô tả | Mã IMPA | Đơn vị | S.lượng duyệt",
+      "trên tàu | yêu cầu",
+      "1 | JOTA PRIME 510A GREY | Ltr | 95",
+    ].join("\n")
+  );
+  kiemTra("pdf ban in app: khong lay 'Req.' lam nhom", inApp.dong.map((d) => [d.moTa, d.phan ?? null, d.ghiChu ?? null]), [["JOTA PRIME 510A GREY", null, null]]);
 
   // ── 5. Dòng sửa gửi lên, gộp, kiểm trước khi nhập ──
   const sua = sachDongNhanSon([

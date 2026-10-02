@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { PackagePlus, Plus, Save, Sparkles, Trash2 } from "lucide-react";
 import { apDungPhieuSon, docLaiPhieuSonAi, luuPhieuSon, xoaPhieuSon, type DauPhieuSon } from "@/app/son-phieu-actions";
-import { demPhieuSon, type DongNhanSon } from "@/lib/phieuSon";
+import { CANH_BAO_THIEU_SO, demPhieuSon, type DongNhanSon } from "@/lib/phieuSon";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Badge, Button, Field, Input, Notice } from "@/components/ui";
 
@@ -73,7 +73,7 @@ export default function BangNhanSon({
   const [dang, startT] = useTransition();
   const sonTheoId = useMemo(() => new Map(son.map((s) => [String(s.id), s])), [son]);
 
-  const goiLen = () => dong.map((d) => ({ ...d, canhBao: d.canhBao || null }));
+  const goiLen = (ds: Dong[] = dong) => ds.map((d) => ({ ...d, canhBao: d.canhBao || null }));
   const dem = demPhieuSon(
     dong.map((d) => ({
       ten: d.ten,
@@ -99,6 +99,37 @@ export default function BangNhanSon({
       setThongBao({ ok: Boolean(r.success), chu: r.message });
     });
   const soSai = (s: string) => s.trim() !== "" && soO(s) === null;
+  const coSo = (s: string) => (soO(s) ?? 0) > 0;
+  // Dòng bộ đọc đã tự bỏ tick vì không có số lượng (lib/phieuSon.ts boTickDongThieuSo) mà chưa được điền.
+  const soDongTuBo = dong.filter((d) => d.boQua && !coSo(d.soLuong) && d.canhBao.includes(CANH_BAO_THIEU_SO)).length;
+  // Điền số vào dòng đang bỏ tick vì chưa có số lượng → tick lại luôn (khỏi bấm thêm ô tick).
+  const doiSo = (i: number, v: string) =>
+    setDong((ds) => ds.map((d, j) => (j !== i ? d : { ...d, soLuong: v, ...(d.boQua && !coSo(d.soLuong) && coSo(v) ? { boQua: false } : {}) })));
+  // Bấm Nhập: dòng đang tick mà chưa có số lượng thì HỎI bỏ qua các dòng đó rồi nhập phần
+  // còn lại — không dừng cả phiếu ở lỗi "Dòng 1: chưa có số lượng nhận".
+  const nhapVaoTon = () => {
+    const thieu = dong
+      .map((d, i) => ({ d, i }))
+      .filter(({ d }) => !d.boQua && (d.ten.trim() || d.paintProductId) && !coSo(d.soLuong));
+    if (!thieu.length) {
+      if (window.confirm(t("paint.pgXacNhanNhap", { n: dem.nhap }))) chay(() => apDungPhieuSon(id, goiLen(), dau));
+      return;
+    }
+    const con = dem.nhap - thieu.length;
+    if (con <= 0) {
+      setThongBao({ ok: false, chu: t("paint.pgChuaDongNaoCoSo") });
+      return;
+    }
+    const ds = thieu
+      .slice(0, 5)
+      .map(({ d, i }) => `${i + 1}. ${d.ten.trim() || "…"}`)
+      .join("; ");
+    if (!window.confirm(t("paint.pgHoiBoQuaThieuSo", { n: thieu.length, ds: thieu.length > 5 ? `${ds}; …` : ds, con }))) return;
+    const bo = new Set(thieu.map(({ i }) => i));
+    const moi = dong.map((d, i) => (bo.has(i) ? { ...d, boQua: true } : d));
+    setDong(moi);
+    chay(() => apDungPhieuSon(id, goiLen(moi), dau));
+  };
 
   return (
     <div className="space-y-4">
@@ -121,6 +152,7 @@ export default function BangNhanSon({
         {dem.thieuSo > 0 && <Badge tone="warning">{t("paint.pgDemThieuSo", { n: dem.thieuSo })}</Badge>}
         {dem.tong - dem.nhap > 0 && <Badge tone="muted">{t("paint.pgDemBoQua", { n: dem.tong - dem.nhap })}</Badge>}
       </div>
+      {coSua && soDongTuBo > 0 && <Notice tone="warning">{t("paint.pgCoDongThieuSo", { n: soDongTuBo })}</Notice>}
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1100px] text-sm">
@@ -178,7 +210,7 @@ export default function BangNhanSon({
                       value={d.soLuong}
                       disabled={!coSua}
                       inputMode="decimal"
-                      onChange={(e) => doi(i, { soLuong: e.target.value })}
+                      onChange={(e) => doiSo(i, e.target.value)}
                     />
                   </td>
                   <td className="w-56 p-1">
@@ -218,7 +250,7 @@ export default function BangNhanSon({
             disabled={dem.nhap === 0}
             icon={<PackagePlus className="size-4" />}
             onClick={() => {
-              if (window.confirm(t("paint.pgXacNhanNhap", { n: dem.nhap }))) chay(() => apDungPhieuSon(id, goiLen(), dau));
+              nhapVaoTon();
             }}
           >
             {t("paint.pgNutNhap")}

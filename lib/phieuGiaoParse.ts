@@ -27,6 +27,8 @@
  *     A/E No.2, Máy đèn...) áp cho các dòng hàng bên dưới cho tới tiêu đề kế.
  */
 
+import { docSo } from "@/lib/docSo";
+
 export type DongPhieuGiao = {
   chuGoc: string;
   ten: string;
@@ -53,7 +55,12 @@ const DON_VI =
 // Dạng ngược "PCS: 3" chỉ nhận đơn vị rõ nghĩa (bỏ no/m/g/l/bo/cap... dễ trùng chữ thường).
 const DON_VI_NGUOC =
   "pcs?|pieces?|sets?|each|units?|kgs?|ltrs?|liters?|litres?|mtrs?|meters?|metres?|box|boxes|packs?|rolls?|bags?|cans?|drums?|pairs?|bottles?|tubes?|cartons?|kits?|sheets?|cái|chiếc|bộ|hộp|thùng|cuộn|túi";
-const SO = "\\d{1,6}(?:[.,]\\d{1,3})?";
+// Số lượng: "1.000,00" / "1,250.00" (có ngăn nghìn VÀ thập phân), "1,000,000" (nhiều
+// nhóm nghìn), rồi dạng thường "20" / "1,5" / "20.000". Thiếu hai dạng đầu thì
+// "1.000,00 L" không khớp gì cả và dòng mất số lượng.
+// Bọc trong (?:…): SO được ghép vào nhiều biểu thức (có chỗ không có ngoặc, như
+// RE_KICH_CO) — để trần thì dấu | cắt đôi cả biểu thức ghép.
+const SO = "(?:\\d{1,3}(?:[.,]\\d{3})+[.,]\\d{1,3}|\\d{1,3}(?:[.,]\\d{3}){2,}|\\d{1,6}(?:[.,]\\d{1,3})?)";
 const RE_SL_DV_COT = new RegExp(`(?<![\\w.,])(${SO})\\s*\\|\\s*(${DON_VI})(?![\\w])`, "i");
 const RE_SL_DV = new RegExp(`(?<![\\w.,/-])(${SO})\\s*(${DON_VI})(?![\\w])`, "gi");
 const RE_DV_SL = new RegExp(`(?<![\\w])(${DON_VI_NGUOC})\\s*[:：]\\s*(${SO})(?![\\w.,])`, "i");
@@ -104,7 +111,13 @@ export function chuanDonVi(dv: string): string {
 
 function soTu(raw: string): number {
   const s = raw.trim();
-  // "1,5" kiểu Việt → 1.5; "1,250" kiểu quốc tế → 1250; còn lại theo dấu chấm.
+  // Có cả chấm lẫn phẩy ("1.000,00" kiểu Việt, "1,250.00" quốc tế): dấu sau cùng là
+  // thập phân — docSo đọc đúng cả hai.
+  if (s.includes(".") && s.includes(",")) return docSo(s);
+  // Nhiều nhóm nghìn: "1,000,000" / "1.000.000".
+  if (/^\d{1,3}([.,])\d{3}(\1\d{3})+$/.test(s)) return Number(s.replace(/[.,]/g, ""));
+  // "1,5" kiểu Việt → 1.5; "1,250" kiểu quốc tế → 1250; còn lại theo dấu chấm —
+  // phiếu in từ phần mềm hay ghi "20.000 L" nghĩa là 20 lít.
   if (/^\d{1,3},\d{3}$/.test(s)) return Number(s.replace(",", ""));
   return Number(s.replace(",", "."));
 }

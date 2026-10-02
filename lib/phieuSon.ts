@@ -205,6 +205,22 @@ export function sachDongNhanSon(raw: unknown): { ok: true; dong: DongNhanSon[] }
   return { ok: true, dong };
 }
 
+/** Lời nhắc gắn vào dòng đọc ra mà không có số lượng (đã tự bỏ tick). */
+export const CANH_BAO_THIEU_SO = "Không đọc được số lượng — đã bỏ tick; điền số nếu đây là dòng sơn nhận (dòng tự tick lại)";
+
+/**
+ * Dòng đọc từ file mà KHÔNG có số lượng (tiêu đề nhóm, ô trống, chữ mờ…): bỏ tick
+ * sẵn và nói rõ trên dòng — không để cả phiếu kẹt ở bước Nhập với lỗi "Dòng 1:
+ * chưa có số lượng nhận". Điền số vào ô thì bảng soát tự tick lại dòng đó.
+ */
+export function boTickDongThieuSo(dong: DongNhanSon[]): DongNhanSon[] {
+  return dong.map((d) =>
+    d.boQua || (d.soLuong !== null && d.soLuong > 0)
+      ? d
+      : { ...d, boQua: true, canhBao: (d.canhBao ? `${d.canhBao}; ${CANH_BAO_THIEU_SO}` : CANH_BAO_THIEU_SO).slice(0, 300) }
+  );
+}
+
 /** Kiểm trước khi NHẬP: mọi dòng nhập phải có số lượng > 0; dòng tạo loại mới phải có tên. Trả số dòng lỗi (đánh từ 1) hoặc null. */
 export function dongLoiKhiNhap(dong: DongNhanSon[]): { n: number; lyDo: "thieuSo" | "thieuTen" } | null {
   for (let i = 0; i < dong.length; i++) {

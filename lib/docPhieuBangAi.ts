@@ -107,7 +107,7 @@ export type SoChangBuoc = {
 };
 
 /** Loại tài liệu bộ đọc AI đang đọc — quyết định lời dặn và nghĩa cột số lượng. */
-export type BanDocAi = "phieuGiao" | "kiemKe" | "baoGia" | "changBuoc" | "yeuCau";
+export type BanDocAi = "phieuGiao" | "phieuSon" | "kiemKe" | "baoGia" | "changBuoc" | "yeuCau";
 
 /** Đầu phiếu yêu cầu MLS-11-05A/B do AI đọc — chữ thô, lib/yeuCauNhap.ts chuẩn hóa. */
 export type DauYeuCauAi = {
@@ -214,6 +214,23 @@ Ví dụ một dòng in "12 | Wire rope clip M12 (Kẹp cáp M12) | 232052 | PCS
 {"stt":12,"ten":"Wire rope clip M12 (Kẹp cáp M12)","tenEn":"Wire rope clip M12","tenVi":"Kẹp cáp M12","partNo":null,"impa":"232052","soLuong":20,"donVi":"PCS","loai":"STORE","thietBi":"DECK DEPARTMENT","trang":2,"canKiem":false,"lyDoKiem":null,"ghiChu":null}`;
 
 const LOI_NHAC_NGUOI_DUNG = "Đọc phiếu giao hàng trong tài liệu đính kèm và ghi TOÀN BỘ dòng hàng theo đúng cấu trúc yêu cầu.";
+
+// ─── Phiếu giao / nhận SƠN (chế độ "phieuSon") ───────────────────────────────
+// Cùng công cụ / khuôn JSON với phiếu giao vật tư, thêm quy tắc riêng cho sơn. Hay
+// gặp nhất là chính mẫu MLS-11-05 của công ty (bản scan): cột S.lượng duyệt để trống
+// thì quy tắc "lấy cột giao" của phiếu vật tư khiến AI lấy đúng ô trống — mọi dòng
+// mất số lượng và phiếu kẹt ở bước Nhập ("Dòng 1: chưa có số lượng nhận").
+const HUONG_DAN_PHIEU_SON = `${HUONG_DAN_HE_THONG}
+
+Tài liệu lần này là phiếu giao / nhận SƠN cho tàu (sơn, dung môi / thinner, chất đóng rắn). Thêm các quy tắc sau — chỗ nào khác quy tắc ở trên thì theo phần này:
+A. Tài liệu theo MẪU MLS-11-05 của công ty (tiêu đề "REQUISITION FOR STORES / YÊU CẦU VẬT TƯ"; các cột R.O.B / Còn tồn trên tàu, Q'ty Req. / S.lượng yêu cầu, Q'ty App. / S.lượng duyệt): "soLuong" = cột Q'ty App. / S.lượng duyệt nếu ô đó có số; ô duyệt TRỐNG thì lấy cột Q'ty Req. / S.lượng yêu cầu và đặt canKiem = true, lyDoKiem = "cột duyệt trống — đã lấy S.lượng yêu cầu". KHÔNG BAO GIỜ lấy cột R.O.B / Còn tồn làm số lượng.
+B. Phiếu của hãng sơn / nhà cung cấp: "soLuong" là số lượng giao ở cột số lượng (Qty / Quantity / Số lượng / Delivered) và "donVi" đúng đơn vị của cột đó (LTR, CAN, PAIL, DRUM, SET...). Ô ghi kiểu "4 x 20L" (số lon × dung tích) thì soLuong = 4, donVi = CAN, ghi "20L / lon" vào ghiChu.
+C. "soLuong" luôn là MỘT SỐ kiểu number, không phải chuỗi: "1.000,5" (kiểu Việt) = 1000.5; "1,250.00" = 1250; "20,00" = 20.
+D. Sơn hai thành phần (Comp A / Comp B, Base / Hardener / Curing agent): mỗi thành phần là một dòng, ghi đúng như in.
+E. "loai" luôn là "STORE". Dòng tiêu đề nhóm (VD "PAINT", "THINNER", tên tàu, số đơn hàng) không có số lượng thì KHÔNG ghi thành dòng.`;
+
+const LOI_NHAC_PHIEU_SON =
+  "Đọc phiếu giao / nhận sơn trong tài liệu đính kèm và ghi TOÀN BỘ dòng sơn theo đúng cấu trúc yêu cầu (mẫu MLS-11-05: số lượng = S.lượng duyệt, trống thì S.lượng yêu cầu — không lấy R.O.B).";
 
 /** Khuôn JSON nhắc thêm cho Gemini — để khi phải bỏ responseSchema (API từ chối khuôn) mô hình vẫn trả đúng dạng. */
 const KHUON_JSON_GOI_Y =
@@ -455,6 +472,7 @@ const LOI_NHAC_YEU_CAU = "Đọc phiếu yêu cầu vật tư / phụ tùng tron
 /** Lời dặn, lời nhắc, công cụ và khuôn JSON theo loại tài liệu. */
 const BAN_DOC = {
   phieuGiao: { huongDan: HUONG_DAN_HE_THONG, loiNhac: LOI_NHAC_NGUOI_DUNG, congCu: CONG_CU_GHI_PHIEU, khuonJson: KHUON_JSON_GOI_Y, taiLieu: "phiếu" },
+  phieuSon: { huongDan: HUONG_DAN_PHIEU_SON, loiNhac: LOI_NHAC_PHIEU_SON, congCu: CONG_CU_GHI_PHIEU, khuonJson: KHUON_JSON_GOI_Y, taiLieu: "phiếu giao sơn" },
   kiemKe: {
     huongDan: HUONG_DAN_KIEM_KE,
     loiNhac: LOI_NHAC_KIEM_KE,
@@ -563,6 +581,25 @@ const chuoi = (v: unknown, toiDa = 200): string | null => {
 };
 
 const themCanhBao = (cu: string | null, moi: string) => (cu ? `${cu}; ${moi}` : moi);
+
+/**
+ * Số lượng AI trả về. Thường là number, nhưng có lúc là chuỗi chép theo phiếu:
+ * "1.000,00" (kiểu Việt), "1,250.00" (quốc tế), "20 L", "4 x 20L", "12 (sửa 10)".
+ * Trước đây chuỗi được đọc thô — bỏ chữ, đổi dấu phẩy đầu tiên thành chấm — nên
+ * "1.000,00" thành "1.000.00", không phải số, dòng bị coi là CHƯA CÓ số lượng;
+ * "1.000" thành 1; "4 x 20L" thành 420. Nay: lấy cụm số ĐẦU TIÊN, đọc bằng
+ * docSoLoc (đoán đúng dấu thập phân / ngăn nghìn); kiểu "số lon × dung tích" lấy
+ * số lon và trả kèm chữ gốc (nhan) để báo người soát kiểm lại đơn vị.
+ */
+export function docSoLuongAi(v: unknown): { so: number | null; nhan: string | null } {
+  if (typeof v === "number") return { so: Number.isFinite(v) && v >= 0 ? v : null, nhan: null };
+  if (v === null || v === undefined || typeof v === "boolean") return { so: null, nhan: null };
+  const s = String(v).trim();
+  const nhan = /\d[\d.,]*\s*[x×*]\s*\d/i.test(s) ? s.slice(0, 40) : null;
+  const cum = /-?\d[\d.,]*/.exec(s);
+  const n = cum ? docSoLoc(cum[0].replace(/[.,]$/, "")) : null;
+  return { so: n !== null && Number.isFinite(n) && n >= 0 ? n : null, nhan };
+}
 const khoaDong = (d: { ten: string; partNo: string | null; impa: string | null }) =>
   `${d.ten.normalize("NFC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "")}|${(d.partNo ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "")}|${d.impa ?? ""}`;
 
@@ -611,13 +648,11 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
       if (/^\d{6}$/.test(so)) impa = so;
       else if (!partNo) partNo = impaTho; // mô hình nhét mã NSX vào cột IMPA
     }
-    const soRaw = d.soLuong;
-    const soChu = typeof soRaw === "number" ? "" : String(soRaw ?? "").replace(/[^\d.,-]/g, "").replace(",", ".");
-    let soLuong = typeof soRaw === "number" ? soRaw : soChu ? Number(soChu) : NaN;
+    const sl = docSoLuongAi(d.soLuong);
     // Ô trống / không phải số: phiếu giao coi là 0 như trước; bảng kiểm kê cần
     // biết đây là "chưa đếm" chứ không phải "đếm được 0" (soLuongTrong).
-    const soLuongTrong = !Number.isFinite(soLuong) || soLuong < 0;
-    if (soLuongTrong) soLuong = 0;
+    const soLuongTrong = sl.so === null;
+    const soLuong = sl.so ?? 0;
     // Đơn giá (báo giá): chuỗi có ngăn nghìn kiểu VN / quốc tế đọc bằng docSoLoc.
     const giaRaw = d.donGia;
     const giaSo = typeof giaRaw === "number" ? giaRaw : giaRaw === null || giaRaw === undefined ? null : docSoLoc(String(giaRaw));
@@ -648,7 +683,8 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
     const trangSo = Number(d.trang);
     const trang = Number.isInteger(trangSo) && trangSo > 0 ? trangSo : null;
     const canKiem = d.canKiem === true || String(d.canKiem).toLowerCase() === "true";
-    const canhBao = canKiem ? `AI không chắc: ${chuoi(d.lyDoKiem, 160) ?? "chữ khó đọc"}` : null;
+    const canhBaoKiem = canKiem ? `AI không chắc: ${chuoi(d.lyDoKiem, 160) ?? "chữ khó đọc"}` : null;
+    const canhBao = sl.nhan ? themCanhBao(canhBaoKiem, `Phiếu ghi số lượng "${sl.nhan}" — đã lấy ${soLuong}, kiểm lại đơn vị`) : canhBaoKiem;
     const stt = Number.isInteger(d.stt) ? Number(d.stt) : i + 1;
     const chuGoc = cb
       ? `${stt}. ${tenIn ?? ten}${partNo ? ` · ${partNo}` : ""} — tối thiểu ${cb.toiThieu ?? "—"} · chuẩn ${cb.chuan ?? "—"} · còn dùng ${cb.conDung ?? "—"} · hỏng ${cb.hong ?? "—"}${

@@ -13,7 +13,7 @@ import { layT } from "@/lib/i18n/server";
 import { VAN_HANH_SON, coQuanLySon } from "@/lib/roles";
 import { MAX_UPLOAD_BYTES, ensureUploadDir, fileExtension, getUploadDir } from "@/lib/uploads";
 import { dangDocAi } from "@/lib/phieuGiao";
-import { DUOI_PHIEU_SON, dongLoiKhiNhap, dongTuAiSon, ghepDongSon, ngayNhanTuChu, sachDongNhanSon, type DongNhanSon } from "@/lib/phieuSon";
+import { DUOI_PHIEU_SON, boTickDongThieuSo, dongLoiKhiNhap, dongTuAiSon, ghepDongSon, ngayNhanTuChu, sachDongNhanSon, type DongNhanSon } from "@/lib/phieuSon";
 
 /*
  * NHẬP SƠN TỪ PHIẾU GIAO / NHẬN (Excel MLS-11-05, Excel, Word, PDF, PDF scan):
@@ -75,7 +75,7 @@ async function chayDocAiSon(id: number, actor: NguoiThaoTac): Promise<void> {
     const { demTrangPdf } = await import("@/lib/pdfChu");
     const bd = Date.now();
     const ai = await docPhieuGiaoBangAi(buffer, cauHinh, {
-      banDoc: "phieuGiao",
+      banDoc: "phieuSon",
       fileName: tep.fileName,
       soTrang: await demTrangPdf(buffer),
       chuPdf: await chuChoAi(cauHinh.nhaCungCap, buffer, fullPath),
@@ -89,7 +89,7 @@ async function chayDocAiSon(id: number, actor: NguoiThaoTac): Promise<void> {
       await ketThuc({ loiAi: ai.loi.slice(0, 500) });
       return;
     }
-    const dong = ghepDongSon(dongTuAiSon(ai.dong), await sonDeGhep());
+    const dong = boTickDongThieuSo(ghepDongSon(dongTuAiSon(ai.dong), await sonDeGhep()));
     const ngay = ngayNhanTuChu(ai.ngayGiao);
     await ketThuc({
       dong,
@@ -138,8 +138,11 @@ export async function taiPhieuSon(_prev: KetQuaPhieuSon, formData: FormData): Pr
   // (như phiếu giao vật tư). Excel / Word không đọc được thì báo lỗi luôn.
   const { docPhieuSonKhongAi } = await import("@/lib/phieuSonTep");
   const kq = await docPhieuSonKhongAi(buffer, file.name, fullPath);
+  // PDF đọc ra dòng mà KHÔNG dòng nào có số lượng (lớp chữ lẫn của bản scan, bảng
+  // lạ): có bộ đọc AI thì để AI đọc luôn — giữ tạm các dòng đã đọc tới khi AI xong.
+  const pdfKhongCoSo = kq.ok && ext === ".pdf" && !kq.dong.some((d) => d.soLuong !== null && d.soLuong > 0);
   let dungAi = false;
-  if (!kq.ok && kq.canAi) {
+  if ((!kq.ok && kq.canAi) || pdfKhongCoSo) {
     const { layCauHinhAi } = await import("@/lib/cauHinhAi");
     dungAi = Boolean(await layCauHinhAi());
   }
@@ -147,7 +150,8 @@ export async function taiPhieuSon(_prev: KetQuaPhieuSon, formData: FormData): Pr
     await unlink(fullPath).catch(() => undefined);
     return { message: kq.loi };
   }
-  const dong = kq.ok ? ghepDongSon(kq.dong, await sonDeGhep()) : [];
+  // Dòng không có số lượng bỏ tick sẵn (kèm lời nhắc) — không để cả phiếu kẹt ở bước Nhập.
+  const dong = kq.ok ? boTickDongThieuSo(ghepDongSon(kq.dong, await sonDeGhep())) : [];
   const ngay = kq.ok ? kq.ngay : null;
   const tep = await prisma.sonPhieuTep.create({
     data: {
@@ -157,7 +161,7 @@ export async function taiPhieuSon(_prev: KetQuaPhieuSon, formData: FormData): Pr
       loaiTep: loaiTepCua(ext),
       size: file.size,
       sha256: createHash("sha256").update(buffer).digest("hex"),
-      nguonDoc: kq.ok ? kq.nguon : dungAi ? "AI" : "TAY",
+      nguonDoc: dungAi ? "AI" : kq.ok ? kq.nguon : "TAY",
       soPhieu: kq.ok ? kq.soPhieu?.slice(0, 80) ?? null : null,
       nhaCungCap: kq.ok ? kq.nhaCungCap?.slice(0, 200) ?? null : null,
       ngayNhan: ngay ? new Date(`${ngay}T12:00:00`) : null,

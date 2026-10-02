@@ -326,6 +326,9 @@ export const paint = tuDien(
     pgNutLuu: "Lưu",
     pgNutNhap: "Nhập vào tồn sơn",
     pgXacNhanNhap: "Nhập {n} dòng vào tồn sơn của tàu? Nhập nhầm thì gỡ lại được cả phiếu (khi sơn chưa dùng) hoặc sửa từng dòng ở bảng Tồn sơn.",
+    pgHoiBoQuaThieuSo: "Có {n} dòng đang tick mà chưa có số lượng ({ds}). Bỏ qua các dòng này và nhập {con} dòng còn lại vào tồn sơn?",
+    pgChuaDongNaoCoSo: "Chưa dòng nào có số lượng — điền số lượng nhận vào các dòng cần nhập (dòng tự tick lại).",
+    pgCoDongThieuSo: "{n} dòng chưa đọc được số lượng nên đã bỏ tick — nếu là sơn nhận, điền số vào ô Số lượng nhận (dòng tự tick lại).",
     pgNutXoa: "Xóa phiếu",
     pgXacNhanXoa: "Xóa phiếu giao này (chưa nhập vào tồn)?",
 
@@ -720,6 +723,9 @@ export const paint = tuDien(
     pgNutLuu: "Save",
     pgNutNhap: "Add to paint stock",
     pgXacNhanNhap: "Add {n} lines to the vessel's paint stock? If it was a mistake you can undo the whole note (while the paint is unused) or edit each line in the Paint stock table.",
+    pgHoiBoQuaThieuSo: "{n} ticked lines have no quantity ({ds}). Skip them and add the other {con} lines to the paint stock?",
+    pgChuaDongNaoCoSo: "No line has a quantity yet - fill in the quantity received on the lines to add (they are ticked again automatically).",
+    pgCoDongThieuSo: "{n} lines had no readable quantity and were unticked - if they are paint received, fill in the quantity (the line is ticked again automatically).",
     pgNutXoa: "Delete note",
     pgXacNhanXoa: "Delete this delivery note (not yet added to stock)?",
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Save, Trash2, Wand2 } from "lucide-react";
 import { apDungChangBuoc, luuChangBuoc, xoaChangBuoc, type DauSuaChangBuoc } from "@/app/chang-buoc-actions";
 import { ghepChangBuoc, soO, type DongChangBuocNhap, type GearCo } from "@/lib/changBuocNhap";
@@ -49,7 +48,6 @@ export default function BangChangBuoc({
   coSua: boolean;
 }) {
   const { t, tTuDo } = useNgonNgu();
-  const router = useRouter();
   const [dong, setDong] = useState<Dong[]>(() => dongGoc.map(sang));
   const [dau, setDau] = useState(dauGoc);
   const [capNhatSo, setCapNhatSo] = useState(true);
@@ -86,7 +84,6 @@ export default function BangChangBuoc({
       const r = await fn();
       if (!r) return; // đã chuyển trang (redirect)
       setThongBao({ ok: Boolean(r.success), chu: r.message });
-      if (r.success) router.refresh();
     });
   const soSai = (s: string) => s.trim() !== "" && soO(s) === null;
 

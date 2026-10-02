@@ -218,7 +218,6 @@ export default function BangThietYeu({
       bao(r);
       if (r.success) {
         setCheDo("xem");
-        router.refresh();
       }
     });
   const huySo = () => {
@@ -234,7 +233,6 @@ export default function BangThietYeu({
       bao(r);
       if (r.success) {
         setMoi((m) => ({ ...m, nhom, nhomMoi: "", moTa: "", partNo: "", toiThieu: "" }));
-        router.refresh();
       }
     });
   const goDanhMuc = () => {
@@ -257,7 +255,6 @@ export default function BangThietYeu({
     startTransition(async () => {
       const r = await xoaPhuTungThietYeu(Number(d.id));
       bao(r);
-      if (r.success) router.refresh();
     });
   };
 

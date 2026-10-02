@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Check, CornerUpLeft, ShieldCheck, UserMinus, UserPlus } from "lucide-react";
 import { duyetDonMua } from "@/app/don-mua-actions";
 import { chiDinhLanhDaoDuyet, taoUyQuyenDuyetPo } from "@/app/duyet-po-actions";
@@ -16,7 +15,6 @@ type NguoiChon = { id: number; name: string; role: string };
  */
 export function DuyetNhanhPo({ poId, poNo }: { poId: number; poNo: string }) {
   const { t } = useNgonNgu();
-  const router = useRouter();
   const [moTraLai, setMoTraLai] = useState(false);
   const [lyDo, setLyDo] = useState("");
   const [loi, setLoi] = useState("");
@@ -28,7 +26,6 @@ export function DuyetNhanhPo({ poId, poNo }: { poId: number; poNo: string }) {
         setMoTraLai(false);
         setLyDo("");
         setLoi("");
-        router.refresh();
       } else setLoi(r.message);
     });
   return (

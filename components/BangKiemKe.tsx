@@ -103,7 +103,6 @@ export default function BangKiemKe({
     startTransition(async () => {
       const r = await luuKiemKe(id, goiLen());
       setThongBao({ ok: Boolean(r.success), chu: r.message });
-      if (r.success) router.refresh();
     });
   const apDung = () => {
     const moi = soThemMoi ? t("kiemKe.xacNhanApDungMoi", { n: soThemMoi }) : "";
@@ -111,7 +110,6 @@ export default function BangKiemKe({
     startTransition(async () => {
       const r = await apDungKiemKe(id, goiLen());
       setThongBao({ ok: Boolean(r.success), chu: r.message });
-      if (r.success) router.refresh();
     });
   };
   const xoa = () => {

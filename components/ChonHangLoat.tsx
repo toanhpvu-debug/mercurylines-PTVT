@@ -134,7 +134,6 @@ export default function ChonHangLoat({
       setThongBao({ tone: r.success ? (r.boQua.length ? "info" : "success") : "danger", text: r.message });
       if (r.daXoa > 0) {
         boChon();
-        router.refresh();
       }
     });
   };
@@ -147,7 +146,6 @@ export default function ChonHangLoat({
       setThongBao({ tone: r.success ? "success" : "danger", text: r.message });
       if (r.success) {
         boChon();
-        router.refresh();
       }
     });
   };
@@ -160,7 +158,6 @@ export default function ChonHangLoat({
       if (r.success) {
         setMoSua(false);
         boChon();
-        router.refresh();
       }
     });
   };

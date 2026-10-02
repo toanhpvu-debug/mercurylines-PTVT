@@ -65,7 +65,6 @@ export default function GoPhieuGiaoButton({
       setThongBao({ tone: r.success ? "success" : "danger", text: r.message });
       if (r.success) {
         if (veDanhSach) router.push("/materials/phieu-giao");
-        router.refresh();
       }
     });
   };

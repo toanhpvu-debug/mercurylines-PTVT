@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Save, Trash2 } from "lucide-react";
 import { suaDonMua, type SuaDonMuaNhap } from "@/app/don-mua-actions";
 import { tongDonMua } from "@/lib/donMuaQuyTrinh";
@@ -38,7 +37,6 @@ export default function SuaDonMuaForm({
   suppliers: { id: number; name: string }[];
 }) {
   const { t } = useNgonNgu();
-  const router = useRouter();
   const [dau, setDau] = useState(dauGoc);
   const [dong, setDong] = useState<Dong[]>(dongGoc);
   const [thongBao, setThongBao] = useState<{ ok: boolean; chu: string } | null>(null);
@@ -54,7 +52,6 @@ export default function SuaDonMuaForm({
     startT(async () => {
       const r = await suaDonMua(poId, { ...dau, supplierId: Number(dau.supplierId), items: dong.map(({ id, description, partNo, uom, quantity, unitPrice }) => ({ id, description, partNo, uom, quantity, unitPrice })) });
       setThongBao({ ok: Boolean(r.success), chu: r.message });
-      if (r.success) router.refresh();
     });
   const tien = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 

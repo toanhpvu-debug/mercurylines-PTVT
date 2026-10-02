@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ExternalLink, Trash2, X } from "lucide-react";
 import { goHoSo } from "@/app/ho-so-actions";
 import { useNgonNgu } from "@/lib/i18n/client";
@@ -33,7 +32,6 @@ const O_TICK = "size-4 cursor-pointer accent-brand-600";
  */
 export default function BangHoSo({ dong, goDuoc }: { dong: DongHoSo[]; goDuoc: boolean }) {
   const { t } = useNgonNgu();
-  const router = useRouter();
   const [chon, setChon] = useState<Set<number>>(() => new Set());
   const [thongBao, setThongBao] = useState<{ ok: boolean; chu: string } | null>(null);
   const [dangGo, startTransition] = useTransition();
@@ -66,7 +64,6 @@ export default function BangHoSo({ dong, goDuoc }: { dong: DongHoSo[]; goDuoc: b
           for (const d of ds) m.delete(d.id);
           return m;
         });
-        router.refresh();
       }
     });
   };

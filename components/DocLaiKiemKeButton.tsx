@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { docLaiKiemKe } from "@/app/kiem-ke-actions";
 import { useNgonNgu } from "@/lib/i18n/client";
@@ -10,7 +9,6 @@ import { Button, Notice } from "@/components/ui";
 /** Giao bộ đọc AI đọc lại bản scan kiểm kê (chạy nền; trang tự làm mới). */
 export default function DocLaiKiemKeButton({ id }: { id: number }) {
   const { t } = useNgonNgu();
-  const router = useRouter();
   const [loi, setLoi] = useState("");
   const [dang, startTransition] = useTransition();
   return (
@@ -23,8 +21,7 @@ export default function DocLaiKiemKeButton({ id }: { id: number }) {
         onClick={() =>
           startTransition(async () => {
             const r = await docLaiKiemKe(id);
-            if (r.success) router.refresh();
-            else setLoi(r.message);
+            if (!r.success) setLoi(r.message);
           })
         }
       >

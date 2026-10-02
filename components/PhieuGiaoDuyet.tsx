@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { laLoiBanCu, taiLaiBanMoi } from "@/components/TuTaiLaiKhiBanCu";
-import { useRouter } from "next/navigation";
 import { AlertTriangle, CheckCircle2, ExternalLink, Plus, Save, Sparkles, Trash2, XCircle } from "lucide-react";
 import {
   docLaiPhieuGiaoBangAi,
@@ -59,7 +58,6 @@ export default function PhieuGiaoDuyet({
   dangDocAi?: boolean;
 }) {
   const { t, tTuDo } = useNgonNgu();
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [dong, setDong] = useState<DongHienThi[]>(dongBanDau);
   const [thongTin, setThongTin] = useState<ThongTinPhieuNhap>({
@@ -177,7 +175,6 @@ export default function PhieuGiaoDuyet({
         setThongBao({ tone: r.success ? "success" : "danger", text: r.message });
         if (r.success) {
           sauKhiXong?.();
-          router.refresh();
         }
       } catch (e) {
         // redirect() của server action ném NEXT_REDIRECT — để Next xử lý.
@@ -219,8 +216,7 @@ export default function PhieuGiaoDuyet({
         // Máy chủ chỉ nhận việc rồi trả về ngay; AI đọc ở chế độ nền, trang tự
         // hiện tiến độ và nạp dòng mới khi xong.
         const r = await docLaiPhieuGiaoBangAi(phieu.id);
-        if (r.success) router.refresh();
-        else setThongBao({ tone: "danger", text: r.message });
+        if (!r.success) setThongBao({ tone: "danger", text: r.message });
       } catch (e) {
         if (xuLyBanCu(e)) return;
         setThongBao({ tone: "danger", text: String((e as Error)?.message ?? e) });

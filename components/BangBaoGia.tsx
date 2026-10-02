@@ -91,12 +91,11 @@ export default function BangBaoGia({
   const tien = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const doi = (i: number, patch: Partial<Dong>) => setDong((ds) => ds.map((d, j) => (j === i ? { ...d, ...patch } : d)));
   const goiLen = (): LuuBaoGiaNhap => ({ ...dau, dong: dong.map((d) => ({ ...d, impa: d.impa, canhBao: d.canhBao })) });
-  const chay = (fn: () => Promise<{ message: string; success?: boolean } | undefined>, lamMoi = true) =>
+  const chay = (fn: () => Promise<{ message: string; success?: boolean } | undefined>) =>
     startT(async () => {
       const r = await fn();
       if (!r) return; // đã chuyển trang (redirect)
       setThongBao({ ok: Boolean(r.success), chu: r.message });
-      if (r.success && lamMoi) router.refresh();
     });
 
   return (
@@ -123,7 +122,6 @@ export default function BangBaoGia({
                   setThongBao({ ok: Boolean(r.success), chu: r.message });
                   if (r.success && r.supplierId) {
                     setDau((d) => ({ ...d, supplierId: r.supplierId! }));
-                    router.refresh();
                   }
                 })
               }
@@ -253,7 +251,7 @@ export default function BangBaoGia({
                 loading={dang}
                 icon={<Wand2 className="size-4" />}
                 onClick={() => {
-                  if (window.confirm(t("purchasing.xacNhanApBaoGia"))) chay(() => apDungVaoPo(id, goiLen(), { themDongMoi, capNhatSoLuong }), false);
+                  if (window.confirm(t("purchasing.xacNhanApBaoGia"))) chay(() => apDungVaoPo(id, goiLen(), { themDongMoi, capNhatSoLuong }));
                 }}
               >
                 {t("purchasing.nutApVaoPo", { po: poNhap.find((p) => p.id === dau.poId)?.poNo ?? "" })}
@@ -265,7 +263,7 @@ export default function BangBaoGia({
                 loading={dang}
                 icon={<FilePlus2 className="size-4" />}
                 onClick={() => {
-                  if (window.confirm(t("purchasing.xacNhanTaoPo"))) chay(() => taoPoTuBaoGia(id, goiLen()), false);
+                  if (window.confirm(t("purchasing.xacNhanTaoPo"))) chay(() => taoPoTuBaoGia(id, goiLen()));
                 }}
               >
                 {t("purchasing.nutTaoPoTuBaoGia")}

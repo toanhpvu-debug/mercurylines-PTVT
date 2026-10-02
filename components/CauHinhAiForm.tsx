@@ -1,7 +1,6 @@
 "use client";
 
 import { startTransition, useActionState, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { FileSearch, KeyRound, PlugZap, Save, Trash2 } from "lucide-react";
 import { kiemTraKetNoiAiAction, luuCauHinhAiAction, thuDocThatAction, xoaCauHinhAiAction } from "@/app/cau-hinh-ai-actions";
 import type { CheDoDocAi, NhaCungCapAi } from "@/lib/docPhieuBangAi";
@@ -33,7 +32,6 @@ export default function CauHinhAiForm({
   macDinh: Record<NhaCungCapAi, string>;
 }) {
   const { t, tTuDo } = useNgonNgu();
-  const router = useRouter();
   const [nhaCungCap, setNhaCungCap] = useState<NhaCungCapAi>(trangThai.nhaCungCap ?? "gemini");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState(trangThai.nguon === "db" ? (trangThai.model ?? "") : "");
@@ -71,7 +69,6 @@ export default function CauHinhAiForm({
     startXoa(async () => {
       const r = await xoaCauHinhAiAction();
       setThongBaoXoa(r.message);
-      if (r.success) router.refresh();
     });
   };
 

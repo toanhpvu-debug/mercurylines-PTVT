@@ -1,21 +1,18 @@
 "use client";
 
 import { startTransition, useActionState, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Check, CornerUpLeft, Send, Undo2, Upload } from "lucide-react";
 import { duyetDonMua, nccXacNhanDonMua, rutLaiDonMua, trinhDuyetDonMua } from "@/app/don-mua-actions";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Button, Field, Input, Notice, Textarea } from "@/components/ui";
 
 function useGoi() {
-  const router = useRouter();
   const [thongBao, setThongBao] = useState<{ ok: boolean; chu: string } | null>(null);
   const [dang, startT] = useTransition();
   const goi = (fn: () => Promise<{ message: string; success?: boolean }>) =>
     startT(async () => {
       const r = await fn();
       setThongBao({ ok: Boolean(r.success), chu: r.message });
-      if (r.success) router.refresh();
     });
   return { thongBao, dang, goi };
 }

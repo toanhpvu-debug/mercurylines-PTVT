@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ClipboardList, Plus, Send, Trash2 } from "lucide-react";
 import { boPhanCuaChucDanh } from "@/lib/roles";
@@ -196,18 +196,30 @@ export default function RequestForm({
     [materials, kind]
   );
 
-  const addItem = () => setItems([...items, blankItem()]);
-  const removeItem = (index: number) =>
-    setItems(items.filter((_, i) => i !== index));
-  const updateItem = (
-    index: number,
-    field: keyof RequestItem,
-    value: string
-  ) => {
-    const updated = [...items];
-    updated[index] = { ...updated[index], [field]: value };
-    setItems(updated);
-  };
+  // Tra mặt hàng đang chọn của từng dòng — dòng đóng chỉ vẽ đúng option này.
+  const theoId = useMemo(
+    () => new Map(filteredMaterials.map((m) => [String(m.id), m])),
+    [filteredMaterials]
+  );
+  // Dòng đang mở danh sách đầy đủ (vừa bấm / focus vào ô chọn mặt hàng).
+  const [dongMo, setDongMo] = useState<number | null>(null);
+
+  // Cập nhật kiểu hàm + useCallback: hàm ổn định nên các dòng (memo) không
+  // dựng lại khi gõ ở dòng khác, và dòng không đổi giữ nguyên object.
+  const addItem = () => setItems((cu) => [...cu, blankItem()]);
+  const removeItem = useCallback(
+    (index: number) => setItems((cu) => cu.filter((_, i) => i !== index)),
+    []
+  );
+  const updateItem = useCallback(
+    (index: number, field: keyof RequestItem, value: string) =>
+      setItems((cu) => {
+        const updated = [...cu];
+        updated[index] = { ...updated[index], [field]: value };
+        return updated;
+      }),
+    []
+  );
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -480,144 +492,18 @@ export default function RequestForm({
 
         <div className="space-y-3">
           {items.map((item, index) => (
-            <div
+            <DongYeuCauForm
               key={index}
-              className="space-y-2 rounded-lg border border-[var(--border-subtle)] p-3"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex gap-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-0.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => updateItem(index, "mode", "existing")}
-                    aria-pressed={item.mode === "existing"}
-                    className={cn(
-                      "rounded-md px-2 py-1 font-medium transition focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
-                      item.mode === "existing" ? SEG_ON : SEG_OFF
-                    )}
-                  >
-                    {t("requests.coSan")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => updateItem(index, "mode", "new")}
-                    aria-pressed={item.mode === "new"}
-                    className={cn(
-                      "rounded-md px-2 py-1 font-medium transition focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
-                      item.mode === "new" ? SEG_ON : SEG_OFF
-                    )}
-                  >
-                    {t("requests.moiNgoaiDanhMuc")}
-                  </button>
-                </div>
-                <span className="text-xs text-[var(--text-muted)]">
-                  {t("requests.dongThu", { n: index + 1 })}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeItem(index)}
-                  icon={<Trash2 className="size-4" />}
-                  className="ml-auto text-[var(--text-danger)]"
-                >
-                  {t("requests.xoaDong")}
-                </Button>
-              </div>
-
-              {item.mode === "existing" ? (
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-6">
-                  <Select
-                    value={item.materialId}
-                    onChange={(e) =>
-                      updateItem(index, "materialId", e.target.value)
-                    }
-                    className="md:col-span-4"
-                    required
-                  >
-                    <option value="">
-                      {isSpare
-                        ? t("requests.chonPhuTung")
-                        : t("requests.chonVatTu")}
-                    </option>
-                    {filteredMaterials.map((material) => (
-                      <option key={material.id} value={material.id}>
-                        {material.code} - {material.nameVn}
-                        {material.partNumber
-                          ? ` (${material.partNumber})`
-                          : ""}
-                      </option>
-                    ))}
-                  </Select>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={item.quantity}
-                    onChange={(e) =>
-                      updateItem(index, "quantity", e.target.value)
-                    }
-                    placeholder={t("requests.slYeuCau")}
-                    className="tabular"
-                    required
-                  />
-                  <Input
-                    value={item.note}
-                    onChange={(e) => updateItem(index, "note", e.target.value)}
-                    placeholder={t("chung.ghiChu")}
-                  />
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-6">
-                  <Input
-                    value={item.itemName}
-                    onChange={(e) =>
-                      updateItem(index, "itemName", e.target.value)
-                    }
-                    placeholder={
-                      isSpare
-                        ? t("requests.phTenPhuTungMoi")
-                        : t("requests.phTenVatTuMoi")
-                    }
-                    className="md:col-span-2"
-                    required
-                  />
-                  <Input
-                    value={item.itemCode}
-                    onChange={(e) =>
-                      updateItem(index, "itemCode", e.target.value)
-                    }
-                    placeholder={isSpare ? "Part No." : t("requests.maImpa")}
-                  />
-                  <Input
-                    value={item.itemUom}
-                    onChange={(e) =>
-                      updateItem(index, "itemUom", e.target.value)
-                    }
-                    placeholder={t("requests.phDvt")}
-                  />
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={item.quantity}
-                    onChange={(e) =>
-                      updateItem(index, "quantity", e.target.value)
-                    }
-                    placeholder={t("requests.slYeuCau")}
-                    className="tabular"
-                    required
-                  />
-                  <Input
-                    value={item.note}
-                    onChange={(e) => updateItem(index, "note", e.target.value)}
-                    placeholder={t("chung.ghiChu")}
-                  />
-                </div>
-              )}
-              {item.goiY && (
-                <p className="text-xs text-[var(--text-muted)]">{item.goiY}</p>
-              )}
-            </div>
+              item={item}
+              index={index}
+              isSpare={isSpare}
+              danhSach={filteredMaterials}
+              dangChon={item.materialId ? theoId.get(item.materialId) : undefined}
+              moDu={dongMo === index}
+              onMo={setDongMo}
+              onSua={updateItem}
+              onXoa={removeItem}
+            />
           ))}
           {filteredMaterials.length === 0 && (
             <Notice tone="warning">
@@ -658,3 +544,175 @@ export default function RequestForm({
     </Card>
   );
 }
+
+/**
+ * Một dòng của form yêu cầu — tách riêng và memo vì form có thể tới hàng trăm
+ * dòng (yêu cầu nhanh từ file MLS-11-05, tick cả bộ phận ở Danh mục).
+ *
+ * Ô chọn mặt hàng của dòng ĐÓNG chỉ vẽ option đang chọn; danh sách đầy đủ chỉ
+ * vẽ cho dòng vừa được bấm / focus (moDu). Trước đây mỗi dòng vẽ nguyên danh
+ * mục: đo 2026-10-02, file 169 dòng của người toàn đội ra 1.448 KB HTML / 245 KB
+ * gzip với 11.832 <option>; tick 100 mặt hàng ra 1 MB gzip, và mỗi phím gõ dựng
+ * lại mọi <select> của mọi dòng.
+ */
+const DongYeuCauForm = memo(function DongYeuCauForm({
+  item,
+  index,
+  isSpare,
+  danhSach,
+  dangChon,
+  moDu,
+  onMo,
+  onSua,
+  onXoa,
+}: {
+  item: RequestItem;
+  index: number;
+  isSpare: boolean;
+  danhSach: MaterialOption[];
+  dangChon: MaterialOption | undefined;
+  moDu: boolean;
+  onMo: (index: number) => void;
+  onSua: (index: number, field: keyof RequestItem, value: string) => void;
+  onXoa: (index: number) => void;
+}) {
+  const { t } = useNgonNgu();
+  return (
+    <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex gap-0.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-0.5 text-xs">
+          <button
+            type="button"
+            onClick={() => onSua(index, "mode", "existing")}
+            aria-pressed={item.mode === "existing"}
+            className={cn(
+              "rounded-md px-2 py-1 font-medium transition focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
+              item.mode === "existing" ? SEG_ON : SEG_OFF
+            )}
+          >
+            {t("requests.coSan")}
+          </button>
+          <button
+            type="button"
+            onClick={() => onSua(index, "mode", "new")}
+            aria-pressed={item.mode === "new"}
+            className={cn(
+              "rounded-md px-2 py-1 font-medium transition focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
+              item.mode === "new" ? SEG_ON : SEG_OFF
+            )}
+          >
+            {t("requests.moiNgoaiDanhMuc")}
+          </button>
+        </div>
+        <span className="text-xs text-[var(--text-muted)]">
+          {t("requests.dongThu", { n: index + 1 })}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onXoa(index)}
+          icon={<Trash2 className="size-4" />}
+          className="ml-auto text-[var(--text-danger)]"
+        >
+          {t("requests.xoaDong")}
+        </Button>
+      </div>
+
+      {item.mode === "existing" ? (
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-6">
+          <Select
+            value={item.materialId}
+            onChange={(e) =>
+              onSua(index, "materialId", e.target.value)
+            }
+            className="md:col-span-4"
+            required
+            // Mở đủ danh sách cho đúng dòng này ngay khi bấm / tab vào (trước
+            // khi trình duyệt bung hộp chọn).
+            onPointerDown={() => onMo(index)}
+            onFocus={() => onMo(index)}
+          >
+            <option value="">
+              {isSpare
+                ? t("requests.chonPhuTung")
+                : t("requests.chonVatTu")}
+            </option>
+            {(moDu ? danhSach : dangChon ? [dangChon] : []).map((m) => (
+              <option key={m.id} value={m.id}>
+                {`${m.code} - ${m.nameVn}${m.partNumber ? ` (${m.partNumber})` : ""}`}
+              </option>
+            ))}
+          </Select>
+          <Input
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={item.quantity}
+            onChange={(e) =>
+              onSua(index, "quantity", e.target.value)
+            }
+            placeholder={t("requests.slYeuCau")}
+            className="tabular"
+            required
+          />
+          <Input
+            value={item.note}
+            onChange={(e) => onSua(index, "note", e.target.value)}
+            placeholder={t("chung.ghiChu")}
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-6">
+          <Input
+            value={item.itemName}
+            onChange={(e) =>
+              onSua(index, "itemName", e.target.value)
+            }
+            placeholder={
+              isSpare
+                ? t("requests.phTenPhuTungMoi")
+                : t("requests.phTenVatTuMoi")
+            }
+            className="md:col-span-2"
+            required
+          />
+          <Input
+            value={item.itemCode}
+            onChange={(e) =>
+              onSua(index, "itemCode", e.target.value)
+            }
+            placeholder={isSpare ? "Part No." : t("requests.maImpa")}
+          />
+          <Input
+            value={item.itemUom}
+            onChange={(e) =>
+              onSua(index, "itemUom", e.target.value)
+            }
+            placeholder={t("requests.phDvt")}
+          />
+          <Input
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={item.quantity}
+            onChange={(e) =>
+              onSua(index, "quantity", e.target.value)
+            }
+            placeholder={t("requests.slYeuCau")}
+            className="tabular"
+            required
+          />
+          <Input
+            value={item.note}
+            onChange={(e) => onSua(index, "note", e.target.value)}
+            placeholder={t("chung.ghiChu")}
+          />
+        </div>
+      )}
+      {item.goiY && (
+        <p className="text-xs text-[var(--text-muted)]">{item.goiY}</p>
+      )}
+    </div>
+  );
+});

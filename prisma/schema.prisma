@@ -578,21 +578,28 @@ model PaintProduct {
   requestItems MaterialRequestItem[]
 }
 
-// Phiếu giao / nhận SƠN tải lên để nhập tồn sơn (Excel MLS-11-05, Excel, Word,
-// PDF, PDF scan): dòng đọc được lưu ở `dong` để người dùng soát, ghép loại sơn
-// rồi mới NHẬP vào tồn sơn của tàu. Không đồng bộ — file nằm trên đĩa của bản
-// cài đã tải; kết quả đồng bộ theo PaintProduct / PaintStock / PaintTransaction.
+// Phiếu giao / nhận SƠN (Excel, Word, PDF, PDF scan) hoặc báo cáo lượng sơn tồn
+// MLS-11-14 tải lên để cập nhật tồn sơn: dòng đọc được lưu ở `dong` để người dùng
+// soát, ghép loại sơn rồi mới ghi vào tồn sơn của tàu. Không đồng bộ — file nằm
+// trên đĩa của bản cài đã tải; kết quả đồng bộ theo PaintProduct / PaintStock /
+// PaintTransaction.
 model SonPhieuTep {
   id          Int       @id @default(autoincrement())
   vesselId    Int
   vessel      Vessel    @relation(fields: [vesselId], references: [id], onDelete: Cascade)
+  // PHIEU_GIAO = phiếu giao / nhận (cộng số nhận vào tồn) · BAO_CAO_TON = báo cáo
+  // lượng sơn tồn MLS-11-14 (đưa tồn về đúng số của báo cáo tại ngày cuối quý =
+  // ngayNhan; sơn nhập / xuất sau ngày đó giữ nguyên).
+  loai        String    @default("PHIEU_GIAO")
+  // Tên tàu ghi trên tệp (báo cáo tồn) — nhắc khi tải nhầm báo cáo của tàu khác.
+  tauTrenTep  String?
   fileName    String
   storedName  String    @unique
   // WORD · EXCEL · PDF
   loaiTep     String
   size        Int
   sha256      String
-  // Cách đọc ra dòng: MLS-11-05 · BANG · PHIEU_GIAO · OCR · AI · TAY
+  // Cách đọc ra dòng: MLS-11-14 · BANG · PHIEU_GIAO · OCR · AI · TAY (MLS-11-05: phiếu cũ)
   nguonDoc    String?
   soPhieu     String?
   nhaCungCap  String?
@@ -692,6 +699,10 @@ model PaintTransaction {
   // Phiếu giao sơn (SonPhieuTep) sinh ra dòng nhập này — để gỡ cả phiếu khi nhập
   // nhầm. Không khóa ngoại: SonPhieuTep không đồng bộ giữa các bản cài.
   phieuSonId  Int?
+  // Dòng do báo cáo tồn MLS-11-14 ghi: cột báo cáo mà dòng làm khớp ("tonDau" /
+  // "nhan" / "tieuThu" / "tonCuoi") — tờ in quý xếp dòng "nhan" / "tieuThu" thẳng vào
+  // cột đó. null = dòng ghi tay, phiếu giao, PO.
+  cotBaoCao   String?
 
   @@index([vesselId])
   @@index([productId])

@@ -14,6 +14,8 @@ export type SonGhep = {
   colorName: string | null;
   colorCode: string | null;
   uom: string;
+  /** Dung tích một thùng / lon (lít) — phân định hai loại cùng tên khác cỡ thùng khi ghép dòng sơn. */
+  packSize?: number | null;
 };
 
 const boDau = (s: string) =>

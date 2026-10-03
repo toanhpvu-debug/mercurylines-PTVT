@@ -274,7 +274,15 @@ export function docKyQuy(nam: unknown, quy: unknown, bayGio: Date): KyQuy {
 
 // ─── Số liệu một quý ─────────────────────────────────────────────────────────
 
-export type GiaoDichSonKy = { productId: number; type: string; quantity: number; dieuChinh: boolean; occurredAt: Date };
+export type GiaoDichSonKy = {
+  productId: number;
+  type: string;
+  quantity: number;
+  dieuChinh: boolean;
+  occurredAt: Date;
+  /** Dòng do báo cáo tồn MLS-11-14 ghi: cột báo cáo mà dòng làm khớp (null = dòng thường). */
+  cotBaoCao?: string | null;
+};
 
 export type SoLieuQuySon = {
   productId: number;
@@ -293,6 +301,100 @@ const lam3 = (n: number) => {
   return Math.abs(r) < 1e-9 ? 0 : r;
 };
 
+/** Số liệu THÔ của một loại sơn quanh một quý (chưa gộp điều chỉnh vào cột nào). */
+export type HeThongQuy = {
+  /** Tồn bây giờ. */
+  hienTai: number;
+  /** Tồn lúc đầu quý (thật, kể cả điều chỉnh trước quý). */
+  dauKy: number;
+  /** Dòng NHẬP không điều chỉnh trong quý (trừ dòng báo cáo tồn ghi vào cột — xem nhanBc…). */
+  nhan: number;
+  /** Dòng XUẤT không điều chỉnh trong quý. */
+  tieuThu: number;
+  /** Tổng dòng ĐIỀU CHỈNH thường trong quý (Sửa số tồn, Gỡ khỏi danh sách), có dấu. */
+  dieuChinh: number;
+  /** Dòng báo cáo tồn MLS-11-14 ghi vào cột Nhận (nhập +, bớt nhận −). */
+  nhanBc: number;
+  /** Dòng báo cáo tồn ghi vào cột Tiêu thụ (xuất dùng +, bớt tiêu thụ −). */
+  tieuThuBc: number;
+  /** Dòng báo cáo tồn chỉnh Tồn cuối kỳ khi bốn số của báo cáo không cân, có dấu. */
+  cuoiBc: number;
+  /** Tồn lúc hết quý. */
+  cuoiKy: number;
+};
+
+/**
+ * Số liệu thô của MỘT loại sơn trong quý, neo vào tồn hiện tại: tồn cuối quý = tồn
+ * bây giờ − (nhập − xuất) ghi từ cuối quý tới nay; tồn đầu quý = tồn cuối quý − mọi
+ * phát sinh trong quý. Giao dịch trước đầu quý không cần (bỏ qua).
+ */
+export function heThongQuy(hienTai: number, giaoDich: readonly GiaoDichSonKy[], ky: { batDau: Date; ketThuc: Date }): HeThongQuy {
+  const dau = ky.batDau.getTime();
+  const cuoi = ky.ketThuc.getTime();
+  let sau = 0;
+  let vao = 0;
+  let ra = 0;
+  let dc = 0;
+  let nhanBc = 0;
+  let tieuThuBc = 0;
+  let cuoiBc = 0;
+  for (const g of giaoDich) {
+    const t = g.occurredAt.getTime();
+    if (t < dau) continue;
+    const so = g.type === "IN" ? g.quantity : -g.quantity;
+    if (t >= cuoi) sau += so;
+    else if (g.cotBaoCao === "nhan") nhanBc += so;
+    else if (g.cotBaoCao === "tieuThu") tieuThuBc -= so;
+    else if (g.cotBaoCao === "tonCuoi") cuoiBc += so;
+    else if (g.dieuChinh) dc += so;
+    else if (g.type === "IN") vao += g.quantity;
+    else ra += g.quantity;
+  }
+  const cuoiKy = lam3(hienTai - sau);
+  return {
+    hienTai: lam3(hienTai),
+    dauKy: lam3(cuoiKy - (vao - ra + dc + nhanBc - tieuThuBc + cuoiBc)),
+    nhan: lam3(vao),
+    tieuThu: lam3(ra),
+    dieuChinh: lam3(dc),
+    nhanBc: lam3(nhanBc),
+    tieuThuBc: lam3(tieuThuBc),
+    cuoiBc: lam3(cuoiBc),
+    cuoiKy,
+  };
+}
+
+export type BonCotQuy = { tonDau: number; nhan: number; tieuThu: number; tonCuoi: number; dieuChinh: number; dieuChinhVao: SoLieuQuySon["dieuChinhVao"] };
+
+/**
+ * Bốn cột MLS-11-14 của một loại sơn từ số liệu thô (luật gộp ở tinhTonQuy):
+ * dòng điều chỉnh thường sửa vào Nhận hoặc Tồn đầu kỳ; dòng báo cáo tồn ghi vào cột
+ * Nhận / Tiêu thụ cộng thẳng vào cột đó — in lại ra đúng số báo cáo. `kemCuoiBc`
+ * = false: bỏ phần chỉnh tồn cuối của báo cáo không cân (để so cột với báo cáo —
+ * lib/baoCaoTonSon.ts keHoachBaoCaoTon; cột Tồn cuối kỳ khi đó không còn cân).
+ */
+export function bonCotQuy(ht: HeThongQuy, kemCuoiBc = true): BonCotQuy {
+  const dc = lam3(ht.dieuChinh + (kemCuoiBc ? ht.cuoiBc : 0));
+  let nhan = ht.nhan;
+  let tonDau = ht.dauKy;
+  let vao: SoLieuQuySon["dieuChinhVao"] = null;
+  if (dc < 0) {
+    const truNhan = Math.min(nhan, -dc);
+    nhan = lam3(nhan - truNhan);
+    tonDau = lam3(ht.dauKy + dc + truNhan);
+    vao = truNhan <= 0 ? "tonDau" : truNhan < -dc ? "ca-hai" : "nhan";
+  } else if (dc > 0) {
+    if (nhan > 0) {
+      nhan = lam3(nhan + dc);
+      vao = "nhan";
+    } else {
+      tonDau = lam3(ht.dauKy + dc);
+      vao = "tonDau";
+    }
+  }
+  return { tonDau, nhan: lam3(nhan + ht.nhanBc), tieuThu: lam3(ht.tieuThu + ht.tieuThuBc), tonCuoi: ht.cuoiKy, dieuChinh: dc, dieuChinhVao: vao };
+}
+
 /**
  * Bốn cột MLS-11-14 của từng loại sơn trong một quý, NEO vào tồn hiện tại:
  *   Tồn cuối kỳ = tồn bây giờ − (nhập − xuất) ghi từ cuối quý tới nay;
@@ -306,6 +408,8 @@ const lam3 = (n: number) => {
  *   - quý có nhận loại sơn đó → sửa vào Nhận (thường là sửa số nhập nhầm từ phiếu
  *     giao); Nhận không xuống dưới 0, phần còn lại sửa vào Tồn đầu kỳ;
  *   - quý không có nhận → sửa vào Tồn đầu kỳ (sửa số mang sang từ trước).
+ * Dòng do báo cáo tồn MLS-11-14 ghi (cotBaoCao) vào cột Nhận / Tiêu thụ thì nằm
+ * thẳng ở cột đó (bonCotQuy) — cập nhật theo báo cáo rồi in lại ra đúng báo cáo.
  * Loại sơn có cả bốn cột bằng 0 (gỡ trước quý, chưa từng có) không trả về.
  */
 export function tinhTonQuy(
@@ -313,51 +417,20 @@ export function tinhTonQuy(
   giaoDich: readonly GiaoDichSonKy[],
   ky: { batDau: Date; ketThuc: Date }
 ): SoLieuQuySon[] {
-  type Cong = { sau: number; vao: number; ra: number; dc: number };
-  const theoLoai = new Map<number, Cong>();
-  const lay = (id: number) => {
-    let c = theoLoai.get(id);
-    if (!c) theoLoai.set(id, (c = { sau: 0, vao: 0, ra: 0, dc: 0 }));
-    return c;
-  };
-  for (const id of tonHienTai.keys()) lay(id);
-  const dau = ky.batDau.getTime();
-  const cuoi = ky.ketThuc.getTime();
+  const theoLoai = new Map<number, GiaoDichSonKy[]>();
+  for (const id of tonHienTai.keys()) theoLoai.set(id, []);
+  const dauQuy = ky.batDau.getTime();
   for (const g of giaoDich) {
-    const t = g.occurredAt.getTime();
-    if (t < dau) continue;
-    const c = lay(g.productId);
-    const so = g.type === "IN" ? g.quantity : -g.quantity;
-    if (t >= cuoi) c.sau += so;
-    else if (g.dieuChinh) c.dc += so;
-    else if (g.type === "IN") c.vao += g.quantity;
-    else c.ra += g.quantity;
+    if (g.occurredAt.getTime() < dauQuy) continue;
+    const ds = theoLoai.get(g.productId);
+    if (ds) ds.push(g);
+    else theoLoai.set(g.productId, [g]);
   }
   const ra: SoLieuQuySon[] = [];
-  for (const [productId, c] of theoLoai) {
-    const tonCuoi = lam3((tonHienTai.get(productId) ?? 0) - c.sau);
-    const tonDauThat = lam3(tonCuoi - (c.vao - c.ra + c.dc));
-    const dc = lam3(c.dc);
-    let nhan = lam3(c.vao);
-    let tonDau = tonDauThat;
-    let vao: SoLieuQuySon["dieuChinhVao"] = null;
-    if (dc < 0) {
-      const truNhan = Math.min(nhan, -dc);
-      nhan = lam3(nhan - truNhan);
-      tonDau = lam3(tonDauThat + dc + truNhan);
-      vao = truNhan <= 0 ? "tonDau" : truNhan < -dc ? "ca-hai" : "nhan";
-    } else if (dc > 0) {
-      if (nhan > 0) {
-        nhan = lam3(nhan + dc);
-        vao = "nhan";
-      } else {
-        tonDau = lam3(tonDauThat + dc);
-        vao = "tonDau";
-      }
-    }
-    const tieuThu = lam3(c.ra);
-    if (tonDau === 0 && nhan === 0 && tieuThu === 0 && tonCuoi === 0) continue;
-    ra.push({ productId, tonDau, nhan, tieuThu, tonCuoi, dieuChinh: dc, dieuChinhVao: vao });
+  for (const [productId, gd] of theoLoai) {
+    const c = bonCotQuy(heThongQuy(tonHienTai.get(productId) ?? 0, gd, ky));
+    if (c.tonDau === 0 && c.nhan === 0 && c.tieuThu === 0 && c.tonCuoi === 0) continue;
+    ra.push({ productId, ...c });
   }
   return ra;
 }

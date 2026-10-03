@@ -1,11 +1,13 @@
 /**
  * PHIẾU GIAO / NHẬN SƠN → TỒN SƠN CỦA TÀU — phần thuần.
  *
- * Mọi nguồn đọc (MLS-11-05 qua lib/yeuCauNhap.ts, bảng sơn Excel / dán qua
- * lib/paintImport.ts, phiếu giao dạng chữ qua lib/phieuGiaoParse.ts, bộ đọc AI
- * chế độ "phieuGiao") quy về MỘT kiểu dòng `DongNhanSon`; ghép với DANH MỤC SƠN
- * (lib/yeuCauSon.ts ghepSon), người dùng soát ở trang /paint/<tàu>/nhan/<id>
- * rồi mới nhập vào tồn. Kiểm ở scripts/kiem-tra-phieu-son.ts.
+ * Mọi nguồn đọc (bảng trong Word / Excel qua lib/yeuCauNhap.ts, bảng sơn Excel /
+ * dán qua lib/paintImport.ts, phiếu giao dạng chữ qua lib/phieuGiaoParse.ts, bộ
+ * đọc AI chế độ "phieuSon") quy về MỘT kiểu dòng `DongNhanSon`; ghép với DANH MỤC
+ * SƠN (lib/yeuCauSon.ts ghepSon), người dùng soát ở trang /paint/<tàu>/nhan/<id>
+ * rồi mới nhập vào tồn. Báo cáo lượng sơn tồn MLS-11-14 dùng chung kiểu dòng này
+ * (lib/baoCaoTonSon.ts): `soLuong` là Tồn cuối kỳ, ba cột kia ở `bc`. Kiểm ở
+ * scripts/kiem-tra-phieu-son.ts và scripts/kiem-tra-bao-cao-ton-son.ts.
  */
 import type { DongAi } from "@/lib/docPhieuBangAi";
 import type { DongPhieuGiao } from "@/lib/phieuGiaoParse";
@@ -18,6 +20,9 @@ import { chuanNgayYeuCau } from "@/lib/yeuCauNhap";
 export const DUOI_PHIEU_SON = [".xlsx", ".xls", ".docx", ".doc", ".pdf"] as const;
 export const TOI_DA_DONG_PHIEU_SON = 300;
 
+/** Ba cột số còn lại của một dòng báo cáo tồn MLS-11-14 (Tồn cuối kỳ nằm ở `soLuong`); null = ô trống. */
+export type SoBaoCaoTon = { tonDau: number | null; nhan: number | null; tieuThu: number | null };
+
 export type DongNhanSon = {
   /** Mô tả như trên phiếu. */
   ten: string;
@@ -27,7 +32,7 @@ export type DongNhanSon = {
   /** Mã / Part No. / mã sơn ghi trên phiếu. */
   ma: string | null;
   dvt: string | null;
-  /** Số lượng NHẬN (cộng vào tồn); null = phiếu để trống. */
+  /** Số lượng NHẬN (cộng vào tồn); báo cáo tồn MLS-11-14: Tồn cuối kỳ. null = phiếu để trống. */
   soLuong: number | null;
   /** Dung tích một lon / thùng (lít) nếu phiếu có. */
   dungTich: number | null;
@@ -39,6 +44,8 @@ export type DongNhanSon = {
   boQua: boolean;
   canhBao: string | null;
   ghiChu: string | null;
+  /** Chỉ dòng báo cáo tồn MLS-11-14: Tồn đầu kỳ · Nhận · Tiêu thụ trong kỳ. */
+  bc?: SoBaoCaoTon | null;
 };
 
 const sach = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim();
@@ -63,9 +70,10 @@ const dongMoi = (ten: string, them: Partial<DongNhanSon> = {}): DongNhanSon => (
 });
 
 /**
- * Phiếu theo mẫu MLS-11-05: số NHẬN lấy cột S.lượng duyệt (Q'ty App.) nếu có
- * ghi — phiếu giao kèm theo yêu cầu đã duyệt ghi số giao ở đó; không có thì
- * lấy S.lượng yêu cầu và nhắc người dùng đối chiếu.
+ * Bảng đọc theo khuôn phiếu yêu cầu (lib/yeuCauNhap.ts — bảng trong Word / Excel /
+ * lớp chữ PDF): số NHẬN lấy cột duyệt nếu có ghi, không thì cột số lượng và nhắc
+ * người dùng đối chiếu. Tệp CÓ tiêu đề mẫu MLS-11-05 thì lib/phieuSonTep.ts đã từ
+ * chối từ trước (MLS-11-05 là phiếu yêu cầu, không dùng để nhập tồn sơn).
  */
 export function dongTuYeuCauFile(dong: DongYeuCauFile[]): DongNhanSon[] {
   return dong.slice(0, TOI_DA_DONG_PHIEU_SON).map((d) => {
@@ -103,14 +111,16 @@ export function dongTuChuPhieuGiao(dong: DongPhieuGiao[]): DongNhanSon[] {
   return dong.slice(0, TOI_DA_DONG_PHIEU_SON).map((d) => dongMoi(d.ten, { ma: d.partNo ?? d.impa, dvt: d.donVi, soLuong: d.soLuong > 0 ? d.soLuong : null }));
 }
 
-/** Bộ đọc AI (chế độ phiếu giao) — PDF scan. */
+/** Bộ đọc AI (chế độ phiếu giao sơn / báo cáo tồn MLS-11-14) — PDF scan. */
 export function dongTuAiSon(dong: DongAi[]): DongNhanSon[] {
   return dong.slice(0, TOI_DA_DONG_PHIEU_SON).map((d) =>
     dongMoi(d.ten, {
       ma: d.partNo ?? d.impa,
       dvt: d.donVi || null,
-      soLuong: d.soLuongTrong || !(d.soLuong > 0) ? null : d.soLuong,
+      // Báo cáo tồn: Tồn cuối kỳ = 0 là số thật (sơn đã hết), chỉ ô trống mới là null.
+      soLuong: d.bc ? d.bc.tonCuoi : d.soLuongTrong || !(d.soLuong > 0) ? null : d.soLuong,
       canhBao: d.canhBao ? d.canhBao.slice(0, 300) : null,
+      ...(d.bc ? { bc: { tonDau: d.bc.tonDau, nhan: d.bc.nhan, tieuThu: d.bc.tieuThu } } : {}),
     })
   );
 }
@@ -120,6 +130,76 @@ const chuanKhoa = (s: string | null | undefined) => (s ?? "").normalize("NFC").t
 /** Khóa một loại sơn theo tên chuẩn + màu + mã màu (lib/tenSon.ts) — "SON JOTAFIX PU TC RAL 3000 A 18L" ↔ "JOTAFIX PU TC COMP A" / RAL 3000. */
 const khoaLoaiSon = (ten: string, mau: string | null | undefined, maMau: string | null | undefined) =>
   [ten, mau, maMau].map(chuanKhoa).join("|");
+
+const boDauThuong = (s: string | null | undefined) =>
+  (s ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+/** Tên hãng đứng đầu mô tả — danh mục có loại ghi ("JOTUN HARTOP PAL 9003A"), có loại không ("JOTAFIX EPOXY PRIMER COMP A" · hãng Jotun). */
+const HANG_DAU = /^(jotun|hempel(?:'?s)?|international|akzo ?nobel|chugoku|cmp|kansai|nippon(?: paint)?|ppg|kcc)\s+/;
+
+type SonNhanDang = { id: number; name: string; maker: string | null; colorName: string | null; colorCode: string | null; packSize?: number | null };
+
+/**
+ * Khóa NHẬN DẠNG một loại sơn: dòng sản phẩm (bỏ tên hãng đứng đầu, thành phần,
+ * vai trò trong ngoặc) · thành phần · màu · mã màu; hãng (chuẩn hóa) để riêng.
+ * Cùng một loại dù ghi kiểu nào: "JOTUN JOTAFIX EPOXY PRIMER GREY COMP A 15L" (tờ in
+ * MLS-11-14 của app, báo cáo tàu gõ lại) ↔ loại "JOTAFIX EPOXY PRIMER COMP A" ·
+ * Jotun · GREY; "… PU TC COMP B (ĐÓNG RẮN) 2L" ↔ "JOTAFIX PU TC COMP B (ĐÓNG RẮN)".
+ */
+export function khoaNhanDangSon(p: { ten: string; hang?: string | null; mau?: string | null; maMau?: string | null }): { khoa: string; hang: string | null } | null {
+  const n = nhanDangTenSon(p.ten);
+  const goc = boDauThuong(boDauThuong(n.ten).replace(/\([^)]*\)/g, " ").replace(/\bcomp\.?\s*[ab]\b/g, " "))
+    .replace(HANG_DAU, "")
+    .replace(/[^a-z0-9.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!goc) return null;
+  const hangGhi = p.hang?.trim() || n.hang;
+  // "JOTUN" / "Jotun Paints" / "Jotun" là một hãng.
+  const hang = hangGhi ? boDauThuong(nhanDangTenSon(hangGhi).hang ?? hangGhi) : null;
+  const mau = boDauThuong(p.mau?.trim() || n.mau).replace(/\bgray\b/g, "grey");
+  const maMau = boDauThuong(p.maMau?.trim() || n.maMau).replace(/[^a-z0-9]+/g, "");
+  return { khoa: [goc, n.thanhPhan ?? "", mau, maMau].join("|"), hang };
+}
+
+/** Chỉ mục danh mục sơn theo khóa nhận dạng — dựng một lần cho cả phiếu. */
+export function chiMucNhanDangSon<T extends SonNhanDang>(son: T[]): Map<string, { s: T; hang: string | null }[]> {
+  const m = new Map<string, { s: T; hang: string | null }[]>();
+  for (const s of son) {
+    const k = khoaNhanDangSon({ ten: s.name, hang: s.maker, mau: s.colorName, maMau: s.colorCode });
+    if (!k) continue;
+    const ds = m.get(k.khoa);
+    if (ds) ds.push({ s, hang: k.hang });
+    else m.set(k.khoa, [{ s, hang: k.hang }]);
+  }
+  return m;
+}
+
+/**
+ * Loại sơn trùng khóa nhận dạng với một dòng — chỉ khi CHẮC: còn đúng một loại sau
+ * khi bỏ loại khác hãng và (nếu nhiều) lọc theo dung tích một thùng; không thì null
+ * để bộ ghép theo chữ / người soát quyết.
+ */
+export function chonTheoNhanDang<T extends SonNhanDang>(
+  d: { ten: string; hang: string | null; mau: string | null; maMau: string | null; dungTich: number | null },
+  chiMuc: Map<string, { s: T; hang: string | null }[]>
+): T | null {
+  const k = khoaNhanDangSon(d);
+  if (!k) return null;
+  let ung = chiMuc.get(k.khoa) ?? [];
+  if (k.hang) ung = ung.filter((u) => !u.hang || u.hang === k.hang);
+  const dungTich = d.dungTich ?? nhanDangTenSon(d.ten).dungTich;
+  if (ung.length > 1 && dungTich) {
+    const cungCo = ung.filter((u) => u.s.packSize === dungTich);
+    if (cungCo.length) ung = cungCo;
+  }
+  return ung.length === 1 ? ung[0].s : null;
+}
 
 /**
  * Điền hãng / màu / mã màu / dung tích / hệ sơn nhận dạng từ mô tả trên phiếu
@@ -144,10 +224,15 @@ export function ghepDongSon(dong: DongNhanSon[], son: SonGhep[]): DongNhanSon[] 
   // Trước hết: đúng loại đã tạo từ lần nhập trước (tên chuẩn + màu + mã màu trùng hệt) —
   // cách ghép theo chữ bên dưới không thấy "COMP A" trong "… RAL 3000 A 18L".
   const theoKhoa = new Map(son.map((s) => [khoaLoaiSon(s.name, s.colorName, s.colorCode), s]));
+  // Rồi tới khóa nhận dạng (bỏ tên hãng đứng đầu, thứ tự thành phần / vai trò): tờ in
+  // MLS-11-14 ghi "JOTUN JOTAFIX EPOXY PRIMER GREY COMP A 15L" cho loại "JOTAFIX
+  // EPOXY PRIMER COMP A" · Jotun · GREY — bộ ghép theo chữ thấy hai loại primer A
+  // (xám, đỏ) gần như nhau nên không dám chọn.
+  const chiMuc = chiMucNhanDangSon(son);
   const daKhop = dong.map((d) => {
     if (d.paintProductId !== null) return d;
     const n = nhanDangTenSon(d.ten);
-    const s = theoKhoa.get(khoaLoaiSon(n.ten, d.mau ?? n.mau, d.maMau ?? n.maMau));
+    const s = theoKhoa.get(khoaLoaiSon(n.ten, d.mau ?? n.mau, d.maMau ?? n.maMau)) ?? chonTheoNhanDang(d, chiMuc);
     return s ? { ...d, paintProductId: s.id } : d;
   });
   const ghep = ghepSon(
@@ -180,6 +265,7 @@ export function docDongNhanSon(v: unknown): DongNhanSon[] {
     const ten = chuoiHoacNull(d.ten, 300);
     if (!ten) continue;
     const id = Number(d.paintProductId);
+    const bc = d.bc && typeof d.bc === "object" ? (d.bc as Record<string, unknown>) : null;
     ra.push({
       ten,
       hang: chuoiHoacNull(d.hang, 120),
@@ -194,6 +280,7 @@ export function docDongNhanSon(v: unknown): DongNhanSon[] {
       boQua: d.boQua === true,
       canhBao: chuoiHoacNull(d.canhBao, 300),
       ghiChu: chuoiHoacNull(d.ghiChu, 300),
+      ...(bc ? { bc: { tonDau: soHoacNull(bc.tonDau), nhan: soHoacNull(bc.nhan), tieuThu: soHoacNull(bc.tieuThu) } } : {}),
     });
   }
   return ra.slice(0, TOI_DA_DONG_PHIEU_SON);
@@ -220,6 +307,14 @@ export function sachDongNhanSon(raw: unknown): { ok: true; dong: DongNhanSon[] }
     const soLuong = so(d.soLuong);
     const dungTich = so(d.dungTich);
     if (soLuong === "sai" || dungTich === "sai") return { ok: false, n: i + 1 };
+    // Dòng báo cáo tồn MLS-11-14: ba cột số còn lại (ô gõ tay) — sai thì báo đúng dòng.
+    let bc: SoBaoCaoTon | undefined;
+    if (d.bc && typeof d.bc === "object") {
+      const b = d.bc as Record<string, unknown>;
+      const [tonDau, nhan, tieuThu] = [so(b.tonDau), so(b.nhan), so(b.tieuThu)];
+      if (tonDau === "sai" || nhan === "sai" || tieuThu === "sai") return { ok: false, n: i + 1 };
+      bc = { tonDau, nhan, tieuThu };
+    }
     dong.push({
       ten: ten ?? "",
       hang: chuoiHoacNull(d.hang, 120),
@@ -234,6 +329,7 @@ export function sachDongNhanSon(raw: unknown): { ok: true; dong: DongNhanSon[] }
       boQua: d.boQua === true,
       canhBao: chuoiHoacNull(d.canhBao, 300),
       ghiChu: chuoiHoacNull(d.ghiChu, 300),
+      ...(bc ? { bc } : {}),
     });
   }
   return { ok: true, dong };

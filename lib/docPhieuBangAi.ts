@@ -93,7 +93,12 @@ export type DongAi = DongPhieuGiao & {
   ton?: number | null;
   /** Cột ITEM / Hạng mục của MLS-11-05A (chỉ chế độ "yeuCau"). */
   hangMuc?: string | null;
+  /** Bốn cột số của báo cáo lượng sơn tồn MLS-11-14 (chỉ chế độ "baoCaoTon"). */
+  bc?: SoBaoCaoTonAi;
 };
+
+/** Cột số của MLS-11-14: Tồn đầu kỳ · Nhận · Tiêu thụ trong kỳ · Tồn cuối kỳ (null = ô trống). */
+export type SoBaoCaoTonAi = { tonDau: number | null; nhan: number | null; tieuThu: number | null; tonCuoi: number | null };
 
 /** Cột số của MLS-11-13: (1) tối thiểu, (2) chuẩn, (3) còn dùng, (4) hỏng, (5) toàn bộ, (6) thiếu, (7) yêu cầu. */
 export type SoChangBuoc = {
@@ -107,7 +112,7 @@ export type SoChangBuoc = {
 };
 
 /** Loại tài liệu bộ đọc AI đang đọc — quyết định lời dặn và nghĩa cột số lượng. */
-export type BanDocAi = "phieuGiao" | "phieuSon" | "kiemKe" | "baoGia" | "changBuoc" | "yeuCau";
+export type BanDocAi = "phieuGiao" | "phieuSon" | "baoCaoTon" | "kiemKe" | "baoGia" | "changBuoc" | "yeuCau";
 
 /** Đầu phiếu yêu cầu MLS-11-05A/B do AI đọc — chữ thô, lib/yeuCauNhap.ts chuẩn hóa. */
 export type DauYeuCauAi = {
@@ -130,6 +135,9 @@ export type DauPhieu = {
   cang?: string | null;
   /** Đầu phiếu yêu cầu vật tư / phụ tùng (chỉ chế độ "yeuCau"). */
   yc?: DauYeuCauAi | null;
+  /** Ô Quý / Quarter và Năm / Year của báo cáo tồn MLS-11-14 — chữ thô (chỉ chế độ "baoCaoTon"). */
+  quy?: string | null;
+  nam?: string | null;
 };
 
 export type DocAiThanhCong = DauPhieu & {
@@ -216,21 +224,85 @@ Ví dụ một dòng in "12 | Wire rope clip M12 (Kẹp cáp M12) | 232052 | PCS
 const LOI_NHAC_NGUOI_DUNG = "Đọc phiếu giao hàng trong tài liệu đính kèm và ghi TOÀN BỘ dòng hàng theo đúng cấu trúc yêu cầu.";
 
 // ─── Phiếu giao / nhận SƠN (chế độ "phieuSon") ───────────────────────────────
-// Cùng công cụ / khuôn JSON với phiếu giao vật tư, thêm quy tắc riêng cho sơn. Hay
-// gặp nhất là chính mẫu MLS-11-05 của công ty (bản scan): cột S.lượng duyệt để trống
-// thì quy tắc "lấy cột giao" của phiếu vật tư khiến AI lấy đúng ô trống — mọi dòng
-// mất số lượng và phiếu kẹt ở bước Nhập ("Dòng 1: chưa có số lượng nhận").
+// Cùng công cụ / khuôn JSON với phiếu giao vật tư, thêm quy tắc riêng cho sơn.
+// Biểu mẫu công ty KHÔNG phải phiếu giao (phiếu yêu cầu MLS-11-05, báo cáo lượng
+// sơn tồn MLS-11-14) thì không được cộng số nào vào tồn: đọc dòng nhưng để trống
+// số lượng và nói rõ lý do — người dùng tải lại đúng loại (báo cáo tồn có đường
+// riêng, chế độ "baoCaoTon").
 const HUONG_DAN_PHIEU_SON = `${HUONG_DAN_HE_THONG}
 
 Tài liệu lần này là phiếu giao / nhận SƠN cho tàu (sơn, dung môi / thinner, chất đóng rắn). Thêm các quy tắc sau — chỗ nào khác quy tắc ở trên thì theo phần này:
-A. Tài liệu theo MẪU MLS-11-05 của công ty (tiêu đề "REQUISITION FOR STORES / YÊU CẦU VẬT TƯ"; các cột R.O.B / Còn tồn trên tàu, Q'ty Req. / S.lượng yêu cầu, Q'ty App. / S.lượng duyệt): "soLuong" = cột Q'ty App. / S.lượng duyệt nếu ô đó có số; ô duyệt TRỐNG thì lấy cột Q'ty Req. / S.lượng yêu cầu và đặt canKiem = true, lyDoKiem = "cột duyệt trống — đã lấy S.lượng yêu cầu". KHÔNG BAO GIỜ lấy cột R.O.B / Còn tồn làm số lượng.
+A. Biểu mẫu của công ty KHÔNG phải phiếu giao: phiếu yêu cầu MLS-11-05 (tiêu đề "REQUISITION FOR STORES / YÊU CẦU VẬT TƯ", cột R.O.B / Q'ty Req. / Q'ty App.) và báo cáo lượng sơn tồn MLS-11-14 (tiêu đề "BÁO CÁO LƯỢNG SƠN TỒN / PAINT INVENTORY", cột Tồn đầu kỳ / Nhận / Tiêu thụ / Tồn cuối kỳ). Gặp hai mẫu này: soPhieu = mã biểu mẫu ("MLS-11-05" hoặc "MLS-11-14"), mỗi dòng sơn vẫn ghi tên nhưng "soLuong" = null, canKiem = true, lyDoKiem = "biểu mẫu <mã> — không phải phiếu giao".
 B. Phiếu của hãng sơn / nhà cung cấp: "soLuong" là số lượng giao ở cột số lượng (Qty / Quantity / Số lượng / Delivered) và "donVi" đúng đơn vị của cột đó (LTR, CAN, PAIL, DRUM, SET...). Ô ghi kiểu "4 x 20L" (số lon × dung tích) thì soLuong = 4, donVi = CAN, ghi "20L / lon" vào ghiChu.
 C. "soLuong" luôn là MỘT SỐ kiểu number, không phải chuỗi: "1.000,5" (kiểu Việt) = 1000.5; "1,250.00" = 1250; "20,00" = 20.
 D. Sơn hai thành phần (Comp A / Comp B, Base / Hardener / Curing agent): mỗi thành phần là một dòng, ghi đúng như in.
 E. "loai" luôn là "STORE". Dòng tiêu đề nhóm (VD "PAINT", "THINNER", tên tàu, số đơn hàng) không có số lượng thì KHÔNG ghi thành dòng.`;
 
 const LOI_NHAC_PHIEU_SON =
-  "Đọc phiếu giao / nhận sơn trong tài liệu đính kèm và ghi TOÀN BỘ dòng sơn theo đúng cấu trúc yêu cầu (mẫu MLS-11-05: số lượng = S.lượng duyệt, trống thì S.lượng yêu cầu — không lấy R.O.B).";
+  "Đọc phiếu giao / nhận sơn trong tài liệu đính kèm và ghi TOÀN BỘ dòng sơn theo đúng cấu trúc yêu cầu (biểu mẫu MLS-11-05 / MLS-11-14 không phải phiếu giao: để trống số lượng như quy tắc A).";
+
+// ─── BÁO CÁO LƯỢNG SƠN TỒN MLS-11-14 (chế độ "baoCaoTon") ────────────────────
+// Bảng: Stt / No. | Tên sơn / Paint name | Đơn vị / Unit | Tồn đầu kỳ / In stock |
+// Nhận / Recive | Tiêu thụ trong kỳ / Consume | Tồn cuối kỳ / Remain. Đầu báo cáo
+// có Tên tàu / Vessel, Quý / Quarter, Năm / Year — ngày của báo cáo là cuối quý
+// (lib/baoCaoTonSon.ts); "Issued date" trong khung là ngày ban hành MẪU, không phải.
+
+const SO_BC = (moTa: string) => ({ type: ["number", "null"], description: `${moTa} Ô trống → null; gạch ngang '-' → 0.` });
+
+export const CONG_CU_GHI_BAO_CAO_TON = {
+  name: CONG_CU_GHI_PHIEU.name,
+  description:
+    "Ghi lại toàn bộ báo cáo lượng sơn tồn MLS-11-14 đã đọc: Tên tàu, Quý, Năm và TỪNG dòng sơn trong bảng, mỗi dòng là một phần tử của mảng dong.",
+  input_schema: {
+    type: "object",
+    properties: {
+      nhaCungCap: { type: ["string", "null"], description: "Luôn null." },
+      soPhieu: { type: ["string", "null"], description: "Mã biểu mẫu in trên trang (MLS-11-14), không có thì null." },
+      ngayGiao: { type: ["string", "null"], description: "Luôn null — báo cáo theo quý, không lấy 'Issued date' (ngày ban hành mẫu)." },
+      tau: { type: ["string", "null"], description: "Tên tàu ở ô Tên tàu / Vessel." },
+      quy: { type: ["string", "null"], description: "Ô Quý / Quarter đúng như viết (I, II, III, IV hoặc 1–4)." },
+      nam: { type: ["string", "null"], description: "Ô Năm / Year (4 chữ số)." },
+      dong: {
+        type: "array",
+        description: "Mọi dòng sơn CÓ TÊN trong bảng, theo thứ tự, qua hết các trang được yêu cầu. Bỏ dòng mẫu còn trống.",
+        items: {
+          type: "object",
+          properties: {
+            stt: { type: ["integer", "null"], description: "Số thứ tự (Stt / No.)." },
+            ten: { type: "string", description: "Tên sơn (Tên sơn / Paint name) ĐÚNG NHƯ VIẾT: không dịch, không sửa, giữ mã màu, Comp A / Comp B, dung tích." },
+            donVi: { type: ["string", "null"], description: "Cột Đơn vị / Unit đúng như viết (PAIL, CAN, LTR, DRUM...)." },
+            tonDau: SO_BC("Cột Tồn đầu kỳ / In stock."),
+            nhan: SO_BC("Cột Nhận / Recive (nhận trong kỳ)."),
+            tieuThu: SO_BC("Cột Tiêu thụ trong kỳ / Consume."),
+            tonCuoi: SO_BC("Cột Tồn cuối kỳ / Remain — số quan trọng nhất."),
+            trang: { type: ["integer", "null"], description: "Số trang của tài liệu (đánh từ 1) mà dòng này nằm." },
+            canKiem: { type: ["boolean", "null"], description: "true nếu chữ / số mờ, sửa tay hoặc bạn KHÔNG CHẮC đã đọc đúng." },
+            lyDoKiem: { type: ["string", "null"], description: "Khi canKiem = true: nói ngắn vì sao." },
+            ghiChu: { type: ["string", "null"], description: "Ghi chú riêng của dòng nếu có." },
+          },
+          required: ["ten"],
+        },
+      },
+    },
+    required: ["dong"],
+  },
+} as const;
+
+export const HUONG_DAN_BAO_CAO_TON = `Bạn là đại phó của tàu biển, tỉ mỉ và không bao giờ đoán bừa. Nhiệm vụ: đọc BÁO CÁO LƯỢNG SƠN TỒN (PAINT INVENTORY) theo biểu mẫu MLS-11-14 của công ty — có thể là bản scan nghiêng, mờ, số viết tay, nhiều trang — rồi ghi lại theo đúng cấu trúc yêu cầu.
+
+Bảng có 7 cột theo thứ tự: Stt / No. | Tên sơn / Paint name | Đơn vị / Unit | Tồn đầu kỳ / In stock | Nhận / Recive | Tiêu thụ trong kỳ / Consume | Tồn cuối kỳ / Remain. Tiêu đề cột in hai hàng Việt / Anh.
+
+Quy tắc:
+1. MỖI dòng sơn CÓ TÊN là MỘT phần tử trong "dong". Dòng mẫu còn trống thì bỏ. Không gộp, không bỏ sót, không bịa thêm; dòng cuối mỗi trang và dòng đầu trang sau hay bị sót — kiểm kỹ.
+2. "ten" giữ nguyên như viết (hãng, tên sơn, mã màu RAL / STD, Comp A / Comp B, dung tích như "20L"): không dịch, không sửa chính tả.
+3. Mỗi cột số ghi đúng vào trường của nó: tonDau, nhan, tieuThu, tonCuoi. Ô trống → null; gạch ngang '-' → 0. Đừng dồn số sang cột bên cạnh khi có ô trống. "1.000,5" (kiểu Việt) = 1000.5; "17,91" = 17.91. Số viết tay đọc thật kỹ (0/6/8, 1/7, 3/8, 4/9 hay lẫn); bị gạch sửa thì lấy số mới và đặt canKiem = true.
+4. "trang": số trang (đánh từ 1). "canKiem" = true ở chỗ mờ, sửa tay hoặc không chắc — thà đánh dấu thừa còn hơn để lọt số sai; nói lý do ở lyDoKiem.
+5. Không ghi hàng tiêu đề, dòng chữ ký (Thuyền Trưởng / Captain, Đại Phó / Chief Officer), chân trang (Người làm báo cáo, Thời gian lưu...) vào "dong".
+6. Đầu báo cáo: tau (Tên tàu / Vessel), quy (Quý / Quarter, như viết), nam (Năm / Year); soPhieu = mã biểu mẫu; nhaCungCap và ngayGiao luôn null — KHÔNG lấy "Issued date" / "Revised date" của khung biểu mẫu.
+7. Tài liệu KHÔNG phải báo cáo lượng sơn tồn (VD phiếu giao hàng, hóa đơn, phiếu yêu cầu MLS-11-05 — không có các cột Tồn đầu kỳ / Tồn cuối kỳ): trả "dong" = [] và soPhieu = tên loại tài liệu đó. Tuyệt đối không ghép số lượng giao vào các cột tồn.`;
+
+const LOI_NHAC_BAO_CAO_TON =
+  "Đọc báo cáo lượng sơn tồn MLS-11-14 trong tài liệu đính kèm và ghi Tên tàu, Quý, Năm và TOÀN BỘ dòng sơn có tên (kèm đủ bốn cột số) theo đúng cấu trúc yêu cầu.";
 
 /** Khuôn JSON nhắc thêm cho Gemini — để khi phải bỏ responseSchema (API từ chối khuôn) mô hình vẫn trả đúng dạng. */
 const KHUON_JSON_GOI_Y =
@@ -473,6 +545,14 @@ const LOI_NHAC_YEU_CAU = "Đọc phiếu yêu cầu vật tư / phụ tùng tron
 const BAN_DOC = {
   phieuGiao: { huongDan: HUONG_DAN_HE_THONG, loiNhac: LOI_NHAC_NGUOI_DUNG, congCu: CONG_CU_GHI_PHIEU, khuonJson: KHUON_JSON_GOI_Y, taiLieu: "phiếu" },
   phieuSon: { huongDan: HUONG_DAN_PHIEU_SON, loiNhac: LOI_NHAC_PHIEU_SON, congCu: CONG_CU_GHI_PHIEU, khuonJson: KHUON_JSON_GOI_Y, taiLieu: "phiếu giao sơn" },
+  baoCaoTon: {
+    huongDan: HUONG_DAN_BAO_CAO_TON,
+    loiNhac: LOI_NHAC_BAO_CAO_TON,
+    congCu: CONG_CU_GHI_BAO_CAO_TON,
+    khuonJson:
+      'Trả về DUY NHẤT một JSON dạng: {"nhaCungCap": null, "soPhieu": string|null, "ngayGiao": null, "tau": string|null, "quy": string|null, "nam": string|null, "dong": [{"stt": number|null, "ten": string, "donVi": string|null, "tonDau": number|null, "nhan": number|null, "tieuThu": number|null, "tonCuoi": number|null, "trang": number|null, "canKiem": boolean, "lyDoKiem": string|null, "ghiChu": string|null}]}',
+    taiLieu: "báo cáo tồn",
+  },
   kiemKe: {
     huongDan: HUONG_DAN_KIEM_KE,
     loiNhac: LOI_NHAC_KIEM_KE,
@@ -565,6 +645,10 @@ type DongTho = {
   yeuCau?: unknown;
   ton?: unknown;
   hangMuc?: unknown;
+  tonDau?: unknown;
+  nhan?: unknown;
+  tieuThu?: unknown;
+  tonCuoi?: unknown;
   donVi?: unknown;
   loai?: unknown;
   thietBi?: unknown;
@@ -631,6 +715,11 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
       soMay: chuoi(o.soMay, 120),
     };
   }
+  // Báo cáo lượng sơn tồn MLS-11-14 (chế độ "baoCaoTon"): ô Quý / Năm, chữ thô.
+  if ("quy" in o || "nam" in o) {
+    dau.quy = chuoi(o.quy, 20);
+    dau.nam = chuoi(o.nam, 10);
+  }
   const dong: DongAi[] = [];
   const tho = Array.isArray(o.dong) ? (o.dong as DongTho[]) : [];
   for (let i = 0; i < tho.length; i++) {
@@ -670,12 +759,18 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
     const cb: SoChangBuoc | undefined = KHOA_CB.some((k) => k in d)
       ? { toiThieu: soCb(d.toiThieu), chuan: soCb(d.chuan), conDung: soCb(d.conDung), hong: soCb(d.hong), tong: soCb(d.tong), thieu: soCb(d.thieu), yeuCau: soCb(d.yeuCau) }
       : undefined;
+    // Báo cáo lượng sơn tồn MLS-11-14 (chế độ "baoCaoTon"): bốn cột số, Tồn cuối kỳ là số chính.
+    const KHOA_BC = ["tonDau", "nhan", "tieuThu", "tonCuoi"] as const;
+    const bc: SoBaoCaoTonAi | undefined = KHOA_BC.some((k) => k in d)
+      ? { tonDau: soCb(d.tonDau), nhan: soCb(d.nhan), tieuThu: soCb(d.tieuThu), tonCuoi: soCb(d.tonCuoi) }
+      : undefined;
     // Phiếu yêu cầu (chế độ "yeuCau"): R.O.B và cột ITEM / Hạng mục.
     const coTon = "ton" in d;
     const ton = coTon ? soCb(d.ton) : null;
     const hangMuc = chuoi(d.hangMuc, 80);
     const donViTho = chuoi(d.donVi, 20);
-    const donVi = donViTho ? chuanDonVi(donViTho) : "PCS";
+    // Báo cáo tồn để trống đơn vị thì giữ trống (không tự điền PCS cho sơn).
+    const donVi = donViTho ? chuanDonVi(donViTho) : bc ? "" : "PCS";
     const loaiTho = String(d.loai ?? "").toUpperCase();
     const loai: "STORE" | "SPARE" = loaiTho === "STORE" || loaiTho === "SPARE" ? loaiTho : impa ? "STORE" : "SPARE";
     const thietBi = chuoi(d.thietBi, 120);
@@ -690,7 +785,11 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
       ? `${stt}. ${tenIn ?? ten}${partNo ? ` · ${partNo}` : ""} — tối thiểu ${cb.toiThieu ?? "—"} · chuẩn ${cb.chuan ?? "—"} · còn dùng ${cb.conDung ?? "—"} · hỏng ${cb.hong ?? "—"}${
           cb.yeuCau !== null ? ` · yêu cầu ${cb.yeuCau}` : ""
         }${trang ? ` · tr.${trang}` : ""}`
-      : `${stt}. ${tenIn ?? ten}${partNo ? ` · P/N ${partNo}` : ""}${impa ? ` · IMPA ${impa}` : ""} — ${soLuong} ${donVi}${
+      : bc
+        ? `${stt}. ${tenIn ?? ten}${donVi ? ` · ${donVi}` : ""} — đầu kỳ ${bc.tonDau ?? "—"} · nhận ${bc.nhan ?? "—"} · tiêu thụ ${bc.tieuThu ?? "—"} · cuối kỳ ${bc.tonCuoi ?? "—"}${
+            trang ? ` · tr.${trang}` : ""
+          }${ghiChu ? ` (${ghiChu})` : ""}`
+        : `${stt}. ${tenIn ?? ten}${partNo ? ` · P/N ${partNo}` : ""}${impa ? ` · IMPA ${impa}` : ""} — ${soLuong} ${donVi}${
       thietBi ? ` · ${thietBi}` : ""
     }${coTon ? ` · ROB ${ton ?? "—"}` : ""}${trang ? ` · tr.${trang}` : ""}${ghiChu ? ` (${ghiChu})` : ""}`;
     dong.push({
@@ -699,15 +798,17 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
       tenEn: tenEn && tenEn !== ten ? tenEn : tenEn === ten && tenVi ? tenEn : tenEn && !tenVi ? null : tenEn,
       partNo,
       impa,
-      soLuong,
+      // Báo cáo tồn: "số lượng" là Tồn cuối kỳ; trống = chưa ghi, 0 = đã hết (khác nhau).
+      soLuong: bc ? (bc.tonCuoi ?? 0) : soLuong,
       donVi,
       loai,
       thietBi,
       trang,
       canhBao: ghiChu && /gạch|thiếu|hủy|cancel|short|miss|thay/i.test(ghiChu) ? themCanhBao(canhBao, `Ghi chú trên phiếu: ${ghiChu}`) : canhBao,
-      soLuongTrong,
+      soLuongTrong: bc ? bc.tonCuoi === null : soLuongTrong,
       donGia,
       ...(cb ? { cb } : {}),
+      ...(bc ? { bc } : {}),
       ...(coTon ? { ton } : {}),
       ...(hangMuc ? { hangMuc } : {}),
     });
@@ -723,6 +824,7 @@ export function tomTat(dau: DauPhieu, dong: DongAi[], loiPhu: string[]): string 
     dau.ngayGiao ? `Ngày giao: ${dau.ngayGiao}` : null,
     dau.tau ? `Tàu: ${dau.tau}` : null,
     dau.cang ? `Cảng: ${dau.cang}` : null,
+    dau.quy || dau.nam ? `Quý: ${dau.quy ?? "—"} · Năm: ${dau.nam ?? "—"}` : null,
   ].filter(Boolean);
   const canKiem = dong.filter((d) => d.canhBao).length;
   return [
@@ -753,6 +855,13 @@ export function gopLuot(luot1: DongAi[], luot2: DongAi[]): DongAi[] {
     if (JSON.stringify(cu.cb ?? null) !== JSON.stringify(d.cb ?? null)) {
       return { ...d, canhBao: themCanhBao(d.canhBao, "Lượt kiểm lại sửa cột số (lượt 1: " + JSON.stringify(cu.cb ?? null) + ")") };
     }
+    if (JSON.stringify(cu.bc ?? null) !== JSON.stringify(d.bc ?? null)) {
+      const c = cu.bc;
+      return {
+        ...d,
+        canhBao: themCanhBao(d.canhBao, `Lượt kiểm lại sửa cột số (lượt 1: đầu ${c?.tonDau ?? "—"} · nhận ${c?.nhan ?? "—"} · tiêu thụ ${c?.tieuThu ?? "—"} · cuối ${c?.tonCuoi ?? "—"})`),
+      };
+    }
     if ((cu.ton ?? null) !== (d.ton ?? null)) {
       return { ...d, canhBao: themCanhBao(d.canhBao, `Lượt kiểm lại sửa R.O.B (lượt 1: ${cu.ton ?? "trống"})`) };
     }
@@ -776,8 +885,13 @@ export function soatDong(dong: DongAi[]): DongAi[] {
   });
   return dong.map((d, i) => {
     const lyDo: string[] = [];
-    if (!d.cb && !(d.soLuong > 0)) lyDo.push("Số lượng 0 hoặc trống");
-    if (!d.cb && !DON_VI_BIET.has(d.donVi)) lyDo.push(`Đơn vị lạ "${d.donVi}"`);
+    // Báo cáo tồn: Tồn cuối kỳ 0 là số thật; chỉ ô trống mới đáng ngờ. Đơn vị sơn (PAIL…) không theo danh sách vật tư.
+    if (d.bc) {
+      if (d.bc.tonCuoi === null) lyDo.push("Trống Tồn cuối kỳ");
+    } else {
+      if (!d.cb && !(d.soLuong > 0)) lyDo.push("Số lượng 0 hoặc trống");
+      if (!d.cb && !DON_VI_BIET.has(d.donVi)) lyDo.push(`Đơn vị lạ "${d.donVi}"`);
+    }
     if (d.ten.length < 3) lyDo.push("Tên quá ngắn");
     if (/\(\?\)/.test(d.ten) || /\(\?\)/.test(d.partNo ?? "")) lyDo.push("Có chỗ mờ (?)");
     const truoc = dauTien.get(khoaDong(d));
@@ -1278,7 +1392,9 @@ export function loiNhac(pham: [number, number] | null, luot1: DongAi[] | null, b
     const gon = luot1.map((d) =>
       d.cb
         ? { ten: d.ten, partNo: d.partNo, ...d.cb, trang: d.trang }
-        : {
+        : d.bc
+          ? { ten: d.ten, donVi: d.donVi || null, ...d.bc, trang: d.trang }
+          : {
             ten: d.ten,
             tenEn: d.tenEn,
             partNo: d.partNo,
@@ -1388,6 +1504,8 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
           tienTe: c2.tienTe ?? chuan.tienTe,
           cang: c2.cang ?? chuan.cang,
           yc: c2.yc ?? chuan.yc,
+          quy: c2.quy ?? chuan.quy,
+          nam: c2.nam ?? chuan.nam,
           dong: gopLuot(chuan.dong, c2.dong),
         };
       } else {
@@ -1421,6 +1539,8 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
     dau.tienTe ??= k.chuan.tienTe;
     dau.cang ??= k.chuan.cang;
     dau.yc ??= k.chuan.yc;
+    dau.quy ??= k.chuan.quy;
+    dau.nam ??= k.chuan.nam;
     dongTatCa.push(...k.chuan.dong);
   }
   const canhBaoChung = hong.length

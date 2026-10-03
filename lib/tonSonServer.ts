@@ -14,8 +14,9 @@ import { soIn } from "@/lib/tonSon";
  *   goTonSonTx        gỡ một loại sơn khỏi tồn của tàu: GIỮ lịch sử (điều chỉnh
  *                     về 0) hoặc XÓA hẳn khi nhập nhầm (như chưa từng nhập)
  *   xoaGiaoDichSonTx  xóa một dòng nhập/xuất tay nhầm, hoàn lại tồn tương ứng
- *   goPhieuSonTx      gỡ cả một phiếu giao sơn đã nhập: trừ lại đúng số đã
- *                     nhập, phiếu trở về chờ xử lý để sửa rồi nhập lại
+ *   goPhieuSonTx      gỡ cả một phiếu giao sơn / báo cáo tồn MLS-11-14 đã nhập:
+ *                     hoàn lại đúng chiều từng dòng nó đã ghi, phiếu trở về chờ
+ *                     xử lý để sửa rồi nhập lại
  *
  * Mọi thay đổi số tồn đều cộng/trừ NGUYÊN TỬ trong câu UPDATE có điều kiện (cùng
  * cách "Nhập/Xuất sơn" ở app/paint-actions.ts) — không đọc số ra rồi ghi đè, để
@@ -40,7 +41,8 @@ export type MaLoiTonSon =
   | "khongDuTon"
   | "phieuDaGo"
   | "phieuKhongXacDinh"
-  | "daDungBot";
+  | "daDungBot"
+  | "baoCaoAm";
 
 /** Lỗi nghiệp vụ nêu trong giao dịch — nơi gọi dịch theo ngôn ngữ giao diện. */
 export class LoiTonSon extends Error {
@@ -86,6 +88,8 @@ export function chuLoiTonSon(e: LoiTonSon, t: HamDich): string {
       return t("paint.pgLoiKhongXacDinh");
     case "daDungBot":
       return t("paint.pgLoiDaDungBot", p);
+    case "baoCaoAm":
+      return t("paint.bcLoiAm", p);
   }
 }
 
@@ -480,10 +484,25 @@ export async function goPhieuSonTx(
   }
   if (!gd.length) throw new LoiTonSon("phieuKhongXacDinh");
 
+  // Hoàn tác theo TỪNG LOẠI SƠN, đúng chiều từng dòng: phiếu giao chỉ có dòng nhập
+  // (trừ lại); báo cáo tồn MLS-11-14 có cả dòng xuất / điều chỉnh giảm (cộng lại).
+  const theoLoai = new Map<number, { net: number; ten: string; uom: string }>();
   for (const g of gd) {
-    await truTon(tx, tep.vesselId, g.productId, g.quantity, (con) =>
-      new LoiTonSon("daDungBot", { ten: g.product.name, con: soIn(con), can: soIn(g.quantity), dv: g.product.uom })
-    );
+    const c = theoLoai.get(g.productId) ?? { net: 0, ten: g.product.name, uom: g.product.uom };
+    c.net += g.type === "IN" ? g.quantity : -g.quantity;
+    theoLoai.set(g.productId, c);
+  }
+  for (const [productId, c] of theoLoai) {
+    const net = lam(c.net);
+    if (net > EPS) {
+      await truTon(tx, tep.vesselId, productId, net, (con) => new LoiTonSon("daDungBot", { ten: c.ten, con: soIn(con), can: soIn(net), dv: c.uom }));
+    } else if (net < -EPS) {
+      await tx.paintStock.upsert({
+        where: { vesselId_productId: { vesselId: tep.vesselId, productId } },
+        update: { quantity: { increment: -net } },
+        create: { vesselId: tep.vesselId, productId, quantity: -net },
+      });
+    }
   }
   await tx.paintTransaction.deleteMany({ where: { id: { in: gd.map((g) => g.id) } } });
   const loai = [...new Set(gd.map((g) => g.productId))];

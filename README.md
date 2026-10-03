@@ -842,10 +842,11 @@ bước soát):
 | | Dùng khi | Cột số lượng nghĩa là |
 |---|---|---|
 | **Nhập / xuất từng dòng** | Nhận vài lon, xuất cho một việc / hao hụt | (gõ tay) |
-| **Nhập sơn từ phiếu giao** (Excel MLS-11-05, bảng sơn Excel, Word, PDF, PDF scan) | Nhận nguyên phiếu giao | **cộng thêm**, soát từng dòng rồi mới nhập |
+| **Nhập sơn từ phiếu giao / báo cáo tồn** → loại *Phiếu giao* (bảng sơn Excel, Word, PDF, PDF scan) | Nhận nguyên phiếu giao | **cộng thêm**, soát từng dòng rồi mới nhập |
+| **Nhập sơn từ phiếu giao / báo cáo tồn** → loại *Báo cáo tồn MLS-11-14* (Word, Excel, PDF, PDF scan) | Tàu gửi báo cáo lượng sơn tồn hàng quý | **tồn cuối quý** = đúng *Tồn cuối kỳ* của báo cáo, tại ngày cuối quý |
 | Trang **Nhập danh mục sơn từ file** (quản trị · thuyền trưởng) | Dựng danh mục ban đầu, chốt kiểm kê | **tồn chốt lại** = đúng số trong file |
 
-Hai nghĩa của cột số lượng nằm ở hai chỗ khác nhau có chủ ý — lẫn "cộng thêm 10" với "đặt tồn
+Các nghĩa của cột số lượng nằm ở những chỗ khác nhau có chủ ý — lẫn "cộng thêm 10" với "đặt tồn
 bằng 10" là sai tồn kho mà không ai biết sai từ đâu. Sơn dùng nhiều loại một lúc ghi bằng **Ghi lần
 thi công** (mỗi lần nhiều dòng sơn, tự trừ tồn); xuất lẻ / hao hụt dùng *từng dòng*.
 
@@ -860,17 +861,23 @@ Mục **Nhập / xuất sơn** mở sẵn chứ không gập lại — đây là
 bấm thêm một lần mỗi lần dùng và dễ tưởng là không có chức năng. Tồn tối thiểu sửa ở nút **Sửa**
 của từng dòng trong bảng Tồn sơn (cùng chỗ sửa số đang có, tên, màu).
 
-#### Nhập sơn từ phiếu giao (Excel MLS-11-05, Excel, Word, PDF, PDF scan)
+#### Nhập sơn từ phiếu giao (Excel, Word, PDF, PDF scan)
 
-Ở trang sơn của tàu, mục **Nhập / xuất sơn** → *Nhập sơn từ phiếu giao*: tải phiếu giao / nhận sơn
-rồi **soát trước khi nhập** — giống phiếu giao vật tư, kết quả đọc máy không bao giờ lọt thẳng vào tồn.
+Ở trang sơn của tàu, mục **Nhập / xuất sơn** → *Nhập sơn từ phiếu giao / báo cáo tồn*: chọn **loại file**
+(mặc định *Báo cáo tồn MLS-11-14* — xem mục sau; *Phiếu giao* là đường dưới đây), tải lên rồi **soát
+trước khi nhập** — giống phiếu giao vật tư, kết quả đọc máy không bao giờ lọt thẳng vào tồn. File có chữ
+mà chữ cho thấy là báo cáo tồn MLS-11-14 thì tự đi đường báo cáo dù chọn *Phiếu giao*; bản scan thì phải
+chọn đúng loại.
 
+- **Phiếu yêu cầu MLS-11-05** (REQUISITION FOR STORES / SPARE PARTS) **không** còn nhận ở đây (từ
+  2026-10-03): đó là phiếu xin cấp, không phải số đã nhận — trước đây số nhận lấy cột *S.lượng duyệt*, dễ
+  cộng nhầm sơn chưa về tàu. Tải lên thì app báo và chỉ sang báo cáo tồn MLS-11-14 hoặc phiếu giao của
+  nhà cung cấp.
 - **Đọc không cần AI** (thử mọi cách hợp với loại file, giữ cách ra nhiều dòng có số lượng nhất):
-  mẫu **MLS-11-05** của công ty (Excel / Word / PDF có chữ — số nhận lấy cột *S.lượng duyệt*, phiếu
-  không ghi thì lấy *S.lượng yêu cầu* và gắn cảnh báo đối chiếu); **bảng sơn** của nhà cung cấp
-  (Excel / PDF có chữ: tên, hãng, màu, ĐVT, dung tích, số lượng); **phiếu giao** dạng chữ (lớp chữ
-  PDF, OCR Windows cho bản scan ở máy văn phòng). Hai cách ra cùng số dòng thì mẫu công ty có tiêu đề
-  biểu mẫu thắng, còn lại bảng sơn thắng (giữ được hãng / màu).
+  **bảng trong file** (Excel / Word / lớp chữ PDF có tiêu đề cột mô tả · số lượng); **bảng sơn** của nhà
+  cung cấp (Excel / PDF có chữ: tên, hãng, màu, ĐVT, dung tích, số lượng); **phiếu giao** dạng chữ (lớp
+  chữ PDF, OCR Windows cho bản scan ở máy văn phòng). Hai cách ra cùng số dòng thì bảng sơn thắng (giữ
+  được hãng / màu).
 - **PDF scan** không đọc được thì bộ đọc AI đọc nền (chế độ phiếu giao); chưa có khóa AI thì vẫn lưu
   phiếu để gõ tay các dòng.
 - **Trang soát** `/paint/<tàu>/nhan/<id>` (PDF hiện song song bên phải ở màn hình rộng): sửa tên /
@@ -890,19 +897,58 @@ rồi **soát trước khi nhập** — giống phiếu giao vật tư, kết qu
   phiếu không còn kẹt ở bước Nhập với lỗi "Dòng 1: chưa có số lượng nhận". Gõ số vào dòng đó thì dòng
   tự tick lại; bấm Nhập khi còn dòng tick mà thiếu số thì app hỏi bỏ qua các dòng đó và nhập phần còn lại.
 - **PDF đọc ra dòng mà không dòng nào có số lượng** thì để bộ đọc AI đọc luôn (nếu đã cấu hình). AI đọc
-  phiếu sơn theo chế độ riêng `phieuSon`: mẫu MLS-11-05 lấy *S.lượng duyệt*, ô trống thì *S.lượng yêu
-  cầu* (đánh dấu cần kiểm) — không bao giờ lấy R.O.B; số AI trả dạng chữ ("1.000,00", "1,250.00",
+  phiếu sơn theo chế độ riêng `phieuSon` (gặp phiếu yêu cầu MLS-11-05 hay báo cáo tồn MLS-11-14 thì báo
+  không phải phiếu giao) — không bao giờ lấy R.O.B; số AI trả dạng chữ ("1.000,00", "1,250.00",
   "4 x 20L") đọc đúng bằng `lib/docSo.ts` (trước đây "1.000,00" bị coi là trống). Lớp chữ PDF phiếu giao
   nhận số có ngăn nghìn ("1.000,00 L"); "20.000 L" in từ phần mềm vẫn là 20 lít.
 - **Nhận dạng tên sơn** ([`lib/tenSon.ts`](lib/tenSon.ts), kiểm ở `scripts/kiem-tra-ten-son.ts` với các
   dòng phiếu giao thật): mô tả thô "SON JOTAFIX PU TC RAL 5002 A 17.91L" tách thành tên chuẩn *JOTAFIX PU
   TC COMP A* · hãng *Jotun* · hệ *Sơn phủ* · mã màu *RAL 5002* · dung tích *17,91 L* (bỏ tiền tố SON /
   CHẤT ĐÓNG RẮN / DUNG MÔI, nhận COMP / PART / CPB / A·B cuối dòng, mã RAL / STD, màu viết tắt GRE / GRN,
-  "17. 1L", "A18L"). Dòng phiếu ghép loại có sẵn theo tên chuẩn + mã màu trước, rồi mới theo tên gần
+  "17. 1L", "A18L"). Dòng phiếu ghép loại có sẵn theo tên chuẩn + mã màu trước, rồi theo **khóa nhận
+  dạng** (`khoaNhanDangSon` trong [`lib/phieuSon.ts`](lib/phieuSon.ts): dòng sản phẩm bỏ tên hãng đứng
+  đầu, thành phần, vai trò trong ngoặc · thành phần · màu · mã màu; hãng để riêng — "JOTUN JOTAFIX EPOXY
+  PRIMER GREY COMP A 15L" của tờ in MLS-11-14 ↔ loại *JOTAFIX EPOXY PRIMER COMP A* · Jotun · GREY; chỉ
+  chọn khi còn đúng một loại sau khi bỏ loại khác hãng và lọc theo dung tích), rồi mới theo tên gần
   đúng; loại mới tạo theo tên chuẩn (ghi chú giữ "Tên trên phiếu: …"), màn soát hiện trước "→ Sẽ tạo:
-  …". Loại đã nhập nguyên chuỗi phiếu thì nút **Nhận dạng tên sơn** ở bảng Tồn sơn đề xuất tên / hãng /
-  hệ / màu / dung tích cho từng loại để soát rồi áp dụng hàng loạt (số tồn không đổi; loại dùng chung
-  tàu khác chỉ thuyền trưởng / quản trị đổi được).
+  …" — lúc nhập, máy chủ cũng dùng lại loại trùng khóa nhận dạng thay vì tạo bản trùng. Loại đã nhập
+  nguyên chuỗi phiếu thì nút **Nhận dạng tên sơn** ở bảng Tồn sơn đề xuất tên / hãng / hệ / màu / dung
+  tích cho từng loại để soát rồi áp dụng hàng loạt (số tồn không đổi; loại dùng chung tàu khác chỉ thuyền
+  trưởng / quản trị đổi được).
+
+#### Cập nhật tồn sơn theo báo cáo lượng sơn tồn MLS-11-14 (Word, Excel, PDF, PDF scan)
+
+Tàu gửi báo cáo sơn hàng quý trên tờ MLS-11-14 (*Tên tàu · Quý · Năm*, mỗi loại *Tồn đầu kỳ · Nhận ·
+Tiêu thụ trong kỳ · Tồn cuối kỳ*). Tải báo cáo lên (loại file *Báo cáo tồn MLS-11-14*, mặc định) thì app
+đưa số liệu của nó trong quý đó về đúng báo cáo **tại ngày cuối quý** (31/03 · 30/06 · 30/09 · 31/12, giờ
+Việt Nam — ô *Issued date* trong khung là ngày ban hành mẫu, không phải ngày báo cáo); sơn nhập / xuất ghi
+**sau** ngày đó giữ nguyên, nên tồn hiện tại = *Tồn cuối kỳ* của báo cáo + phát sinh sau đó.
+
+- **Đọc**: bảng trong Word .docx (tiêu đề mẫu nằm ở header trang), Word .doc, Excel (sheet ra nhiều dòng
+  nhất), lớp chữ PDF (tờ in của chính app, Word xuất PDF — tên sơn xuống dòng, sang trang, tiêu đề lặp),
+  OCR Windows cho bản scan ở máy văn phòng; còn lại bộ đọc AI chế độ `baoCaoTon` (bốn cột, ô "-" = 0,
+  Tồn cuối kỳ 0 là số thật). Đầu báo cáo cho tên tàu (nhắc khi khác tàu đang mở), quý, năm.
+- **Trang soát** `/paint/<tàu>/nhan/<id>`: mỗi dòng có bốn số của **báo cáo** (sửa được), bốn số **app
+  đang ghi** cho quý đó (như tờ in quý — điều chỉnh đã gộp vào Nhận / Tồn đầu kỳ), các dòng app **sẽ
+  ghi** và tồn hiện tại trước → sau; đổi quý / loại sơn là tính lại ngay. Loại tàu còn lúc hết quý mà
+  báo cáo không ghi được liệt kê kèm nút *Thêm, cuối kỳ 0*. Chặn: quý chưa bắt đầu, đã có báo cáo quý
+  **sau** được cập nhật (báo cáo cũ không ghi đè), tồn hiện tại sẽ âm (sau cuối quý đã dùng nhiều hơn số
+  báo cáo còn).
+- **Sẽ ghi** (`keHoachBaoCaoTon` trong [`lib/baoCaoTonSon.ts`](lib/baoCaoTonSon.ts)), so với số như tờ
+  in: *Tồn đầu kỳ* khác → một dòng điều chỉnh ngay trước đầu quý; *Nhận* nhiều hơn → dòng nhập cuối quý,
+  ít hơn → điều chỉnh bớt; *Tiêu thụ* nhiều hơn → dòng xuất dùng cuối quý, ít hơn → điều chỉnh; còn lệch
+  *Tồn cuối kỳ* (tàu cộng trừ sai, ô để trống) → một dòng cuối quý để tồn cuối quý đúng báo cáo (ô Tiêu
+  thụ trống thì phần thiếu là tiêu thụ). Mọi dòng gắn báo cáo (`PaintTransaction.phieuSonId`) và cột của
+  nó (`PaintTransaction.cotBaoCao`): tờ in quý xếp dòng *Nhận / Tiêu thụ* thẳng vào cột đó (`bonCotQuy`
+  trong [`lib/tonSon.ts`](lib/tonSon.ts)) nên **in lại quý ra đúng bốn số của báo cáo**, và cập nhật lại
+  đúng báo cáo đó lần nữa thì không ghi gì. Tải lại chính tờ in quý của app thì mọi loại *khớp sẵn*.
+- **Gỡ báo cáo đã cập nhật**: hoàn lại đúng các dòng báo cáo đã ghi, loại sơn do báo cáo tạo mới mà
+  chưa ai dùng thì xóa; báo cáo mở lại để sửa rồi cập nhật lại.
+- Mã: [`lib/baoCaoTonSon.ts`](lib/baoCaoTonSon.ts) (thuần), [`lib/baoCaoTonSonTep.ts`](lib/baoCaoTonSonTep.ts)
+  (đọc tệp), `capNhatTheoBaoCaoTonTx` trong [`lib/phieuSonServer.ts`](lib/phieuSonServer.ts),
+  [`components/BangBaoCaoTonSon.tsx`](components/BangBaoCaoTonSon.tsx); kiểm ở
+  `scripts/kiem-tra-bao-cao-ton-son.ts` (đọc, kế hoạch, ghép, cập nhật rồi in lại quý trên database thật
+  rồi cuộn ngược).
 
 
 #### Sửa / gỡ sơn đã nhập
@@ -949,8 +995,9 @@ hết quý (quý đang chạy = tồn hiện tại), *Tồn đầu kỳ* = tồn
 (phiếu giao, nhận hàng PO, nhập tay), *Tiêu thụ trong kỳ* = các dòng xuất trong quý (thi công, xuất
 dùng). Dòng **Điều chỉnh** (Sửa số tồn / Gỡ khỏi danh sách) không tính là sơn đã dùng — nó được coi là
 sửa số để bốn cột vẫn cân: quý có nhận loại đó thì sửa vào *Nhận* (không xuống dưới 0), không thì sửa vào
-*Tồn đầu kỳ*; màn hình liệt kê từng điều chỉnh đã sửa vào cột nào. Loại có cả bốn cột bằng 0 (gỡ trước
-quý) không in. Tên in "HÃNG TÊN MÃ-MÀU MÀU … DUNG TÍCH" như tàu vẫn ghi, không in mã nội bộ `SON-####`.
+*Tồn đầu kỳ*; màn hình liệt kê từng điều chỉnh đã sửa vào cột nào. Dòng do **báo cáo tồn MLS-11-14 tải
+lên** ghi thì nằm thẳng ở cột báo cáo của nó (`cotBaoCao`). Loại có cả bốn cột bằng 0 (gỡ trước quý)
+không in. Tên in "HÃNG TÊN MÃ-MÀU MÀU … DUNG TÍCH" như tàu vẫn ghi, không in mã nội bộ `SON-####`.
 
 **Sửa trước khi in**: sửa ô (tên tàu, quý, năm, tên sơn, đơn vị, bốn cột số), bỏ / thêm / đổi thứ tự
 dòng. Chỉ đổi tờ in — một "bản sửa" cất trong trình duyệt theo **tàu + quý**, ghi riêng những ô đã đổi và
@@ -1714,6 +1761,13 @@ dòng (hoặc mở phiếu trên máy văn phòng). Bộ tách dòng (`lib/phieu
 thuần chuỗi, kiểm ở `scripts/kiem-tra-doc-phieu-giao.ts`; `scripts/kiem-tra-pdf-giao.ts`
 dựng một PDF có lớp chữ rồi chạy trọn đường pdfjs → tách (cả hai nằm trong bộ
 `kiem-chung-nhanh.ps1`).
+
+`pdfjs-dist` phải nằm trong `serverExternalPackages` (`next.config.ts`): trong Node nó dựng "worker
+giả" bằng `import("./pdf.worker.mjs")` tính từ tệp đang chạy — gói vào chunk của Next thì đường đó trỏ
+vào `.next/server/chunks/ssr/`, không có tệp worker, và **mọi** PDF số đọc hỏng như bản scan (máy văn
+phòng rơi sang OCR đọc lộn cột, máy chủ Linux đòi bộ đọc AI). Chạy bằng tsx thì không thấy lỗi này, nên
+`kiem-tra-pdf-giao.ts` kiểm luôn dòng cấu hình đó (đo 2026-10-03: tờ in MLS-11-14 của app tải lên đọc 0
+dòng trước khi sửa, 17 dòng sau khi sửa).
 
 Dữ liệu: `PhieuGiaoNhan` (một phiếu, tệp PDF trong `uploads/`, chữ đọc được, trạng
 thái `CHO_DUYET · DA_DUYET · TU_CHOI`) và `PhieuGiaoNhanDong` (từng dòng, kèm dòng

@@ -14,14 +14,20 @@ import { VAN_HANH_SON, coQuanLySon } from "@/lib/roles";
 import { MAX_UPLOAD_BYTES, ensureUploadDir, fileExtension, getUploadDir } from "@/lib/uploads";
 import { dangDocAi } from "@/lib/phieuGiao";
 import { DUOI_PHIEU_SON, boSungNhanDang, boTickDongThieuSo, dongLoiKhiNhap, dongTuAiSon, ghepDongSon, ngayNhanTuChu, sachDongNhanSon, type DongNhanSon } from "@/lib/phieuSon";
+import { boTickThieuTonCuoi, dongLoiBaoCaoTon, namTuChu, ngayNhanCuaKy, quyTuChu, soPhieuBaoCao, tenKy } from "@/lib/baoCaoTonSon";
+import { mocQuy, quyCua, type KyQuy } from "@/lib/tonSon";
 
 /*
- * NHẬP SƠN TỪ PHIẾU GIAO / NHẬN (Excel MLS-11-05, Excel, Word, PDF, PDF scan):
+ * NHẬP SƠN TỪ PHIẾU GIAO / NHẬN (Excel, Word, PDF, PDF scan) và CẬP NHẬT TỒN THEO
+ * BÁO CÁO LƯỢNG SƠN TỒN MLS-11-14:
  *   1. taiPhieuSon — lưu file, đọc dòng (Excel / Word / PDF có chữ / OCR đọc ngay;
- *      PDF scan để bộ đọc AI đọc nền), ghép danh mục sơn. Chưa đụng tới tồn.
+ *      PDF scan để bộ đọc AI đọc nền), ghép danh mục sơn. Chưa đụng tới tồn. Tệp là
+ *      báo cáo tồn MLS-11-14 (người dùng chọn, hoặc chữ trong tệp cho thấy) thì đi
+ *      đường báo cáo tồn; phiếu yêu cầu MLS-11-05 thì từ chối (không dùng nhập tồn).
  *   2. Trang soát /paint/<tàu>/nhan/<id> — sửa chỗ đọc sai, chọn loại sơn hoặc để
- *      tạo loại mới, bỏ dòng rác (luuPhieuSon).
- *   3. apDungPhieuSon — nhập vào tồn sơn của tàu (phiếu nhập IN từng loại).
+ *      tạo loại mới, bỏ dòng rác (luuPhieuSon / luuBaoCaoTon).
+ *   3. apDungPhieuSon — nhập vào tồn sơn của tàu (phiếu nhập IN từng loại);
+ *      apDungBaoCaoTon — đưa tồn về đúng số cuối quý của báo cáo (lib/baoCaoTonSon.ts).
  * Giống luồng phiếu giao vật tư: kết quả đọc máy không bao giờ lọt thẳng vào tồn.
  */
 
@@ -36,7 +42,7 @@ type NguoiThaoTac = { id: number; email: string; role: string; name: string };
 const sonDeGhep = () =>
   prisma.paintProduct.findMany({
     where: { isActive: true },
-    select: { id: true, code: true, name: true, maker: true, colorName: true, colorCode: true, uom: true },
+    select: { id: true, code: true, name: true, maker: true, colorName: true, colorCode: true, uom: true, packSize: true },
   });
 
 /** Chữ tách sẵn cho nhà cung cấp AI chỉ đọc chữ (DeepSeek): lớp chữ PDF, không có thì OCR (Windows). */
@@ -54,14 +60,30 @@ async function chuChoAi(nhaCungCap: string, buffer: Buffer, fullPath: string): P
   return null;
 }
 
-/** Bộ đọc AI (chế độ phiếu giao) đọc PDF / PDF scan ở chế độ nền; mọi đường ra đều gỡ dấu aiDangDocTu. */
+/**
+ * Bộ đọc AI đọc PDF / PDF scan ở chế độ nền — phiếu giao: chế độ "phieuSon"; báo cáo
+ * tồn MLS-11-14: chế độ "baoCaoTon" (bốn cột số + quý / năm). Mọi đường ra đều gỡ dấu
+ * aiDangDocTu.
+ */
 async function chayDocAiSon(id: number, actor: NguoiThaoTac): Promise<void> {
   const tep = await prisma.sonPhieuTep
-    .findUnique({ where: { id }, select: { id: true, vesselId: true, storedName: true, fileName: true, soPhieu: true, nhaCungCap: true, ngayNhan: true, vessel: { select: { code: true } } } })
+    .findUnique({
+      where: { id },
+      select: { id: true, vesselId: true, loai: true, storedName: true, fileName: true, soPhieu: true, nhaCungCap: true, ngayNhan: true, tauTrenTep: true, vessel: { select: { code: true } } },
+    })
     .catch(() => null);
   if (!tep) return;
-  const ketThuc = (data: { loiAi?: string | null; dong?: DongNhanSon[]; ghiChuDoc?: string | null; nguonDoc?: string; soPhieu?: string | null; nhaCungCap?: string | null; ngayNhan?: Date | null }) =>
-    prisma.sonPhieuTep.update({ where: { id: tep.id }, data: { ...data, aiDangDocTu: null, aiTienDo: null } }).catch(() => undefined);
+  const laBaoCao = tep.loai === "BAO_CAO_TON";
+  const ketThuc = (data: {
+    loiAi?: string | null;
+    dong?: DongNhanSon[];
+    ghiChuDoc?: string | null;
+    nguonDoc?: string;
+    soPhieu?: string | null;
+    nhaCungCap?: string | null;
+    ngayNhan?: Date | null;
+    tauTrenTep?: string | null;
+  }) => prisma.sonPhieuTep.update({ where: { id: tep.id }, data: { ...data, aiDangDocTu: null, aiTienDo: null } }).catch(() => undefined);
   try {
     const { layCauHinhAi } = await import("@/lib/cauHinhAi");
     const cauHinh = await layCauHinhAi();
@@ -75,7 +97,7 @@ async function chayDocAiSon(id: number, actor: NguoiThaoTac): Promise<void> {
     const { demTrangPdf } = await import("@/lib/pdfChu");
     const bd = Date.now();
     const ai = await docPhieuGiaoBangAi(buffer, cauHinh, {
-      banDoc: "phieuSon",
+      banDoc: laBaoCao ? "baoCaoTon" : "phieuSon",
       fileName: tep.fileName,
       soTrang: await demTrangPdf(buffer),
       chuPdf: await chuChoAi(cauHinh.nhaCungCap, buffer, fullPath),
@@ -89,22 +111,53 @@ async function chayDocAiSon(id: number, actor: NguoiThaoTac): Promise<void> {
       await ketThuc({ loiAi: ai.loi.slice(0, 500) });
       return;
     }
-    const dong = boTickDongThieuSo(ghepDongSon(boSungNhanDang(dongTuAiSon(ai.dong)), await sonDeGhep()));
-    const ngay = ngayNhanTuChu(ai.ngayGiao);
-    await ketThuc({
-      dong,
-      nguonDoc: "AI",
-      soPhieu: tep.soPhieu ?? ai.soPhieu,
-      nhaCungCap: tep.nhaCungCap ?? ai.nhaCungCap,
-      ngayNhan: tep.ngayNhan ?? (ngay ? new Date(`${ngay}T12:00:00`) : null),
-      loiAi: !dong.length ? "Bộ đọc AI không thấy dòng hàng nào trong file." : ai.canhBaoChung ? ai.canhBaoChung.slice(0, 500) : null,
-      ghiChuDoc: `AI (${ai.model}, ${ai.soLuotGoi} lượt, ${giay}s) đọc ${dong.length} dòng, ${ai.soDongCanKiem} dòng cần kiểm.`.slice(0, 1000),
-    });
+    let soDong: number;
+    if (laBaoCao) {
+      // Báo cáo tồn: Tồn cuối kỳ 0 là số thật, chỉ dòng trống ô đó mới bỏ tick.
+      const dong = boTickThieuTonCuoi(ghepDongSon(boSungNhanDang(dongTuAiSon(ai.dong)), await sonDeGhep()));
+      const quy = quyTuChu(ai.quy ?? null);
+      const nam = namTuChu(ai.nam ?? null);
+      const ky: KyQuy | null = quy && nam ? { quy, nam } : null;
+      const ngayNhan = tep.ngayNhan ?? (ky ? ngayNhanCuaKy(ky) : null);
+      soDong = dong.length;
+      await ketThuc({
+        dong,
+        nguonDoc: "AI",
+        ngayNhan,
+        soPhieu: soPhieuBaoCao(ngayNhan ? quyCua(ngayNhan) : null),
+        tauTrenTep: tep.tauTrenTep ?? ai.tau,
+        loiAi: !dong.length
+          ? `Bộ đọc AI không thấy dòng sơn nào của báo cáo tồn MLS-11-14${ai.soPhieu ? ` (tài liệu: ${ai.soPhieu})` : ""} — nếu đây là phiếu giao, xóa rồi tải lại với loại «Phiếu giao».`.slice(0, 500)
+          : ai.canhBaoChung
+            ? ai.canhBaoChung.slice(0, 500)
+            : null,
+        ghiChuDoc: `AI (${ai.model}, ${ai.soLuotGoi} lượt, ${giay}s) đọc ${dong.length} dòng báo cáo tồn MLS-11-14, ${ai.soDongCanKiem} dòng cần kiểm.`.slice(0, 1000),
+      });
+    } else {
+      const dong = boTickDongThieuSo(ghepDongSon(boSungNhanDang(dongTuAiSon(ai.dong)), await sonDeGhep()));
+      const ngay = ngayNhanTuChu(ai.ngayGiao);
+      // Biểu mẫu công ty không phải phiếu giao (AI đã để trống số lượng — quy tắc A của lời dặn).
+      const bieuMau = /MLS\s*-?\s*11\s*-?\s*14/i.test(ai.soPhieu ?? "")
+        ? "Tệp là báo cáo lượng sơn tồn MLS-11-14 — xóa phiếu này rồi tải lại, chọn loại «Báo cáo lượng sơn tồn MLS-11-14»."
+        : /MLS\s*-?\s*11\s*-?\s*05/i.test(ai.soPhieu ?? "")
+          ? "Tệp là phiếu yêu cầu MLS-11-05 — không dùng để nhập tồn sơn; xóa phiếu này."
+          : null;
+      soDong = dong.length;
+      await ketThuc({
+        dong,
+        nguonDoc: "AI",
+        soPhieu: tep.soPhieu ?? ai.soPhieu,
+        nhaCungCap: tep.nhaCungCap ?? ai.nhaCungCap,
+        ngayNhan: tep.ngayNhan ?? (ngay ? new Date(`${ngay}T12:00:00`) : null),
+        loiAi: bieuMau ?? (!dong.length ? "Bộ đọc AI không thấy dòng hàng nào trong file." : ai.canhBaoChung ? ai.canhBaoChung.slice(0, 500) : null),
+        ghiChuDoc: `AI (${ai.model}, ${ai.soLuotGoi} lượt, ${giay}s) đọc ${dong.length} dòng, ${ai.soDongCanKiem} dòng cần kiểm.`.slice(0, 1000),
+      });
+    }
     await ghiNhatKyNguoiDung(actor, {
       action: "phieu-son-doc-ai",
       path: `/paint/${tep.vesselId}/nhan/${tep.id}`,
       vesselId: tep.vesselId,
-      detail: `AI (${ai.model}, ${giay}s) đọc phiếu giao sơn ${tep.fileName} (${tep.vessel.code}): ${dong.length} dòng, token ${ai.tokenVao}/${ai.tokenRa}`,
+      detail: `AI (${ai.model}, ${giay}s) đọc ${laBaoCao ? "báo cáo tồn MLS-11-14" : "phiếu giao sơn"} ${tep.fileName} (${tep.vessel.code}): ${soDong} dòng, token ${ai.tokenVao}/${ai.tokenRa}`,
     });
   } catch (e) {
     console.error(`[phieu-son] Đọc nền #${tep.id} lỗi:`, e);
@@ -132,6 +185,72 @@ export async function taiPhieuSon(_prev: KetQuaPhieuSon, formData: FormData): Pr
   const storedName = `${TIEN_TO_TEP}${randomUUID()}${ext}`;
   const fullPath = path.join(dir, storedName);
   await writeFile(fullPath, buffer);
+  const loaiChon = formData.get("loai") === "BAO_CAO_TON" ? "BAO_CAO_TON" : "PHIEU_GIAO";
+  const thongTinTep = {
+    vesselId,
+    fileName: file.name.slice(0, 200),
+    storedName,
+    loaiTep: loaiTepCua(ext),
+    size: file.size,
+    sha256: createHash("sha256").update(buffer).digest("hex"),
+    nguoiTaiId: actor.id,
+    nguoiTai: actor.name,
+  };
+
+  // Đọc tệp MỘT lần thành lưới ô + chữ để nhận ra báo cáo tồn MLS-11-14 (người dùng
+  // chọn, hoặc chữ trong tệp cho thấy) và chặn phiếu yêu cầu MLS-11-05. OCR bản scan
+  // chỉ khi đã chọn báo cáo tồn — đường phiếu giao tự OCR ở bộ đọc của nó.
+  const { docTepSon, docBaoCaoTonKhongAi, laPhieuYeuCau } = await import("@/lib/baoCaoTonSonTep");
+  const duongOcr = loaiChon === "BAO_CAO_TON" ? fullPath : undefined;
+  const tepDoc = await docTepSon(buffer, file.name, duongOcr).catch(() => null);
+  const bc = await docBaoCaoTonKhongAi(buffer, file.name, duongOcr, tepDoc ?? undefined);
+  if (loaiChon === "BAO_CAO_TON" || bc.laBaoCao) {
+    if (!bc.ok && !bc.canAi) {
+      await unlink(fullPath).catch(() => undefined);
+      return { message: bc.loi };
+    }
+    let dungAiBc = false;
+    if (!bc.ok) {
+      const { layCauHinhAi } = await import("@/lib/cauHinhAi");
+      dungAiBc = Boolean(await layCauHinhAi());
+    }
+    // Tồn cuối kỳ 0 là số thật (sơn đã hết) — chỉ dòng trống ô đó mới bỏ tick.
+    const dongBc = bc.ok ? boTickThieuTonCuoi(ghepDongSon(boSungNhanDang(bc.dong), await sonDeGhep())) : [];
+    const ky: KyQuy | null = bc.ok && bc.dau.quy && bc.dau.nam ? { quy: bc.dau.quy, nam: bc.dau.nam } : null;
+    const tepBc = await prisma.sonPhieuTep.create({
+      data: {
+        ...thongTinTep,
+        loai: "BAO_CAO_TON",
+        nguonDoc: dungAiBc ? "AI" : bc.ok ? "MLS-11-14" : "TAY",
+        soPhieu: soPhieuBaoCao(ky),
+        ngayNhan: ky ? ngayNhanCuaKy(ky) : null,
+        tauTrenTep: bc.ok ? bc.dau.tau : null,
+        dong: dongBc,
+        ghiChuDoc: bc.ok ? bc.ghiChu : dungAiBc ? null : bc.loi,
+        loiAi: !bc.ok && !dungAiBc ? t("paint.pgCanAiHoacGoTay") : null,
+        aiDangDocTu: dungAiBc ? new Date() : null,
+        aiTienDo: dungAiBc ? "0" : null,
+      },
+      select: { id: true },
+    });
+    await ghiNhatKyNguoiDung(actor, {
+      action: "phieu-son-tai-len",
+      path: `/paint/${vesselId}/nhan/${tepBc.id}`,
+      vesselId,
+      detail: `Tải báo cáo tồn sơn MLS-11-14 ${file.name} (${tau.code}, ${ky ? `quý ${tenKy(ky)}, ` : ""}${dungAiBc ? "PDF — AI đọc nền" : bc.ok ? `${dongBc.length} dòng` : "chưa đọc được — gõ tay"})`,
+    });
+    if (dungAiBc) {
+      const nguoi = { id: actor.id, email: actor.email, role: actor.role, name: actor.name };
+      after(() => chayDocAiSon(tepBc.id, nguoi));
+    }
+    revalidatePath(`/paint/${vesselId}`);
+    redirect(`/paint/${vesselId}/nhan/${tepBc.id}`);
+  }
+  // Phiếu yêu cầu MLS-11-05 không còn dùng để nhập tồn sơn (đã thay bằng báo cáo tồn MLS-11-14).
+  if (tepDoc && laPhieuYeuCau(tepDoc.chu)) {
+    await unlink(fullPath).catch(() => undefined);
+    return { message: t("paint.pgMls1105KhongDung") };
+  }
 
   // Đọc không AI trước (nhanh, không tốn lượt AI). PDF đọc không ra dòng nào thì
   // để bộ đọc AI đọc nền nếu đã cấu hình; không có AI thì vẫn lưu phiếu để gõ tay
@@ -155,12 +274,7 @@ export async function taiPhieuSon(_prev: KetQuaPhieuSon, formData: FormData): Pr
   const ngay = kq.ok ? kq.ngay : null;
   const tep = await prisma.sonPhieuTep.create({
     data: {
-      vesselId,
-      fileName: file.name.slice(0, 200),
-      storedName,
-      loaiTep: loaiTepCua(ext),
-      size: file.size,
-      sha256: createHash("sha256").update(buffer).digest("hex"),
+      ...thongTinTep,
       nguonDoc: dungAi ? "AI" : kq.ok ? kq.nguon : "TAY",
       soPhieu: kq.ok ? kq.soPhieu?.slice(0, 80) ?? null : null,
       nhaCungCap: kq.ok ? kq.nhaCungCap?.slice(0, 200) ?? null : null,
@@ -170,8 +284,6 @@ export async function taiPhieuSon(_prev: KetQuaPhieuSon, formData: FormData): Pr
       loiAi: !kq.ok && !dungAi ? t("paint.pgCanAiHoacGoTay") : null,
       aiDangDocTu: dungAi ? new Date() : null,
       aiTienDo: dungAi ? "0" : null,
-      nguoiTaiId: actor.id,
-      nguoiTai: actor.name,
     },
     select: { id: true },
   });
@@ -196,7 +308,19 @@ async function moPhieu(id: number) {
     actor && Number.isInteger(id) && id > 0
       ? await prisma.sonPhieuTep.findUnique({
           where: { id },
-          select: { id: true, vesselId: true, fileName: true, storedName: true, loaiTep: true, trangThai: true, aiDangDocTu: true, soPhieu: true, nhaCungCap: true, vessel: { select: { code: true } } },
+          select: {
+            id: true,
+            vesselId: true,
+            loai: true,
+            fileName: true,
+            storedName: true,
+            loaiTep: true,
+            trangThai: true,
+            aiDangDocTu: true,
+            soPhieu: true,
+            nhaCungCap: true,
+            vessel: { select: { code: true } },
+          },
         })
       : null;
   if (!actor || !tep || !coQuanLySon(actor, tep.vesselId)) return { ok: false, t, loi: t("chung.khongCoQuyen") } as const;
@@ -224,6 +348,7 @@ export async function luuPhieuSon(id: number, dongSua: unknown, dauSua: DauPhieu
   const m = await moPhieu(id);
   if (!m.ok) return { message: m.loi };
   const { t, tep } = m;
+  if (tep.loai !== "PHIEU_GIAO") return { message: t("chung.duLieuKhongHopLe") };
   const r = sachDongNhanSon(dongSua);
   if (!r.ok) return { message: t("paint.pgSoSai", { n: r.n }) };
   const dau = docDauSua(dauSua);
@@ -253,6 +378,7 @@ export async function apDungPhieuSon(id: number, dongSua: unknown, dauSua: DauPh
   const m = await moPhieu(id);
   if (!m.ok) return { message: m.loi };
   const { t, actor, tep } = m;
+  if (tep.loai !== "PHIEU_GIAO") return { message: t("chung.duLieuKhongHopLe") };
   const r = sachDongNhanSon(dongSua);
   if (!r.ok) return { message: t("paint.pgSoSai", { n: r.n }) };
   const dau = docDauSua(dauSua);
@@ -303,6 +429,94 @@ export async function apDungPhieuSon(id: number, dongSua: unknown, dauSua: DauPh
   }
 }
 
+// ─── 3b. Báo cáo lượng sơn tồn MLS-11-14: lưu / cập nhật tồn ─────────────────
+
+/** Quý / năm người dùng chọn ở trang soát (ô chọn gửi chuỗi). */
+export type KyBaoCaoSua = { quy: string; nam: string };
+
+function docKySua(x: KyBaoCaoSua | undefined): KyQuy | null {
+  const quy = Number(x?.quy);
+  const nam = Number(x?.nam);
+  if (!Number.isInteger(quy) || quy < 1 || quy > 4 || !Number.isInteger(nam) || nam < 2000 || nam > 2100) return null;
+  return { quy: quy as KyQuy["quy"], nam };
+}
+
+export async function luuBaoCaoTon(id: number, dongSua: unknown, kySua: KyBaoCaoSua): Promise<KetQuaPhieuSon> {
+  const m = await moPhieu(id);
+  if (!m.ok) return { message: m.loi };
+  const { t, tep } = m;
+  if (tep.loai !== "BAO_CAO_TON") return { message: t("chung.duLieuKhongHopLe") };
+  const r = sachDongNhanSon(dongSua);
+  if (!r.ok) return { message: t("paint.pgSoSai", { n: r.n }) };
+  const ky = docKySua(kySua);
+  await prisma.sonPhieuTep.update({ where: { id: tep.id }, data: { dong: r.dong, ngayNhan: ky ? ngayNhanCuaKy(ky) : null, soPhieu: soPhieuBaoCao(ky) } });
+  revalidatePath(`/paint/${tep.vesselId}/nhan/${tep.id}`);
+  return { message: t("paint.pgDaLuu"), success: true };
+}
+
+/**
+ * Đưa tồn sơn của tàu về đúng báo cáo tồn MLS-11-14 tại ngày cuối quý của báo cáo
+ * (lib/phieuSonServer.ts capNhatTheoBaoCaoTonTx). Không cho cập nhật báo cáo CŨ hơn
+ * một báo cáo đã cập nhật của cùng tàu: dòng ghi vào quý cũ làm lệch luôn quý sau.
+ */
+export async function apDungBaoCaoTon(id: number, dongSua: unknown, kySua: KyBaoCaoSua): Promise<KetQuaPhieuSon> {
+  const m = await moPhieu(id);
+  if (!m.ok) return { message: m.loi };
+  const { t, actor, tep } = m;
+  if (tep.loai !== "BAO_CAO_TON") return { message: t("chung.duLieuKhongHopLe") };
+  const r = sachDongNhanSon(dongSua);
+  if (!r.ok) return { message: t("paint.pgSoSai", { n: r.n }) };
+  const ky = docKySua(kySua);
+  if (!ky) return { message: t("paint.btLoiKy") };
+  if (mocQuy(ky).batDau.getTime() > Date.now()) return { message: t("paint.btKyTuongLai", { quy: tenKy(ky) }) };
+  if (!r.dong.some((d) => !d.boQua)) return { message: t("paint.pgKhongCoDong") };
+  const loi = dongLoiBaoCaoTon(r.dong);
+  if (loi) return { message: loi.lyDo === "thieuSo" ? t("paint.btLoiThieuSo", { n: loi.n }) : t("paint.pgDongThieuTen", { n: loi.n }) };
+  const ngayBaoCao = ngayNhanCuaKy(ky);
+  const sau = await prisma.sonPhieuTep.findFirst({
+    where: { vesselId: tep.vesselId, loai: "BAO_CAO_TON", trangThai: "DA_AP_DUNG", id: { not: tep.id }, ngayNhan: { gt: ngayBaoCao } },
+    orderBy: { ngayNhan: "desc" },
+    select: { ngayNhan: true },
+  });
+  if (sau?.ngayNhan) return { message: t("paint.btCoBaoCaoSau", { quy: tenKy(quyCua(sau.ngayNhan)) }) };
+  // Giữ chỗ: chỉ MỘT lần bấm được đi tiếp.
+  const giu = await prisma.sonPhieuTep.updateMany({
+    where: { id: tep.id, trangThai: "CHO_XU_LY" },
+    data: { trangThai: "DANG_AP_DUNG", dong: r.dong, ngayNhan: ngayBaoCao, soPhieu: soPhieuBaoCao(ky) },
+  });
+  if (giu.count === 0) return { message: t("paint.pgDaNhapRoi") };
+  const { LoiTonSon, chuLoiTonSon } = await import("@/lib/tonSonServer");
+  try {
+    const { capNhatTheoBaoCaoTonTx } = await import("@/lib/phieuSonServer");
+    // Trạng thái "đã cập nhật" ghi CÙNG giao dịch với tồn (như phiếu giao).
+    const kq = await prisma.$transaction(
+      async (tx) => {
+        const k = await capNhatTheoBaoCaoTonTx(tx, { vesselId: tep.vesselId, dong: r.dong, ky, nguoi: actor.name, phieuSonId: tep.id });
+        await tx.sonPhieuTep.update({ where: { id: tep.id }, data: { trangThai: "DA_AP_DUNG", apDungBoi: actor.name, apDungLuc: new Date(), ketQua: k } });
+        return k;
+      },
+      { timeout: 60000, maxWait: 10000 }
+    );
+    await ghiNhatKyNguoiDung(actor, {
+      action: "son-bao-cao-ton",
+      path: `/paint/${tep.vesselId}/nhan/${tep.id}`,
+      vesselId: tep.vesselId,
+      detail: `Cập nhật tồn sơn theo báo cáo MLS-11-14 quý ${tenKy(ky)} (${tep.vessel.code}, ${tep.fileName}): ${kq.soLoai} loại, ${kq.soKhop} khớp sẵn, ${kq.soDoi} chỉnh (${kq.soButToan} dòng), tạo mới ${kq.taoMoi} loại`,
+    });
+    revalidatePath("/paint");
+    revalidatePath("/paint/products");
+    revalidatePath(`/paint/${tep.vesselId}`);
+    revalidatePath(`/paint/${tep.vesselId}/bao-cao`);
+    revalidatePath(`/paint/${tep.vesselId}/nhan/${tep.id}`);
+    return { message: t("paint.btDaCapNhat", { quy: tenKy(ky), n: kq.soLoai, khop: kq.soKhop, doi: kq.soDoi, moi: kq.taoMoi }), success: true };
+  } catch (e) {
+    await prisma.sonPhieuTep.update({ where: { id: tep.id }, data: { trangThai: "CHO_XU_LY" } }).catch(() => undefined);
+    if (e instanceof LoiTonSon) return { message: chuLoiTonSon(e, t) };
+    console.error(`[bao-cao-ton] Cập nhật #${tep.id} lỗi:`, e);
+    return { message: t("paint.pgLoiNhap", { loi: e instanceof Error ? e.message.slice(0, 200) : String(e) }) };
+  }
+}
+
 // ─── 4. Xóa (chưa nhập) ──────────────────────────────────────────────────────
 
 export async function xoaPhieuSon(id: number): Promise<KetQuaPhieuSon> {
@@ -338,10 +552,11 @@ export async function goPhieuSon(id: number, lyDo: string): Promise<KetQuaPhieuS
   const actor = await requireActiveRole([...VAN_HANH_SON]);
   const tep =
     actor && Number.isInteger(id) && id > 0
-      ? await prisma.sonPhieuTep.findUnique({ where: { id }, select: { id: true, vesselId: true, fileName: true, vessel: { select: { code: true } } } })
+      ? await prisma.sonPhieuTep.findUnique({ where: { id }, select: { id: true, vesselId: true, loai: true, fileName: true, vessel: { select: { code: true } } } })
       : null;
   if (!actor || !tep || !coQuanLySon(actor, tep.vesselId)) return { message: t("chung.khongCoQuyen") };
   const { LoiTonSon, chuLoiTonSon, goPhieuSonTx } = await import("@/lib/tonSonServer");
+  const laBaoCao = tep.loai === "BAO_CAO_TON";
   const lyDoGon = String(lyDo ?? "").trim().slice(0, 200);
   try {
     const kq = await prisma.$transaction(
@@ -352,14 +567,17 @@ export async function goPhieuSon(id: number, lyDo: string): Promise<KetQuaPhieuS
       action: "phieu-son-go",
       path: `/paint/${tep.vesselId}/nhan/${tep.id}`,
       vesselId: tep.vesselId,
-      detail: `Gỡ phiếu giao sơn đã nhập ${kq.soPhieu} (${tep.vessel.code}): trừ lại ${kq.soLoai} loại / ${kq.soDong} dòng, tổng ${kq.tong}, xóa ${kq.xoaLoai} loại sơn khỏi danh mục; lý do: ${lyDoGon}`,
+      detail: `Gỡ ${laBaoCao ? "báo cáo tồn sơn đã cập nhật" : "phiếu giao sơn đã nhập"} ${kq.soPhieu} (${tep.vessel.code}): hoàn lại ${kq.soLoai} loại / ${kq.soDong} dòng, tổng ${kq.tong}, xóa ${kq.xoaLoai} loại sơn khỏi danh mục; lý do: ${lyDoGon}`,
     });
     revalidatePath("/paint");
     revalidatePath("/paint/products");
     revalidatePath(`/paint/${tep.vesselId}`);
     revalidatePath(`/paint/${tep.vesselId}/bao-cao`);
     revalidatePath(`/paint/${tep.vesselId}/nhan/${tep.id}`);
-    return { message: t("paint.pgDaGo", { loai: kq.soLoai, sl: kq.tong, xoa: kq.xoaLoai }), success: true };
+    return {
+      message: laBaoCao ? t("paint.btDaGo", { loai: kq.soLoai, dong: kq.soDong, xoa: kq.xoaLoai }) : t("paint.pgDaGo", { loai: kq.soLoai, sl: kq.tong, xoa: kq.xoaLoai }),
+      success: true,
+    };
   } catch (e) {
     if (e instanceof LoiTonSon) return { message: chuLoiTonSon(e, t) };
     console.error(`[phieu-son] Gỡ #${tep.id} lỗi:`, e);

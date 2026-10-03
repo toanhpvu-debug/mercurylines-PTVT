@@ -6,7 +6,11 @@ import { taiPhieuSon } from "@/app/son-phieu-actions";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Button, Notice } from "@/components/ui";
 
-/** Tải phiếu giao / nhận sơn (Excel MLS-11-05, Excel, Word, PDF, PDF scan) — đọc xong mở trang soát. */
+/**
+ * Tải phiếu giao / nhận sơn (cộng vào tồn) hoặc báo cáo lượng sơn tồn MLS-11-14 (đưa
+ * tồn về số cuối quý) — Excel, Word, PDF, PDF scan; đọc xong mở trang soát. Tệp có chữ
+ * thì app tự nhận ra báo cáo MLS-11-14; bản scan cần chọn đúng loại.
+ */
 export default function TaiPhieuSon({ vesselId, coAi }: { vesselId: number; coAi: boolean }) {
   const { t } = useNgonNgu();
   const [state, formAction, pending] = useActionState(taiPhieuSon, { message: "" });
@@ -27,6 +31,20 @@ export default function TaiPhieuSon({ vesselId, coAi }: { vesselId: number; coAi
       <p className="text-sm text-[var(--text-secondary)]">
         {t("paint.pgMoTa")} <span className="text-[var(--text-muted)]">{coAi ? t("paint.pgDinhDang") : t("paint.pgDinhDangKhongAi")}</span>
       </p>
+      <fieldset className="space-y-1.5">
+        <legend className="mb-1 text-sm font-semibold text-[var(--text-primary)]">{t("paint.pgLoaiTep")}</legend>
+        <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
+          <label className="inline-flex items-center gap-2">
+            <input type="radio" name="loai" value="BAO_CAO_TON" defaultChecked className="size-4 accent-brand-600" />
+            {t("paint.pgLoaiBaoCaoTon")}
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input type="radio" name="loai" value="PHIEU_GIAO" className="size-4 accent-brand-600" />
+            {t("paint.pgLoaiPhieuGiao")}
+          </label>
+        </div>
+        <p className="text-xs text-[var(--text-muted)]">{t("paint.pgLoaiGoiY")}</p>
+      </fieldset>
       <div className="flex flex-wrap items-end gap-3 rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-3">
         <label className="min-w-64 flex-1">
           <span className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">

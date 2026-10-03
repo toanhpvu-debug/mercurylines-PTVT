@@ -22,6 +22,14 @@ const nextConfig: NextConfig = {
   // Đọc lúc `next start` — đổi biến rồi khởi động lại là xong, không cần build.
   compress: process.env.NEXT_COMPRESS !== "0",
 
+  // pdfjs-dist (đọc lớp chữ PDF — lib/pdfChu.ts) KHÔNG gói vào bundle server:
+  // trong Node nó dựng "worker giả" bằng `import("./pdf.worker.mjs")` tính từ chỗ
+  // tệp đang chạy. Gói vào chunk thì đường đó trỏ vào .next/server/chunks/ssr —
+  // không có tệp worker — nên MỌI PDF số đều đọc hỏng như bản scan: máy văn phòng
+  // rơi sang OCR (bảng đọc lộn cột), máy chủ Linux đòi bộ đọc AI. Đo 2026-10-03:
+  // tờ in MLS-11-14 của chính app tải lên đọc 0 dòng; chạy thẳng bằng tsx đọc đủ 17.
+  serverExternalPackages: ["pdfjs-dist"],
+
   experimental: {
     serverActions: {
       // Cho phép upload file báo cáo PDF/Excel tới 25MB qua server action

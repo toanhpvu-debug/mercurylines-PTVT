@@ -8,10 +8,11 @@ import { Button, Field, Input, Notice } from "@/components/ui";
 import { Modal } from "@/components/ui-client";
 
 /**
- * Gỡ một phiếu giao sơn ĐÃ NHẬP (nhập nhầm phiếu, nhầm tàu, đọc sai cả loạt):
+ * Gỡ một phiếu giao sơn ĐÃ NHẬP (nhập nhầm phiếu, nhầm tàu, đọc sai cả loạt) — hoặc
+ * một báo cáo tồn MLS-11-14 đã cập nhật (`laBaoCao`: hoàn lại mọi dòng nó đã ghi):
  * trừ lại tồn đúng số đã nhập theo phiếu và mở lại phiếu để sửa rồi nhập lại.
  */
-export default function GoPhieuSon({ id }: { id: number }) {
+export default function GoPhieuSon({ id, laBaoCao = false }: { id: number; laBaoCao?: boolean }) {
   const { t } = useNgonNgu();
   const [mo, setMo] = useState(false);
   const [lyDo, setLyDo] = useState("");
@@ -30,11 +31,11 @@ export default function GoPhieuSon({ id }: { id: number }) {
           setMo(true);
         }}
       >
-        {t("paint.pgNutGo")}
+        {t(laBaoCao ? "paint.btNutGo" : "paint.pgNutGo")}
       </Button>
       {bao?.ok && <span className="text-xs text-[var(--text-success)]">{bao.chu}</span>}
       {mo && (
-        <Modal open onClose={() => setMo(false)} width="max-w-xl" title={t("paint.pgTieuDeGo")}>
+        <Modal open onClose={() => setMo(false)} width="max-w-xl" title={t(laBaoCao ? "paint.btTieuDeGo" : "paint.pgTieuDeGo")}>
           <form
             className="space-y-4 text-left"
             onSubmit={(e) => {
@@ -46,10 +47,10 @@ export default function GoPhieuSon({ id }: { id: number }) {
               });
             }}
           >
-            <p className="text-sm text-[var(--text-primary)]">{t("paint.pgGoMoTa")}</p>
-            <Notice tone="warning">{t("paint.pgGoKhoa")}</Notice>
+            <p className="text-sm text-[var(--text-primary)]">{t(laBaoCao ? "paint.btGoMoTa" : "paint.pgGoMoTa")}</p>
+            <Notice tone="warning">{t(laBaoCao ? "paint.btGoKhoa" : "paint.pgGoKhoa")}</Notice>
             <Field label={`${t("paint.tsLyDoGo")} *`}>
-              <Input value={lyDo} onChange={(e) => setLyDo(e.target.value)} required maxLength={200} placeholder={t("paint.pgLyDoGoGoiY")} />
+              <Input value={lyDo} onChange={(e) => setLyDo(e.target.value)} required maxLength={200} placeholder={t(laBaoCao ? "paint.btLyDoGoGoiY" : "paint.pgLyDoGoGoiY")} />
             </Field>
             {bao && !bao.ok && <Notice tone="danger">{bao.chu}</Notice>}
             <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--border-subtle)] pt-4">
@@ -57,7 +58,7 @@ export default function GoPhieuSon({ id }: { id: number }) {
                 {t("chung.huy")}
               </Button>
               <Button type="submit" variant="danger" loading={dangChay} icon={<Undo2 className="size-4" />}>
-                {t("paint.pgNutXacNhanGo")}
+                {t(laBaoCao ? "paint.btNutXacNhanGo" : "paint.pgNutXacNhanGo")}
               </Button>
             </div>
           </form>

@@ -7,7 +7,10 @@ import { coQuanLySon } from "@/lib/roles";
 import { dangDocAi } from "@/lib/phieuGiao";
 import { docDongNhanSon } from "@/lib/phieuSon";
 import { PAINT_TYPE_LABEL } from "@/lib/paintTypes";
+import { ngayCuoiQuy, tenKy } from "@/lib/baoCaoTonSon";
+import { moTaSonIn, quyCua } from "@/lib/tonSon";
 import { layT } from "@/lib/i18n/server";
+import BangBaoCaoTonSon from "@/components/BangBaoCaoTonSon";
 import BangNhanSon from "@/components/BangNhanSon";
 import GoPhieuSon from "@/components/GoPhieuSon";
 import TuLamMoi from "@/components/TuLamMoi";
@@ -17,7 +20,11 @@ export const dynamic = "force-dynamic";
 
 const iso = (d: Date | null) => (d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : "");
 
-/** Soát một phiếu giao sơn đã tải: sửa dòng đọc sai, chọn loại sơn, rồi nhập vào tồn sơn của tàu. */
+/**
+ * Soát một tệp sơn đã tải: phiếu giao (sửa dòng đọc sai, chọn loại sơn, rồi nhập vào
+ * tồn) hoặc báo cáo lượng sơn tồn MLS-11-14 (đối chiếu số app trong quý, rồi đưa tồn
+ * về đúng số cuối quý của báo cáo).
+ */
 export default async function NhanSonPage({ params }: { params: Promise<{ id: string; tepId: string }> }) {
   const user = await requireScopedUser();
   const { t, tTuDo, ngayGio, so } = await layT();
@@ -42,7 +49,33 @@ export default async function NhanSonPage({ params }: { params: Promise<{ id: st
   const son = sanPham.map((s) => ({ id: s.id, code: s.code, uom: s.uom, label: [s.name, s.maker, tenLoai(s.paintType), s.colorName].filter(Boolean).join(" · ") }));
   const dong = docDongNhanSon(tep.dong);
   const tienDo = tep.aiTienDo && tep.aiTienDo.includes("/") ? tep.aiTienDo : t("paint.pgTienDoChuaRo");
-  const kq = (tep.ketQua ?? null) as { soLoai?: number; tongSoLuong?: number; taoMoi?: number } | null;
+  const kq = (tep.ketQua ?? null) as { soLoai?: number; tongSoLuong?: number; taoMoi?: number; soKhop?: number; soDoi?: number } | null;
+
+  // Báo cáo tồn MLS-11-14: tồn hiện tại + lịch sử nhập / xuất của tàu để trang soát tự tính
+  // số app trong quý và các dòng sẽ ghi; ngày cuối quý của các báo cáo khác đã cập nhật.
+  const laBaoCao = tep.loai === "BAO_CAO_TON";
+  const duLieuBaoCao = laBaoCao
+    ? await (async () => {
+        const chon = { name: true, maker: true, colorCode: true, colorName: true, uom: true, packSize: true } as const;
+        const [ton, gd, khac] = await Promise.all([
+          prisma.paintStock.findMany({ where: { vesselId }, select: { productId: true, quantity: true, product: { select: chon } } }),
+          prisma.paintTransaction.findMany({
+            where: { vesselId },
+            select: { productId: true, type: true, quantity: true, dieuChinh: true, occurredAt: true, cotBaoCao: true, product: { select: chon } },
+          }),
+          prisma.sonPhieuTep.findMany({ where: { vesselId, loai: "BAO_CAO_TON", trangThai: "DA_AP_DUNG", id: { not: tep.id } }, select: { ngayNhan: true } }),
+        ]);
+        const tenSanPham: Record<number, { ten: string; uom: string }> = {};
+        for (const x of [...ton, ...gd]) tenSanPham[x.productId] ??= { ten: moTaSonIn(x.product), uom: x.product.uom };
+        return {
+          tonHienTai: Object.fromEntries(ton.map((s) => [s.productId, s.quantity])) as Record<number, number>,
+          giaoDich: gd.map((g) => ({ productId: g.productId, type: g.type, quantity: g.quantity, dieuChinh: g.dieuChinh, occurredAt: g.occurredAt.toISOString(), cotBaoCao: g.cotBaoCao })),
+          tenSanPham,
+          kyDaCapNhat: khac.flatMap((x) => (x.ngayNhan ? [ngayCuoiQuy(quyCua(x.ngayNhan))] : [])),
+        };
+      })()
+    : null;
+  const kyBaoCao = laBaoCao && tep.ngayNhan ? quyCua(tep.ngayNhan) : null;
 
   return (
     <div className="space-y-5">
@@ -85,26 +118,49 @@ export default async function NhanSonPage({ params }: { params: Promise<{ id: st
       {tep.trangThai === "DA_AP_DUNG" && (
         <Notice tone="success" className="flex flex-wrap items-center gap-3">
           <span className="min-w-0 flex-1">
-            {t("paint.pgDaNhapLuc", { nguoi: tep.apDungBoi ?? "—", luc: tep.apDungLuc ? ngayGio(tep.apDungLuc) : "—" })}{" "}
-            {kq && t("paint.pgKetQua", { loai: kq.soLoai ?? 0, sl: so(kq.tongSoLuong ?? 0), moi: kq.taoMoi ?? 0 })}
+            {laBaoCao ? (
+              <>
+                {t("paint.btDaCapNhatLuc", { nguoi: tep.apDungBoi ?? "—", luc: tep.apDungLuc ? ngayGio(tep.apDungLuc) : "—" })}{" "}
+                {kq && kyBaoCao && t("paint.btKetQua", { quy: tenKy(kyBaoCao), n: kq.soLoai ?? 0, khop: kq.soKhop ?? 0, doi: kq.soDoi ?? 0, moi: kq.taoMoi ?? 0 })}
+              </>
+            ) : (
+              <>
+                {t("paint.pgDaNhapLuc", { nguoi: tep.apDungBoi ?? "—", luc: tep.apDungLuc ? ngayGio(tep.apDungLuc) : "—" })}{" "}
+                {kq && t("paint.pgKetQua", { loai: kq.soLoai ?? 0, sl: so(kq.tongSoLuong ?? 0), moi: kq.taoMoi ?? 0 })}
+              </>
+            )}
           </span>
-          {/* Nhập nhầm phiếu: gỡ để trừ lại tồn và mở phiếu ra sửa (app/son-phieu-actions.ts goPhieuSon). */}
-          {coQuyen && <GoPhieuSon id={tep.id} />}
+          {/* Nhập nhầm phiếu / báo cáo: gỡ để hoàn lại tồn và mở ra sửa (app/son-phieu-actions.ts goPhieuSon). */}
+          {coQuyen && <GoPhieuSon id={tep.id} laBaoCao={laBaoCao} />}
         </Notice>
       )}
       {!dangDoc && (
         <div className={`grid grid-cols-1 gap-5 ${tep.loaiTep === "PDF" ? "2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : ""}`}>
           <Card className="min-w-0">
-            {coSua && <p className="mb-3 text-sm text-[var(--text-secondary)]">{t("paint.pgGoiYSoat")}</p>}
+            {coSua && <p className="mb-3 text-sm text-[var(--text-secondary)]">{t(laBaoCao ? "paint.btGoiYSoat" : "paint.pgGoiYSoat")}</p>}
             {dong.length === 0 && coSua && <Notice tone="warning">{t("paint.pgChuaCoDong")}</Notice>}
-            <BangNhanSon
-              id={tep.id}
-              dong={dong}
-              dau={{ soPhieu: tep.soPhieu ?? "", nhaCungCap: tep.nhaCungCap ?? "", ngayNhan: iso(tep.ngayNhan) }}
-              son={son}
-              coSua={coSua}
-              docLaiAi={coAi}
-            />
+            {duLieuBaoCao ? (
+              <BangBaoCaoTonSon
+                id={tep.id}
+                dong={dong}
+                ky={{ quy: kyBaoCao ? String(kyBaoCao.quy) : "", nam: kyBaoCao ? String(kyBaoCao.nam) : "" }}
+                son={son}
+                coSua={coSua}
+                docLaiAi={coAi}
+                tenTau={tep.vessel.name}
+                tauTrenTep={tep.tauTrenTep}
+                {...duLieuBaoCao}
+              />
+            ) : (
+              <BangNhanSon
+                id={tep.id}
+                dong={dong}
+                dau={{ soPhieu: tep.soPhieu ?? "", nhaCungCap: tep.nhaCungCap ?? "", ngayNhan: iso(tep.ngayNhan) }}
+                son={son}
+                coSua={coSua}
+                docLaiAi={coAi}
+              />
+            )}
           </Card>
           {tep.loaiTep === "PDF" && (
             <Card padded={false} className="hidden min-h-[70vh] overflow-hidden 2xl:block">

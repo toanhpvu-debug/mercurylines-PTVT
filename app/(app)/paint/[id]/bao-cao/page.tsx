@@ -43,7 +43,7 @@ export default async function BaoCaoSonPage({
     // Chỉ cần các dòng từ đầu quý trở đi: tồn cuối kỳ suy ngược từ tồn hiện tại.
     prisma.paintTransaction.findMany({
       where: { vesselId, occurredAt: { gte: batDau } },
-      select: { productId: true, type: true, quantity: true, dieuChinh: true, occurredAt: true },
+      select: { productId: true, type: true, quantity: true, dieuChinh: true, occurredAt: true, cotBaoCao: true },
     }),
     prisma.paintTransaction.findFirst({ where: { vesselId }, orderBy: { occurredAt: "asc" }, select: { occurredAt: true } }),
   ]);

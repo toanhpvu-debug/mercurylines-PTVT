@@ -1,10 +1,10 @@
 /**
- * Kiểm NHẬP SƠN TỪ PHIẾU GIAO: đọc phiếu theo mẫu MLS-11-05 (số nhận lấy cột
- * S.lượng duyệt, thiếu thì S.lượng yêu cầu + cảnh báo), bảng sơn Excel của nhà
- * cung cấp (hãng / màu / ĐVT / dung tích), lớp chữ PDF (MLS-11-05 và phiếu giao
- * nhà cung cấp), bộ đọc AI chế độ phiếu giao, ghép danh mục sơn, kiểm dòng sửa,
- * gộp dòng, và — trên database thật trong một giao dịch rồi cuộn ngược — nhập
- * vào tồn sơn (loại có sẵn, loại mới cấp mã SON-####, dùng lại loại trùng tên).
+ * Kiểm NHẬP SƠN TỪ PHIẾU GIAO: nhận ra phiếu yêu cầu MLS-11-05 (từ chối lúc tải lên —
+ * đã thay bằng báo cáo tồn MLS-11-14), đọc bảng có cột duyệt (số nhận lấy cột duyệt,
+ * thiếu thì cột yêu cầu + cảnh báo), bảng sơn Excel của nhà cung cấp (hãng / màu /
+ * ĐVT / dung tích), lớp chữ PDF, bộ đọc AI chế độ phiếu giao, ghép danh mục sơn, kiểm
+ * dòng sửa, gộp dòng, và — trên database thật trong một giao dịch rồi cuộn ngược —
+ * nhập vào tồn sơn (loại có sẵn, loại mới cấp mã SON-####, dùng lại loại trùng tên).
  *
  * Chạy:  node --conditions=react-server --import ./node_modules/tsx/dist/loader.mjs scripts/kiem-tra-phieu-son.ts
  */
@@ -30,6 +30,7 @@ import { dongTuChuPdfYeuCau } from "@/lib/yeuCauNhap";
 import { docPhieuGiaoTuChu } from "@/lib/phieuGiaoParse";
 import { chuanHoaKetQuaAi, docSoLuongAi } from "@/lib/docPhieuBangAi";
 import { docPhieuSonKhongAi } from "@/lib/phieuSonTep";
+import { docTepSon, laPhieuYeuCau } from "@/lib/baoCaoTonSonTep";
 import { nhapPhieuSonTx } from "@/lib/phieuSonServer";
 import type { SonGhep } from "@/lib/yeuCauSon";
 
@@ -74,11 +75,14 @@ async function main() {
     ["", "", "", "", "", "", ""],
     ["Chief Officer", "", "Captain", "", "Tech.&Pur Dept", "", ""],
   ]);
+  // Phiếu yêu cầu MLS-11-05 không còn dùng nhập tồn sơn: tải lên bị từ chối (app/son-phieu-actions.ts).
+  kiemTra("mls-11-05 la phieu yeu cau (bi tu choi)", laPhieuYeuCau((await docTepSon(mls, "MLS-11-05 phieu giao son.xlsx")).chu), true);
+  // Khuôn đọc bảng có cột duyệt vẫn giữ (bảng Word / Excel của nhà cung cấp đọc theo khuôn này).
   const k1 = await docPhieuSonKhongAi(mls, "MLS-11-05 phieu giao son.xlsx");
-  kiemTra("mls ok", k1.ok && [k1.nguon, k1.soPhieu, k1.ngay, k1.dong.length], ["MLS-11-05", "PG-012/2026", "2026-10-05", 3]);
+  kiemTra("bang cot duyet ok", k1.ok && [k1.nguon, k1.soPhieu, k1.ngay, k1.dong.length], ["BANG", "PG-012/2026", "2026-10-05", 3]);
   if (k1.ok) {
-    kiemTra("mls so nhan = duyet, thieu duyet thi yeu cau", k1.dong.map((d) => d.soLuong), [100, 40, 60]);
-    kiemTra("mls canh bao dong thieu duyet", k1.dong.map((d) => Boolean(d.canhBao)), [false, true, false]);
+    kiemTra("so nhan = duyet, thieu duyet thi yeu cau", k1.dong.map((d) => d.soLuong), [100, 40, 60]);
+    kiemTra("canh bao dong thieu duyet", k1.dong.map((d) => Boolean(d.canhBao)), [false, true, false]);
   }
 
   // ── 2. Bảng sơn Excel của nhà cung cấp ──
@@ -91,6 +95,7 @@ async function main() {
   ]);
   const k2 = await docPhieuSonKhongAi(bang, "DN-5521.xlsx");
   kiemTra("bang ok", k2.ok && [k2.nguon, k2.dong.length], ["BANG", 3]);
+  kiemTra("phieu giao NCC khong phai phieu yeu cau", laPhieuYeuCau((await docTepSon(bang, "DN-5521.xlsx")).chu), false);
   if (k2.ok) {
     kiemTra("bang dong", gon(k2.dong), [
       ["Hempadur 45143", "Hempel", "Grey", "L", 100],
@@ -250,11 +255,11 @@ async function main() {
   const thieu = sachDongNhanSon([{ ten: "a", soLuong: "3" }, { ten: "b", soLuong: "" }]);
   kiemTra("thieu so khi nhap", thieu.ok && dongLoiKhiNhap(thieu.dong), { n: 2, lyDo: "thieuSo" });
 
-  // ── 6. File mẫu MLS-11-05B thật (Desktop) đọc như phiếu giao ──
+  // ── 6. File mẫu MLS-11-05B thật (Desktop): nhận ra là phiếu yêu cầu → bị từ chối lúc tải lên ──
   const mauThat = "C:/Users/admin/Desktop/MLS-11-05B YEU CAU VAT TU 4-2026.xlsx";
   if (existsSync(mauThat)) {
-    const t = await docPhieuSonKhongAi(readFileSync(mauThat), "MLS-11-05B YEU CAU VAT TU 4-2026.xlsx");
-    kiemTra("mau that doc theo MLS-11-05", t.ok && [t.nguon, t.dong.length], ["MLS-11-05", 169]);
+    const t = await docTepSon(readFileSync(mauThat), "MLS-11-05B YEU CAU VAT TU 4-2026.xlsx");
+    kiemTra("mau that MLS-11-05B la phieu yeu cau", laPhieuYeuCau(t.chu), true);
   } else console.log("  (bo qua mau that: khong co file tren Desktop)");
 
   // ── 7. Database thật, cuộn ngược: nhập vào tồn sơn ──

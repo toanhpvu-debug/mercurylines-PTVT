@@ -4,15 +4,17 @@ import { dongTuBangSon, dongTuChuPhieuGiao, dongTuYeuCauFile, ngayNhanTuChu, typ
 
 /*
  * Đọc phiếu giao / nhận SƠN KHÔNG dùng AI — thử mọi cách đọc hợp với loại file,
- * giữ cách ra NHIỀU dòng có số lượng nhất (hòa thì: mẫu công ty có tiêu đề >
+ * giữ cách ra NHIỀU dòng có số lượng nhất (hòa thì: bảng có cột IMPA / Part No. >
  * bảng sơn > còn lại):
- *   - MLS-11-05 (Excel / Word / lớp chữ PDF) — lib/yeuCauTep.ts, số nhận lấy cột
- *     S.lượng duyệt nếu có;
+ *   - bảng trong Word / Excel / lớp chữ PDF đọc theo khuôn phiếu yêu cầu
+ *     (lib/yeuCauTep.ts), số nhận lấy cột duyệt nếu có;
  *   - bảng sơn có tiêu đề cột (Excel; lớp chữ PDF) — lib/paintImport.ts, đọc
  *     kèm hãng / màu / ĐVT / dung tích;
  *   - phiếu giao của nhà cung cấp (lớp chữ PDF, OCR Windows cho bản scan) —
  *     lib/phieuGiaoParse.ts.
- * PDF scan không đọc được theo cách nào thì cần bộ đọc AI (canAi).
+ * PDF scan không đọc được theo cách nào thì cần bộ đọc AI (canAi). Phiếu yêu cầu
+ * MLS-11-05 và báo cáo tồn MLS-11-14 đã được tách ra từ trước ở app/son-phieu-actions.ts
+ * (lib/baoCaoTonSonTep.ts) — tới đây chỉ còn phiếu giao.
  */
 
 export type KetQuaDocPhieuSon =
@@ -29,13 +31,13 @@ export async function docPhieuSonKhongAi(buffer: Buffer, fileName: string, fullP
   if (![".xlsx", ".xls", ".docx", ".doc", ".pdf"].includes(duoi)) return { ok: false, loi: "Chỉ nhận file Word, Excel hoặc PDF.", canAi: false };
   const ungVien: UngVien[] = [];
   try {
-    // 1. Mẫu MLS-11-05 (mọi loại file).
+    // 1. Bảng đọc theo khuôn phiếu yêu cầu (mọi loại file — cũng là cách duy nhất đọc bảng Word).
     const { docYeuCauKhongAi } = await import("@/lib/yeuCauTep");
     const yc = await docYeuCauKhongAi(buffer, fileName);
-    // Có tiêu đề biểu mẫu (REQUISITION / YÊU CẦU / MLS-11-05) mới chắc là mẫu công ty;
-    // bảng thường đọc theo khuôn này thì nhường bảng sơn (giữ được hãng / màu).
+    // Bảng có cột IMPA / Part No. (yc.dau.loai) đọc theo khuôn này chắc hơn; bảng thường
+    // thì nhường bảng sơn (giữ được hãng / màu).
     if (yc.ok)
-      ungVien.push({ nguon: "MLS-11-05", ten: "mẫu MLS-11-05", dong: dongTuYeuCauFile(yc.dong), uuTien: yc.dau.loai ? 2 : 0, soPhieu: yc.dau.soYeuCau, ngay: yc.dau.ngay });
+      ungVien.push({ nguon: "BANG", ten: "bảng trong file", dong: dongTuYeuCauFile(yc.dong), uuTien: yc.dau.loai ? 2 : 0, soPhieu: yc.dau.soYeuCau, ngay: yc.dau.ngay });
 
     // 2. Bảng sơn trong Excel.
     if (duoi === ".xlsx" || duoi === ".xls") {

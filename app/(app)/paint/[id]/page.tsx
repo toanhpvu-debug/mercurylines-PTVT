@@ -121,7 +121,7 @@ export default async function PaintVesselPage({
           where: { vesselId },
           orderBy: [{ trangThai: "asc" }, { createdAt: "desc" }],
           take: 10,
-          select: { id: true, fileName: true, soPhieu: true, trangThai: true, createdAt: true, aiDangDocTu: true },
+          select: { id: true, loai: true, fileName: true, soPhieu: true, trangThai: true, createdAt: true, aiDangDocTu: true },
         }),
         import("@/lib/cauHinhAi").then(async (m) => Boolean(await m.layCauHinhAi())),
       ])
@@ -732,6 +732,7 @@ export default async function PaintVesselPage({
                       <ul className="divide-y divide-[var(--border-subtle)] rounded-lg border border-[var(--border-subtle)] text-sm">
                         {phieuSon.map((p) => (
                           <li key={p.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                            {p.loai === "BAO_CAO_TON" && <Badge tone="info">{t("paint.pgNhanBaoCaoTon")}</Badge>}
                             <Link href={`/paint/${vesselId}/nhan/${p.id}`} className="font-medium text-[var(--text-brand)] hover:underline">
                               {p.soPhieu || p.fileName}
                             </Link>

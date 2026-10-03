@@ -9,6 +9,7 @@
  * Ghi PDF mẫu ra _thu-xuat/phieu-giao-mau.pdf (thư mục không vào git) để mở xem.
  */
 import { mkdirSync, writeFileSync } from "fs";
+import cauHinhNext from "../next.config";
 import { docChuTuPdf } from "@/lib/pdfChu";
 import { docPhieuGiaoTuChu } from "@/lib/phieuGiaoParse";
 import { taoPdfMauPhieuGiao as taoPdf } from "@/lib/pdfMauPhieuGiao";
@@ -24,6 +25,9 @@ function kiemTra(ten: string, thuc: unknown, mong: unknown) {
 }
 
 async function main() {
+  // Chạy bằng tsx thì pdfjs luôn nạp được; trong bundle server của Next thì không
+  // (worker giả import "./pdf.worker.mjs" tính từ chunk) — phải để ngoài bundle.
+  kiemTra("next.config: pdfjs-dist ngoai bundle server", (cauHinhNext.serverExternalPackages ?? []).includes("pdfjs-dist"), true);
   const pdf = taoPdf();
   try {
     mkdirSync("_thu-xuat", { recursive: true });

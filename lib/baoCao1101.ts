@@ -12,6 +12,8 @@
  * (nếu có) luôn được nêu ở Ghi chú để người đọc đối được số.
  */
 
+import { LECH_VN_MS } from "@/lib/kyQuy";
+
 export type LoaiGiaoDich1101 = "NHAN" | "DUNG" | "KIEM_KE";
 
 export type GiaoDich1101 = {
@@ -21,6 +23,8 @@ export type GiaoDich1101 = {
   occurredAt: Date;
   note: string | null;
   performedBy: string | null;
+  /** Dòng do file kiểm kê MLS-11-06 ghi: cột của biểu mẫu mà dòng làm khớp (lib/tonKhoQuy.ts). */
+  cotBaoCao?: string | null;
 };
 
 /** Ghi chú của giao dịch điều chỉnh kiểm kê (nạp tồn từ file, kiểm kê theo file, kiểm kê tay). */
@@ -28,8 +32,15 @@ export function laKiemKe(note: string | null | undefined): boolean {
   return /ki[ểe]m\s*k[êe]|stock[\s-]?take|stocktaking|inventory\s*count/i.test(note ?? "");
 }
 
-export function loaiGiaoDich(g: Pick<GiaoDich1101, "type" | "note">): LoaiGiaoDich1101 {
-  if (laKiemKe(g.note)) return "KIEM_KE";
+/**
+ * Dòng do file kiểm kê MLS-11-06 ghi theo kỳ đi theo cột của nó: "Nhận trong kỳ" là
+ * nhận, "Tiêu thụ trong kỳ" là dùng (ghi chú vẫn nói "kiểm kê" nhưng đó là số tàu
+ * báo nhận / dùng thật); "Còn tồn đợt trước" / "Tồn trên tàu" là điều chỉnh kiểm kê.
+ */
+export function loaiGiaoDich(g: Pick<GiaoDich1101, "type" | "note" | "cotBaoCao">): LoaiGiaoDich1101 {
+  if (g.cotBaoCao === "nhan") return "NHAN";
+  if (g.cotBaoCao === "tieuThu") return "DUNG";
+  if (g.cotBaoCao || laKiemKe(g.note)) return "KIEM_KE";
   return g.type === "IN" ? "NHAN" : "DUNG";
 }
 
@@ -93,12 +104,14 @@ export function tongHop1101(x: {
       d.dieuChinh += co;
       d.dieuChinhDs.push({ ngay: g.occurredAt, so: co });
     } else if (loai === "NHAN") {
-      d.nhan += g.quantity;
+      // Dòng "bớt nhận" của file kiểm kê là XUẤT gắn cột Nhận: trừ khỏi số nhận.
+      d.nhan += g.type === "IN" ? g.quantity : -g.quantity;
       d.ngayNhan.push(g.occurredAt);
       const nguon = (x.nguonCua?.(g) ?? g.note ?? "").trim();
       if (nguon && !d.nguonNhan.includes(nguon)) d.nguonNhan.push(nguon);
     } else {
-      d.dung += g.quantity;
+      // Dòng "bớt tiêu thụ" của file kiểm kê là NHẬP gắn cột Tiêu thụ: trừ khỏi số dùng.
+      d.dung += g.type === "IN" ? -g.quantity : g.quantity;
       d.ngayDung.push(g.occurredAt);
       const md = (g.note ?? "").trim();
       if (md && !d.mucDichDung.includes(md)) d.mucDichDung.push(md);
@@ -121,7 +134,11 @@ export function coSo1101(d: TongHop1101): boolean {
   return d.tonDau !== 0 || d.nhan !== 0 || d.dung !== 0 || d.dieuChinh !== 0 || d.tonCuoi !== 0;
 }
 
-const ddmm = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+/** dd/mm theo giờ Việt Nam (máy chủ chạy giờ UTC). */
+const ddmm = (d: Date) => {
+  const vn = new Date(d.getTime() + LECH_VN_MS);
+  return `${String(vn.getUTCDate()).padStart(2, "0")}/${String(vn.getUTCMonth() + 1).padStart(2, "0")}`;
+};
 
 /** Cột "Ngày": mọi ngày khác nhau trong tháng (dd/mm); nhiều quá thì ngày đầu – ngày cuối kèm số lần. */
 export function chuoiNgay1101(ds: Date[]): string {

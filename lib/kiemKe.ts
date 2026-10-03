@@ -9,6 +9,7 @@
  */
 import type { ImportedItem } from "@/lib/materialImport";
 import type { DongAi } from "@/lib/docPhieuBangAi";
+import { LECH_VN_MS, keHoachBaoCaoTon, type HeThongQuy, type SoBaoCao } from "@/lib/kyQuy";
 import { LAP_YEU_CAU, VAN_HANH_TAU } from "@/lib/roles";
 
 export type LoaiHang = "STORE" | "SPARE";
@@ -27,8 +28,14 @@ export type DongKiemKe = {
   loai: LoaiHang | null;
   /** Sheet Excel chứa dòng — để định tuyến kho (Phụ tùng → kho máy, Boong → kho boong). */
   sheet: string | null;
-  /** Số tồn đếm được; null = ô trống (chưa đếm) — KHÔNG phải 0. */
+  /** Số tồn đếm được (Tồn trên tàu / R.O.B); null = ô trống (chưa đếm) — KHÔNG phải 0. */
   ton: number | null;
+  /**
+   * Ba cột kỳ của MLS-11-06 nếu file có: Còn tồn đợt trước · Nhận trong kỳ · Tiêu thụ
+   * trong kỳ (null từng ô = trống). Có kỳ (KiemKeTep.tuNgay) thì số của app trong kỳ
+   * được đưa về đúng các cột này (lib/kyQuy.ts keHoachBaoCaoTon).
+   */
+  bc?: SoBaoCao | null;
   trang: number | null;
   canhBao: string | null;
   /** Người đối chiếu bỏ dòng này (không áp dụng). */
@@ -36,6 +43,9 @@ export type DongKiemKe = {
   /** Dòng chưa có trong danh mục: thêm làm mặt hàng mới khi áp dụng. */
   themMoi: boolean;
 };
+
+/** Ba cột kỳ của một dòng nếu có ít nhất một ô có số. */
+const bcCo = (bc: SoBaoCao): SoBaoCao | null => (bc.tonDau === null && bc.nhan === null && bc.tieuThu === null ? null : bc);
 
 export const TRANG_THAI_KIEM_KE = ["CHO_DUYET", "DA_AP_DUNG"] as const;
 export type TrangThaiKiemKe = (typeof TRANG_THAI_KIEM_KE)[number];
@@ -63,6 +73,7 @@ export function dongTuExcel(items: ImportedItem[]): DongKiemKe[] {
     loai: x.materialType,
     sheet: sach(x.sheet, 80),
     ton: x.rob,
+    bc: bcCo({ tonDau: x.lastRob ?? null, nhan: x.received ?? null, tieuThu: x.consumed ?? null }),
     trang: null,
     canhBao: null,
     boQua: false,
@@ -83,6 +94,7 @@ export function dongTuAi(dong: DongAi[]): DongKiemKe[] {
     loai: d.loai,
     sheet: null,
     ton: d.soLuongTrong ? null : d.soLuong,
+    bc: d.bc ? bcCo({ tonDau: d.bc.tonDau, nhan: d.bc.nhan, tieuThu: d.bc.tieuThu }) : null,
     trang: d.trang,
     canhBao: sach(d.canhBao, 300),
     boQua: false,
@@ -133,12 +145,15 @@ export function soTonNhap(v: unknown): number | null {
   return Math.round(Number(t) * 1000) / 1000;
 }
 
-/** Chỉnh sửa của người đối chiếu cho MỘT dòng (chỉ số tồn và hai lựa chọn — tên / mã giữ như đọc được). */
-export type SuaDongKiemKe = { i: number; ton: string | number | null; boQua: boolean; themMoi: boolean };
+/** Ô số của ba cột kỳ người đối chiếu gõ (chuỗi như ô nhập). */
+export type SuaBcKiemKe = { tonDau: string | number | null; nhan: string | number | null; tieuThu: string | number | null };
+
+/** Chỉnh sửa của người đối chiếu cho MỘT dòng (số tồn, ba cột kỳ và hai lựa chọn — tên / mã giữ như đọc được). */
+export type SuaDongKiemKe = { i: number; ton: string | number | null; boQua: boolean; themMoi: boolean; bc?: SuaBcKiemKe | null };
 
 /**
- * Áp chỉnh sửa lên các dòng đã lưu. Chỉ nhận số tồn và hai lựa chọn theo chỉ
- * số dòng — người dùng không đổi được tên / mã để "ghép" sang mặt hàng khác.
+ * Áp chỉnh sửa lên các dòng đã lưu. Chỉ nhận số và hai lựa chọn theo chỉ số dòng
+ * — người dùng không đổi được tên / mã để "ghép" sang mặt hàng khác.
  */
 export function apSuaDong(dong: DongKiemKe[], sua: unknown): { ok: true; dong: DongKiemKe[] } | { ok: false; n: number } {
   const ra = dong.map((d) => ({ ...d }));
@@ -153,6 +168,11 @@ export function apSuaDong(dong: DongKiemKe[], sua: unknown): { ok: true; dong: D
     ra[i].ton = ton;
     ra[i].boQua = s.boQua === true;
     ra[i].themMoi = s.themMoi === true;
+    if (s.bc && typeof s.bc === "object") {
+      const so = [soTonNhap(s.bc.tonDau ?? null), soTonNhap(s.bc.nhan ?? null), soTonNhap(s.bc.tieuThu ?? null)];
+      if (so.some((n) => Number.isNaN(n))) return { ok: false, n: i + 1 };
+      ra[i].bc = bcCo({ tonDau: so[0], nhan: so[1], tieuThu: so[2] });
+    }
   }
   return { ok: true, dong: ra };
 }
@@ -166,6 +186,11 @@ export function docDongJson(v: unknown): DongKiemKe[] {
     const d = x as Partial<DongKiemKe>;
     if (typeof d.ten !== "string") continue;
     const ton = soTonNhap(d.ton ?? null);
+    const soBc = (v: unknown) => {
+      const n = soTonNhap(v as string | number | null);
+      return n === null || Number.isNaN(n) ? null : n;
+    };
+    const bcTho = d.bc && typeof d.bc === "object" ? (d.bc as Partial<SoBaoCao>) : null;
     ra.push({
       ten: d.ten,
       tenEn: d.tenEn ?? null,
@@ -177,6 +202,7 @@ export function docDongJson(v: unknown): DongKiemKe[] {
       loai: d.loai === "STORE" || d.loai === "SPARE" ? d.loai : null,
       sheet: d.sheet ?? null,
       ton: Number.isNaN(ton) ? null : ton,
+      bc: bcTho ? bcCo({ tonDau: soBc(bcTho.tonDau ?? null), nhan: soBc(bcTho.nhan ?? null), tieuThu: soBc(bcTho.tieuThu ?? null) }) : null,
       trang: typeof d.trang === "number" ? d.trang : null,
       canhBao: d.canhBao ?? null,
       boQua: d.boQua === true,
@@ -186,11 +212,106 @@ export function docDongJson(v: unknown): DongKiemKe[] {
   return ra;
 }
 
-/** Ngày kiểm kê từ ô ngày (yyyy-mm-dd) — sai / trống → hôm nay; không nhận ngày tương lai. */
+/** Ngày kiểm kê từ ô ngày (yyyy-mm-dd, 12 giờ trưa giờ Việt Nam) — sai / trống → hôm nay; không nhận ngày tương lai. */
 export function ngayKiemKeTu(s: string | null | undefined, bayGio = new Date()): Date {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s ?? "").trim());
   if (!m) return bayGio;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
-  if (Number.isNaN(d.getTime()) || d.getMonth() !== Number(m[2]) - 1) return bayGio;
+  const [nam, thang, ngay] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const d = new Date(Date.UTC(nam, thang - 1, ngay, 12) - LECH_VN_MS);
+  const vn = new Date(d.getTime() + LECH_VN_MS);
+  if (Number.isNaN(d.getTime()) || vn.getUTCMonth() !== thang - 1 || vn.getUTCDate() !== ngay) return bayGio;
   return d > bayGio ? bayGio : d;
+}
+
+/**
+ * Kỳ đối chiếu của một lần kiểm kê: mốc cuối = hết ngày kiểm kê (giờ Việt Nam —
+ * tồn lúc đó phải bằng số đếm); có đầu kỳ (ô "Từ tháng" của file) thì các cột Còn
+ * tồn đợt trước / Nhận / Tiêu thụ được so trong [đầu kỳ, hết ngày kiểm kê); không
+ * có thì kỳ rỗng — chỉ so số đếm.
+ */
+export function kyCuaKiemKe(kk: { tuNgay: Date | null; ngayKiemKe: Date }): { batDau: Date; ketThuc: Date; coKy: boolean } {
+  const ngayVN = (d: Date) => {
+    const vn = new Date(d.getTime() + LECH_VN_MS);
+    return Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth(), vn.getUTCDate()) - LECH_VN_MS;
+  };
+  const ketThuc = new Date(ngayVN(kk.ngayKiemKe) + 86_400_000);
+  if (kk.tuNgay && ngayVN(kk.tuNgay) < ketThuc.getTime()) return { batDau: new Date(ngayVN(kk.tuNgay)), ketThuc, coKy: true };
+  return { batDau: ketThuc, ketThuc, coKy: false };
+}
+
+/** Bốn số của file cho một nhóm dòng (cùng mặt hàng + kho): ba cột kỳ + số đếm. */
+export type SoFileKiemKe = SoBaoCao & { tonCuoi: number };
+
+/**
+ * Kế hoạch cho MỘT nhóm dòng (cùng mặt hàng + kho): bốn số của file (Còn tồn đợt
+ * trước / Nhận / Tiêu thụ chỉ khi file có kỳ) so với số của app quanh kỳ. Phần
+ * lệch số đếm luôn là điều chỉnh kiểm kê — vật tư không suy tiêu thụ từ số đếm.
+ * Dùng chung cho máy chủ (lib/kiemKeServer.ts) và trang đối chiếu (tính lại khi sửa số).
+ */
+export function keHoachNhomKiemKe(soFile: SoFileKiemKe, ht: HeThongQuy, coKy: boolean) {
+  const bao = coKy ? soFile : { tonDau: null, nhan: null, tieuThu: null, tonCuoi: soFile.tonCuoi };
+  return keHoachBaoCaoTon(bao, ht, { thieuLaTieuThu: false, gopDieuChinh: "tonDau" });
+}
+
+// ─── Đầu biểu mẫu MLS-11-06: tàu · ngày · kỳ ─────────────────────────────────
+
+export type DauKiemKe = { tau: string | null; ngay: Date | null; kyChu: string | null };
+
+/** 12 giờ trưa (giờ Việt Nam) của một ngày lịch. */
+const trua = (nam: number, thang: number, ngay: number) => new Date(Date.UTC(nam, thang - 1, ngay, 12) - LECH_VN_MS);
+
+/** Ô ngày của Excel: số ngày kiểu Excel, Date, hoặc chữ dd/mm/yyyy · yyyy-mm-dd. */
+export function ngayTuOExcel(v: unknown): Date | null {
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : trua(v.getUTCFullYear(), v.getUTCMonth() + 1, v.getUTCDate());
+  if (typeof v === "number") {
+    if (!(v > 30000 && v < 80000)) return null;
+    const d = new Date(Math.round((v - 25569) * 86_400_000));
+    return trua(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+  }
+  const s = String(v ?? "").trim();
+  let m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/.exec(s);
+  if (m) return trua(Number(m[3]), Number(m[2]), Number(m[1]));
+  m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (m) return trua(Number(m[1]), Number(m[2]), Number(m[3]));
+  return null;
+}
+
+const NHAN_TAU = /^(vsl\.?\s*\/?\s*tàu|vsl\.?|tàu|tên tàu|vessel|ship'?s?\s*name)\s*:?$/i;
+const NHAN_NGAY = /^(date\s*\/?\s*ngày|ngày|date)\s*:?$/i;
+const NHAN_KY = /from\s*month|từ\s*tháng|tu\s*thang/i;
+
+/**
+ * Đầu biểu mẫu MLS-11-06 từ lưới ô (sheet đọc ra mảng hàng): ô ngay sau nhãn trên
+ * cùng hàng — "Vsl./Tàu:" → tên tàu, "Date/Ngày:" → ngày, "From month/" (hoặc
+ * "Từ tháng:") → chữ kỳ. Chỉ dò 15 hàng đầu (khối đầu trang của mẫu).
+ */
+export function dauBieuMauKiemKe(luoi: unknown[][]): DauKiemKe {
+  const ra: DauKiemKe = { tau: null, ngay: null, kyChu: null };
+  const chu = (v: unknown) => (v === null || v === undefined ? "" : v instanceof Date ? "" : String(v).replace(/\s+/g, " ").trim());
+  for (const hang of luoi.slice(0, 15)) {
+    if (!Array.isArray(hang)) continue;
+    for (let c = 0; c < hang.length; c++) {
+      const nhan = chu(hang[c]);
+      if (!nhan) continue;
+      const sau = () => {
+        for (let k = c + 1; k < hang.length; k++) {
+          const v = hang[k];
+          if (v instanceof Date || typeof v === "number") return v;
+          const s = chu(v);
+          if (s && s !== nhan) return s;
+        }
+        return null;
+      };
+      if (!ra.tau && NHAN_TAU.test(nhan)) {
+        const v = sau();
+        if (typeof v === "string" && !NHAN_NGAY.test(v)) ra.tau = v.slice(0, 80);
+      } else if (!ra.ngay && NHAN_NGAY.test(nhan)) {
+        ra.ngay = ngayTuOExcel(sau());
+      } else if (!ra.kyChu && NHAN_KY.test(nhan)) {
+        const v = sau();
+        if (typeof v === "string" && !NHAN_KY.test(v)) ra.kyChu = v.slice(0, 80);
+      }
+    }
+  }
+  return ra;
 }

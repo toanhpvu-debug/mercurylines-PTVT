@@ -3,6 +3,7 @@ import { ClipboardCheck, Upload } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser, vesselIdWhere, vesselScopeDayDu, vesselWhere } from "@/lib/auth";
 import { NGUOI_TAI_KIEM_KE } from "@/lib/kiemKe";
+import { chuoiNgayVN } from "@/lib/kyQuy";
 import { dangDocAi } from "@/lib/phieuGiao";
 import { layT } from "@/lib/i18n/server";
 import TaiKiemKeForm from "@/components/TaiKiemKeForm";
@@ -14,7 +15,8 @@ const TONE_TRANG_THAI: Record<string, Tone> = { CHO_DUYET: "warning", DANG_AP_DU
 
 /**
  * Kiểm kê theo file MLS-11-06: tải file thuyền viên đã đếm (Excel / PDF scan),
- * đối chiếu, rồi áp dụng — tồn mặt hàng đã có được đặt đúng số đếm.
+ * đối chiếu, rồi áp dụng — tồn hết ngày kiểm kê của mặt hàng đã có bằng đúng số
+ * đếm (nhập / xuất sau ngày đó giữ nguyên); file có kỳ thì cả ba cột kỳ.
  */
 export default async function KiemKePage() {
   const user = await requireScopedUser();
@@ -43,8 +45,8 @@ export default async function KiemKePage() {
     }),
   ]);
   const taiDuoc = NGUOI_TAI_KIEM_KE.includes(user.role) && !scope.unassigned && vessels.length > 0;
-  const homNay = new Date();
-  const homNayStr = `${homNay.getFullYear()}-${String(homNay.getMonth() + 1).padStart(2, "0")}-${String(homNay.getDate()).padStart(2, "0")}`;
+  // Hôm nay theo giờ Việt Nam (máy chủ Dokploy chạy giờ UTC) — mốc trên của ô ngày kiểm kê.
+  const homNayStr = chuoiNgayVN(new Date());
 
   return (
     <div className="space-y-5">

@@ -16,11 +16,44 @@ import {
   ghiChuBanTuDung,
 } from "@/lib/bieuMauKiemKe";
 import { LAP_YEU_CAU } from "@/lib/roles";
+import { kyThang, ngayCuaVN, quyCua, type ThangNam } from "@/lib/kyQuy";
+import { soLieuKyVatTu, tenKyThang, thangCuaQuy } from "@/lib/tonKhoQuy";
+
+/** Bộ phận theo hậu tố mã kho (như báo cáo MLS-11-01): ENG = Máy, DECK = Boong, STORE = Kho tiêu hao. */
+const BO_PHAN: Record<string, { hauTo: string | null; nhan: string }> = {
+  ALL: { hauTo: null, nhan: "" },
+  ENG: { hauTo: "-ENG", nhan: "Máy" },
+  DECK: { hauTo: "-DECK", nhan: "Boong" },
+  STORE: { hauTo: "-STORE", nhan: "Kho tiêu hao" },
+};
+
+/**
+ * Kỳ xuất: ?quy=3&nam=2026 (quý), ?thang=2026-08 (một tháng), mặc định quý hiện
+ * tại (giờ Việt Nam). Quý / tháng chưa tới thì lùi về hiện tại.
+ */
+function kyXuat(url: URL, bayGio: Date): { tu: ThangNam; den: ThangNam } {
+  const hienTai = ngayCuaVN(bayGio);
+  const chuaToi = (x: ThangNam) => x.nam > hienTai.nam || (x.nam === hienTai.nam && x.thang > hienTai.thang);
+  const m = /^(\d{4})-(\d{2})$/.exec(url.searchParams.get("thang") ?? "");
+  if (m && Number(m[2]) >= 1 && Number(m[2]) <= 12) {
+    const x = { nam: Number(m[1]), thang: Number(m[2]) };
+    if (!chuaToi(x)) return { tu: x, den: x };
+  }
+  const q = Number(url.searchParams.get("quy"));
+  const n = Number(url.searchParams.get("nam"));
+  if (Number.isInteger(q) && q >= 1 && q <= 4 && Number.isInteger(n) && n >= 2000) {
+    const k = thangCuaQuy({ nam: n, quy: q as 1 | 2 | 3 | 4 });
+    if (!chuaToi(k.tu)) return k;
+  }
+  return thangCuaQuy(quyCua(bayGio));
+}
 
 export const dynamic = "force-dynamic";
 
 // Xuất kiểm kê vật tư & phụ tùng của một tàu theo đúng form công ty MLS-11-06:
-// điền dữ liệu thật (danh mục tàu + tồn kho + nhận/tiêu thụ trong tháng) vào template gốc.
+// điền dữ liệu thật (danh mục tàu + tồn kho + Còn tồn đợt trước / Nhận / Tiêu thụ
+// trong KỲ — quý hoặc tháng, lib/tonKhoQuy.ts) vào template gốc. Cùng số với trang
+// Báo cáo tồn kho theo quý (/inventory/bao-cao-quy).
 export async function GET(request: Request) {
   // Danh sách vai trò cứng ["ADMIN","MASTER","CREW"] là di sản từ thời hệ
   // thống chỉ có 3 vai trò. Nay có 11 chức danh: máy trưởng, đại phó, phó 2/3,
@@ -39,6 +72,8 @@ export async function GET(request: Request) {
   const vesselId = Number(url.searchParams.get("vessel"));
   const typeRaw = String(url.searchParams.get("type") || "ALL");
   const type = ["ALL", "STORE", "SPARE"].includes(typeRaw) ? typeRaw : "ALL";
+  const deptRaw = String(url.searchParams.get("dept") || "ALL");
+  const dept = Object.hasOwn(BO_PHAN, deptRaw) ? deptRaw : "ALL";
   if (!Number.isInteger(vesselId) || vesselId <= 0) {
     return NextResponse.json(
       { error: t("actionsModule.taiLieu_thieuTau") },
@@ -60,8 +95,12 @@ export async function GET(request: Request) {
   }
 
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const [links, inventoryGroup, monthTx] = await Promise.all([
+  const kyChon = kyXuat(url, now);
+  const ky = kyThang(kyChon.tu, kyChon.den);
+  const khoTau = await prisma.warehouse.findMany({ where: { vesselId }, select: { id: true, code: true } });
+  const hauTo = BO_PHAN[dept].hauTo;
+  const khoIds = khoTau.filter((w) => !hauTo || w.code.endsWith(hauTo)).map((w) => w.id);
+  const [links, inventoryGroup, kyTx] = await Promise.all([
     prisma.vesselMaterial.findMany({
       where: {
         vesselId,
@@ -74,24 +113,22 @@ export async function GET(request: Request) {
     }),
     prisma.inventory.groupBy({
       by: ["materialId"],
-      where: { vesselId },
+      where: { vesselId, warehouseId: { in: khoIds } },
       _sum: { quantity: true },
     }),
     prisma.inventoryTransaction.findMany({
-      where: { vesselId, occurredAt: { gte: monthStart } },
-      select: { materialId: true, type: true, quantity: true },
+      where: { vesselId, warehouseId: { in: khoIds }, occurredAt: { gte: ky.batDau } },
+      select: { materialId: true, type: true, quantity: true, note: true, occurredAt: true, cotBaoCao: true },
     }),
   ]);
 
   const stockByMat = new Map(
     inventoryGroup.map((r) => [r.materialId, Number(r._sum.quantity ?? 0)])
   );
-  const inByMat = new Map<number, number>();
-  const outByMat = new Map<number, number>();
-  for (const tx of monthTx) {
-    const target = tx.type === "IN" ? inByMat : outByMat;
-    target.set(tx.materialId, (target.get(tx.materialId) ?? 0) + tx.quantity);
-  }
+  // Bốn cột của kỳ, neo vào tồn hiện tại; điều chỉnh kiểm kê gộp vào Còn tồn đợt
+  // trước để bốn cột vẫn cân (trước đây mọi dòng NHẬP / XUẤT trong tháng, kể cả
+  // kiểm kê, đều thành Nhận / Tiêu thụ).
+  const soKy = new Map(soLieuKyVatTu(stockByMat, kyTx, ky).map((x) => [x.materialId, x.cot]));
 
   // Bổ sung vật tư CÒN TỒN/CÓ GIAO DỊCH nhưng đã gỡ khỏi danh mục tàu —
   // bản kiểm kê phải phản ánh đủ hàng thực trên tàu.
@@ -101,7 +138,7 @@ export async function GET(request: Request) {
       ...inventoryGroup
         .filter((r) => Number(r._sum.quantity ?? 0) !== 0)
         .map((r) => r.materialId),
-      ...monthTx.map((t) => t.materialId),
+      ...kyTx.map((t) => t.materialId),
     ]),
   ].filter((id) => !linkedIds.has(id));
   const extraMaterials = extraIds.length
@@ -115,20 +152,23 @@ export async function GET(request: Request) {
     : [];
 
   const round2 = (n: number) => Math.round(n * 100) / 100;
+  // Lọc một bộ phận (kho máy / boong / tiêu hao): chỉ mặt hàng có tồn hoặc có phát sinh
+  // ở kho của bộ phận đó. Liệt kê cả danh mục tàu thì hàng của kho khác hiện tồn 0 —
+  // tàu điền / tải lại file đó lên kiểm kê là đưa tồn của chúng ở kho khác về 0.
+  const coOKho = new Set([...inventoryGroup.filter((r) => Number(r._sum.quantity ?? 0) !== 0).map((r) => r.materialId), ...kyTx.map((x) => x.materialId)]);
   const rows = [...links.map((l) => l.material), ...extraMaterials]
+    .filter((m) => dept === "ALL" || coOKho.has(m.id))
     .map((m) => {
-      const rob = stockByMat.get(m.id) ?? 0;
-      const received = inByMat.get(m.id) ?? 0;
-      const consumed = outByMat.get(m.id) ?? 0;
+      const c = soKy.get(m.id);
       return {
         group: m.category?.name ?? m.equipment ?? (m.materialType === "SPARE" ? "Spare" : "Store"),
         name: m.nameVn,
         impa: m.impa ?? m.partNumber ?? "",
         uom: m.uom,
-        lastRob: round2(rob - received + consumed),
-        received: round2(received),
-        consumed: round2(consumed),
-        rob: round2(rob),
+        lastRob: round2(c?.tonDau ?? 0),
+        received: round2(c?.nhan ?? 0),
+        consumed: round2(c?.tieuThu ?? 0),
+        rob: round2(c?.tonCuoi ?? 0),
       };
     })
     .sort(
@@ -190,12 +230,12 @@ export async function GET(request: Request) {
   };
   // A7:B7 là nhãn "Vsl./Tàu:" (merge) — tên tàu điền vào vùng C7:D7.
   ws.getCell("C7").value = vessel.name;
-  // exceljs quy đổi Date theo UTC — dùng UTC midnight để Excel hiện đúng ngày.
-  ws.getCell("H7").value = new Date(
-    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
-  );
-  ws.getCell("C8").value = typeLabels[type];
-  ws.getCell("H8").value = `Tháng ${now.getMonth() + 1}/${now.getFullYear()}`;
+  // Ngày của tờ kiểm kê = hết kỳ (kỳ đang chạy: hôm nay), giờ Việt Nam. exceljs quy
+  // đổi Date theo UTC — dùng nửa đêm UTC của đúng ngày đó để Excel hiện đúng ngày.
+  const ngayTo = ngayCuaVN(new Date(Math.min(ky.ketThuc.getTime() - 1, now.getTime())));
+  ws.getCell("H7").value = new Date(Date.UTC(ngayTo.nam, ngayTo.thang - 1, ngayTo.ngay));
+  ws.getCell("C8").value = BO_PHAN[dept].nhan ? `${BO_PHAN[dept].nhan} · ${typeLabels[type]}` : typeLabels[type];
+  ws.getCell("H8").value = tenKyThang(kyChon.tu, kyChon.den);
 
   // Điền dòng bằng hàm dùng chung với bản tự dựng (lib/bieuMauKiemKe.ts): nó
   // biết biểu mẫu chừa sẵn 24 dòng, tự dời khối chữ ký khi bảng dài hơn, và ép
@@ -206,7 +246,9 @@ export async function GET(request: Request) {
   if (laBanTuDung) ghiChuBanTuDung(ws, dongChuKyCuoi);
 
   const buffer = await workbook.xlsx.writeBuffer();
-  const dateStr = now.toISOString().slice(0, 10);
+  const dateStr = kyChon.tu.nam === kyChon.den.nam && kyChon.tu.thang === kyChon.den.thang
+    ? `${kyChon.tu.nam}-${String(kyChon.tu.thang).padStart(2, "0")}`
+    : `${kyChon.tu.nam}-${String(kyChon.tu.thang).padStart(2, "0")}_${kyChon.den.nam}-${String(kyChon.den.thang).padStart(2, "0")}`;
   // Mã tàu là chữ tự do (có thể chứa ký tự Việt) — phải làm sạch cho header ASCII,
   // kèm filename* RFC 5987 giữ tên đầy đủ (như route tải tài liệu).
   const safeCode =

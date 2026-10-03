@@ -9,6 +9,7 @@ import PrintButton from "@/components/PrintButton";
 import BaoCaoVatTuSua, { type DongBaoCao1101 } from "@/components/BaoCaoVatTuSua";
 import PhuLuc1101, { type DongPhuLuc1101 } from "@/components/PhuLuc1101";
 import { chuoiNgay1101, coSo1101, ghiChu1101, loaiGiaoDich, nhanNguonPO, tongHop1101 } from "@/lib/baoCao1101";
+import { dauThangVN, ngayCuaVN } from "@/lib/kyQuy";
 import { layT } from "@/lib/i18n/server";
 import type { KhoaDich } from "@/lib/i18n/tuDien";
 import {
@@ -54,17 +55,19 @@ export default async function ReportsPage({
     : "ENG";
   const dept = DEPT_OPTIONS[deptKey];
 
-  const now = new Date();
-  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  // Tháng theo giờ Việt Nam (máy chủ Dokploy chạy giờ UTC — mốc tháng theo giờ máy
+  // lệch 7 tiếng, phiếu ghi 0–7 giờ sáng ngày 1 rơi sang tháng trước).
+  const homNay = ngayCuaVN(new Date());
+  const defaultMonth = `${homNay.nam}-${String(homNay.thang).padStart(2, "0")}`;
   const monthMatch = /^(\d{4})-(\d{2})$/.exec(String(params.month ?? ""));
   const monthStr =
     monthMatch && Number(monthMatch[2]) >= 1 && Number(monthMatch[2]) <= 12
       ? String(params.month)
       : defaultMonth;
   const [yearNum, monthNum] = monthStr.split("-").map(Number);
-  const monthStart = new Date(yearNum, monthNum - 1, 1);
-  const monthEnd = new Date(yearNum, monthNum, 1);
-  const lastDay = new Date(yearNum, monthNum, 0);
+  const monthStart = dauThangVN(yearNum, monthNum);
+  const monthEnd = dauThangVN(yearNum, monthNum + 1);
+  const lastDay = new Date(monthEnd.getTime() - 12 * 3600_000);
 
   if (scope.unassigned || !selectedVessel) {
     return (
@@ -97,7 +100,7 @@ export default async function ReportsPage({
         occurredAt: { gte: monthStart },
       },
       orderBy: { occurredAt: "asc" },
-      select: { id: true, type: true, materialId: true, warehouseId: true, quantity: true, occurredAt: true, note: true, performedBy: true },
+      select: { id: true, type: true, materialId: true, warehouseId: true, quantity: true, occurredAt: true, note: true, performedBy: true, cotBaoCao: true },
     }),
     // Báo cáo chỉ đọc vài cột — kéo cả 21 cột của 606 dòng là 243 KB thay vì 68 KB.
     prisma.material.findMany({
@@ -198,7 +201,8 @@ export default async function ReportsPage({
         ten: m.nameVn,
         donVi: m.uom,
         loai,
-        so: loai === "KIEM_KE" ? (g.type === "IN" ? g.quantity : -g.quantity) : g.quantity,
+        // Điều chỉnh có dấu; dòng "bớt nhận / bớt tiêu thụ" của file kiểm kê theo kỳ cũng âm ở cột của nó.
+        so: loai === "KIEM_KE" ? (g.type === "IN" ? g.quantity : -g.quantity) : (loai === "NHAN") === (g.type === "IN") ? g.quantity : -g.quantity,
         nguon: (loai === "NHAN" ? nguonCua(g) : g.note) ?? "",
         nguoi: g.performedBy ?? "",
         kho: khoTheoId.get(g.warehouseId) ?? "",

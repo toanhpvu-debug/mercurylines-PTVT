@@ -467,15 +467,19 @@ export function Th({
   align = "left",
   className,
   colSpan,
+  rowSpan,
 }: {
   children?: ReactNode;
   align?: "left" | "right" | "center";
   className?: string;
   colSpan?: number;
+  /** Tiêu đề hai tầng (nhóm cột theo quý…): ô đứng chung cho cả hai hàng. */
+  rowSpan?: number;
 }) {
   return (
     <th
       {...(colSpan !== undefined ? { colSpan } : {})}
+      {...(rowSpan !== undefined ? { rowSpan } : {})}
       className={cn(
         "o-th",
         align === "right" && "text-right",

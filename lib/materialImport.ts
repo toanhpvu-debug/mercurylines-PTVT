@@ -1,5 +1,6 @@
 import "server-only";
 import { docSo } from "@/lib/docSo";
+import { dauBieuMauKiemKe, type DauKiemKe } from "@/lib/kiemKe";
 
 import * as XLSX from "xlsx";
 
@@ -19,6 +20,11 @@ export type ImportedItem = {
   group: string | null;
   minStock: number;
   rob: number | null; // tồn trên tàu (R.O.B) nếu file có
+  // Ba cột kỳ của biểu mẫu kiểm kê MLS-11-06 (null = ô trống / file không có cột):
+  // Còn tồn đợt trước (Last R.O.B) · Nhận trong kỳ (Receive) · Tiêu thụ trong kỳ (Cons.).
+  lastRob?: number | null;
+  received?: number | null;
+  consumed?: number | null;
   sheet: string | null; // sheet Excel chứa dòng này
   materialType: "STORE" | "SPARE" | null; // suy từ tên sheet; null = để người dùng quyết
   // Nhãn tùy ý của nơi gọi để nhận lại id mặt hàng sau khi nhập (xem
@@ -81,6 +87,10 @@ const GROUP_RE = /group|nhóm|nhom/i;
 const MIN_RE = /min|tối thiểu|toi thieu/i;
 // "R.O.B" / "Tồn trên tàu" / "Remain onboard" — tránh khớp "Last R.O.B".
 const ROB_RE = /^r\.?\s*o\.?\s*b\.?$|tồn trên tàu|ton tren tau|remain|hiện có|hien co/i;
+// Ba cột kỳ của MLS-11-06: "Last R.O.B / Còn tồn đợt trước", "Receive / Nhận trong kỳ", "Cons. / Tiêu thụ trong kỳ".
+const LAST_ROB_RE = /last\s*r\.?\s*o\.?\s*b|còn tồn|con ton|tồn đợt trước|ton dot truoc|tồn đầu kỳ|ton dau ky/i;
+const RECEIVE_RE = /^receive[ds]?\.?$|^received\b|nhận trong kỳ|nhan trong ky/i;
+const CONS_RE = /^cons\.?$|consum|tiêu thụ|tieu thu/i;
 
 function cellText(v: unknown): string {
   if (v === null || v === undefined) return "";
@@ -211,10 +221,10 @@ function parseSheet(
 
   // Dò dòng tiêu đề: có cột Mô tả + ít nhất một cột đặc trưng khác.
   let headerRowIdx = -1;
-  const col = { desc: -1, impa: -1, pn: -1, uom: -1, group: -1, min: -1, rob: -1 };
+  const col = { desc: -1, impa: -1, pn: -1, uom: -1, group: -1, min: -1, rob: -1, lastRob: -1, receive: -1, cons: -1 };
   for (let r = 0; r < Math.min(rows.length, 80); r++) {
     const row = rows[r] ?? [];
-    const found = { desc: -1, impa: -1, pn: -1, uom: -1, group: -1, min: -1, rob: -1 };
+    const found = { desc: -1, impa: -1, pn: -1, uom: -1, group: -1, min: -1, rob: -1, lastRob: -1, receive: -1, cons: -1 };
     for (let c = 0; c < row.length; c++) {
       const text = cellText(row[c]);
       if (!text) continue;
@@ -223,8 +233,11 @@ function parseSheet(
       if (found.pn === -1 && PN_RE.test(text)) found.pn = c;
       if (found.uom === -1 && UOM_RE.test(text)) found.uom = c;
       if (found.group === -1 && GROUP_RE.test(text)) found.group = c;
-      if (found.min === -1 && MIN_RE.test(text)) found.min = c;
+      if (found.lastRob === -1 && LAST_ROB_RE.test(text)) found.lastRob = c;
+      else if (found.min === -1 && MIN_RE.test(text)) found.min = c;
       if (found.rob === -1 && ROB_RE.test(text)) found.rob = c;
+      if (found.receive === -1 && RECEIVE_RE.test(text)) found.receive = c;
+      if (found.cons === -1 && CONS_RE.test(text)) found.cons = c;
     }
     const extras = [found.impa, found.pn, found.uom, found.group, found.min, found.rob].filter(
       (x) => x !== -1
@@ -260,7 +273,8 @@ function parseSheet(
     }
     // Bỏ số thứ tự đầu dòng "12. "
     const name = rawName.replace(/^\d+[.)]\s*/, "").trim();
-    if (!name || /^stt|^s\.?\s*no/i.test(name)) {
+    // Hàng tiêu đề thứ hai (song ngữ — MLS-11-06 có "Description" rồi "Mô tả") cũng bỏ.
+    if (!name || /^stt|^s\.?\s*no/i.test(name) || /^(mô tả|mo ta|description|tên vật tư|ten vat tu)\.?$/i.test(name)) {
       skippedRows++;
       continue;
     }
@@ -269,6 +283,15 @@ function parseSheet(
     // Ô R.O.B trống → null (KHÔNG phải 0 — tránh xóa nhầm tồn kho khi ghi tuyệt đối).
     const robText = col.rob >= 0 ? cellText(row[col.rob]) : "";
     const robRaw = robText ? cellNumber(row[col.rob]) : NaN;
+    // Ba cột kỳ (MLS-11-06): trống → null; gạch ngang "-" → 0 như số tàu ghi tay.
+    const soKy = (c: number): number | null => {
+      if (c < 0) return null;
+      const chu = cellText(row[c]);
+      if (!chu) return null;
+      if (/^[-–—]+$/.test(chu)) return 0;
+      const n = cellNumber(row[c]);
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    };
     const uom =
       (col.uom >= 0 ? cellText(row[col.uom]) : "") || minParsed.unit || "PCS";
     const impaCell = col.impa >= 0 ? cleanId(cellText(row[col.impa])) : null;
@@ -290,6 +313,7 @@ function parseSheet(
       group: groupCell,
       minStock: minParsed.qty ?? 0,
       rob: Number.isFinite(robRaw) && robRaw >= 0 ? robRaw : null,
+      ...(col.lastRob >= 0 || col.receive >= 0 || col.cons >= 0 ? { lastRob: soKy(col.lastRob), received: soKy(col.receive), consumed: soKy(col.cons) } : {}),
       sheet: sheetName,
       // Dòng có nhóm thiết bị luôn là phụ tùng, dù sheet đặt tên gì.
       materialType: laPhuTung ? "SPARE" : sheetType,
@@ -301,4 +325,26 @@ function parseSheet(
   }
   if (!items.length) return null;
   return { items, skippedRows, truncated };
+}
+
+/**
+ * Đầu biểu mẫu kiểm kê MLS-11-06 (tàu · ngày · kỳ "From month / Từ tháng … đến …")
+ * của sheet đầu tiên có khối đầu trang — lib/kiemKe.ts dauBieuMauKiemKe đọc lưới ô.
+ */
+export function docDauKiemKeExcel(buffer: Buffer): DauKiemKe {
+  const rong: DauKiemKe = { tau: null, ngay: null, kyChu: null };
+  let wb: XLSX.WorkBook;
+  try {
+    wb = XLSX.read(buffer, { type: "buffer", sheetRows: 20 });
+  } catch {
+    return rong;
+  }
+  for (const ten of wb.SheetNames) {
+    const sheet = wb.Sheets[ten];
+    if (!sheet?.["!ref"]) continue;
+    const luoi = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true }) as unknown[][];
+    const dau = dauBieuMauKiemKe(luoi);
+    if (dau.tau || dau.ngay || dau.kyChu) return dau;
+  }
+  return rong;
 }

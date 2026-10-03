@@ -21,7 +21,8 @@
  * của báo cáo + phát sinh sau đó.
  */
 import { docSoLoc } from "@/lib/docSo";
-import { QUY_LA_MA, bonCotQuy, soIn, type HeThongQuy, type KyQuy } from "@/lib/tonSon";
+import type { ButToanBaoCao } from "@/lib/kyQuy";
+import { QUY_LA_MA, soIn, type KyQuy } from "@/lib/tonSon";
 import type { DongNhanSon, SoBaoCaoTon } from "@/lib/phieuSon";
 
 // ─── Chữ ─────────────────────────────────────────────────────────────────────
@@ -403,81 +404,11 @@ export function gopDongBaoCaoTon(dong: DongNhanSon[]): DongBaoCaoGop[] {
 }
 
 // ─── Kế hoạch đưa số của app về đúng báo cáo ────────────────────────────────
+// keHoachBaoCaoTon dùng chung với kiểm kê vật tư theo file MLS-11-06 — nằm ở
+// lib/kyQuy.ts (vì sao và ghi những dòng nào: xem đầu tệp này và tệp đó).
 
-export type ButToanBaoCao = {
-  /** NHAN = dòng nhập, TIEU_THU = dòng xuất dùng, DIEU_CHINH = dòng điều chỉnh (có dấu). */
-  loai: "NHAN" | "TIEU_THU" | "DIEU_CHINH";
-  /** NHAN / TIEU_THU: số dương; DIEU_CHINH: có dấu (+ tăng tồn, − giảm tồn). */
-  so: number;
-  /** DAU_KY = ghi ngay trước đầu quý (tồn mang sang); CUOI_KY = ghi lúc cuối quý. */
-  luc: "DAU_KY" | "CUOI_KY";
-  /** Cột của báo cáo mà dòng này làm khớp. */
-  cot: "tonDau" | "nhan" | "tieuThu" | "tonCuoi";
-  /** Số app đang có và số báo cáo ở cột đó. */
-  truoc: number;
-  sau: number;
-};
-
-export type KeHoachBaoCaoTon = {
-  buToan: ButToanBaoCao[];
-  /** Tổng thay đổi tồn (có dấu) — tồn hiện tại cộng đúng số này. */
-  tongDoi: number;
-  hienTaiMoi: number;
-  /** App đã khớp báo cáo sẵn (không ghi gì). */
-  khop: boolean;
-};
-
-const SAI_SO = 0.0005;
-const lam = (n: number) => {
-  const r = Math.round(n * 1000) / 1000;
-  return Math.abs(r) < 1e-9 ? 0 : r;
-};
-
-/**
- * Những dòng phải ghi để số của app trong quý khớp báo cáo của một loại sơn (xem
- * đầu tệp). `ht` = số liệu thô của app quanh quý (lib/tonSon.ts heThongQuy) — loại
- * sơn mới tạo thì mọi số bằng 0. Ba cột đầu so với bốn cột như tờ in (bỏ phần
- * chỉnh tồn cuối của lần cập nhật báo cáo không cân trước đó — nó không thuộc cột
- * nào), Tồn cuối kỳ so với tồn thật lúc hết quý: cập nhật lại đúng báo cáo đó lần
- * nữa thì không ghi gì.
- */
-export function keHoachBaoCaoTon(bao: SoBaoCaoTon & { tonCuoi: number }, ht: HeThongQuy): KeHoachBaoCaoTon {
-  const buToan: ButToanBaoCao[] = [];
-  const app = bonCotQuy(ht, false);
-  let cuoi = ht.cuoiKy;
-  if (bao.tonDau !== null && Math.abs(bao.tonDau - app.tonDau) > SAI_SO) {
-    const d = lam(bao.tonDau - app.tonDau);
-    buToan.push({ loai: "DIEU_CHINH", so: d, luc: "DAU_KY", cot: "tonDau", truoc: app.tonDau, sau: bao.tonDau });
-    cuoi += d;
-  }
-  if (bao.nhan !== null) {
-    const d = lam(bao.nhan - app.nhan);
-    if (d > SAI_SO) buToan.push({ loai: "NHAN", so: d, luc: "CUOI_KY", cot: "nhan", truoc: app.nhan, sau: bao.nhan });
-    else if (d < -SAI_SO) buToan.push({ loai: "DIEU_CHINH", so: d, luc: "CUOI_KY", cot: "nhan", truoc: app.nhan, sau: bao.nhan });
-    if (Math.abs(d) > SAI_SO) cuoi += d;
-  }
-  if (bao.tieuThu !== null) {
-    const d = lam(bao.tieuThu - app.tieuThu);
-    if (d > SAI_SO) buToan.push({ loai: "TIEU_THU", so: d, luc: "CUOI_KY", cot: "tieuThu", truoc: app.tieuThu, sau: bao.tieuThu });
-    else if (d < -SAI_SO) buToan.push({ loai: "DIEU_CHINH", so: -d, luc: "CUOI_KY", cot: "tieuThu", truoc: app.tieuThu, sau: bao.tieuThu });
-    if (Math.abs(d) > SAI_SO) cuoi -= d;
-  }
-  const f = lam(bao.tonCuoi - lam(cuoi));
-  if (Math.abs(f) > SAI_SO) {
-    // Ô Tiêu thụ để trống: phần thiếu so với app là sơn đã dùng (cách tàu vẫn tính).
-    if (bao.tieuThu === null && f < 0) buToan.push({ loai: "TIEU_THU", so: -f, luc: "CUOI_KY", cot: "tonCuoi", truoc: lam(cuoi), sau: bao.tonCuoi });
-    else buToan.push({ loai: "DIEU_CHINH", so: f, luc: "CUOI_KY", cot: "tonCuoi", truoc: lam(cuoi), sau: bao.tonCuoi });
-  }
-  const tongDoi = lam(buToan.reduce((s, b) => s + (b.loai === "TIEU_THU" ? -b.so : b.so), 0));
-  return { buToan, tongDoi, hienTaiMoi: lam(ht.hienTai + tongDoi), khop: buToan.length === 0 };
-}
-
-/**
- * Cột lưu kèm dòng ghi (PaintTransaction.cotBaoCao) — cột tờ in quý xếp dòng đó vào:
- * dòng nhập về Nhận, dòng xuất dùng về Tiêu thụ (kể cả tiêu thụ tính theo tồn cuối),
- * dòng điều chỉnh về đúng cột nó sửa.
- */
-export const cotGhiButToan = (b: ButToanBaoCao): ButToanBaoCao["cot"] => (b.loai === "NHAN" ? "nhan" : b.loai === "TIEU_THU" ? "tieuThu" : b.cot);
+export { cotGhiButToan, keHoachBaoCaoTon } from "@/lib/kyQuy";
+export type { ButToanBaoCao, KeHoachBaoCaoTon } from "@/lib/kyQuy";
 
 /** Ghi chú của dòng nhập / xuất / điều chỉnh do báo cáo sinh ra (lưu vào lịch sử, tiếng Việt như mọi ghi chú). */
 export function ghiChuButToan(b: ButToanBaoCao, ky: KyQuy): string {

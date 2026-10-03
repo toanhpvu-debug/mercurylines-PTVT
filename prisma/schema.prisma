@@ -244,12 +244,20 @@ model InventoryTransaction {
   // Phiếu giao hàng đã sinh ra dòng nhập này (để hoàn tác khi gỡ phiếu). Không
   // khóa ngoại: bảng này đồng bộ tàu↔bờ, bảng phiếu giao thì không.
   phieuGiaoId Int?
+  // Dòng do file kiểm kê MLS-11-06 ghi: cột biểu mẫu mà dòng làm khớp ("tonDau" /
+  // "nhan" / "tieuThu" / "tonCuoi") — báo cáo theo kỳ xếp dòng "nhan" / "tieuThu"
+  // thẳng vào cột đó (lib/kyQuy.ts). null = nhập / xuất thường.
+  cotBaoCao   String?
+  // Lần kiểm kê theo file (KiemKeTep) đã ghi dòng này — để gỡ cả lần kiểm kê.
+  // Không khóa ngoại: KiemKeTep không đồng bộ giữa các bản cài.
+  kiemKeId    Int?
 
   @@index([vesselId])
   @@index([materialId])
   @@index([warehouseId])
   @@index([occurredAt])
   @@index([phieuGiaoId])
+  @@index([kiemKeId])
 }
 
 model MaterialRequest {
@@ -1227,7 +1235,11 @@ model KiemKeTep {
   sha256      String
   // Kho được kiểm: "AUTO" (theo sheet / nơi mặt hàng đang nằm) hoặc id kho.
   khoChon     String    @default("AUTO")
+  // Ngày kiểm kê = cuối kỳ của file: tồn hết ngày này phải bằng số đếm (Tồn trên tàu).
   ngayKiemKe  DateTime
+  // Đầu kỳ của file (ô "From month / Từ tháng") — có thì các cột Còn tồn đợt trước /
+  // Nhận / Tiêu thụ trong kỳ được đối chiếu theo kỳ; null = chỉ có số đếm.
+  tuNgay      DateTime?
   // Các dòng đọc được (DongKiemKe[] — lib/kiemKe.ts).
   dong        Json
   // Ghi chú đọc file: sheet đã đọc, dòng bỏ qua, tóm tắt AI.

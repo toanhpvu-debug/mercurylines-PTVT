@@ -2,7 +2,8 @@
  * Kiểm KIỂM KÊ THEO FILE (MLS-11-06): phần thuần (lib/kiemKe.ts), chế độ "bảng
  * kiểm kê" của bộ đọc AI, đọc file Excel thật (Desktop, nếu có) và — trên
  * database thật trong một giao dịch rồi cuộn ngược — ghép dòng, cộng dồn dòng
- * trùng, đặt tồn đúng số đếm và ghi giao dịch điều chỉnh.
+ * trùng, đặt tồn đúng số đếm (kiểm kê hôm nay) và ghi giao dịch điều chỉnh. Kiểm kê
+ * theo ngày / theo kỳ (ba cột MLS-11-06), gỡ kiểm kê: scripts/kiem-tra-ton-kho-quy.ts.
  *
  * Chạy:  node --conditions=react-server --import ./node_modules/tsx/dist/loader.mjs scripts/kiem-tra-kiem-ke.ts
  */
@@ -10,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
-import { apSuaDong, docDongJson, dongTuAi, dongTuExcel, ngayKiemKeTu, soTonNhap, tauTuTenTep, type DongKiemKe } from "@/lib/kiemKe";
+import { apSuaDong, docDongJson, dongTuAi, dongTuExcel, kyCuaKiemKe, ngayKiemKeTu, soTonNhap, tauTuTenTep, type DongKiemKe } from "@/lib/kiemKe";
 import { CONG_CU_GHI_KIEM_KE, chuanHoaKetQuaAi, loiNhac } from "@/lib/docPhieuBangAi";
 import { parseMaterialExcel } from "@/lib/materialImport";
 import { apDungKeHoachKiemKe, lapKeHoachKiemKe } from "@/lib/kiemKeServer";
@@ -156,7 +157,8 @@ async function dbThat() {
   try {
     await prisma.$transaction(
       async (tx) => {
-        const ke = await lapKeHoachKiemKe(vesselId, dong, "AUTO", tx);
+        const kyHomNay = kyCuaKiemKe({ tuNgay: null, ngayKiemKe: new Date() });
+        const ke = await lapKeHoachKiemKe(vesselId, dong, "AUTO", kyHomNay, tx);
         kiemTra("trang thai tung dong", ke.dong.map((k) => k.trangThai), ["THAY_DOI", "KHONG_DOI", "MOI", "KHONG_SO", "GOP", "BO_QUA"]);
         kiemTra("A ghep dung mat hang + kho dang nam", [ke.dong[0].materialId, ke.dong[0].warehouseId], [a.materialId, a.warehouseId]);
         kiemTra("A cong don dong trung: ton moi = dem + 5 + 2", ke.dong[0].tonMoi, Math.round((a.quantity + 7) * 1000) / 1000);
@@ -164,19 +166,24 @@ async function dbThat() {
         kiemTra("dong trung tro ve dong 1", ke.dong[4].gopVao, 0);
         kiemTra("tong: 1 doi, 1 tang", [ke.tong.THAY_DOI, ke.tong.tang, ke.tong.giam, ke.tong.MOI], [1, 1, 0, 1]);
         const truoc = await tx.inventoryTransaction.count({ where: { materialId: a.materialId, warehouseId: a.warehouseId } });
-        const kq = await apDungKeHoachKiemKe(tx, { vesselId, keHoach: ke, ghiChu: "Kiểm kê theo file KIEM-THU (#0)", occurredAt: new Date(), nguoi: "Kiem thu" });
-        kiemTra("ap dung: 1 dong doi, tang", kq, { soDong: 1, tang: 1, giam: 0 });
+        const kq = await apDungKeHoachKiemKe(tx, { vesselId, keHoach: ke, kiemKeId: null, tenFile: "KIEM-THU", nguoi: "Kiem thu" });
+        kiemTra("ap dung: 1 dong doi, tang", kq, { soDong: 1, tang: 1, giam: 0, soButToan: 1 });
         const sauA = await tx.inventory.findUnique({ where: { materialId_warehouseId: { materialId: a.materialId, warehouseId: a.warehouseId } } });
         kiemTra("A: ton = dung so dem", sauA?.quantity, Math.round((a.quantity + 7) * 1000) / 1000);
         const gd = await tx.inventoryTransaction.findFirst({ where: { materialId: a.materialId, warehouseId: a.warehouseId }, orderBy: { id: "desc" } });
-        kiemTra("A: giao dich dieu chinh NHAP 7, ghi chu kiem ke", [gd?.type, gd?.quantity, gd?.note], ["IN", 7, "Kiểm kê theo file KIEM-THU (#0)"]);
+        kiemTra("A: giao dich dieu chinh NHAP 7, ghi chu kiem ke, cot Ton tren tau", [gd?.type, gd?.quantity, gd?.note, gd?.cotBaoCao], [
+          "IN",
+          7,
+          `Điều chỉnh kiểm kê KIEM-THU (#0): tồn ngày kiểm kê ${Math.round(a.quantity * 1000) / 1000} → ${Math.round((a.quantity + 7) * 1000) / 1000}`,
+          "tonCuoi",
+        ]);
         kiemTra("A: dung mot giao dich moi", (await tx.inventoryTransaction.count({ where: { materialId: a.materialId, warehouseId: a.warehouseId } })) - truoc, 1);
         const sauB = await tx.inventory.findUnique({ where: { materialId_warehouseId: { materialId: b.materialId, warehouseId: b.warehouseId } } });
         kiemTra("B: khong doi", sauB?.quantity, b.quantity);
         kiemTra("khong tao mat hang moi", await tx.material.count({ where: { nameVn: "MAT HANG KIEM THU KHONG CO 9X7Q" } }), 0);
         // Giảm: đếm ít hơn → XUẤT đúng phần chênh.
-        const ke2 = await lapKeHoachKiemKe(vesselId, [dongMau(b.material.nameVn, 0, { thietBi: b.material.equipment })], "AUTO", tx);
-        const kq2 = await apDungKeHoachKiemKe(tx, { vesselId, keHoach: ke2, ghiChu: "Kiểm kê theo file KIEM-THU (#0)", occurredAt: new Date(), nguoi: "Kiem thu" });
+        const ke2 = await lapKeHoachKiemKe(vesselId, [dongMau(b.material.nameVn, 0, { thietBi: b.material.equipment })], "AUTO", kyHomNay, tx);
+        const kq2 = await apDungKeHoachKiemKe(tx, { vesselId, keHoach: ke2, kiemKeId: null, tenFile: "KIEM-THU", nguoi: "Kiem thu" });
         const gd2 = await tx.inventoryTransaction.findFirst({ where: { materialId: b.materialId, warehouseId: b.warehouseId }, orderBy: { id: "desc" } });
         kiemTra("giam ve 0: XUAT dung ton cu", [kq2.giam, gd2?.type, gd2?.quantity], [1, "OUT", b.quantity]);
         throw new CuonNguoc();

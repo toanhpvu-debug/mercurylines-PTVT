@@ -20,21 +20,27 @@ import {
   docDongJson,
   dongTuAi,
   dongTuExcel,
+  kyCuaKiemKe,
   ngayKiemKeTu,
+  ngayTuOExcel,
   tauTuTenTep,
   type DongKiemKe,
 } from "@/lib/kiemKe";
+import { kyKiemKeTuFile } from "@/lib/tonKhoQuy";
 
 /*
  * KIỂM KÊ THEO FILE (MLS-11-06) — thuyền viên đếm hàng, điền biểu mẫu kiểm kê
  * (Excel, hoặc giấy rồi scan PDF), tải lên đây:
- *   1. taiFileKiemKe — lưu file, đọc dòng (Excel đọc ngay; PDF để bộ đọc AI
- *      đọc nền). Chưa đụng tới tồn kho.
- *   2. Trang đối chiếu — mỗi dòng ghép với mặt hàng ĐÃ CÓ: tồn hiện tại → số
- *      đếm → chênh lệch; sửa số đọc sai, bỏ dòng, chọn thêm mặt hàng mới.
+ *   1. taiFileKiemKe — lưu file, đọc dòng và đầu biểu mẫu (tàu, ngày, kỳ "Từ tháng
+ *      … đến …"; Excel đọc ngay, PDF để bộ đọc AI đọc nền). Chưa đụng tới tồn kho.
+ *   2. Trang đối chiếu — mỗi dòng ghép với mặt hàng ĐÃ CÓ: tồn của app hết ngày
+ *      kiểm kê → số đếm → các dòng sẽ ghi; file có kỳ thì cả ba cột Còn tồn đợt
+ *      trước / Nhận / Tiêu thụ. Sửa số đọc sai, bỏ dòng, chọn thêm mặt hàng mới,
+ *      đổi kỳ đối chiếu (doiKyKiemKe).
  *   3. apDungKiemKe — người vận hành kho (Thuyền trưởng / Máy trưởng / quản trị)
- *      bấm áp dụng: tồn của mặt hàng có sẵn được đặt ĐÚNG BẰNG số đếm, kèm giao
- *      dịch điều chỉnh vào thẻ kho; không nhập lại mặt hàng đã có.
+ *      bấm áp dụng: tồn hết ngày kiểm kê bằng đúng số đếm, nhập / xuất sau ngày đó
+ *      giữ nguyên (lib/kiemKeServer.ts); không nhập lại mặt hàng đã có.
+ *   4. goKiemKe — gỡ một lần đã áp dụng: hoàn lại đúng các dòng nó đã ghi.
  */
 
 export type KetQuaKiemKe = { message: string; success?: boolean };
@@ -68,12 +74,12 @@ async function chuChoAi(nhaCungCap: string, buffer: Buffer, fullPath: string): P
  * hàng chục trang, AI đọc mất vài phút; trang đối chiếu hiện tiến độ và tự
  * làm mới. Mọi đường ra đều gỡ dấu aiDangDocTu.
  */
-async function chayDocAiKiemKe(id: number, actor: NguoiThaoTac): Promise<void> {
+async function chayDocAiKiemKe(id: number, actor: NguoiThaoTac, tuyChon: { giuNgay: boolean } = { giuNgay: false }): Promise<void> {
   const kk = await prisma.kiemKeTep
-    .findUnique({ where: { id }, select: { id: true, vesselId: true, storedName: true, fileName: true, vessel: { select: { code: true } } } })
+    .findUnique({ where: { id }, select: { id: true, vesselId: true, storedName: true, fileName: true, ngayKiemKe: true, tuNgay: true, vessel: { select: { code: true } } } })
     .catch(() => null);
   if (!kk) return;
-  const ketThuc = (data: { loiAi?: string | null; dong?: DongKiemKe[]; ghiChuDoc?: string | null }) =>
+  const ketThuc = (data: { loiAi?: string | null; dong?: DongKiemKe[]; ghiChuDoc?: string | null; tuNgay?: Date | null; ngayKiemKe?: Date }) =>
     prisma.kiemKeTep.update({ where: { id: kk.id }, data: { ...data, aiDangDocTu: null, aiTienDo: null } }).catch(() => undefined);
   try {
     const { layCauHinhAi } = await import("@/lib/cauHinhAi");
@@ -109,12 +115,24 @@ async function chayDocAiKiemKe(id: number, actor: NguoiThaoTac): Promise<void> {
       return;
     }
     const dong = dongTuAi(ai.dong);
+    // Kỳ / ngày kiểm kê theo đầu biểu mẫu AI đọc được — trừ khi đã đặt (người tải chọn ngày, hoặc đã đổi kỳ).
+    const ky =
+      kk.tuNgay === null
+        ? kyKiemKeTuFile({
+            kyChu: ai.kyBaoCao ?? null,
+            ngayFile: ngayTuOExcel(ai.ngayGiao),
+            ngayChon: tuyChon.giuNgay ? kk.ngayKiemKe : null,
+            coCotKy: dong.some((d) => d.bc),
+            bayGio: new Date(),
+          })
+        : null;
     await ketThuc({
       dong,
+      ...(ky ? { tuNgay: ky.tuNgay, ngayKiemKe: ky.ngayKiemKe } : {}),
       loiAi: ai.canhBaoChung ? ai.canhBaoChung.slice(0, 500) : null,
       ghiChuDoc: `AI (${ai.model}, ${ai.soLuotGoi} lượt, ${giay}s) đọc ${dong.length} dòng — ${dong.filter((d) => d.ton !== null).length} dòng có số tồn, ${ai.soDongCanKiem} dòng cần kiểm${
         ai.tau ? ` · tàu ghi trên biểu mẫu: ${ai.tau}` : ""
-      }${ai.ngayGiao ? ` · ngày kiểm kê ghi trên biểu mẫu: ${ai.ngayGiao}` : ""}`.slice(0, 1000),
+      }${ai.ngayGiao ? ` · ngày kiểm kê ghi trên biểu mẫu: ${ai.ngayGiao}` : ""}${ky?.ghiChu ? ` · ${ky.ghiChu}` : ""}`.slice(0, 1000),
     });
     await ghiNhatKyNguoiDung(actor, {
       action: "kiem-ke-doc-ai",
@@ -162,7 +180,11 @@ export async function taiFileKiemKe(_prev: KetQuaKiemKe, formData: FormData): Pr
     if (!kho || kho.vesselId !== tau.id) return { message: t("actions.kho_khongThuocTauDaChon") };
     khoChon = String(kho.id);
   }
-  const ngayKiemKe = ngayKiemKeTu(String(formData.get("ngayKiemKe") || ""));
+  // Ngày kiểm kê (= cuối kỳ): để trống thì theo file (ô "Từ tháng … đến …" / Date), không có thì hôm nay.
+  const ngayForm = String(formData.get("ngayKiemKe") || "").trim();
+  const ngayChon = ngayForm ? ngayKiemKeTu(ngayForm) : null;
+  let ngayKiemKe = ngayChon ?? new Date();
+  let tuNgay: Date | null = null;
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const laPdf = ext === ".pdf";
@@ -172,16 +194,22 @@ export async function taiFileKiemKe(_prev: KetQuaKiemKe, formData: FormData): Pr
     const { layCauHinhAi } = await import("@/lib/cauHinhAi");
     if (!(await layCauHinhAi())) return { message: t("kiemKe.pdfCanBoDocAi") };
   } else {
-    const { parseMaterialExcel } = await import("@/lib/materialImport");
+    const { parseMaterialExcel, docDauKiemKeExcel } = await import("@/lib/materialImport");
     const kq = parseMaterialExcel(buffer);
     if (kq.error) return { message: kq.error };
     dong = dongTuExcel(kq.items);
     const coSo = dong.filter((d) => d.ton !== null).length;
     if (!coSo) return { message: t("kiemKe.fileKhongCoCotTon") };
+    const dau = docDauKiemKeExcel(buffer);
+    const ky = kyKiemKeTuFile({ kyChu: dau.kyChu, ngayFile: dau.ngay, ngayChon, coCotKy: dong.some((d) => d.bc), bayGio: new Date() });
+    ngayKiemKe = ky.ngayKiemKe;
+    tuNgay = ky.tuNgay;
     const sheets = (kq.sheets ?? []).filter((s) => !s.skipped);
-    ghiChuDoc = `Đọc ${dong.length} dòng (${coSo} dòng có số tồn) từ ${sheets.length} sheet: ${sheets.map((s) => `${s.name} (${s.count})`).join(", ")}${
-      kq.skippedRows ? ` · bỏ qua ${kq.skippedRows} dòng không phải mặt hàng` : ""
-    }${kq.truncated ? " · file quá dài, chỉ đọc 3000 dòng đầu" : ""}`.slice(0, 1000);
+    ghiChuDoc = `Đọc ${dong.length} dòng (${coSo} dòng có số tồn${dong.some((d) => d.bc) ? `, ${dong.filter((d) => d.bc).length} dòng có số Còn tồn đợt trước / Nhận / Tiêu thụ` : ""}) từ ${sheets.length} sheet: ${sheets
+      .map((s) => `${s.name} (${s.count})`)
+      .join(", ")}${kq.skippedRows ? ` · bỏ qua ${kq.skippedRows} dòng không phải mặt hàng` : ""}${kq.truncated ? " · file quá dài, chỉ đọc 3000 dòng đầu" : ""}${
+      dau.tau ? ` · tàu ghi trên biểu mẫu: ${dau.tau}` : ""
+    }${ky.ghiChu ? ` · ${ky.ghiChu}` : ""}`.slice(0, 1000);
   }
 
   const dir = await ensureUploadDir();
@@ -197,6 +225,7 @@ export async function taiFileKiemKe(_prev: KetQuaKiemKe, formData: FormData): Pr
       sha256: createHash("sha256").update(buffer).digest("hex"),
       khoChon,
       ngayKiemKe,
+      tuNgay,
       dong,
       ghiChuDoc,
       aiDangDocTu: laPdf ? new Date() : null,
@@ -214,7 +243,7 @@ export async function taiFileKiemKe(_prev: KetQuaKiemKe, formData: FormData): Pr
   });
   if (laPdf) {
     const nguoi = { id: actor.id, email: actor.email, role: actor.role, name: actor.name };
-    after(() => chayDocAiKiemKe(kk.id, nguoi));
+    after(() => chayDocAiKiemKe(kk.id, nguoi, { giuNgay: ngayChon !== null }));
   }
   revalidatePath("/inventory/kiem-ke");
   redirect(`/inventory/kiem-ke/${kk.id}`);
@@ -232,6 +261,7 @@ async function timKiemKe(id: number) {
       loaiTep: true,
       khoChon: true,
       ngayKiemKe: true,
+      tuNgay: true,
       dong: true,
       trangThai: true,
       aiDangDocTu: true,
@@ -239,6 +269,16 @@ async function timKiemKe(id: number) {
       vessel: { select: { code: true, name: true } },
     },
   });
+}
+
+/** Lần kiểm kê đã áp dụng của cùng tàu có ngày kiểm kê SAU ngày `ngay` (khác lần `id`) — ngày muộn nhất. */
+async function kiemKeSau(vesselId: number, id: number, ngay: Date): Promise<Date | null> {
+  const sau = await prisma.kiemKeTep.findFirst({
+    where: { vesselId, id: { not: id }, trangThai: "DA_AP_DUNG", ngayKiemKe: { gt: ngay } },
+    orderBy: { ngayKiemKe: "desc" },
+    select: { ngayKiemKe: true },
+  });
+  return sau?.ngayKiemKe ?? null;
 }
 
 // ─── 2. Lưu chỉnh sửa / đọc lại ──────────────────────────────────────────────
@@ -269,7 +309,7 @@ export async function docLaiKiemKe(id: number): Promise<KetQuaKiemKe> {
   if (!(await layCauHinhAi())) return { message: t("kiemKe.pdfCanBoDocAi") };
   await prisma.kiemKeTep.update({ where: { id: kk.id }, data: { aiDangDocTu: new Date(), aiTienDo: "0", loiAi: null } });
   const nguoi = { id: actor.id, email: actor.email, role: actor.role, name: actor.name };
-  after(() => chayDocAiKiemKe(kk.id, nguoi));
+  after(() => chayDocAiKiemKe(kk.id, nguoi, { giuNgay: true }));
   revalidatePath(`/inventory/kiem-ke/${kk.id}`);
   return { message: t("kiemKe.dangDocLai"), success: true };
 }
@@ -286,6 +326,9 @@ export async function apDungKiemKe(id: number, sua: unknown): Promise<KetQuaKiem
   const r = apSuaDong(docDongJson(kk.dong), sua);
   if (!r.ok) return { message: t("kiemKe.soSai", { n: r.n }) };
   const dong = r.dong;
+  // Lần kiểm kê có ngày SAU đã áp dụng: áp lần cũ hơn sẽ làm lệch số của lần đó.
+  const sau = await kiemKeSau(kk.vesselId, kk.id, kk.ngayKiemKe);
+  if (sau) return { message: t("kiemKe.coKiemKeSau", { ngay: chuoiNgay(sau) }) };
 
   // Giữ chỗ: chỉ MỘT lần bấm được đi tiếp (bấm hai lần / hai người cùng lúc).
   const giu = await prisma.kiemKeTep.updateMany({ where: { id: kk.id, trangThai: "CHO_DUYET" }, data: { trangThai: "DANG_AP_DUNG", dong } });
@@ -293,14 +336,15 @@ export async function apDungKiemKe(id: number, sua: unknown): Promise<KetQuaKiem
   const traLai = () => prisma.kiemKeTep.update({ where: { id: kk.id }, data: { trangThai: "CHO_DUYET" } }).catch(() => undefined);
 
   try {
-    const { lapKeHoachKiemKe, apDungKeHoachKiemKe } = await import("@/lib/kiemKeServer");
-    const keHoach = await lapKeHoachKiemKe(kk.vesselId, dong, kk.khoChon);
-    const ghiChu = `Kiểm kê theo file ${kk.fileName} (#${kk.id})`;
-    const occurredAt = kk.ngayKiemKe > new Date() ? new Date() : kk.ngayKiemKe;
+    const { lapKeHoachKiemKe, apDungKeHoachKiemKe, LoiKiemKe } = await import("@/lib/kiemKeServer");
+    const ky = kyCuaKiemKe(kk);
+    const truocThem = await lapKeHoachKiemKe(kk.vesselId, dong, kk.khoChon, ky);
 
     // Mặt hàng CHƯA CÓ mà người đối chiếu chọn thêm: đi đúng đường nhập danh mục
-    // (cùng luật sinh mã, ghép trùng), số đếm thành tồn ban đầu.
-    const themMoi = keHoach.dong.filter((k) => k.trangThai === "MOI" && dong[k.i].themMoi && dong[k.i].ton !== null).map((k) => dong[k.i]);
+    // (cùng luật sinh mã, ghép trùng) nhưng CHƯA ghi tồn — tồn ban đầu (và các cột
+    // kỳ nếu file có) đi qua cùng kế hoạch bên dưới như mặt hàng có sẵn, đúng ngày,
+    // gắn lần kiểm kê này.
+    const themMoi = truocThem.dong.filter((k) => k.trangThai === "MOI" && dong[k.i].themMoi && dong[k.i].ton !== null).map((k) => dong[k.i]);
     let taoMoi = 0;
     if (themMoi.length) {
       const kho = await prisma.warehouse.findMany({ where: { vesselId: kk.vesselId }, select: { id: true, code: true } });
@@ -325,7 +369,7 @@ export async function apDungKiemKe(id: number, sua: unknown): Promise<KetQuaKiem
           equipment: d.thietBi,
           group: d.nhom,
           minStock: 0,
-          rob: d.ton,
+          rob: null,
           // Bản scan không có sheet: phụ tùng → kho máy như sheet "Spare Parts".
           sheet: d.sheet ?? (d.loai === "SPARE" ? "Spare Parts" : null),
           materialType: d.loai,
@@ -340,15 +384,27 @@ export async function apDungKiemKe(id: number, sua: unknown): Promise<KetQuaKiem
       taoMoi = nhap.createdCount;
     }
 
+    // Kế hoạch lập lại sau khi thêm mặt hàng mới (giờ đã ghép được), rồi áp dụng — máy
+    // chủ lập lại từng nhóm ngay trong giao dịch (đọc lại tồn + lịch sử lúc ghi).
+    const keHoach = themMoi.length ? await lapKeHoachKiemKe(kk.vesselId, dong, kk.khoChon, ky) : truocThem;
     const kq = await prisma.$transaction(
-      (tx) => apDungKeHoachKiemKe(tx, { vesselId: kk.vesselId, keHoach, ghiChu, occurredAt, nguoi: actor.name }),
+      (tx) => apDungKeHoachKiemKe(tx, { vesselId: kk.vesselId, keHoach, kiemKeId: kk.id, tenFile: kk.fileName, nguoi: actor.name }),
       { timeout: 120_000, maxWait: 10_000 }
-    );
+    ).catch((e: unknown) => {
+      if (e instanceof LoiKiemKe && e.ma === "am") return { loiAm: e.thamSo } as const;
+      throw e;
+    });
+    if ("loiAm" in kq) {
+      await traLai();
+      const a = kq.loiAm;
+      return { message: t("kiemKe.loiAm", { dong: a.dong, ma: a.ma, ten: a.ten, so: a.so }) };
+    }
     const tong = keHoach.tong;
     const ketQua = {
       thayDoi: kq.soDong,
       tang: kq.tang,
       giam: kq.giam,
+      soButToan: kq.soButToan,
       khongDoi: tong.KHONG_DOI,
       themMoi: taoMoi,
       moiKhongThem: tong.MOI - themMoi.length,
@@ -356,6 +412,7 @@ export async function apDungKiemKe(id: number, sua: unknown): Promise<KetQuaKiem
       boQua: tong.BO_QUA,
       gop: tong.GOP,
       khongKho: tong.KHONG_KHO,
+      coKy: ky.coKy,
     };
     await prisma.kiemKeTep.update({
       where: { id: kk.id },
@@ -365,16 +422,100 @@ export async function apDungKiemKe(id: number, sua: unknown): Promise<KetQuaKiem
       action: "kiem-ke-ap-dung",
       path: `/inventory/kiem-ke/${kk.id}`,
       vesselId: kk.vesselId,
-      detail: `Áp dụng kiểm kê ${kk.fileName} (${kk.vessel.code}): ${kq.soDong} mặt hàng đổi tồn (${kq.tang} tăng, ${kq.giam} giảm), ${tong.KHONG_DOI} không đổi, ${taoMoi} thêm mới, ${ketQua.moiKhongThem} chưa có trong danh mục không thêm`,
+      detail: `Áp dụng kiểm kê ${kk.fileName} (${kk.vessel.code}, ${ky.coKy ? `kỳ ${chuoiNgay(ky.batDau)} – ${chuoiNgay(new Date(ky.ketThuc.getTime() - 1))}` : `ngày ${chuoiNgay(kk.ngayKiemKe)}`}): ${kq.soDong} mặt hàng đổi (${kq.tang} tăng, ${kq.giam} giảm, ${kq.soButToan} dòng ghi), ${tong.KHONG_DOI} khớp sẵn, ${taoMoi} thêm mới, ${ketQua.moiKhongThem} chưa có trong danh mục không thêm`,
     });
     revalidatePath("/inventory");
     revalidatePath("/inventory/kiem-ke");
     revalidatePath(`/inventory/kiem-ke/${kk.id}`);
+    revalidatePath("/inventory/bao-cao-quy");
+    revalidatePath("/inventory/thong-ke");
     revalidatePath("/dashboard");
     return { message: t("kiemKe.daApDung", { doi: kq.soDong, tang: kq.tang, giam: kq.giam, moi: taoMoi }), success: true };
   } catch (e) {
     console.error(`[kiem-ke] Áp dụng #${kk.id} lỗi:`, e);
     await traLai();
+    return { message: t("kiemKe.loiApDung", { loi: e instanceof Error ? e.message.slice(0, 200) : String(e) }) };
+  }
+}
+
+/** "dd/mm/yyyy" theo giờ Việt Nam — cho câu báo / nhật ký. */
+function chuoiNgay(d: Date): string {
+  const vn = new Date(d.getTime() + 7 * 3600_000);
+  return `${String(vn.getUTCDate()).padStart(2, "0")}/${String(vn.getUTCMonth() + 1).padStart(2, "0")}/${vn.getUTCFullYear()}`;
+}
+
+// ─── 3b. Đổi kỳ đối chiếu (chưa áp dụng) ─────────────────────────────────────
+
+/**
+ * Đổi ngày kiểm kê (cuối kỳ) và đầu kỳ của một lần kiểm kê chưa áp dụng — file ghi
+ * sai / không ghi kỳ. Bỏ trống đầu kỳ = chỉ đối chiếu số đếm tại ngày kiểm kê.
+ */
+export async function doiKyKiemKe(id: number, tuNgayStr: string, ngayStr: string): Promise<KetQuaKiemKe> {
+  const { t } = await layT();
+  const actor = await requireActiveRole([...NGUOI_TAI_KIEM_KE]);
+  const kk = actor ? await timKiemKe(Number(id)) : null;
+  if (!actor || !kk || !duocSua(actor, kk)) return { message: t("chung.khongCoQuyen") };
+  if (kk.trangThai !== "CHO_DUYET") return { message: t("kiemKe.daApDungRoi") };
+  const { ngayTuChuoiVN } = await import("@/lib/kyQuy");
+  const ngay = ngayTuChuoiVN(ngayStr);
+  const tu = tuNgayStr.trim() ? ngayTuChuoiVN(tuNgayStr) : null;
+  if (!ngay || (tuNgayStr.trim() && !tu)) return { message: t("kiemKe.kySai") };
+  if (ngay.getTime() > Date.now()) return { message: t("kiemKe.kyTuongLai") };
+  if (tu && (tu > ngay || ngay.getTime() - tu.getTime() > 731 * 86_400_000)) return { message: t("kiemKe.kySai") };
+  await prisma.kiemKeTep.update({ where: { id: kk.id }, data: { ngayKiemKe: ngay, tuNgay: tu } });
+  await ghiNhatKyNguoiDung(actor, {
+    action: "kiem-ke-doi-ky",
+    path: `/inventory/kiem-ke/${kk.id}`,
+    vesselId: kk.vesselId,
+    detail: `Đổi kỳ đối chiếu file kiểm kê ${kk.fileName} (#${kk.id}): ${tu ? `${chuoiNgay(tu)} – ` : "ngày "}${chuoiNgay(ngay)}`,
+  });
+  revalidatePath(`/inventory/kiem-ke/${kk.id}`);
+  return { message: t("kiemKe.daDoiKy"), success: true };
+}
+
+// ─── 3c. Gỡ một lần kiểm kê đã áp dụng ───────────────────────────────────────
+
+export async function goKiemKe(id: number, lyDo: string): Promise<KetQuaKiemKe> {
+  const { t } = await layT();
+  const actor = await requireActiveRole([...VAN_HANH_TAU]);
+  const kk = actor ? await timKiemKe(Number(id)) : null;
+  if (!actor || !kk || !canManageVesselCatalog(actor, kk.vesselId)) return { message: t("kiemKe.khongCoQuyenApDung") };
+  const lyDoGon = String(lyDo ?? "").trim().slice(0, 200);
+  if (!lyDoGon) return { message: t("kiemKe.thieuLyDoGo") };
+  if (kk.trangThai !== "DA_AP_DUNG") return { message: t("kiemKe.chuaApDung") };
+  const sau = await kiemKeSau(kk.vesselId, kk.id, kk.ngayKiemKe);
+  if (sau) return { message: t("kiemKe.goCoKiemKeSau", { ngay: chuoiNgay(sau) }) };
+  // Giữ chỗ như áp dụng: hai lần bấm cùng lúc thì lần sau thấy đã gỡ.
+  const giu = await prisma.kiemKeTep.updateMany({ where: { id: kk.id, trangThai: "DA_AP_DUNG" }, data: { trangThai: "DANG_AP_DUNG" } });
+  if (giu.count === 0) return { message: t("kiemKe.chuaApDung") };
+  const { goKiemKeTx, LoiKiemKe } = await import("@/lib/kiemKeServer");
+  try {
+    const kq = await prisma.$transaction((tx) => goKiemKeTx(tx, kk.id), { timeout: 120_000, maxWait: 10_000 });
+    // Mở lại để sửa / áp dụng lại; ketQua giữ vết lần gỡ (ai, lúc nào, vì sao).
+    await prisma.kiemKeTep.update({
+      where: { id: kk.id },
+      data: { trangThai: "CHO_DUYET", apDungBoi: null, apDungLuc: null, ketQua: { goBoi: actor.name, goLuc: new Date().toISOString(), lyDo: lyDoGon } },
+    });
+    await ghiNhatKyNguoiDung(actor, {
+      action: "kiem-ke-go",
+      path: `/inventory/kiem-ke/${kk.id}`,
+      vesselId: kk.vesselId,
+      detail: `Gỡ kiểm kê đã áp dụng ${kk.fileName} (#${kk.id}, ${kk.vessel.code}): hoàn lại ${kq.soMatHang} mặt hàng (${kq.soDong} dòng); lý do: ${lyDoGon}`,
+    });
+    revalidatePath("/inventory");
+    revalidatePath("/inventory/kiem-ke");
+    revalidatePath(`/inventory/kiem-ke/${kk.id}`);
+    revalidatePath("/inventory/bao-cao-quy");
+    revalidatePath("/inventory/thong-ke");
+    revalidatePath("/dashboard");
+    return { message: t("kiemKe.daGo", { mat: kq.soMatHang, dong: kq.soDong }), success: true };
+  } catch (e) {
+    await prisma.kiemKeTep.update({ where: { id: kk.id }, data: { trangThai: "DA_AP_DUNG" } }).catch(() => undefined);
+    if (e instanceof LoiKiemKe) {
+      if (e.ma === "daDungBot") return { message: t("kiemKe.goDaDungBot", { ma: String(e.thamSo.ma), ten: String(e.thamSo.ten), con: e.thamSo.con, can: e.thamSo.can }) };
+      return { message: t("kiemKe.goKhongXacDinh") };
+    }
+    console.error(`[kiem-ke] Gỡ #${kk.id} lỗi:`, e);
     return { message: t("kiemKe.loiApDung", { loi: e instanceof Error ? e.message.slice(0, 200) : String(e) }) };
   }
 }

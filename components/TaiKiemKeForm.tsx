@@ -69,8 +69,8 @@ export default function TaiKiemKeForm({ vessels, warehouses, homNay }: { vessels
             ))}
           </Select>
         </Field>
-        <Field label={t("kiemKe.ngayKiemKe")}>
-          <Input type="date" name="ngayKiemKe" defaultValue={homNay} max={homNay} />
+        <Field label={t("kiemKe.ngayKiemKe")} hint={t("kiemKe.ngayKiemKeGoiY")}>
+          <Input type="date" name="ngayKiemKe" max={homNay} />
         </Field>
       </div>
       <Field label={t("kiemKe.kho")} hint={t("kiemKe.khoGoiY")}>

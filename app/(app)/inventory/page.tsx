@@ -19,7 +19,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { ClipboardCheck, QrCode, Tag } from "lucide-react";
+import { BarChart3, ClipboardCheck, FileSpreadsheet, QrCode, Tag } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   sortWithinDepartment,
@@ -371,6 +371,14 @@ export default async function InventoryPage({
             <Link href="/inventory/kiem-ke" className={buttonClass("primary")}>
               <ClipboardCheck className="size-4" />
               {t("kiemKe.nutMo")}
+            </Link>
+            <Link href={`/inventory/bao-cao-quy${vesselFilter ? `?vessel=${vesselFilter}` : ""}`} className={buttonClass("secondary")}>
+              <FileSpreadsheet className="size-4" />
+              {t("tonQuy.nutBaoCao")}
+            </Link>
+            <Link href={`/inventory/thong-ke${vesselFilter ? `?vessel=${vesselFilter}` : ""}`} className={buttonClass("secondary")}>
+              <BarChart3 className="size-4" />
+              {t("tonQuy.nutThongKe")}
             </Link>
             <Link href="/quet" className={buttonClass("secondary")}>
               <QrCode className="size-4" />

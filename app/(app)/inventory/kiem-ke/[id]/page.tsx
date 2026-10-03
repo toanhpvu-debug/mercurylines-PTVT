@@ -1,21 +1,27 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Download, ExternalLink } from "lucide-react";
+import { CalendarRange, Download, ExternalLink } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { canManageVesselCatalog, requireScopedUser, trongPhamVi, vesselScopeDayDu } from "@/lib/auth";
 import { VAN_HANH_TAU } from "@/lib/roles";
-import { NGUOI_TAI_KIEM_KE, docDongJson } from "@/lib/kiemKe";
+import { NGUOI_TAI_KIEM_KE, docDongJson, kyCuaKiemKe } from "@/lib/kiemKe";
+import { chuoiNgayVN } from "@/lib/kyQuy";
 import { lapKeHoachKiemKe } from "@/lib/kiemKeServer";
 import { dangDocAi } from "@/lib/phieuGiao";
 import { layT } from "@/lib/i18n/server";
 import BangKiemKe from "@/components/BangKiemKe";
 import DocLaiKiemKeButton from "@/components/DocLaiKiemKeButton";
+import { DoiKyKiemKe, GoKiemKe } from "@/components/KyKiemKe";
 import TuLamMoi from "@/components/TuLamMoi";
-import { Badge, Card, Notice, PageHeader, Stat, buttonClass } from "@/components/ui";
+import { Badge, Card, CardHeader, Notice, PageHeader, Stat, buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-/** Trang đối chiếu một lần kiểm kê theo file trước khi áp dụng vào tồn kho. */
+/**
+ * Trang đối chiếu một lần kiểm kê theo file trước khi áp dụng vào tồn kho: số đếm
+ * so với tồn của app HẾT NGÀY KIỂM KÊ, file có kỳ thì cả ba cột Còn tồn đợt trước /
+ * Nhận / Tiêu thụ; đã áp dụng thì gỡ được (hoàn lại đúng các dòng đã ghi).
+ */
 export default async function KiemKeChiTietPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireScopedUser();
   const { t, tTuDo, ngayGio, ngay } = await layT();
@@ -24,15 +30,22 @@ export default async function KiemKeChiTietPage({ params }: { params: Promise<{ 
   if (!kk || !trongPhamVi(vesselScopeDayDu(user), kk.vesselId)) notFound();
 
   const dong = docDongJson(kk.dong);
-  const keHoach = await lapKeHoachKiemKe(kk.vesselId, dong, kk.khoChon);
-  const kho = kk.khoChon !== "AUTO" ? await prisma.warehouse.findUnique({ where: { id: Number(kk.khoChon) }, select: { code: true, name: true } }) : null;
+  const ky = kyCuaKiemKe(kk);
+  const [keHoach, kho, soDongGhi] = await Promise.all([
+    lapKeHoachKiemKe(kk.vesselId, dong, kk.khoChon, ky),
+    kk.khoChon !== "AUTO" ? prisma.warehouse.findUnique({ where: { id: Number(kk.khoChon) }, select: { code: true, name: true } }) : null,
+    kk.trangThai === "DA_AP_DUNG" ? prisma.inventoryTransaction.count({ where: { kiemKeId: kk.id } }) : 0,
+  ]);
   const dangDoc = kk.trangThai === "CHO_DUYET" && dangDocAi(kk.aiDangDocTu);
   const choDuyet = kk.trangThai === "CHO_DUYET" && !dangDoc;
-  const coApDung = choDuyet && VAN_HANH_TAU.includes(user.role) && canManageVesselCatalog(user, kk.vesselId);
+  const quanLy = VAN_HANH_TAU.includes(user.role) && canManageVesselCatalog(user, kk.vesselId);
+  const coApDung = choDuyet && quanLy;
   const coSua = choDuyet && NGUOI_TAI_KIEM_KE.includes(user.role) && (kk.nguoiTaiId === user.id || canManageVesselCatalog(user, kk.vesselId));
-  const kq = (kk.ketQua ?? null) as Record<string, number> | null;
+  const kq = (kk.ketQua ?? null) as (Record<string, number> & { goBoi?: string; goLuc?: string; lyDo?: string }) | null;
   const tong = keHoach.tong;
   const tienDo = kk.aiTienDo && kk.aiTienDo.includes("/") ? kk.aiTienDo : t("kiemKe.tienDoChuaRo");
+  const cuoiKy = new Date(ky.ketThuc.getTime() - 1);
+  const homNay = chuoiNgayVN(new Date());
 
   return (
     <div className="space-y-5">
@@ -78,6 +91,20 @@ export default async function KiemKeChiTietPage({ params }: { params: Promise<{ 
       )}
       {kk.loaiTep === "PDF" && coSua && <DocLaiKiemKeButton id={kk.id} />}
 
+      {!dangDoc && (
+        <Card>
+          <CardHeader icon={<CalendarRange className="size-4" />} title={t("kiemKe.kyDoiChieu")} />
+          <p className="text-sm text-[var(--text-secondary)]">
+            {ky.coKy ? t("kiemKe.kyMoTa", { tu: ngay(ky.batDau), den: ngay(cuoiKy) }) : t("kiemKe.ngayMoTa", { ngay: ngay(cuoiKy) })}
+          </p>
+          {coSua && (
+            <div className="mt-3">
+              <DoiKyKiemKe id={kk.id} tuNgay={kk.tuNgay ? chuoiNgayVN(kk.tuNgay) : ""} ngayKiemKe={chuoiNgayVN(kk.ngayKiemKe)} homNay={homNay} />
+            </div>
+          )}
+        </Card>
+      )}
+
       {kk.trangThai === "DA_AP_DUNG" && kq && (
         <Notice tone="success">
           {t("kiemKe.daApDungLuc", { nguoi: kk.apDungBoi ?? "—", luc: kk.apDungLuc ? ngayGio(kk.apDungLuc) : "—" })}{" "}
@@ -92,6 +119,14 @@ export default async function KiemKeChiTietPage({ params }: { params: Promise<{ 
           })}
         </Notice>
       )}
+      {kk.trangThai === "DA_AP_DUNG" && quanLy && soDongGhi > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <GoKiemKe id={kk.id} />
+        </div>
+      )}
+      {kk.trangThai === "CHO_DUYET" && kq?.goBoi && (
+        <Notice tone="info">{t("kiemKe.daGoLuc", { nguoi: kq.goBoi, luc: kq.goLuc ? ngayGio(new Date(kq.goLuc)) : "—", lyDo: kq.lyDo ?? "—" })}</Notice>
+      )}
 
       {!dangDoc && dong.length > 0 && (
         <>
@@ -100,7 +135,7 @@ export default async function KiemKeChiTietPage({ params }: { params: Promise<{ 
               <Stat label={t("kiemKe.the_THAY_DOI")} value={tong.THAY_DOI} sub={t("kiemKe.tangGiam", { tang: tong.tang, giam: tong.giam })} tone="brand" />
               <Stat label={t("kiemKe.the_KHONG_DOI")} value={tong.KHONG_DOI} tone="success" />
               <Stat label={t("kiemKe.the_MOI")} value={tong.MOI} tone={tong.MOI ? "warning" : "neutral"} />
-              <Stat label={t("kiemKe.the_KHONG_SO")} value={tong.KHONG_SO} tone="muted" />
+              {tong.AM > 0 ? <Stat label={t("kiemKe.the_AM")} value={tong.AM} tone="danger" /> : <Stat label={t("kiemKe.the_KHONG_SO")} value={tong.KHONG_SO} tone="muted" />}
             </div>
           )}
           <Card>
@@ -109,7 +144,7 @@ export default async function KiemKeChiTietPage({ params }: { params: Promise<{ 
               <p className="mb-3 text-xs text-[var(--text-muted)]">{t("kiemKe.khongCoTrongFile", { n: tong.khongCoTrongFile })}</p>
             )}
             {choDuyet && !coApDung && <Notice tone="muted" className="mb-3">{t("kiemKe.chiXem")}</Notice>}
-            <BangKiemKe id={kk.id} dong={dong} keHoach={keHoach.dong} coSua={coSua} coApDung={coApDung} />
+            <BangKiemKe id={kk.id} dong={dong} keHoach={keHoach.dong} coKy={ky.coKy} coSua={coSua} coApDung={coApDung} />
           </Card>
         </>
       )}

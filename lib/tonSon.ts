@@ -16,6 +16,8 @@
  * ô không sửa tay.
  */
 
+import { bonCotQuy, heThongQuy, type DieuChinhVao, type GiaoDichKy } from "@/lib/kyQuy";
+
 export type CotDongSon = "moTa" | "donVi" | "tonDau" | "nhan" | "tieuThu" | "tonCuoi";
 export type CotDauSon = "tenTau" | "quy" | "nam";
 
@@ -240,49 +242,14 @@ export function moTaSonIn(p: {
   return /\p{Lu}/u.test(ten) && ten === ten.toLocaleUpperCase("vi") ? moTa.toLocaleUpperCase("vi") : moTa;
 }
 
-// ─── Kỳ báo cáo: quý theo giờ Việt Nam ──────────────────────────────────────
+// ─── Kỳ báo cáo và số liệu một quý ───────────────────────────────────────────
+// Quý theo giờ Việt Nam, heThongQuy, bonCotQuy dùng chung với vật tư & phụ tùng
+// (MLS-11-06) — nằm ở lib/kyQuy.ts; xuất lại ở đây cho mã sơn đang dùng.
 
-/** Việt Nam UTC+7 quanh năm (không đổi giờ mùa hè) — máy chủ Dokploy chạy giờ UTC. */
-const LECH_VN_MS = 7 * 3600_000;
+export { QUY_LA_MA, bonCotQuy, docKyQuy, heThongQuy, mocQuy, quyCua } from "@/lib/kyQuy";
+export type { BonCotQuy, HeThongQuy, KyQuy } from "@/lib/kyQuy";
 
-export type KyQuy = { nam: number; quy: 1 | 2 | 3 | 4 };
-export const QUY_LA_MA = ["I", "II", "III", "IV"] as const;
-
-/** Quý chứa thời điểm `d` theo giờ Việt Nam. */
-export function quyCua(d: Date): KyQuy {
-  const vn = new Date(d.getTime() + LECH_VN_MS);
-  return { nam: vn.getUTCFullYear(), quy: (Math.floor(vn.getUTCMonth() / 3) + 1) as KyQuy["quy"] };
-}
-
-/** Mốc đầu (tính) và cuối (không tính) của quý: 0 giờ ngày đầu quý, giờ Việt Nam. */
-export function mocQuy(k: KyQuy): { batDau: Date; ketThuc: Date } {
-  return {
-    batDau: new Date(Date.UTC(k.nam, (k.quy - 1) * 3, 1) - LECH_VN_MS),
-    ketThuc: new Date(Date.UTC(k.nam, k.quy * 3, 1) - LECH_VN_MS),
-  };
-}
-
-/** Quý / năm từ địa chỉ trang (?quy=4&nam=2026) — sai hoặc chưa tới thì lấy quý hiện tại. */
-export function docKyQuy(nam: unknown, quy: unknown, bayGio: Date): KyQuy {
-  const hienTai = quyCua(bayGio);
-  const n = Number(Array.isArray(nam) ? nam[0] : nam);
-  const q = Number(Array.isArray(quy) ? quy[0] : quy);
-  if (!Number.isInteger(n) || !Number.isInteger(q) || q < 1 || q > 4 || n < 2000) return hienTai;
-  if (n > hienTai.nam || (n === hienTai.nam && q > hienTai.quy)) return hienTai;
-  return { nam: n, quy: q as KyQuy["quy"] };
-}
-
-// ─── Số liệu một quý ─────────────────────────────────────────────────────────
-
-export type GiaoDichSonKy = {
-  productId: number;
-  type: string;
-  quantity: number;
-  dieuChinh: boolean;
-  occurredAt: Date;
-  /** Dòng do báo cáo tồn MLS-11-14 ghi: cột báo cáo mà dòng làm khớp (null = dòng thường). */
-  cotBaoCao?: string | null;
-};
+export type GiaoDichSonKy = GiaoDichKy & { productId: number };
 
 export type SoLieuQuySon = {
   productId: number;
@@ -293,107 +260,8 @@ export type SoLieuQuySon = {
   /** Tổng các dòng ĐIỀU CHỈNH (Sửa số tồn / Gỡ khỏi danh sách) trong quý, có dấu. */
   dieuChinh: number;
   /** Phần điều chỉnh đã sửa vào cột nào để bốn cột vẫn cân. */
-  dieuChinhVao: "nhan" | "tonDau" | "ca-hai" | null;
+  dieuChinhVao: DieuChinhVao;
 };
-
-const lam3 = (n: number) => {
-  const r = Math.round(n * 1000) / 1000;
-  return Math.abs(r) < 1e-9 ? 0 : r;
-};
-
-/** Số liệu THÔ của một loại sơn quanh một quý (chưa gộp điều chỉnh vào cột nào). */
-export type HeThongQuy = {
-  /** Tồn bây giờ. */
-  hienTai: number;
-  /** Tồn lúc đầu quý (thật, kể cả điều chỉnh trước quý). */
-  dauKy: number;
-  /** Dòng NHẬP không điều chỉnh trong quý (trừ dòng báo cáo tồn ghi vào cột — xem nhanBc…). */
-  nhan: number;
-  /** Dòng XUẤT không điều chỉnh trong quý. */
-  tieuThu: number;
-  /** Tổng dòng ĐIỀU CHỈNH thường trong quý (Sửa số tồn, Gỡ khỏi danh sách), có dấu. */
-  dieuChinh: number;
-  /** Dòng báo cáo tồn MLS-11-14 ghi vào cột Nhận (nhập +, bớt nhận −). */
-  nhanBc: number;
-  /** Dòng báo cáo tồn ghi vào cột Tiêu thụ (xuất dùng +, bớt tiêu thụ −). */
-  tieuThuBc: number;
-  /** Dòng báo cáo tồn chỉnh Tồn cuối kỳ khi bốn số của báo cáo không cân, có dấu. */
-  cuoiBc: number;
-  /** Tồn lúc hết quý. */
-  cuoiKy: number;
-};
-
-/**
- * Số liệu thô của MỘT loại sơn trong quý, neo vào tồn hiện tại: tồn cuối quý = tồn
- * bây giờ − (nhập − xuất) ghi từ cuối quý tới nay; tồn đầu quý = tồn cuối quý − mọi
- * phát sinh trong quý. Giao dịch trước đầu quý không cần (bỏ qua).
- */
-export function heThongQuy(hienTai: number, giaoDich: readonly GiaoDichSonKy[], ky: { batDau: Date; ketThuc: Date }): HeThongQuy {
-  const dau = ky.batDau.getTime();
-  const cuoi = ky.ketThuc.getTime();
-  let sau = 0;
-  let vao = 0;
-  let ra = 0;
-  let dc = 0;
-  let nhanBc = 0;
-  let tieuThuBc = 0;
-  let cuoiBc = 0;
-  for (const g of giaoDich) {
-    const t = g.occurredAt.getTime();
-    if (t < dau) continue;
-    const so = g.type === "IN" ? g.quantity : -g.quantity;
-    if (t >= cuoi) sau += so;
-    else if (g.cotBaoCao === "nhan") nhanBc += so;
-    else if (g.cotBaoCao === "tieuThu") tieuThuBc -= so;
-    else if (g.cotBaoCao === "tonCuoi") cuoiBc += so;
-    else if (g.dieuChinh) dc += so;
-    else if (g.type === "IN") vao += g.quantity;
-    else ra += g.quantity;
-  }
-  const cuoiKy = lam3(hienTai - sau);
-  return {
-    hienTai: lam3(hienTai),
-    dauKy: lam3(cuoiKy - (vao - ra + dc + nhanBc - tieuThuBc + cuoiBc)),
-    nhan: lam3(vao),
-    tieuThu: lam3(ra),
-    dieuChinh: lam3(dc),
-    nhanBc: lam3(nhanBc),
-    tieuThuBc: lam3(tieuThuBc),
-    cuoiBc: lam3(cuoiBc),
-    cuoiKy,
-  };
-}
-
-export type BonCotQuy = { tonDau: number; nhan: number; tieuThu: number; tonCuoi: number; dieuChinh: number; dieuChinhVao: SoLieuQuySon["dieuChinhVao"] };
-
-/**
- * Bốn cột MLS-11-14 của một loại sơn từ số liệu thô (luật gộp ở tinhTonQuy):
- * dòng điều chỉnh thường sửa vào Nhận hoặc Tồn đầu kỳ; dòng báo cáo tồn ghi vào cột
- * Nhận / Tiêu thụ cộng thẳng vào cột đó — in lại ra đúng số báo cáo. `kemCuoiBc`
- * = false: bỏ phần chỉnh tồn cuối của báo cáo không cân (để so cột với báo cáo —
- * lib/baoCaoTonSon.ts keHoachBaoCaoTon; cột Tồn cuối kỳ khi đó không còn cân).
- */
-export function bonCotQuy(ht: HeThongQuy, kemCuoiBc = true): BonCotQuy {
-  const dc = lam3(ht.dieuChinh + (kemCuoiBc ? ht.cuoiBc : 0));
-  let nhan = ht.nhan;
-  let tonDau = ht.dauKy;
-  let vao: SoLieuQuySon["dieuChinhVao"] = null;
-  if (dc < 0) {
-    const truNhan = Math.min(nhan, -dc);
-    nhan = lam3(nhan - truNhan);
-    tonDau = lam3(ht.dauKy + dc + truNhan);
-    vao = truNhan <= 0 ? "tonDau" : truNhan < -dc ? "ca-hai" : "nhan";
-  } else if (dc > 0) {
-    if (nhan > 0) {
-      nhan = lam3(nhan + dc);
-      vao = "nhan";
-    } else {
-      tonDau = lam3(ht.dauKy + dc);
-      vao = "tonDau";
-    }
-  }
-  return { tonDau, nhan: lam3(nhan + ht.nhanBc), tieuThu: lam3(ht.tieuThu + ht.tieuThuBc), tonCuoi: ht.cuoiKy, dieuChinh: dc, dieuChinhVao: vao };
-}
 
 /**
  * Bốn cột MLS-11-14 của từng loại sơn trong một quý, NEO vào tồn hiện tại:

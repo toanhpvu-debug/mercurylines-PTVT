@@ -1167,18 +1167,77 @@ còn ở Tồn kho — nơi có sẵn bộ lọc phạm vi trước khi xuất.
 
 ## Tồn kho đội tàu (`/inventory`)
 
-Trang tồn kho bố cục theo luồng làm việc: **Tổng quan** (3 thẻ thống kê: số dòng, dưới tối thiểu, số tàu) → **Bộ lọc** thanh mỏng (tàu, kho, loại Store/Spare, tìm theo tên/mã/IMPA, "chỉ thiếu") → **Tồn kho nhóm theo tàu** (thẻ gập/mở có mũi tên chỉ trạng thái — tàu có cảnh báo tự mở kèm badge "N thiếu", tàu đủ gập gọn badge "đủ"; mỗi bảng có **thanh cuộn riêng + tiêu đề ghim cố định** để dò nhanh danh sách dài; nút **⬇ Xuất MLS-11-06** từng tàu; bên trong bảng sắp xếp theo **bộ phận tàu như form công ty: 🛳 Boong → ⚙️ Máy → ⚡ Điện → 🧺 Phục vụ/Tiêu hao → 🦺 An toàn** — mỗi bộ phận hiện số dòng + số thiếu, vật tư (Store) đứng trước, phụ tùng (Spare) xếp sau theo từng **nhóm thiết bị** có tiêu đề riêng, phân bộ phận tự động từ nhóm vật tư/thiết bị/mã kho) → **Nhập/xuất kho** (mục gập) → **Lịch sử giao dịch** (mục gập, cũng cuộn + ghim tiêu đề). Dòng thiếu tô đỏ + nhãn THIẾU; phụ tùng đánh dấu PT. Người bị giới hạn tàu không thể ép xem tàu khác qua URL.
+Trang tồn kho bố cục theo luồng làm việc: **Tổng quan** (3 thẻ thống kê: số dòng, dưới tối thiểu, số tàu) → **Bộ lọc** thanh mỏng (tàu, kho, loại Store/Spare, tìm theo tên/mã/IMPA, "chỉ thiếu") → **Tồn kho nhóm theo tàu** (thẻ gập/mở có mũi tên chỉ trạng thái — tàu có cảnh báo tự mở kèm badge "N thiếu", tàu đủ gập gọn badge "đủ"; mỗi bảng có **thanh cuộn riêng + tiêu đề ghim cố định** để dò nhanh danh sách dài; nút **⬇ Xuất MLS-11-06** từng tàu; bên trong bảng sắp xếp theo **bộ phận tàu như form công ty: 🛳 Boong → ⚙️ Máy → ⚡ Điện → 🧺 Phục vụ/Tiêu hao → 🦺 An toàn** — mỗi bộ phận hiện số dòng + số thiếu, vật tư (Store) đứng trước, phụ tùng (Spare) xếp sau theo từng **nhóm thiết bị** có tiêu đề riêng, phân bộ phận tự động từ nhóm vật tư/thiết bị/mã kho) → **Nhập/xuất kho** (mục gập) → **Lịch sử giao dịch** (mục gập, cũng cuộn + ghim tiêu đề). Dòng thiếu tô đỏ + nhãn THIẾU; phụ tùng đánh dấu PT. Người bị giới hạn tàu không thể ép xem tàu khác qua URL. Đầu trang có thêm **Báo cáo theo quý** (`/inventory/bao-cao-quy`) và **Thống kê xuất nhập tồn** (`/inventory/thong-ke`) — xem mục kế tiếp.
 
-### Kiểm kê theo file MLS-11-06 (`/inventory/kiem-ke`)
+### Tồn kho theo quý (MLS-11-06) và thống kê xuất nhập tồn
 
-Thuyền viên đếm hàng theo biểu mẫu kiểm kê MLS-11-06 rồi tải lên — **Excel** (.xlsx / .xls, đọc ngay theo cột *Tồn trên tàu / R.O.B*) hoặc **PDF scan** (bộ đọc AI đọc nền với chế độ "bảng kiểm kê": số lượng = số tồn đếm được, ô trống giữ là *trống* chứ không thành 0). Nút **Kiểm kê theo file** ở đầu trang Tồn kho.
+Biểu mẫu công ty **MLS-11-06 "Store & Spare Part Inventory / Kiểm kê vật tư"** có đúng bốn cột của báo cáo sơn MLS-11-14 —
+*Còn tồn đợt trước (Last R.O.B) · Nhận trong kỳ (Receive) · Tiêu thụ trong kỳ (Cons.) · Tồn trên tàu (R.O.B)* — và ô kỳ
+*"From month / Từ tháng … đến …"*. Tồn vật tư & phụ tùng quản lý theo quý dựa trên đúng biểu mẫu đó; phần tính dùng chung với
+sơn ([`lib/kyQuy.ts`](lib/kyQuy.ts): quý theo giờ Việt Nam, neo vào tồn hiện tại, kế hoạch đưa số app về đúng báo cáo):
 
-- **Tàu**: chọn tay, hoặc tự nhận theo tên file (mã tàu `ML-001` / tên tàu trong tên file — như file `MLS-11-06_ML-001_2026-08-15.xlsx` app xuất ra). Chọn một tàu mà tên file ghi tàu khác → chặn. **Kho**: *Tự động* — mặt hàng đang nằm ở kho nào thì đếm lại ở kho đó (không đẻ thêm bản tồn thứ hai); hàng chưa có tồn theo sheet (Phụ tùng → kho máy, Boong → kho boong, còn lại → kho tiêu hao); hoặc chọn hẳn một kho. **Ngày kiểm kê** thành ngày của giao dịch điều chỉnh.
-- **Đối chiếu** (`/inventory/kiem-ke/<id>`): mỗi dòng ghép với mặt hàng **đã có** (IMPA → Part No. → tên + thiết bị → tên duy nhất; danh mục tàu trước, toàn hệ thống sau) và hiện tồn hiện tại → số đếm → chênh lệch; lọc *Đổi tồn / Chưa có / Không đổi / Khác*. Sửa số đọc sai ngay trong ô, tick *Bỏ qua* dòng không muốn cập nhật. Cùng mặt hàng + kho xuất hiện nhiều dòng (để nhiều chỗ) thì **cộng dồn**. Ô tồn trống = chưa đếm → không đụng tới. Mặt hàng trong danh mục mà không có trong file **giữ nguyên tồn**.
-- **Không nhập lại mặt hàng đã có.** Mặt hàng chưa có trong danh mục chỉ được thêm khi người đối chiếu tick *Thêm mới* (đi qua đúng đường nhập danh mục, cùng luật sinh mã).
-- **Áp dụng** (Thuyền trưởng / Máy trưởng của tàu / quản trị): kế hoạch được lập lại ở máy chủ; mỗi dòng đổi tồn khóa dòng tồn (cùng khóa với phiếu nhập/xuất tay), đọc lại tồn ngay lúc ghi, đặt tồn **đúng bằng số đếm** và ghi một giao dịch NHẬP / XUẤT đúng phần chênh với ghi chú `Kiểm kê theo file <tên file> (#id)` — thẻ kho giữ vết điều chỉnh. Bấm hai lần không ghi hai lần (giữ chỗ trạng thái `DANG_AP_DUNG`). Nhật ký thao tác ghi số mặt hàng tăng / giảm / thêm mới.
-- Người tải (sĩ quan tàu) sửa / xóa được lần kiểm kê chưa áp dụng. Bảng `KiemKeTep` là bảng làm việc cục bộ (không đồng bộ); giao dịch kho sinh ra mới đồng bộ về văn phòng.
-- Mã: `lib/kiemKe.ts` (thuần), `lib/kiemKeServer.ts` (ghép + kế hoạch + áp dụng), `app/kiem-ke-actions.ts`; kiểm thử `scripts/kiem-tra-kiem-ke.ts` (đọc file MLS-11-06 thật trên Desktop nếu có; ghép, cộng dồn, đặt tồn và giao dịch điều chỉnh trên database thật trong giao dịch cuộn ngược).
+- **Báo cáo theo quý** (`/inventory/bao-cao-quy`, nút ở đầu trang Tồn kho): chọn tàu, quý, năm, bộ phận (kho máy / boong /
+  tiêu hao / tất cả), loại → bảng MLS-11-06 của quý đó, in được (A4, khung biểu mẫu, khối ký). *Nhận* = phiếu giao, nhận hàng
+  PO, nhập tay; *Tiêu thụ* = xuất dùng; dòng **điều chỉnh** (nạp tồn ban đầu từ file, kiểm kê kiểu cũ, phần lệch số đếm) không
+  phải nhận hay dùng nên **gộp vào Còn tồn đợt trước** (hàng đã có trên tàu từ trước, app chỉ chưa biết — gộp vào Nhận thì
+  một lần nạp tồn 400 thành "nhận 400 trong quý"); cột *Điều chỉnh (đã gộp)* chỉ hiện trên màn hình. Không in mã nội bộ.
+- **Xuất Excel MLS-11-06** (cùng trang, hoặc nút MLS-11-06 từng tàu ở Tồn kho — mặc định quý hiện tại): điền tệp mẫu gốc với
+  ô kỳ `07/2026 đến 09/2026 (quý III)`, ngày = hết kỳ. Lọc một bộ phận thì chỉ liệt kê mặt hàng có tồn / có phát sinh ở kho
+  của bộ phận đó (liệt kê cả danh mục thì hàng của kho khác hiện tồn 0 — tải lại file đó lên kiểm kê là đưa chúng về 0).
+  Tham số `?quy=3&nam=2026` hoặc `?thang=2026-08`, `&dept=ENG|DECK|STORE|ALL`, `&type=STORE|SPARE|ALL`.
+- **Thống kê xuất nhập tồn** (`/inventory/thong-ke`): 4 quý gần nhất hoặc một năm — mỗi mặt hàng nhận / tiêu thụ từng quý,
+  tổng, **tiêu thụ trung bình một quý** (chỉ quý đã hết), **tồn hiện tại đủ dùng mấy quý**; lọc *dưới tối thiểu / đủ dùng
+  dưới 1 quý / nằm kho (không biến động) / có nhận-tiêu thụ*, sắp xếp theo tiêu thụ / đủ dùng / tên / mã; thẻ từng quý đếm
+  số mặt hàng và số lần nhập / xuất; **Xuất Excel thống kê** (`/api/export/thong-ke-ton`). Để đặt tồn tối thiểu, lập yêu cầu
+  đúng lúc và nhận ra hàng nằm kho.
+- Báo cáo **MLS-11-01** (tháng) và mọi mốc tháng / quý ở trên tính theo **giờ Việt Nam** (máy chủ Dokploy chạy giờ UTC — mốc
+  tháng theo giờ máy lệch 7 tiếng, phiếu ghi 0–7 giờ sáng ngày 1 rơi sang tháng trước).
+- Mã: [`lib/tonKhoQuy.ts`](lib/tonKhoQuy.ts) (thuần: xếp dòng kho vào kỳ, đọc ô kỳ, thống kê nhiều quý),
+  [`lib/tonKhoQuyServer.ts`](lib/tonKhoQuyServer.ts), trang `app/(app)/inventory/bao-cao-quy` · `thong-ke`, xuất
+  `app/api/export/inventory` · `thong-ke-ton`; kiểm ở `scripts/kiem-tra-ton-kho-quy.ts`.
+
+### Kiểm kê theo file MLS-11-06 (`/inventory/kiem-ke`) — theo ngày và theo kỳ
+
+Thuyền viên đếm hàng theo biểu mẫu kiểm kê MLS-11-06 rồi tải lên — **Excel** (.xlsx / .xls, đọc ngay cột *Tồn trên tàu / R.O.B*,
+kèm *Còn tồn đợt trước / Nhận / Tiêu thụ trong kỳ* và đầu biểu mẫu *Tàu · Date · From month … đến …* nếu có) hoặc **PDF scan**
+(bộ đọc AI đọc nền, chế độ "bảng kiểm kê": số đếm, ba cột kỳ và ô kỳ; ô trống giữ là *trống* chứ không thành 0). Nút **Kiểm kê theo
+file** ở đầu trang Tồn kho. Cách dễ nhất: xuất MLS-11-06 của quý ở trang Báo cáo theo quý, tàu sửa số / đếm rồi gửi lại file đó.
+
+- **Theo NGÀY của file, không theo "bây giờ"**: tồn **hết ngày kiểm kê** phải bằng số đếm; nhập / xuất ghi **sau** ngày đó
+  giữ nguyên, nên tồn hiện tại = số đếm + phát sinh sau đó. (Trước đây tồn hiện tại bị đặt thẳng bằng số đếm — file kiểm kê
+  cuối tháng tải lên giữa tháng sau xóa mất mọi lần nhập / xuất của nửa tháng đó.) *Ngày kiểm kê* để trống thì lấy theo file:
+  hết tháng cuối của ô *Từ tháng … đến …*, không có thì ô *Date*, không có thì hôm nay; đổi được ở ô **Kỳ đối chiếu** của trang
+  đối chiếu.
+- **Theo KỲ**: file có số ở các cột *Còn tồn đợt trước / Nhận / Tiêu thụ trong kỳ* thì số của app trong kỳ được đưa về đúng ba
+  cột đó (cùng luật với báo cáo tồn sơn MLS-11-14): *Còn tồn đợt trước* khác → một dòng điều chỉnh ngay trước đầu kỳ; *Nhận*
+  nhiều hơn → dòng nhập cuối kỳ, ít hơn → điều chỉnh bớt; *Tiêu thụ* nhiều hơn → dòng xuất dùng cuối kỳ, ít hơn → điều chỉnh;
+  còn lệch số đếm → điều chỉnh kiểm kê (vật tư **không** suy tiêu thụ từ số đếm). Mỗi dòng mang cột của biểu mẫu
+  (`InventoryTransaction.cotBaoCao`) và lần kiểm kê (`kiemKeId`): báo cáo quý in lại ra đúng file, MLS-11-01 tính dòng Nhận /
+  Tiêu thụ là nhận / dùng thật, áp lại đúng file đó lần nữa thì không ghi gì. File không ghi kỳ mà có số ba cột → lấy quý chứa
+  ngày kiểm kê (ghi rõ để sửa nếu khác).
+- **Tàu**: chọn tay, hoặc tự nhận theo tên file (mã tàu `ML-001` / tên tàu trong tên file). Chọn một tàu mà tên file ghi tàu
+  khác → chặn. **Kho**: *Tự động* — mặt hàng đang có hàng ở kho nào thì đối chiếu ở kho đó; hàng chưa có tồn theo sheet (Phụ
+  tùng → kho máy, Boong → kho boong, còn lại → kho tiêu hao); mặt hàng đang có hàng ở **nhiều kho** của tàu thì **dừng dòng đó**
+  (*Ở nhiều kho — chọn kho*): số đếm của file cả tàu không biết chia vào kho nào — so với một kho là đặt sai; chọn hẳn *Kho được
+  kiểm* khi tải file của từng kho, hoặc dồn hàng về một kho.
+- **Đối chiếu** (`/inventory/kiem-ke/<id>`): mỗi dòng ghép với mặt hàng **đã có** (IMPA → Part No. → tên + thiết bị → tên duy
+  nhất; danh mục tàu trước, toàn hệ thống sau); cột *File: đầu kỳ · nhận · tiêu thụ* (file có kỳ), *Số đếm*, *App hết ngày KK*,
+  *Chênh lệch*, **Sẽ ghi** (các dòng app sẽ thêm vào thẻ kho) và *Tồn hiện tại → sau* — sửa số là tính lại ngay. Cùng mặt hàng +
+  kho nhiều dòng thì **cộng dồn**. Ô tồn trống = chưa đếm → không đụng tới. Mặt hàng trong danh mục mà không có trong file **giữ
+  nguyên tồn**. Dòng làm tồn hiện tại **âm** (sau ngày kiểm kê đã xuất nhiều hơn số đếm) bị đánh dấu và chặn áp dụng.
+- **Không nhập lại mặt hàng đã có.** Mặt hàng chưa có trong danh mục chỉ được thêm khi người đối chiếu tick *Thêm mới* (đi qua
+  đúng đường nhập danh mục, cùng luật sinh mã); tồn ban đầu của nó đi qua cùng kế hoạch, đúng ngày, gắn lần kiểm kê.
+- **Áp dụng** (Thuyền trưởng / Máy trưởng của tàu / quản trị): kế hoạch được lập lại ở máy chủ trong giao dịch (khóa dòng tồn —
+  cùng khóa với phiếu nhập / xuất tay — đọc lại tồn và lịch sử lúc ghi). Bấm hai lần không ghi hai lần (giữ chỗ trạng thái
+  `DANG_AP_DUNG`). Đã có lần kiểm kê **ngày sau** được áp dụng cho tàu → chặn (áp lần cũ hơn làm lệch số của lần đó).
+- **Gỡ kiểm kê đã áp dụng** (bắt ghi lý do): hoàn lại đúng các dòng lần đó đã ghi, mở lại để sửa rồi áp dụng lại; hàng đã xuất
+  bớt thì không gỡ được cả lần; có lần kiểm kê ngày sau đã áp dụng thì gỡ lần đó trước. Lần kiểm kê áp dụng trước khi có chức
+  năng này không gỡ tự động được.
+- Người tải (sĩ quan tàu) sửa / xóa được lần kiểm kê chưa áp dụng. Bảng `KiemKeTep` là bảng làm việc cục bộ (không đồng bộ);
+  giao dịch kho sinh ra mới đồng bộ về văn phòng.
+- Mã: `lib/kiemKe.ts` (thuần: dòng, đầu biểu mẫu, kỳ, kế hoạch một nhóm), `lib/kiemKeServer.ts` (ghép + kế hoạch + áp dụng +
+  gỡ), `app/kiem-ke-actions.ts`; kiểm thử `scripts/kiem-tra-kiem-ke.ts` và `scripts/kiem-tra-ton-kho-quy.ts` (kiểm kê ngày cũ giữ
+  phát sinh sau ngày đó, theo kỳ in lại quý ra đúng file, nhiều kho, tồn âm, gỡ — trên database thật rồi cuộn ngược).
 
 ## Thời gian & người thực hiện của mỗi giao dịch kho
 
@@ -1719,7 +1778,7 @@ Công cụ dùng **chính parser mà chức năng nhập file dùng**, nên kế
 
 ### Xuất kiểm kê theo form công ty (MLS-11-06)
 
-Nút **"⬇ Xuất kiểm kê MLS-11-06"** ở trang Danh mục (chế độ theo tàu, giữ bộ lọc Store/Spare) và trang chi tiết tàu tải về file Excel **điền trên chính template gốc của công ty** (giữ nguyên định dạng, chữ ký): tên tàu, ngày, loại vật tư, và từng dòng Nhóm / Mô tả / IMPA / Đơn vị / **Còn tồn đợt trước / Nhận trong kỳ / Tiêu thụ trong kỳ / Tồn trên tàu** (kỳ = tháng hiện tại, tính từ giao dịch nhập–xuất trong app). Trên 25 dòng thì form tự giãn, khối chữ ký tự dời xuống. Quyền theo phạm vi tàu (thuyền viên chỉ xuất được tàu mình).
+Nút **"⬇ Xuất kiểm kê MLS-11-06"** ở trang Danh mục (chế độ theo tàu, giữ bộ lọc Store/Spare) và trang chi tiết tàu tải về file Excel **điền trên chính template gốc của công ty** (giữ nguyên định dạng, chữ ký): tên tàu, ngày, loại vật tư, và từng dòng Nhóm / Mô tả / IMPA / Đơn vị / **Còn tồn đợt trước / Nhận trong kỳ / Tiêu thụ trong kỳ / Tồn trên tàu** (kỳ = quý hiện tại, hoặc quý / tháng chọn ở trang *Báo cáo theo quý*; tính như mục "Tồn kho theo quý" — điều chỉnh kiểm kê gộp vào Còn tồn đợt trước, không thành nhận / tiêu thụ). Trên 25 dòng thì form tự giãn, khối chữ ký tự dời xuống. Quyền theo phạm vi tàu (thuyền viên chỉ xuất được tàu mình).
 
 ### Phụ tùng thiết yếu (MLS-11-04) — danh mục riêng từng tàu (`/materials/thiet-yeu`)
 
@@ -2183,7 +2242,7 @@ App tạo và in được 3 loại báo cáo đúng biểu mẫu Mercury Lines (
 
 | Trang | Biểu mẫu | Cách hoạt động |
 |---|---|---|
-| **Báo cáo vật tư** (`/reports`) | MLS-11-01 — Báo cáo nhận và sử dụng vật tư | **Tự động tổng hợp** từ giao dịch nhập/xuất trong app: chọn tàu + bộ phận (Máy/Boong/Kho tiêu hao/Tất cả) + tháng → bảng SL tồn đợt trước, Nhận (SL + **mọi ngày nhận**), Sử dụng (SL + **mọi ngày dùng**), Tồn trên tàu, **Ghi chú tự điền**: nguồn nhận (số PO kèm nhà cung cấp, số phiếu giao, ghi chú nhập tay), mục đích dùng, điều chỉnh kiểm kê, mặt hàng mới nhận lần đầu, dưới tối thiểu, tồn đầu âm (số liệu lệch). **Điều chỉnh kiểm kê / nạp tồn ban đầu từ file không tính vào Nhận / Sử dụng** (trước đây lần nạp tồn từ file hiện thành "Vật tư nhận") — tồn trước + nhận − dùng ± điều chỉnh = tồn cuối, phần điều chỉnh nêu ở Ghi chú. Kèm **phụ lục "Chi tiết nhập / xuất trong tháng"** (từng giao dịch: ngày, mã, loại, số lượng, nguồn – ghi chú, kho, người thực hiện), có ô *In kèm*. Phần tính: `lib/baoCao1101.ts`, kiểm thử `scripts/kiem-tra-bao-cao-1101.ts` (cân bằng trên mọi dòng dữ liệu thật). |
+| **Báo cáo vật tư** (`/reports`) | MLS-11-01 — Báo cáo nhận và sử dụng vật tư | **Tự động tổng hợp** từ giao dịch nhập/xuất trong app: chọn tàu + bộ phận (Máy/Boong/Kho tiêu hao/Tất cả) + tháng → bảng SL tồn đợt trước, Nhận (SL + **mọi ngày nhận**), Sử dụng (SL + **mọi ngày dùng**), Tồn trên tàu, **Ghi chú tự điền**: nguồn nhận (số PO kèm nhà cung cấp, số phiếu giao, ghi chú nhập tay), mục đích dùng, điều chỉnh kiểm kê, mặt hàng mới nhận lần đầu, dưới tối thiểu, tồn đầu âm (số liệu lệch). **Điều chỉnh kiểm kê / nạp tồn ban đầu từ file không tính vào Nhận / Sử dụng** (trước đây lần nạp tồn từ file hiện thành "Vật tư nhận") — tồn trước + nhận − dùng ± điều chỉnh = tồn cuối, phần điều chỉnh nêu ở Ghi chú. Dòng do **kiểm kê theo file theo kỳ** ghi vào cột *Nhận / Tiêu thụ trong kỳ* thì tính là nhận / dùng (số tàu báo), phần lệch số đếm vẫn là điều chỉnh. Tháng tính theo giờ Việt Nam. Kèm **phụ lục "Chi tiết nhập / xuất trong tháng"** (từng giao dịch: ngày, mã, loại, số lượng, nguồn – ghi chú, kho, người thực hiện), có ô *In kèm*. Phần tính: `lib/baoCao1101.ts`, kiểm thử `scripts/kiem-tra-bao-cao-1101.ts` (cân bằng trên mọi dòng dữ liệu thật). |
 | **Chằng buộc container** (`/lashing`) | MLS-11-13 — Báo cáo dụng cụ chằng buộc container | Sổ **trang bị chuẩn** từng tàu (SL tối thiểu + trang bị chuẩn, ADMIN chỉnh); mỗi chuyến ADMIN/MASTER kiểm đếm nhập 2 cột *Còn dùng được / Bị hỏng* (điền sẵn số lần trước) → app tự tính Tổng tồn, SL thiếu, **SL cần đặt mua** và gợi ý chuyển sang trang Yêu cầu vật tư để mua sắm. |
 | **Phụ tùng thiết yếu** (`/materials/thiet-yeu`) | MLS-11-04 — Danh mục kiểm tra phụ tùng thiết yếu trên tàu | Danh mục riêng từng tàu nhập từ tệp Word của tàu; số tháng lưu trong app; in hoặc **xuất Word** trên chính tệp mẫu công ty. Xem mục "Phụ tùng thiết yếu (MLS-11-04)". |
 

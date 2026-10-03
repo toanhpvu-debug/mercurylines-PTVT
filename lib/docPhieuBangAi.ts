@@ -138,6 +138,8 @@ export type DauPhieu = {
   /** Ô Quý / Quarter và Năm / Year của báo cáo tồn MLS-11-14 — chữ thô (chỉ chế độ "baoCaoTon"). */
   quy?: string | null;
   nam?: string | null;
+  /** Ô kỳ "From month / Từ tháng … đến …" của bảng kiểm kê MLS-11-06 — chữ thô (chỉ chế độ "kiemKe"). */
+  kyBaoCao?: string | null;
 };
 
 export type DocAiThanhCong = DauPhieu & {
@@ -325,8 +327,12 @@ export const CONG_CU_GHI_KIEM_KE = {
       ...CONG_CU_GHI_PHIEU.input_schema.properties,
       nhaCungCap: { type: ["string", "null"], description: "Luôn null — biểu mẫu kiểm kê không có nhà cung cấp." },
       soPhieu: { type: ["string", "null"], description: "Mã biểu mẫu nếu in trên trang (VD MLS-11-06), không có thì null." },
-      ngayGiao: { type: ["string", "null"], description: "NGÀY KIỂM KÊ ghi trên biểu mẫu, dạng dd/mm/yyyy." },
+      ngayGiao: { type: ["string", "null"], description: "NGÀY KIỂM KÊ ghi trên biểu mẫu (ô Date / Ngày), dạng dd/mm/yyyy." },
       tau: { type: ["string", "null"], description: "Tên tàu ghi trên biểu mẫu (Vessel / Ship's name)." },
+      kyBaoCao: {
+        type: ["string", "null"],
+        description: 'Ô kỳ "From month / Từ tháng … đến …" đúng như viết (VD "7/2026 đến 9/2026", "Quý III/2026"); để chấm chấm / bỏ trống thì null.',
+      },
       dong: {
         ...CONG_CU_GHI_PHIEU.input_schema.properties.dong,
         description: "Mọi dòng mặt hàng trên bảng kiểm kê, theo thứ tự xuất hiện, qua hết các trang được yêu cầu.",
@@ -335,6 +341,9 @@ export const CONG_CU_GHI_KIEM_KE = {
           properties: {
             ...CONG_CU_GHI_PHIEU.input_schema.properties.dong.items.properties,
             soLuong: { type: ["number", "null"], description: MO_TA_SO_TON },
+            tonDau: { type: ["number", "null"], description: "Cột 'Còn tồn đợt trước' / 'Last R.O.B'. Ô trống → null; gạch ngang → 0." },
+            nhan: { type: ["number", "null"], description: "Cột 'Nhận trong kỳ' / 'Receive'. Ô trống → null; gạch ngang → 0." },
+            tieuThu: { type: ["number", "null"], description: "Cột 'Tiêu thụ trong kỳ' / 'Cons.'. Ô trống → null; gạch ngang → 0." },
             thietBi: {
               type: ["string", "null"],
               description: "Nhóm của dòng: cột Group / Nhóm, hoặc tiêu đề nhóm phía trên (MAIN ENGINE, DECK STORES, PAINT...). Không có thì null.",
@@ -358,7 +367,8 @@ Quy tắc:
 7. "thietBi": nhóm của dòng (cột Group / Nhóm, hoặc tiêu đề nhóm trên bảng), ghi vào từng dòng thuộc nhóm đó.
 8. "trang": số trang (đánh từ 1). "canKiem" = true ở chỗ chữ / số mờ, bị che, sửa tay hoặc không chắc — thà đánh dấu thừa còn hơn để lọt số sai; nói lý do ở lyDoKiem.
 9. Không ghi dòng tiêu đề cột, dòng tổng, chữ ký vào "dong".
-10. Đầu biểu mẫu: tau, ngayGiao (= ngày kiểm kê, dd/mm/yyyy), soPhieu (mã biểu mẫu); nhaCungCap luôn null.`;
+10. Đầu biểu mẫu: tau, ngayGiao (= ngày kiểm kê, dd/mm/yyyy), soPhieu (mã biểu mẫu), kyBaoCao (ô "From month / Từ tháng … đến …" đúng như viết, chưa điền thì null); nhaCungCap luôn null.
+11. Biểu mẫu có thêm các cột kỳ thì ghi đúng cột: tonDau = Còn tồn đợt trước / Last R.O.B, nhan = Nhận trong kỳ / Receive, tieuThu = Tiêu thụ trong kỳ / Cons. — ô trống null, gạch ngang 0; đừng dồn số sang cột bên cạnh. soLuong vẫn là cột Tồn trên tàu / R.O.B. Bảng không có các cột đó thì để ba trường này null.`;
 
 const LOI_NHAC_KIEM_KE = "Đọc bảng kiểm kê vật tư / phụ tùng trong tài liệu đính kèm và ghi TOÀN BỘ dòng mặt hàng theo đúng cấu trúc yêu cầu.";
 
@@ -557,7 +567,7 @@ const BAN_DOC = {
     huongDan: HUONG_DAN_KIEM_KE,
     loiNhac: LOI_NHAC_KIEM_KE,
     congCu: CONG_CU_GHI_KIEM_KE,
-    khuonJson: `${KHUON_JSON_GOI_Y} Trong bảng kiểm kê "soLuong" là số tồn đếm được (cột Tồn trên tàu / R.O.B), ô trống = null.`,
+    khuonJson: `${KHUON_JSON_GOI_Y} Trong bảng kiểm kê "soLuong" là số tồn đếm được (cột Tồn trên tàu / R.O.B), ô trống = null; mỗi dòng thêm "tonDau", "nhan", "tieuThu": number|null (Còn tồn đợt trước · Nhận trong kỳ · Tiêu thụ trong kỳ), đầu biểu mẫu thêm "kyBaoCao": string|null (ô Từ tháng … đến …).`,
     taiLieu: "bảng kiểm kê",
   },
   baoGia: {
@@ -720,6 +730,8 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
     dau.quy = chuoi(o.quy, 20);
     dau.nam = chuoi(o.nam, 10);
   }
+  // Bảng kiểm kê MLS-11-06 (chế độ "kiemKe"): ô kỳ "Từ tháng … đến …", chữ thô.
+  if ("kyBaoCao" in o) dau.kyBaoCao = chuoi(o.kyBaoCao, 80);
   const dong: DongAi[] = [];
   const tho = Array.isArray(o.dong) ? (o.dong as DongTho[]) : [];
   for (let i = 0; i < tho.length; i++) {
@@ -760,9 +772,10 @@ export function chuanHoaKetQuaAi(input: unknown): DauPhieu & { dong: DongAi[]; c
       ? { toiThieu: soCb(d.toiThieu), chuan: soCb(d.chuan), conDung: soCb(d.conDung), hong: soCb(d.hong), tong: soCb(d.tong), thieu: soCb(d.thieu), yeuCau: soCb(d.yeuCau) }
       : undefined;
     // Báo cáo lượng sơn tồn MLS-11-14 (chế độ "baoCaoTon"): bốn cột số, Tồn cuối kỳ là số chính.
+    // Bảng kiểm kê MLS-11-06 (chế độ "kiemKe") trả ba cột kỳ kèm soLuong = Tồn trên tàu (số đếm).
     const KHOA_BC = ["tonDau", "nhan", "tieuThu", "tonCuoi"] as const;
     const bc: SoBaoCaoTonAi | undefined = KHOA_BC.some((k) => k in d)
-      ? { tonDau: soCb(d.tonDau), nhan: soCb(d.nhan), tieuThu: soCb(d.tieuThu), tonCuoi: soCb(d.tonCuoi) }
+      ? { tonDau: soCb(d.tonDau), nhan: soCb(d.nhan), tieuThu: soCb(d.tieuThu), tonCuoi: "tonCuoi" in d ? soCb(d.tonCuoi) : sl.so }
       : undefined;
     // Phiếu yêu cầu (chế độ "yeuCau"): R.O.B và cột ITEM / Hạng mục.
     const coTon = "ton" in d;
@@ -825,6 +838,7 @@ export function tomTat(dau: DauPhieu, dong: DongAi[], loiPhu: string[]): string 
     dau.tau ? `Tàu: ${dau.tau}` : null,
     dau.cang ? `Cảng: ${dau.cang}` : null,
     dau.quy || dau.nam ? `Quý: ${dau.quy ?? "—"} · Năm: ${dau.nam ?? "—"}` : null,
+    dau.kyBaoCao ? `Kỳ: ${dau.kyBaoCao}` : null,
   ].filter(Boolean);
   const canKiem = dong.filter((d) => d.canhBao).length;
   return [
@@ -1506,6 +1520,7 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
           yc: c2.yc ?? chuan.yc,
           quy: c2.quy ?? chuan.quy,
           nam: c2.nam ?? chuan.nam,
+          kyBaoCao: c2.kyBaoCao ?? chuan.kyBaoCao,
           dong: gopLuot(chuan.dong, c2.dong),
         };
       } else {
@@ -1541,6 +1556,7 @@ export async function docPhieuGiaoBangAi(pdf: Buffer, cauHinh: CauHinhAi | null,
     dau.yc ??= k.chuan.yc;
     dau.quy ??= k.chuan.quy;
     dau.nam ??= k.chuan.nam;
+    dau.kyBaoCao ??= k.chuan.kyBaoCao;
     dongTatCa.push(...k.chuan.dong);
   }
   const canhBaoChung = hong.length

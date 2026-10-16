@@ -50,6 +50,7 @@ import {
 } from "@/components/VesselCatalogActions";
 import VatTuMoiChoTauForm from "@/components/VatTuMoiChoTauForm";
 import TimNhanhDanhMuc from "@/components/TimNhanhDanhMuc";
+import KhungBang from "@/components/KhungBang";
 import NutThuGonNhom from "@/components/NutThuGonNhom";
 import {
   canManageVesselCatalog,
@@ -70,7 +71,6 @@ import {
   PageHeader,
   Select,
   Table,
-  TableWrap,
   Td,
   Th,
   Tr,
@@ -643,30 +643,10 @@ export default async function MaterialsPage({
                   : t("materials.danhMucGocN", { n: rows.length })
               }
             />
-            <TimNhanhDanhMuc
-              nhom={deptGroups.map((d) => ({
-                key: d.key,
-                label: tTuDo(`labels.dept_${d.key}`),
-                total: d.total,
-                hienThi: d.rows.length,
-              }))}
-              tongDong={rows.length}
-              dangHien={rows.length - hiddenCount}
-            />
-            {rows.length === 0 ? (
-              <EmptyState
-                icon={<Boxes className="size-5" />}
-                title={
-                  isVesselMode
-                    ? t("materials.tauChuaCoVatTu")
-                    : t("materials.chuaCoVatTu")
-                }
-              />
-            ) : (
-              <>
-              {/* Thanh nổi thao tác hàng loạt — chỉ hiện khi có dòng được tick.
-                  Ô tick là <input> thường do server vẽ; thành phần này lắng
-                  nghe chúng qua data-chon-* (xem components/ChonHangLoat.tsx). */}
+            {/* Thanh nổi thao tác hàng loạt — chỉ hiện khi có dòng được tick.
+                Ô tick là <input> thường do server vẽ; thành phần này lắng
+                nghe chúng qua data-chon-* (xem components/ChonHangLoat.tsx). */}
+            {rows.length > 0 && (
               <ChonHangLoat
                 quyen={{
                   yeuCau: LAP_YEU_CAU.includes(user.role) && !scope.unassigned,
@@ -677,9 +657,43 @@ export default async function MaterialsPage({
                 categories={categoryOptions}
                 vesselId={selectedVesselId}
               />
-              <TableWrap>
+            )}
+            {/* Bảng dài theo trang như cũ; thanh nhỏ để phóng / thu chữ và xem toàn màn
+                hình — thanh tìm nhanh đi cùng khung, ô đã tick giữ nguyên. */}
+            <KhungBang
+              ten="danh-muc"
+              cuonTrang
+              anThanh={rows.length === 0}
+              tieuDe={
+                isVesselMode
+                  ? t("materials.vatTuCuaTau", { tau: selectedVessel?.name ?? "", n: rows.length })
+                  : t("materials.danhMucGocN", { n: rows.length })
+              }
+              dau={
+                <TimNhanhDanhMuc
+                  nhom={deptGroups.map((d) => ({
+                    key: d.key,
+                    label: tTuDo(`labels.dept_${d.key}`),
+                    total: d.total,
+                    hienThi: d.rows.length,
+                  }))}
+                  tongDong={rows.length}
+                  dangHien={rows.length - hiddenCount}
+                />
+              }
+            >
+            {rows.length === 0 ? (
+              <EmptyState
+                icon={<Boxes className="size-5" />}
+                title={
+                  isVesselMode
+                    ? t("materials.tauChuaCoVatTu")
+                    : t("materials.chuaCoVatTu")
+                }
+              />
+            ) : (
                 <Table dense>
-                  <thead>
+                  <thead className="sticky top-0 z-10 bg-[var(--surface-raised)]">
                     <tr>
                       <Th className="w-8">
                         <input
@@ -1005,9 +1019,8 @@ export default async function MaterialsPage({
                       );
                     })}
                 </Table>
-              </TableWrap>
-              </>
             )}
+            </KhungBang>
             {hiddenCount > 0 && (
               <Notice tone="info" className="mt-3">
                 {t("materials.dangHienDauMoiBoPhan", { n: PER_DEPT_LIMIT })}{" "}

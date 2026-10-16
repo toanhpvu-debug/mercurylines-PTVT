@@ -1112,6 +1112,9 @@ Danh mục và yêu cầu vật tư được dựng theo 3 mẫu Excel của cô
   (Store) đứng trước, phụ tùng (Spare) xếp sau và **gom theo từng thiết bị** — Máy chính,
   Máy đèn, Air Compressor, Oil Separator, BWMS… Cùng cách phân nhóm với trang Tồn kho
   (dùng chung [`lib/departments.ts`](lib/departments.ts)).
+  Bảng danh mục dùng cùng khung với Tồn kho (`components/KhungBang.tsx`): **thu / phóng chữ**
+  và **Toàn màn hình** — làm tại chỗ nên ô đã tick và thanh thao tác hàng loạt còn nguyên, thanh
+  tìm nhanh + *Nhảy tới* đi theo khung (bảng vẫn dài theo trang như cũ khi không phóng to).
 
   Hai quy tắc đáng lưu ý trong cách phân nhóm: thiết bị của phụ tùng lấy từ trường
   `equipment`, **không có thì lấy tên Nhóm (Category)** — file kiểm kê MLS-11-06 ghi thiết bị
@@ -1167,7 +1170,7 @@ còn ở Tồn kho — nơi có sẵn bộ lọc phạm vi trước khi xuất.
 
 ## Tồn kho đội tàu (`/inventory`)
 
-Trang tồn kho bố cục theo luồng làm việc: **Tổng quan** (3 thẻ thống kê: số dòng, dưới tối thiểu, số tàu) → **Bộ lọc** thanh mỏng (tàu, kho, loại Store/Spare, tìm theo tên/mã/IMPA, "chỉ thiếu") → **Tồn kho nhóm theo tàu** (thẻ gập/mở có mũi tên chỉ trạng thái — tàu có cảnh báo tự mở kèm badge "N thiếu", tàu đủ gập gọn badge "đủ"; mỗi bảng có **thanh cuộn riêng + tiêu đề ghim cố định** để dò nhanh danh sách dài, kèm thanh nhỏ phía trên (`components/KhungBang.tsx`): **thu / phóng chữ** 70–150 %, **Mở rộng / Thu gọn** chiều cao khung (xem một tàu thì mặc định mở rộng gần hết màn hình), **Toàn màn hình** (phủ cả cửa sổ, Esc để thoát) — cỡ chữ và chiều cao nhớ theo trình duyệt; nút **⬇ Xuất MLS-11-06** từng tàu; bên trong bảng sắp xếp theo **bộ phận tàu như form công ty: 🛳 Boong → ⚙️ Máy → ⚡ Điện → 🧺 Phục vụ/Tiêu hao → 🦺 An toàn** — mỗi bộ phận hiện số dòng + số thiếu, vật tư (Store) đứng trước, phụ tùng (Spare) xếp sau theo từng **nhóm thiết bị** có tiêu đề riêng, phân bộ phận tự động từ nhóm vật tư/thiết bị/mã kho) → **Nhập/xuất kho** (mục gập) → **Lịch sử giao dịch** (mục gập, cũng cuộn + ghim tiêu đề). Dòng thiếu tô đỏ + nhãn THIẾU; phụ tùng đánh dấu PT. Người bị giới hạn tàu không thể ép xem tàu khác qua URL. Đầu trang có thêm **Báo cáo theo quý** (`/inventory/bao-cao-quy`) và **Thống kê xuất nhập tồn** (`/inventory/thong-ke`) — xem mục kế tiếp.
+Trang tồn kho bố cục theo luồng làm việc: **Tổng quan** (3 thẻ thống kê: số dòng, dưới tối thiểu, số tàu) → **Bộ lọc** thanh mỏng (tàu, kho, loại Store/Spare, tìm theo tên/mã/IMPA, "chỉ thiếu") → **Tồn kho nhóm theo tàu** (thẻ gập/mở có mũi tên chỉ trạng thái — tàu có cảnh báo tự mở kèm badge "N thiếu", tàu đủ gập gọn badge "đủ"; mỗi bảng có **thanh cuộn riêng + tiêu đề ghim cố định** để dò nhanh danh sách dài, kèm thanh nhỏ phía trên (`components/KhungBang.tsx`): **thu / phóng chữ** 70–150 %, **Mở rộng / Thu gọn** chiều cao khung (xem một tàu thì mặc định mở rộng gần hết màn hình), **Toàn màn hình** (phủ vùng nội dung dưới thanh đầu trang, Esc để thoát) — cỡ chữ và chiều cao nhớ theo trình duyệt; nút **⬇ Xuất MLS-11-06** từng tàu; bên trong bảng sắp xếp theo **bộ phận tàu như form công ty: 🛳 Boong → ⚙️ Máy → ⚡ Điện → 🧺 Phục vụ/Tiêu hao → 🦺 An toàn** — mỗi bộ phận hiện số dòng + số thiếu, vật tư (Store) đứng trước, phụ tùng (Spare) xếp sau theo từng **nhóm thiết bị** có tiêu đề riêng, phân bộ phận tự động từ nhóm vật tư/thiết bị/mã kho) → **Nhập/xuất kho** (mục gập) → **Lịch sử giao dịch** (mục gập, cũng cuộn + ghim tiêu đề). Dòng thiếu tô đỏ + nhãn THIẾU; phụ tùng đánh dấu PT. Người bị giới hạn tàu không thể ép xem tàu khác qua URL. Đầu trang có thêm **Báo cáo theo quý** (`/inventory/bao-cao-quy`) và **Thống kê xuất nhập tồn** (`/inventory/thong-ke`) — xem mục kế tiếp.
 
 ### Tồn kho theo quý (MLS-11-06) và thống kê xuất nhập tồn
 

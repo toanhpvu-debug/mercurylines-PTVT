@@ -1,6 +1,7 @@
 import "server-only";
 
 import JSZip from "jszip";
+import { moTepWord } from "@/lib/docWord";
 import {
   dauYeuCau,
   dongTuChuPdfYeuCau,
@@ -70,11 +71,10 @@ async function docDocx(buffer: Buffer): Promise<KetQuaDocYeuCau> {
 }
 
 async function docDocCu(buffer: Buffer): Promise<KetQuaDocYeuCau> {
-  const { default: WordExtractor } = await import("word-extractor");
-  const doc = await new WordExtractor().extract(buffer);
-  const than = doc.getBody();
+  const doc = await moTepWord(buffer);
+  const than = doc.than();
   const rows = than.split(/\r?\n/).map((l) => l.split("\t").map(sach));
-  const hangDau = `${doc.getHeaders({ includeFooters: false })}\n${than}`
+  const hangDau = `${doc.dau(false)}\n${than}`
     .split(/\r?\n/)
     .slice(0, 60)
     .map((l) => l.split("\t").map(sach));

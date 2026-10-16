@@ -3,6 +3,7 @@ import "server-only";
 import JSZip from "jszip";
 import { docChuPdfBaoCaoTon, docLuoiBaoCaoTon, dongNhanTuBaoCao, laBaoCaoTon, luoiTuChuWord, type DauBaoCaoTon, type DongBaoCaoTonTho } from "@/lib/baoCaoTonSon";
 import type { DongNhanSon } from "@/lib/phieuSon";
+import { moTepWord } from "@/lib/docWord";
 
 /*
  * Đọc BÁO CÁO LƯỢNG SƠN TỒN MLS-11-14 tải lên KHÔNG dùng AI: Word .docx (bảng trong
@@ -56,10 +57,9 @@ async function docDocx(buffer: Buffer): Promise<TepDaDoc> {
 }
 
 async function docDocCu(buffer: Buffer): Promise<TepDaDoc> {
-  const { default: WordExtractor } = await import("word-extractor");
-  const doc = await new WordExtractor().extract(buffer);
-  const than = doc.getBody();
-  const dau = doc.getHeaders({ includeFooters: true });
+  const doc = await moTepWord(buffer);
+  const than = doc.than();
+  const dau = doc.dau(true);
   const hangDau = `${dau}\n${than}`
     .split(/\r?\n/)
     .filter((l) => l.trim())

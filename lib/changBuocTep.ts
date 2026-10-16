@@ -1,6 +1,7 @@
 import "server-only";
 
 import JSZip from "jszip";
+import { moTepWord } from "@/lib/docWord";
 import { dauChangBuoc, dongTuChuPdfChangBuoc, dongTuLuoiChangBuoc, type DauChangBuoc, type DongChangBuocNhap } from "@/lib/changBuocNhap";
 
 /*
@@ -58,11 +59,10 @@ async function docDocx(buffer: Buffer): Promise<KetQuaDocChangBuoc> {
 }
 
 async function docDocCu(buffer: Buffer): Promise<KetQuaDocChangBuoc> {
-  const { default: WordExtractor } = await import("word-extractor");
-  const doc = await new WordExtractor().extract(buffer);
-  const than = doc.getBody();
+  const doc = await moTepWord(buffer);
+  const than = doc.than();
   const rows = than.split(/\r?\n/).map((l) => l.split("\t").map(sach));
-  return totNhat([{ rows, nguon: "file Word (.doc)" }], `${doc.getHeaders({ includeFooters: false })}\n${than}`);
+  return totNhat([{ rows, nguon: "file Word (.doc)" }], `${doc.dau(false)}\n${than}`);
 }
 
 async function docExcel(buffer: Buffer): Promise<KetQuaDocChangBuoc> {

@@ -2,6 +2,7 @@ import "server-only";
 
 import JSZip from "jszip";
 import { dauTuHang, dongTuBang, type DauBaoGia, type DongBaoGia } from "@/lib/baoGia";
+import { moTepWord } from "@/lib/docWord";
 
 /*
  * Đọc file báo giá KHÔNG dùng AI: Excel (.xlsx / .xls), Word (.docx — các bảng
@@ -77,13 +78,12 @@ async function docDocx(buffer: Buffer): Promise<KetQuaDocBaoGia> {
 }
 
 async function docDocCu(buffer: Buffer): Promise<KetQuaDocBaoGia> {
-  const { default: WordExtractor } = await import("word-extractor");
-  const doc = await new WordExtractor().extract(buffer);
+  const doc = await moTepWord(buffer);
   const rows = doc
-    .getBody()
+    .than()
     .split(/\r?\n/)
     .map((l) => l.split("\t").map(sach));
-  return totNhat([{ rows, nguon: "file Word (.doc)" }], [...doc.getHeaders({ includeFooters: false }).split(/\r?\n/).map((l) => [sach(l)]), ...rows.slice(0, 30)]);
+  return totNhat([{ rows, nguon: "file Word (.doc)" }], [...doc.dau(false).split(/\r?\n/).map((l) => [sach(l)]), ...rows.slice(0, 30)]);
 }
 
 /** PDF có lớp chữ: tách cột theo cụm ≥ 2 khoảng trắng — dự phòng khi chưa có bộ đọc AI. */

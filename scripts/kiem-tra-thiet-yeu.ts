@@ -2,7 +2,8 @@
  * Kiểm phần thuần của Phụ tùng thiết yếu MLS-11-04: đọc bảng mẫu Word
  * (lib/thietYeu.ts) và điền tệp Word mẫu (lib/bieuMauThietYeu.ts).
  *
- * Chạy:  npx tsx scripts/kiem-tra-thiet-yeu.ts
+ * Chạy:  node --conditions=react-server --import ./node_modules/tsx/dist/loader.mjs scripts/kiem-tra-thiet-yeu.ts
+ *        (thêm MLS1104_DIR=<thư mục> để đọc thử cả tệp tàu gửi ở thư mục đó)
  *
  * Phần 1–3 chạy trên dữ liệu giả (luôn chạy). Phần 4 đọc các tệp MLS-11-04 thật
  * trên Desktop nếu có; phần 5 điền tệp mẫu thật templates/MLS-11-04.docx nếu có
@@ -15,20 +16,30 @@ import path from "path";
 import JSZip from "jszip";
 import { chuCua } from "@/lib/bieuMauChangBuoc";
 import { dienBieuMauThietYeu, dienXmlThietYeu, kiemTraBieuMauThietYeu } from "@/lib/bieuMauThietYeu";
+import { moTepWord } from "@/lib/docWord";
 import {
   COT_IN,
   TOI_DA_DONG_IN,
+  canBoSung,
+  congThang,
+  cungTauTep,
+  docBangThietYeu,
   docHangMLS1104,
+  doiChieuThietYeu,
   dongInTu,
+  ghepHangWord,
   gomNhom,
   laThieu,
   laThieuIn,
   ngayBaoCao,
   sachBanIn,
+  soCoDonVi,
   soIn,
   soTuToiThieu,
   tachHang,
   thangHopLe,
+  thangTuongLai,
+  tongHopNhom,
   type DongThietYeu,
 } from "@/lib/thietYeu";
 
@@ -106,6 +117,143 @@ kiemTra("muc 2 day so", [doc.muc[1].moTa, doc.muc[1].partNo, doc.muc[1].toiThieu
 kiemTra("so thap phan dau phay", doc.muc[2].hienCo, 0.5);
 kiemTra("hang tieu de cot / chu ky bi bo qua", doc.boQua >= 2, true);
 kiemTra("muc khong co nhom → Khac", docHangMLS1104([["1", "Loose item", "", "01"]]).muc[0].nhom, "Khác");
+
+// ─── 2b) Tệp tàu gửi nhiều khuôn: báo cáo tháng đã điền, bảng tiếng Anh, Excel ─
+console.log("\n=== 2b) Doc tep nhieu khuon ===");
+kiemTra(
+  "so co don vi",
+  ["1 SET", "2PCS", "0SET", "12 pcs", "1/2", "-", "abc", "", "1,5", "N/A"].map((s) => soCoDonVi(s)),
+  [1, 2, 0, 12, 0.5, 0, null, null, 1.5, null]
+);
+// Báo cáo tháng tàu đã điền (như tệp "… 2026_1.doc"): số thứ tự chung ô mô tả, 8 cột, số kèm
+// đơn vị; tiêu đề cột và ô ký bị xuống dòng trong ô; một ô mô tả cũng xuống dòng.
+const bodyThang = [
+  "DANH MỤC KIỂM TRA PHỤ TÙNG THIẾT YẾU TRÊN TÀU",
+  "CHECK LIST FOR ESSENTIAL SPARE PARTS ONBOARD",
+  "",
+  "Tên tàu (Vessel): M.TESTSHIP                              Ngày (Date):  30 /09/2026",
+  "",
+  "Mô tả",
+  "Description                    \tSố phụ tùng Spare Part No. \tTối thiểu Minimum\tSố phụ tùng ban đầu Begin stock\tSố phụ tùng nhận trong tháng",
+  "Rcvd. in month\tTổng tiêu thụ Total conspt\tHiện có Remain onboard \tVị trí Location   \t",
+  "A. Phụ tùng cho Máy chính (Spare Parts for Main Engine)\t",
+  "1. Main Bearing (Bạc trục):\tP-001\t2 set\t1\t0\t0\t1 SET\tE/R\t",
+  "2. Thrust bearing (Bạc đẩy)\tP-002\t1 set\t0\t0\t0\t0 SET\tE/R\t",
+  "3. O-ring (Doăng cao su kín nước)\t\t2 set\t1\t2\t1\t2PCS\tE/R\t",
+  "B. Phụ tùng cho diesel Máy phát điện (Spare parts for diesel generator Engine)\t",
+  "1. Main Bearing (Bạc trục):\t\t6 set\t0\t0\t0\t0SET\tE/R\t",
+  "2. Cylinder head",
+  "(Quy lát)\tP-009\t3 pcs\t1\t0\t0\t1PC\tE/R\t",
+  "",
+  "Máy hai",
+  "second engineer\tMáy trưởng",
+  "Chief Engineer\tThuyền trưởng",
+  "Master\t",
+  "Người Thử A\tNgười Thử B\tNgười Thử C\t",
+].join("\r\n");
+const hangThang = ghepHangWord(bodyThang);
+kiemTra(
+  "ghep hang: tieu de cot xuong dong trong o",
+  hangThang.find((h) => h[0].startsWith("Mô tả"))?.map((c) => c.replace(/\s+/g, " ").trim()).slice(0, 5),
+  ["Mô tả Description", "Số phụ tùng Spare Part No.", "Tối thiểu Minimum", "Số phụ tùng ban đầu Begin stock", "Số phụ tùng nhận trong tháng Rcvd. in month"]
+);
+kiemTra("ghep hang: o ky ten ghep lai", hangThang.some((h) => h[0].trim() === "Máy hai second engineer"), true);
+const kqThang = docBangThietYeu(hangThang);
+kiemTra("bao cao thang: tau, ngay, thang cua so", [kqThang.tenTau, kqThang.ngay, kqThang.thang, kqThang.theoTieuDe], ["M.TESTSHIP", "30/09/2026", "2026-09", true]);
+kiemTra(
+  "bao cao thang: 5 muc, stt tach khoi mo ta, bo dau ':' cuoi, so kem don vi",
+  kqThang.muc.map((m) => [m.nhom.slice(0, 1), m.stt, m.moTa, m.partNo, m.toiThieuSo, m.tonDau, m.nhan, m.tieuThu, m.hienCo, m.viTri]),
+  [
+    ["A", "1", "Main Bearing (Bạc trục)", "P-001", 2, 1, 0, 0, 1, "E/R"],
+    ["A", "2", "Thrust bearing (Bạc đẩy)", "P-002", 1, 0, 0, 0, 0, "E/R"],
+    ["A", "3", "O-ring (Doăng cao su kín nước)", null, 2, 1, 2, 1, 2, "E/R"],
+    ["B", "1", "Main Bearing (Bạc trục)", null, 6, 0, 0, 0, 0, "E/R"],
+    ["B", "2", "Cylinder head (Quy lát)", "P-009", 3, 1, 0, 0, 1, "E/R"],
+  ]
+);
+kiemTra("bao cao thang: dong ky ten / ho ten khong thanh muc", kqThang.muc.some((m) => /Máy hai|Người Thử/.test(m.moTa)), false);
+// Bảng tiếng Anh (No. · System Category · Spare Part Name · Min. Qty · Unit): nhóm theo cột.
+const kqAnh = docBangThietYeu(
+  ghepHangWord(
+    [
+      "Essential spare parts for a new container vessel",
+      "No.\tSystem Category\tEquipment Type\tSpare Part Name (English)\tCCS Standard Code\tMin. Qty\tUnit\tTechnical Remarks\t",
+      "1\tMain Engine\tCylinder Head\tCylinder Head (fully assembled)\tCCS-1\t1\tPIECE\tTested\t",
+      "2\tMain Engine\tFuel Injector\tFuel Injector Nozzle\tCCS-2\tAll\tPIECE\tPer cylinder\t",
+      "3\tAuxiliary Engine\tCylinder Head\tAuxiliary Cylinder Head\tCCS-3\t2\tPIECE\t\t",
+    ].join("\n")
+  )
+);
+kiemTra(
+  "bang tieng Anh: nhom theo cot, toi thieu + don vi",
+  kqAnh.muc.map((m) => [m.nhom, m.stt, m.moTa, m.partNo, m.toiThieu, m.toiThieuSo]),
+  [
+    ["Main Engine", "1", "Cylinder Head (fully assembled)", null, "1 PIECE", 1],
+    ["Main Engine", "2", "Fuel Injector Nozzle", null, "All PIECE", 0],
+    ["Auxiliary Engine", "3", "Auxiliary Cylinder Head", null, "2 PIECE", 2],
+  ]
+);
+// Excel: mỗi dòng sheet là một hàng ô (không có tab).
+const kqExcel = docBangThietYeu([
+  ["Tên tàu (Vessel): M. TESTSHIP", "", "", "Ngày (Date): 31/08/2026"],
+  ["STT", "Mô tả", "Số phụ tùng", "Tối thiểu", "Ban đầu", "Nhận", "Tiêu thụ", "Hiện có", "Vị trí"],
+  ["A. Máy chính", "", "", "", "", "", "", "", ""],
+  ["1", "Piston ring", "PR-1", "2 set", "3", "", "1", "2 set", "Kho máy"],
+]);
+kiemTra("excel: tau, thang, muc", [kqExcel.tenTau, kqExcel.thang, kqExcel.muc.map((m) => [m.nhom, m.moTa, m.tonDau, m.nhan, m.tieuThu, m.hienCo])], [
+  "M. TESTSHIP",
+  "2026-08",
+  [["A. Máy chính", "Piston ring", 3, null, 1, 2]],
+]);
+kiemTra(
+  "ten tau trong tep vs tau dang chon",
+  [
+    cungTauTep("M.ODYSSEY", { name: "M. ODYSSEY", code: "ML-001" }),
+    cungTauTep("ODYSSEY", { name: "M. ODYSSEY", code: "ML-001" }),
+    cungTauTep("MV ODYSSEY", { name: "M. ODYSSEY", code: "ML-001" }),
+    cungTauTep("ATLAS", { name: "M. ODYSSEY", code: "ML-001" }),
+    cungTauTep(null, { name: "M. ODYSSEY", code: "ML-001" }),
+  ],
+  [true, true, true, false, null]
+);
+// Đối chiếu với danh mục đang có: cùng nhóm, mô tả (bỏ dấu câu) → số phụ tùng → stt + đầu mô tả.
+const dc = doiChieuThietYeu(
+  [
+    { nhom: "A. Phụ tùng cho Máy chính (Spare Parts for Main Engine)", stt: "1", moTa: "Main Bearing (Bạc trục):", partNo: "P-001" },
+    { nhom: "A. Phụ tùng cho Máy chính (Spare Parts for Main Engine)", stt: "2", moTa: "Thrust bearing (Bạc đẩy)", partNo: "P-002" },
+    { nhom: "B. Phụ tùng cho diesel Máy phát điện", stt: "1", moTa: "Main Bearing (Bạc trục)", partNo: null },
+    { nhom: "B. Phụ tùng cho diesel Máy phát điện", stt: "2", moTa: "Cylinder head (Quy lát)", partNo: "P-009" },
+    { nhom: "B. Phụ tùng cho diesel Máy phát điện", stt: "3", moTa: "Piston", partNo: null },
+  ],
+  [
+    { id: 11, nhom: "A. Phụ tùng cho Máy chính", stt: "1", moTa: "Main Bearing (Bạc trục)", partNo: null },
+    { id: 12, nhom: "A. Phụ tùng cho Máy chính", stt: "2", moTa: "Thrust bearing", partNo: "P-002" },
+    { id: 21, nhom: "B. Máy phát", stt: "1", moTa: "Main Bearing (Bạc trục)", partNo: null },
+    { id: 22, nhom: "B. Máy phát", stt: "2", moTa: "Cylinder head (Quy lát) — cũ", partNo: null },
+    { id: 31, nhom: "C. Cần cẩu", stt: "1", moTa: "Hộp số", partNo: null },
+  ]
+);
+kiemTra("doi chieu: trung theo nhom + mo ta / so phu tung / stt; mo ta trung o nhom khac khong lan", [dc.khop, dc.khongTrongTep], [[11, 12, 21, 22, null], [31]]);
+kiemTra(
+  "can bo sung theo don vi cot toi thieu",
+  [
+    canBoSung({ toiThieu: "2 set", toiThieuSo: 2, hienCo: 1 }),
+    canBoSung({ toiThieu: "1/2 set", toiThieuSo: 0.5, hienCo: 0 }),
+    canBoSung({ toiThieu: "01", toiThieuSo: 1, hienCo: null }),
+    canBoSung({ toiThieu: "2 set", toiThieuSo: 2, hienCo: 2 }),
+  ],
+  [{ so: 1, donVi: "set" }, { so: 0.5, donVi: "set" }, null, null]
+);
+kiemTra("tong hop nhom", tongHopNhom([{ nhom: "A", toiThieuSo: 2, hienCo: 1 }, { nhom: "A", toiThieuSo: 1, hienCo: null }, { nhom: "B", toiThieuSo: 1, hienCo: 1 }]), [
+  { nhom: "A", soMuc: 2, soThieu: 1, soChuaCoSo: 1 },
+  { nhom: "B", soMuc: 1, soThieu: 0, soChuaCoSo: 0 },
+]);
+const vn = new Date("2026-09-30T20:00:00Z"); // 03:00 ngày 01/10 giờ Việt Nam
+kiemTra(
+  "thang theo gio Viet Nam (may chu UTC)",
+  [thangHopLe(null, vn), ngayBaoCao("2026-09", vn), thangTuongLai("2026-10", vn), thangTuongLai("2026-11", vn), congThang("2026-01", -1), congThang("2026-12", 1)],
+  ["2026-10", "30/09/2026", false, true, "2025-12", "2027-01"]
+);
 
 // ─── 3) Điền XML giả cùng cấu trúc mẫu ─────────────────────────────────────
 console.log("\n=== 3) Dien XML gia ===");
@@ -191,8 +339,11 @@ kiemTra("ban sua: o da sua vao Word", oCua(hangSua[2]).slice(1, 8).map((c) => c.
 kiemTra("ban sua: ten tau / ngay sua tay", chuCua(raSua).includes("M. ODYSSEY (sua)") && chuCua(raSua).includes("01/10/2026"), true);
 
 // ─── 4) Tệp MLS-11-04 thật trên Desktop (nếu có) ───────────────────────────
+// Đọc đúng đường app đọc (lib/docWord.ts + ghepHangWord). Thư mục thêm: biến môi trường
+// MLS1104_DIR (vd. thư mục báo cáo tháng tàu gửi) — tệp ở đó không vào git.
 const desktop = path.join(os.homedir(), "Desktop");
-const tepThat = existsSync(desktop) ? readdirSync(desktop).filter((f) => /^MLS-11-04.*\.docx?$/i.test(f)) : [];
+const thuMucThat = [desktop, ...(process.env.MLS1104_DIR ? [process.env.MLS1104_DIR] : [])];
+const tepThat = thuMucThat.flatMap((d) => (existsSync(d) ? readdirSync(d).filter((f) => /^MLS-11-04.*\.docx?$/i.test(f)).map((f) => path.join(d, f)) : []));
 let mucThat: DongThietYeu[] = [];
 async function docThat() {
   if (!tepThat.length) {
@@ -200,15 +351,18 @@ async function docThat() {
     return;
   }
   console.log(`\n=== 4) Doc ${tepThat.length} tep MLS-11-04 that ===`);
-  const { default: WordExtractor } = await import("word-extractor");
-  for (const f of tepThat) {
-    const kq = docHangMLS1104(tachHang((await new WordExtractor().extract(path.join(desktop, f))).getBody()));
+  for (const tep of tepThat) {
+    const f = path.basename(tep);
+    const kq = docBangThietYeu(ghepHangWord((await moTepWord(readFileSync(tep))).than()));
     const nhom = gomNhom(kq.muc).map((g) => `${g.nhom.slice(0, 1)}:${g.dong.length}`);
-    console.log(`  ${f}: ${kq.muc.length} muc, nhom ${nhom.join(" ")}, tau ${kq.tenTau}`);
+    console.log(`  ${f}: ${kq.muc.length} muc, nhom ${nhom.join(" ")}, tau ${kq.tenTau}, ngay ${kq.ngay ?? "-"}`);
     kiemTra(`${f}: co muc`, kq.muc.length > 40, true);
-    kiemTra(`${f}: 4 nhom A-D`, gomNhom(kq.muc).map((g) => g.nhom.slice(0, 1)), ["A", "B", "C", "D"]);
+    const chu = gomNhom(kq.muc).map((g) => g.nhom.slice(0, 1));
+    kiemTra(`${f}: nhom A, B, C… dung thu tu`, chu, "ABCDEFGH".slice(0, chu.length).split(""));
     kiemTra(`${f}: moi muc co toi thieu quy doi duoc`, kq.muc.filter((m) => m.toiThieuSo <= 0).map((m) => m.toiThieu), []);
     kiemTra(`${f}: stt nhom A bat dau tu 1`, kq.muc[0].stt, "1");
+    kiemTra(`${f}: co ten tau`, Boolean(kq.tenTau), true);
+    kiemTra(`${f}: khong con chu "undefined" cua word-extractor`, kq.muc.filter((m) => /undefined/.test(JSON.stringify(m))).length, 0);
     if (!mucThat.length) mucThat = kq.muc.map((m, i) => ({ ...m, id: i + 1, nguon: "UOC" as const, maVatTu: null, hienCo: i % 7 === 0 ? 0 : 1 }));
   }
 }

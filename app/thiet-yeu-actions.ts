@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireActiveRole } from "@/lib/auth";
 import { LAM_BAO_CAO_THIET_YEU, coQuanLyThietYeu } from "@/lib/roles";
@@ -8,11 +9,14 @@ import { ghiNhatKyNguoiDung } from "@/lib/audit";
 import { layT } from "@/lib/i18n/server";
 import { fileExtension } from "@/lib/uploads";
 import { laBanTau } from "@/lib/banCai";
-import { docHangMLS1104, soTuToiThieu, tachHang, thangHopLe } from "@/lib/thietYeu";
+import { cungTauTep, doiChieuThietYeu, gomNhom, laThieu, soTuToiThieu, thangHopLe, thangTuongLai, type KetQuaDocMLS1104, type MucThietYeuDoc } from "@/lib/thietYeu";
+import { DUOI_TEP_THIET_YEU, docTepThietYeu } from "@/lib/thietYeuTep";
+import { apDungNhapThietYeu, type CheDoNhapThietYeu } from "@/lib/thietYeuServer";
 
 /*
  * PHỤ TÙNG THIẾT YẾU (MLS-11-04) — quản lý RIÊNG, tách khỏi danh mục vật tư
- * chung: nhập danh mục từ tệp Word mẫu, sửa / thêm / xóa mục, lưu số kiểm tra
+ * chung: nhập danh mục từ tệp Word / Excel của tàu (xem trước rồi mới nhập; nhập lại tệp
+ * tháng sau là cập nhật số, giữ lịch sử), sửa / thêm / xóa mục, lưu số kiểm tra
  * hằng tháng. Người làm: Máy trưởng, Đại phó, Thuyền trưởng của đúng tàu, và
  * quản trị (coQuanLyThietYeu).
  */
@@ -44,81 +48,140 @@ async function timMatHangKhop(vesselId: number, muc: { partNo: string | null; mo
   });
 }
 
-/**
- * Nhập danh mục phụ tùng thiết yếu từ tệp Word MLS-11-04 (.doc / .docx).
- * cheDo "thay": xóa danh mục cũ của tàu rồi nạp mới (số tháng đã lưu của mục cũ
- * mất theo); "them": thêm vào cuối. Số "Hiện có" trong tệp (nếu có) thành số
- * hiện có ban đầu của mục.
- */
-export async function nhapThietYeuTuWord(_prev: KetQuaThietYeu, formData: FormData): Promise<KetQuaThietYeu> {
-  const { t } = await layT();
+/** Kiểm quyền + đọc tệp gửi lên (dùng chung cho xem trước và nhập). */
+async function docTepGuiLen(
+  formData: FormData,
+  t: Awaited<ReturnType<typeof layT>>["t"]
+): Promise<{ loi: string } | { actor: NonNullable<Awaited<ReturnType<typeof requireActiveRole>>>; vesselId: number; tenTep: string; kq: KetQuaDocMLS1104 }> {
   const actor = await requireActiveRole([...LAM_BAO_CAO_THIET_YEU]);
-  if (!actor) return { message: t("chung.khongCoQuyen") };
+  if (!actor) return { loi: t("chung.khongCoQuyen") };
   const vesselId = Number(formData.get("vesselId"));
-  if (!Number.isInteger(vesselId) || vesselId <= 0) return { message: t("actions.vuiLongChonTau") };
-  if (!coQuanLyThietYeu(actor, vesselId)) return { message: t("chung.khongCoQuyen") };
-  const cheDo = String(formData.get("cheDo") || "thay") === "them" ? "them" : "thay";
+  if (!Number.isInteger(vesselId) || vesselId <= 0) return { loi: t("actions.vuiLongChonTau") };
+  if (!coQuanLyThietYeu(actor, vesselId)) return { loi: t("chung.khongCoQuyen") };
   const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) return { message: t("actions.nhap_vuiLongChonFile") };
-  if (![".doc", ".docx"].includes(fileExtension(file.name))) return { message: t("thietYeu.chiNhanWord") };
-  if (file.size > 10 * 1024 * 1024) return { message: t("actions.nhap_fileQua10MB") };
+  if (!(file instanceof File) || file.size === 0) return { loi: t("actions.nhap_vuiLongChonFile") };
+  const duoi = fileExtension(file.name);
+  if (!(DUOI_TEP_THIET_YEU as readonly string[]).includes(duoi)) return { loi: t("thietYeu.chiNhanTep") };
+  if (file.size > 10 * 1024 * 1024) return { loi: t("actions.nhap_fileQua10MB") };
+  const doc = await docTepThietYeu(duoi, Buffer.from(await file.arrayBuffer()));
+  if (!doc.ok) return { loi: doc.loi === "duoi" ? t("thietYeu.chiNhanTep") : t("thietYeu.khongDocDuocTep") };
+  if (!doc.kq.muc.length) return { loi: t("thietYeu.khongThayMuc") };
+  return { actor, vesselId, tenTep: file.name, kq: { ...doc.kq, muc: doc.kq.muc.slice(0, TOI_DA_MUC) } };
+}
 
-  let body: string;
-  try {
-    const { default: WordExtractor } = await import("word-extractor");
-    body = (await new WordExtractor().extract(Buffer.from(await file.arrayBuffer()))).getBody();
-  } catch {
-    return { message: t("thietYeu.khongDocDuocWord") };
-  }
-  const doc = docHangMLS1104(tachHang(body));
-  if (!doc.muc.length) return { message: t("thietYeu.khongThayMuc") };
-  const muc = doc.muc.slice(0, TOI_DA_MUC);
-  const khop = await timMatHangKhop(vesselId, muc);
+export type MucXemTruoc = Pick<MucThietYeuDoc, "nhom" | "stt" | "moTa" | "partNo" | "toiThieu" | "tonDau" | "nhan" | "tieuThu" | "hienCo" | "viTri"> & {
+  thieu: boolean;
+  /** Trùng mục đã có trong danh mục của tàu (sẽ cập nhật, giữ lịch sử). */
+  trung: boolean;
+};
 
-  const daCo = cheDo === "them" ? await prisma.phuTungThietYeu.aggregate({ where: { vesselId }, _max: { thuTu: true } }) : null;
-  const thuTuDau = (daCo?._max.thuTu ?? 0) + 1;
-  const thang = thangHopLe(null);
-  await prisma.$transaction(async (tx) => {
-    if (cheDo === "thay") await tx.phuTungThietYeu.deleteMany({ where: { vesselId } });
-    for (let i = 0; i < muc.length; i++) {
-      const m = muc[i];
-      const moi = await tx.phuTungThietYeu.create({
-        data: {
-          vesselId,
-          nhom: m.nhom.slice(0, 200),
-          thuTu: thuTuDau + i,
-          stt: m.stt,
-          moTa: m.moTa,
-          partNo: m.partNo?.slice(0, 80) ?? null,
-          toiThieu: m.toiThieu?.slice(0, 60) ?? null,
-          toiThieuSo: m.toiThieuSo,
-          viTri: m.viTri?.slice(0, 120) ?? null,
-          hienCo: m.hienCo,
-          materialId: khop[i],
-        },
-        select: { id: true },
-      });
-      // Tệp đã điền số tháng: giữ lại làm số của tháng hiện tại.
-      if ([m.tonDau, m.nhan, m.tieuThu, m.hienCo].some((x) => x !== null)) {
-        await tx.phuTungThietYeuThang.create({
-          data: { itemId: moi.id, thang, tonDau: m.tonDau, nhan: m.nhan, tieuThu: m.tieuThu, hienCo: m.hienCo, viTri: m.viTri, nguoiLuu: actor.name },
-        });
-      }
-    }
-  });
-  const soGan = khop.filter(Boolean).length;
-  await ghiNhatKyNguoiDung(actor, {
+export type XemTruocThietYeu = {
+  message: string;
+  success?: boolean;
+  tep?: {
+    ten: string;
+    tenTau: string | null;
+    /** null = tệp không ghi tên tàu. */
+    khopTau: boolean | null;
+    tauDangChon: string;
+    ngay: string | null;
+    thang: string | null;
+    nhom: { ten: string; soMuc: number; soThieu: number }[];
+    muc: MucXemTruoc[];
+    coSo: number;
+    soThieu: number;
+    boQua: number;
+    soCoSan: number;
+    soTrung: number;
+    /** Mục đang có mà tệp không có (đồng bộ thì bị xóa). */
+    soKhongTrongTep: number;
+  };
+};
+
+/**
+ * Bước 1 của nhập tệp: ĐỌC THỬ, không ghi gì — trả về các nhóm / mục đọc được, tên tàu và
+ * ngày trên tệp, mục nào trùng danh mục đang có, để người nhập kiểm rồi mới bấm nhập.
+ */
+export async function xemTruocThietYeu(_prev: XemTruocThietYeu, formData: FormData): Promise<XemTruocThietYeu> {
+  const { t } = await layT();
+  const r = await docTepGuiLen(formData, t);
+  if ("loi" in r) return { message: r.loi };
+  const [tau, coSan] = await Promise.all([
+    prisma.vessel.findUnique({ where: { id: r.vesselId }, select: { name: true, code: true } }),
+    prisma.phuTungThietYeu.findMany({ where: { vesselId: r.vesselId }, select: { id: true, nhom: true, stt: true, moTa: true, partNo: true } }),
+  ]);
+  if (!tau) return { message: t("actions.tau_khongTonTai") };
+  const { khop, khongTrongTep } = doiChieuThietYeu(r.kq.muc, coSan);
+  const muc = r.kq.muc.map((m, i) => ({
+    nhom: m.nhom,
+    stt: m.stt,
+    moTa: m.moTa,
+    partNo: m.partNo,
+    toiThieu: m.toiThieu,
+    tonDau: m.tonDau,
+    nhan: m.nhan,
+    tieuThu: m.tieuThu,
+    hienCo: m.hienCo,
+    viTri: m.viTri,
+    thieu: laThieu(m),
+    trung: khop[i] !== null,
+  }));
+  return {
+    message: "",
+    success: true,
+    tep: {
+      ten: r.tenTep,
+      tenTau: r.kq.tenTau,
+      khopTau: cungTauTep(r.kq.tenTau, tau),
+      tauDangChon: tau.name,
+      ngay: r.kq.ngay,
+      thang: r.kq.thang,
+      nhom: gomNhom(muc).map((g) => ({ ten: g.nhom, soMuc: g.dong.length, soThieu: g.dong.filter((d) => d.thieu).length })),
+      muc,
+      coSo: muc.filter((m) => [m.tonDau, m.nhan, m.tieuThu, m.hienCo].some((v) => v !== null)).length,
+      soThieu: muc.filter((m) => m.thieu).length,
+      boQua: r.kq.boQua,
+      soCoSan: coSan.length,
+      soTrung: khop.filter((k) => k !== null).length,
+      soKhongTrongTep: khongTrongTep.length,
+    },
+  };
+}
+
+/**
+ * Bước 2: NHẬP tệp vào danh mục phụ tùng thiết yếu của tàu (lib/thietYeuServer.ts
+ * apDungNhapThietYeu). Đọc lại tệp ở máy chủ — không tin số trình duyệt gửi. `thang` = tháng
+ * của số trong tệp (mặc định theo ô Ngày của tệp), `cheDo` khi tàu đã có danh mục: cập nhật
+ * (giữ mục không có trong tệp) hoặc đồng bộ (xóa mục không còn trong tệp).
+ */
+export async function nhapThietYeuTuTep(_prev: KetQuaThietYeu, formData: FormData): Promise<KetQuaThietYeu> {
+  const { t } = await layT();
+  const r = await docTepGuiLen(formData, t);
+  if ("loi" in r) return { message: r.loi };
+  const thangRaw = String(formData.get("thang") ?? "");
+  const thang = thangHopLe(thangRaw);
+  if (thang !== thangRaw || thangTuongLai(thang)) return { message: t("thietYeu.thangSai") };
+  const cheDo: CheDoNhapThietYeu = String(formData.get("cheDo")) === "dongBo" ? "dongBo" : "capNhat";
+  const muc = r.kq.muc;
+  const ganKho = await timMatHangKhop(r.vesselId, muc);
+  const kq = await prisma.$transaction(
+    (tx) => apDungNhapThietYeu(tx, { vesselId: r.vesselId, muc, ganKho, cheDo, thang, nguoi: r.actor.name }),
+    { timeout: 60_000, maxWait: 10_000 }
+  );
+  const soNhom = new Set(muc.map((m) => m.nhom)).size;
+  const soGan = ganKho.filter(Boolean).length;
+  await ghiNhatKyNguoiDung(r.actor, {
     action: "thiet-yeu-nhap",
     path: "/materials/thiet-yeu",
-    vesselId,
-    detail: `Nhập MLS-11-04 "${file.name}" (${cheDo === "thay" ? "thay danh mục" : "thêm vào"}): ${muc.length} mục, ${new Set(muc.map((m) => m.nhom)).size} nhóm, ${soGan} gắn mặt hàng kho`,
+    vesselId: r.vesselId,
+    detail: `Nhập MLS-11-04 "${r.tenTep}" (${cheDo === "dongBo" ? "đồng bộ" : "cập nhật"}, số tháng ${thang}): ${muc.length} mục, ${soNhom} nhóm — ${kq.taoMoi} mới, ${kq.capNhat} cập nhật, ${kq.xoa} xóa, ${kq.soThang} mục có số tháng, ${soGan} gắn mặt hàng kho`,
   });
   revalidatePath("/materials/thiet-yeu");
   revalidatePath("/dashboard");
-  return {
-    message: t("thietYeu.daNhap", { n: muc.length, nhom: new Set(muc.map((m) => m.nhom)).size, gan: soGan }),
-    success: true,
-  };
+  // Mở đúng tháng của số trong tệp, báo kết quả ở đầu trang (?daNhap=n.nhom.moi.capNhat.xoa.
+  // soThang.gan). Chuyển trang ở máy chủ: lần nhập đầu tiên làm trang đổi hẳn (từ "chưa có
+  // danh mục" sang bảng) nên form gọi action đã biến mất trước khi kịp tự chuyển.
+  redirect(`/materials/thiet-yeu?vessel=${r.vesselId}&thang=${thang}&daNhap=${[muc.length, soNhom, kq.taoMoi, kq.capNhat, kq.xoa, kq.soThang, soGan].join(".")}`);
 }
 
 export type DongLuuThang = {

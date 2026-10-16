@@ -1,20 +1,26 @@
+import { dauThangVN, ngayCuaVN } from "@/lib/kyQuy";
+
 /**
  * PHỤ TÙNG THIẾT YẾU (MLS-11-04 "Danh mục kiểm tra phụ tùng thiết yếu trên
- * tàu") — phần thuần, không đụng database: đọc bảng của mẫu Word, quy đổi cột
- * "Tối thiểu", dựng dòng báo cáo tháng. Kiểm ở scripts/kiem-tra-thiet-yeu.ts.
+ * tàu") — phần thuần, không đụng database: đọc bảng của tệp tàu gửi (Word / Excel),
+ * quy đổi cột "Tối thiểu", đối chiếu với danh mục đã có, dựng dòng báo cáo tháng.
+ * Kiểm ở scripts/kiem-tra-thiet-yeu.ts.
  *
  * Danh mục này được quản lý RIÊNG, tách khỏi danh mục vật tư chung: đó là
  * danh sách kiểm tra do công ty quy định (mỗi mục có mức tối thiểu phải luôn
  * có trên tàu), tàu điền số hằng tháng và ký gửi văn phòng. Một mục có thể gắn
  * với mặt hàng trong danh mục kho để lấy sẵn số nhập / xuất, nhưng không bắt buộc.
  *
- * Bảng của mẫu (đọc bằng word-extractor: mỗi hàng bảng một dòng, ô cách nhau
- * bằng tab) có ba loại hàng:
- *   - Tiêu đề nhóm, hai kiểu: "A. Phụ tùng cho Máy chính (Spare Parts for Main
- *     Engine)" nằm trong một ô, hoặc "C" | "SPARE PARTS FOR BOILERS" hai ô.
- *   - Mục: stt | Mô tả | Số phụ tùng | Tối thiểu | Ban đầu | Nhận trong tháng |
- *     Tổng tiêu thụ | Hiện có | Vị trí.
- *   - Hàng tiêu đề cột, hàng trống, chữ ký: bỏ qua.
+ * Tệp tàu gửi KHÔNG cùng một khuôn nên đọc theo DÒNG TIÊU ĐỀ CỘT (Mô tả / Description,
+ * Số phụ tùng, Tối thiểu, Ban đầu, Nhận, Tiêu thụ, Hiện có, Vị trí — tiếng Việt hay tiếng
+ * Anh), không theo vị trí cột cố định:
+ *   - mẫu trống của công ty: cột "stt" riêng, 9 cột;
+ *   - báo cáo tháng tàu đã điền: số thứ tự viết chung ô mô tả ("1. Main Bearing (Bạc
+ *     trục):"), 8 cột, số kèm đơn vị ("1 SET", "2PCS");
+ *   - bảng tiếng Anh kiểu No. · System Category · Spare Part Name · Min. Qty · Unit.
+ * Tiêu đề nhóm, hai kiểu: "A. Phụ tùng cho Máy chính (...)" một ô, hoặc "C" | "SPARE
+ * PARTS FOR BOILERS" hai ô; bảng có cột nhóm (System Category) thì nhóm theo cột đó.
+ * Không thấy dòng tiêu đề cột thì đọc theo khuôn MLS-11-04 (stt | mô tả | …).
  */
 
 export type MucThietYeuDoc = {
@@ -34,11 +40,26 @@ export type MucThietYeuDoc = {
 export type KetQuaDocMLS1104 = {
   muc: MucThietYeuDoc[];
   tenTau: string | null;
+  /** Ô "Ngày (Date)" của tệp (dd/mm/yyyy) và tháng của số trong tệp ("YYYY-MM"); null = chưa điền. */
+  ngay: string | null;
+  thang: string | null;
   /** Hàng có chữ mà không nhận ra (không phải nhóm, không phải mục). */
   boQua: number;
+  /** Đọc theo dòng tiêu đề cột (true) hay theo khuôn MLS-11-04 cố định. */
+  theoTieuDe: boolean;
 };
 
 const sach = (s: string | undefined) => (s ?? "").replace(/\s+/g, " ").trim();
+/** Chữ thường, bỏ dấu, gộp khoảng trắng — để so tiêu đề cột / tên tàu. */
+const khongDau = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+const hai = (n: number) => String(n).padStart(2, "0");
 
 /** Số trong một ô: "3", "2,5", " 1 " → số; trống / chữ → null. */
 export function soTrongO(s: string | undefined): number | null {
@@ -46,6 +67,22 @@ export function soTrongO(s: string | undefined): number | null {
   if (!t) return null;
   const m = t.match(/^-?\d+(?:\.\d+)?$/);
   return m ? Number(t) : null;
+}
+
+/**
+ * Số trong ô số của tệp tàu đã điền: như soTrongO nhưng nhận cả đơn vị viết kèm ("1 SET",
+ * "2PCS", "12 pcs" → 1, 2, 12), phân số ("1/2" → 0,5) và gạch ("-" = không có → 0). Chữ
+ * khác → null (không đoán).
+ */
+export function soCoDonVi(s: string | undefined): number | null {
+  const t = sach(s).toLowerCase().replace(",", ".");
+  if (!t) return null;
+  if (/^[-–—]+$/.test(t)) return 0;
+  if (/^½/.test(t)) return 0.5;
+  const ps = /^(\d+)\s*\/\s*(\d+)(?![\d.])/.exec(t);
+  if (ps && Number(ps[2]) > 0) return Number(ps[1]) / Number(ps[2]);
+  const m = /^(-?\d+(?:\.\d+)?)(?:\s*[^\d\s./].*)?$/.exec(t);
+  return m ? Number(m[1]) : null;
 }
 
 /**
@@ -78,75 +115,360 @@ function nhanNhom(o: string[]): string | null {
   return null;
 }
 
+/** Mô tả gọn: một dòng, bỏ dấu ":" thừa cuối ("Main Bearing (Bạc trục):"). */
+const gonMoTa = (s: string) =>
+  sach(s)
+    .replace(/\s*:\s*$/, "")
+    .slice(0, 300);
+
+// ─── Hàng bảng từ chữ Word ──────────────────────────────────────────────────
+
 /**
- * Đọc bảng MLS-11-04 từ các hàng đã tách ô. Mục đứng trước mọi tiêu đề nhóm
- * (mẫu tự làm) vào nhóm "Khác". Tên tàu lấy từ dòng "Tên tàu (Vessel) …".
+ * Hàng bảng từ chữ word-extractor. Ô kết thúc bằng tab, hàng bảng kết thúc bằng tab ở
+ * cuối dòng; xuống dòng TRONG một ô (tiêu đề "Mô tả⏎Description", ô ký "Máy hai⏎second
+ * engineer") cắt hàng thành nhiều dòng — ghép lại tới dòng kết thúc bằng tab. Dòng không
+ * có tab đứng ngay trước một mảnh hàng chỉ được ghép khi nó giống mảnh ô (ngắn, hoặc mở
+ * đầu bằng số thứ tự / chữ nhóm); đoạn văn thường (tên biểu mẫu) đứng riêng.
  */
-export function docHangMLS1104(hang: string[][]): KetQuaDocMLS1104 {
+export function ghepHangWord(body: string): string[][] {
+  const ra: string[][] = [];
+  const xuat = (s: string) => ra.push(s.split("\t"));
+  const giongManhO = (s: string) => {
+    const t = s.trim();
+    return t.length > 0 && (t.length <= 30 || /^\d{1,3}\s*[.)]?\s+\S/.test(t) || /^[A-ZĐ]\s*[.)]\s*\S/.test(t));
+  };
+  let manh: string | null = null;
+  let soManh = 0;
+  let cho: string | null = null;
+  for (const dong of body.split(/\r?\n/)) {
+    if (manh !== null) {
+      manh += ` ${dong}`;
+      soManh++;
+      // Hàng hỏng không bao giờ kết thúc: cắt sau 8 dòng để không nuốt cả phần còn lại.
+      if (dong.endsWith("\t") || soManh >= 8) {
+        xuat(manh);
+        manh = null;
+      }
+      continue;
+    }
+    if (dong.includes("\t")) {
+      let dau = "";
+      if (cho !== null) {
+        if (giongManhO(cho)) dau = `${cho} `;
+        else xuat(cho);
+        cho = null;
+      }
+      if (dong.endsWith("\t")) xuat(dau + dong);
+      else {
+        manh = dau + dong;
+        soManh = 1;
+      }
+      continue;
+    }
+    if (cho !== null) xuat(cho);
+    cho = dong.trim() ? dong : null;
+  }
+  if (manh !== null) xuat(manh);
+  if (cho !== null) xuat(cho);
+  return ra;
+}
+
+/** Tách văn bản word-extractor (hàng = dòng, ô = tab) thành các hàng ô — không ghép hàng bị cắt. */
+export function tachHang(body: string): string[][] {
+  return body.split(/\r?\n/).map((d) => d.split("\t"));
+}
+
+// ─── Đầu tệp: tên tàu, ngày ─────────────────────────────────────────────────
+
+/**
+ * Tên tàu và ngày trên đầu tệp: "Tên tàu (Vessel): M.ODYSSEY      Ngày (Date): 30 /09/2026"
+ * (mẫu trống "ODYSSEY………….. Ngày (Date):……../…….. /2026" → chỉ có tên tàu). Ngày cho biết
+ * số trong tệp là của tháng nào.
+ */
+export function docDauTep(dong: readonly string[]): { tenTau: string | null; ngay: string | null; thang: string | null } {
+  let tenTau: string | null = null;
+  let ngay: string | null = null;
+  let thang: string | null = null;
+  for (const raw of dong) {
+    const s = raw.normalize("NFC").replace(/\t/g, "   ");
+    if (!tenTau) {
+      const m =
+        /(?:t[êe]n t[àa]u\s*\(\s*vessel\s*\)|\(\s*vessel\s*\)|vessel'?s? name|vessel(?=\s*[:：])|t[êe]n t[àa]u)\s*[:：]?\s*(.+?)\s*(?=ng[àa]y\b|\(\s*date|date\s*[:：(]|…|\.{2,}|\s{3,}|$)/i.exec(s);
+      const t = m ? m[1].replace(/[\s.:…]+$/, "").trim() : "";
+      if (/[\p{L}\p{N}]/u.test(t)) tenTau = t.slice(0, 80);
+    }
+    if (!ngay) {
+      const d = /(?:date|ng[àa]y)\s*\)?\s*[:：]?\s*(\d{1,2})\s*[/.-]\s*(\d{1,2})\s*[/.-]\s*(\d{4})/i.exec(s);
+      if (d) {
+        const [dd, mm, yy] = [Number(d[1]), Number(d[2]), Number(d[3])];
+        if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12 && yy >= 2000 && yy <= 2100) {
+          ngay = `${hai(dd)}/${hai(mm)}/${yy}`;
+          thang = `${yy}-${hai(mm)}`;
+        }
+      }
+    }
+  }
+  return { tenTau, ngay, thang };
+}
+
+/**
+ * Tên tàu ghi trong tệp có phải tàu đang chọn không — so phần tên sau khi bỏ "M." / "MV",
+ * dấu chấm, khoảng trắng ("M.ODYSSEY" = "M. ODYSSEY" = "ODYSSEY"). null = tệp không ghi tên.
+ */
+export function cungTauTep(tenTep: string | null, tau: { name: string; code: string }): boolean | null {
+  if (!tenTep) return null;
+  const goc = (s: string) =>
+    khongDau(s)
+      .split(/[^a-z0-9]+/)
+      .filter((x) => x && !["m", "mv", "mt", "ms", "ss", "tau"].includes(x))
+      .join("");
+  const a = goc(tenTep);
+  if (a.length < 3) return null;
+  return [tau.name, tau.code].some((x) => {
+    const b = goc(x);
+    return b.length >= 3 && (a === b || a.includes(b) || b.includes(a));
+  });
+}
+
+// ─── Đọc bảng ───────────────────────────────────────────────────────────────
+
+type CotTep = "stt" | "moTa" | "partNo" | "toiThieu" | "donVi" | "tonDau" | "nhan" | "tieuThu" | "hienCo" | "viTri" | "nhom" | "thietBi";
+
+/**
+ * Nhận cột theo chữ tiêu đề (đã bỏ dấu). Thứ tự quan trọng: "Số phụ tùng ban đầu" là cột
+ * Ban đầu, "Số phụ tùng nhận trong tháng" là cột Nhận — chỉ "Số phụ tùng (Spare Part No.)"
+ * mới là cột số phụ tùng.
+ */
+const NHAN_COT: [CotTep, RegExp][] = [
+  ["tonDau", /ban dau|begin(ning)? stock|opening|last r\.?o\.?b|ton dau/],
+  ["nhan", /^nhan$|nhan trong|nhap trong|rcvd|receiv/],
+  ["tieuThu", /tieu thu|consum|conspt|^cons\.?$|su dung/],
+  ["hienCo", /hien co|remain|r\.?o\.?b|on ?board|ton tren tau/],
+  ["toiThieu", /toi thieu|minimum|min\.? ?(qty|quantity)|^min\.?$/],
+  ["donVi", /^(unit|units|dvt|don vi( tinh)?|uom)\b/],
+  ["viTri", /vi tri|location|noi (de|cat)/],
+  ["partNo", /spare part no|part ?no\b|part number|p\/n|so phu tung|ma phu tung|so hieu/],
+  ["stt", /^(stt|tt|so tt|no\.?|nr\.?|s\/n|#|item no\.?)$/],
+  ["moTa", /mo ta|description|part name|ten phu tung|ten vat tu|ten hang|^name$|^items?$/],
+  ["nhom", /system category|^nhom|category|^group/],
+  ["thietBi", /equipment|thiet bi/],
+];
+
+type TieuDe = { vt: number; cot: Partial<Record<CotTep, number>> };
+
+/** Dòng tiêu đề cột: có cột mô tả, có cột tối thiểu hoặc hiện có, nhận ra ít nhất 3 cột. */
+function timTieuDe(hang: readonly string[][]): TieuDe | null {
+  for (let i = 0; i < Math.min(hang.length, 40); i++) {
+    const o = hang[i].map((c) => khongDau(c ?? ""));
+    if (o.filter(Boolean).length < 3) continue;
+    const cot: Partial<Record<CotTep, number>> = {};
+    o.forEach((c, j) => {
+      if (!c || c.length > 80) return;
+      const k = NHAN_COT.find(([ten, re]) => cot[ten] === undefined && re.test(c));
+      if (k) cot[k[0]] = j;
+    });
+    if (cot.moTa !== undefined && (cot.toiThieu !== undefined || cot.hienCo !== undefined) && Object.keys(cot).length >= 3) return { vt: i, cot };
+  }
+  return null;
+}
+
+function docTheoTieuDe(hang: readonly string[][], { vt, cot }: TieuDe): { muc: MucThietYeuDoc[]; boQua: number } {
+  const o = (r: string[], k: CotTep) => (cot[k] === undefined ? "" : sach(r[cot[k]!]));
+  const muc: MucThietYeuDoc[] = [];
+  let nhom = "Khác";
+  let nhomCot = "";
+  let boQua = 1; // chính dòng tiêu đề
+  const sttTuDong = new Map<string, number>();
+  for (const r of hang.slice(vt + 1)) {
+    if (!r.some((c) => sach(c))) continue;
+    const n = nhanNhom(r);
+    if (n) {
+      nhom = n;
+      nhomCot = "";
+      continue;
+    }
+    let stt = o(r, "stt").replace(/[.)]$/, "");
+    let moTa = o(r, "moTa") || o(r, "thietBi");
+    // Số thứ tự viết chung ô mô tả: "1. Main Bearing (Bạc trục):".
+    const g = /^(\d{1,3})\s*[.)\-–:]\s*(\S.*)$/.exec(moTa) ?? (!stt ? /^(\d{1,3})\s+(\D.*)$/.exec(moTa) : null);
+    if (g && (!stt || stt === g[1])) {
+      stt = g[1];
+      moTa = g[2];
+    }
+    const toiThieuChu = [o(r, "toiThieu"), o(r, "donVi")].filter(Boolean).join(" ");
+    const coStt = /^\d{1,4}$/.test(stt);
+    // Không số thứ tự: chỉ nhận khi bảng không có cột stt mà ô tối thiểu là một lượng
+    // ("2 set", "½") — dòng ký tên / họ tên cuối bảng cũng rơi đúng các cột đó.
+    if (gonMoTa(moTa).length < 2 || (!coStt && (cot.stt !== undefined || !/^(\d|½)/.test(o(r, "toiThieu"))))) {
+      boQua++;
+      continue;
+    }
+    if (cot.nhom !== undefined) nhomCot = o(r, "nhom") || nhomCot;
+    const nhomMuc = (nhomCot || nhom).slice(0, 200);
+    if (!coStt) {
+      const k = (sttTuDong.get(nhomMuc) ?? 0) + 1;
+      sttTuDong.set(nhomMuc, k);
+      stt = String(k);
+    }
+    const toiThieu = toiThieuChu || null;
+    muc.push({
+      nhom: nhomMuc,
+      stt,
+      moTa: gonMoTa(moTa),
+      partNo: o(r, "partNo") || null,
+      toiThieu,
+      toiThieuSo: soTuToiThieu(toiThieu),
+      tonDau: soCoDonVi(o(r, "tonDau")),
+      nhan: soCoDonVi(o(r, "nhan")),
+      tieuThu: soCoDonVi(o(r, "tieuThu")),
+      hienCo: soCoDonVi(o(r, "hienCo")),
+      viTri: o(r, "viTri") || null,
+    });
+  }
+  return { muc, boQua };
+}
+
+/** Khuôn MLS-11-04 cố định khi không thấy dòng tiêu đề: stt | mô tả | số phụ tùng | tối thiểu | ban đầu | nhận | tiêu thụ | hiện có | vị trí. */
+function docTheoKhuon(hang: readonly string[][]): { muc: MucThietYeuDoc[]; boQua: number } {
   const muc: MucThietYeuDoc[] = [];
   let nhom = "Khác";
   let boQua = 0;
-  let tenTau: string | null = null;
+  const mucTu = (stt: string, moTa: string, sau: string[]): MucThietYeuDoc => {
+    const toiThieu = sach(sau[1]) || null;
+    return {
+      nhom,
+      stt,
+      moTa: gonMoTa(moTa),
+      partNo: sach(sau[0]) || null,
+      toiThieu,
+      toiThieuSo: soTuToiThieu(toiThieu),
+      tonDau: soCoDonVi(sau[2]),
+      nhan: soCoDonVi(sau[3]),
+      tieuThu: soCoDonVi(sau[4]),
+      hienCo: soCoDonVi(sau[5]),
+      viTri: sach(sau[6]) || null,
+    };
+  };
   for (const o of hang) {
-    const coChu = o.some((c) => sach(c));
-    if (!coChu) continue;
+    if (!o.some((c) => sach(c))) continue;
     const c0 = sach(o[0]);
-    if (!tenTau && /Vessel\)/i.test(c0)) {
-      const m = c0.match(/Vessel\)\s*[:：]?\s*([^….]+?)\s*[….]{2,}/i) ?? c0.match(/Vessel\)\s*[:：]?\s*(\S[^N]*?)\s{2,}/i);
-      if (m && sach(m[1])) tenTau = sach(m[1]);
-      continue;
-    }
+    if (/vessel\)|t[êe]n t[àa]u/i.test(c0)) continue;
     const n = nhanNhom(o);
     if (n) {
       nhom = n;
       continue;
     }
     if (/^\d{1,3}$/.test(c0) && sach(o[1])) {
-      const toiThieu = sach(o[3]) || null;
-      muc.push({
-        nhom,
-        stt: c0,
-        moTa: sach(o[1]).slice(0, 300),
-        partNo: sach(o[2]) || null,
-        toiThieu,
-        toiThieuSo: soTuToiThieu(toiThieu),
-        tonDau: soTrongO(o[4]),
-        nhan: soTrongO(o[5]),
-        tieuThu: soTrongO(o[6]),
-        hienCo: soTrongO(o[7]),
-        viTri: sach(o[8]) || null,
-      });
+      muc.push(mucTu(c0, o[1], o.slice(2)));
       continue;
     }
-    // Tiêu đề cột, chữ ký, ghi chú...
-    boQua++;
+    const g = /^(\d{1,3})\s*[.)]\s*(\S.*)$/.exec(c0);
+    if (g && o.length >= 3) {
+      muc.push(mucTu(g[1], g[2], o.slice(1)));
+      continue;
+    }
+    boQua++; // tiêu đề cột, chữ ký, ghi chú...
   }
-  return { muc, tenTau, boQua };
+  return { muc, boQua };
 }
 
-/** Tách văn bản word-extractor (hàng = dòng, ô = tab) thành các hàng ô. */
-export function tachHang(body: string): string[][] {
-  return body.split(/\r?\n/).map((d) => d.split("\t"));
+/**
+ * Đọc bảng danh mục phụ tùng thiết yếu từ các hàng đã tách ô (Word: ghepHangWord; Excel:
+ * từng dòng của sheet). Mục đứng trước mọi tiêu đề nhóm vào nhóm "Khác".
+ */
+export function docBangThietYeu(hang: readonly string[][]): KetQuaDocMLS1104 {
+  const dau = docDauTep(hang.slice(0, 40).map((o) => o.join("\t")));
+  const td = timTieuDe(hang);
+  const theoTieuDe = td ? docTheoTieuDe(hang, td) : null;
+  // Lưới an toàn: dòng tiêu đề bị cắt dở (chỉ nửa sau lọt vào một hàng) làm lệch cột → đọc
+  // theo khuôn MLS-11-04 ra nhiều mục hơn thì lấy khuôn.
+  const theoKhuon = docTheoKhuon(hang);
+  const chon = theoTieuDe && theoTieuDe.muc.length >= theoKhuon.muc.length ? theoTieuDe : theoKhuon;
+  return { muc: chon.muc, tenTau: dau.tenTau, ngay: dau.ngay, thang: dau.thang, boQua: chon.boQua, theoTieuDe: chon === theoTieuDe };
 }
 
-/** Tháng "YYYY-MM" hợp lệ, không thì tháng hiện tại. */
+/** Tên cũ — giữ cho chỗ gọi / kiểm thử sẵn có. */
+export const docHangMLS1104 = docBangThietYeu;
+
+// ─── Đối chiếu tệp với danh mục đã có ───────────────────────────────────────
+
+export type MucCoSan = { id: number; nhom: string; stt: string | null; moTa: string; partNo: string | null };
+
+const chuanKhop = (s: string | null | undefined) =>
+  (s ?? "")
+    .normalize("NFC")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+/** Khóa nhóm: chữ cái đầu ("A. …" → "a") — đổi chữ sau tên nhóm vẫn là nhóm đó — hoặc cả tên nhóm. */
+export const khoaNhom = (n: string) => {
+  const m = /^\s*([A-ZĐ])\s*[.)]/.exec(n);
+  return m ? m[1].toLowerCase() : chuanKhop(n);
+};
+
+/**
+ * Ghép từng mục của tệp với mục đã có trong danh mục của tàu — để nhập tệp tháng sau
+ * CẬP NHẬT số chứ không nhân đôi danh mục hay mất lịch sử các tháng. Cùng nhóm (chữ A/B/C
+ * hoặc tên nhóm) và lần lượt: mô tả trùng (bỏ dấu câu, hoa thường) → số phụ tùng trùng →
+ * cùng số thứ tự mà mô tả cùng đầu. Mỗi mục đã có ghép với tối đa một mục của tệp.
+ */
+export function doiChieuThietYeu(
+  tep: readonly Pick<MucThietYeuDoc, "nhom" | "stt" | "moTa" | "partNo">[],
+  coSan: readonly MucCoSan[]
+): { khop: (number | null)[]; khongTrongTep: number[] } {
+  const khop: (number | null)[] = tep.map(() => null);
+  const daDung = new Set<number>();
+  const buoc = (khoa: (m: { nhom: string; stt: string | null; moTa: string; partNo: string | null }) => string | null) => {
+    const theo = new Map<string, MucCoSan[]>();
+    for (const c of coSan) {
+      const k = daDung.has(c.id) ? null : khoa(c);
+      if (k) theo.set(k, [...(theo.get(k) ?? []), c]);
+    }
+    tep.forEach((m, i) => {
+      const k = khop[i] === null ? khoa(m) : null;
+      const c = k ? theo.get(k)?.find((x) => !daDung.has(x.id)) : undefined;
+      if (c) {
+        khop[i] = c.id;
+        daDung.add(c.id);
+      }
+    });
+  };
+  buoc((m) => (chuanKhop(m.moTa) ? `${khoaNhom(m.nhom)}|${chuanKhop(m.moTa)}` : null));
+  buoc((m) => (chuanKhop(m.partNo).length >= 3 ? `${khoaNhom(m.nhom)}|pn|${chuanKhop(m.partNo)}` : null));
+  buoc((m) => (m.stt && chuanKhop(m.moTa) ? `${khoaNhom(m.nhom)}|${m.stt}|${chuanKhop(m.moTa).slice(0, 12)}` : null));
+  return { khop, khongTrongTep: coSan.filter((c) => !daDung.has(c.id)).map((c) => c.id) };
+}
+
+// ─── Tháng (giờ Việt Nam) ───────────────────────────────────────────────────
+
+/** Tháng "YYYY-MM" hợp lệ, không thì tháng hiện tại (giờ Việt Nam — máy chủ chạy giờ UTC). */
 export function thangHopLe(s: string | null | undefined, bayGio = new Date()): string {
   const m = /^(\d{4})-(\d{2})$/.exec(String(s ?? ""));
   if (m && Number(m[2]) >= 1 && Number(m[2]) <= 12) return `${m[1]}-${m[2]}`;
-  return `${bayGio.getFullYear()}-${String(bayGio.getMonth() + 1).padStart(2, "0")}`;
+  const n = ngayCuaVN(bayGio);
+  return `${n.nam}-${hai(n.thang)}`;
 }
 
-/** [đầu tháng, đầu tháng sau) theo giờ máy chủ. */
+/** Tháng `thang` có sau tháng hiện tại (giờ Việt Nam) không — số tháng tương lai không nhận. */
+export const thangTuongLai = (thang: string, bayGio = new Date()) => thang > thangHopLe(null, bayGio);
+
+/** "YYYY-MM" lùi / tiến `n` tháng. */
+export function congThang(thang: string, n: number): string {
+  const [y, m] = thang.split("-").map(Number);
+  const t = y * 12 + (m - 1) + n;
+  return `${Math.floor(t / 12)}-${hai((t % 12) + 1)}`;
+}
+
+/** [đầu tháng, đầu tháng sau) theo giờ Việt Nam. */
 export function khoangThang(thang: string): { dau: Date; cuoi: Date } {
   const [y, m] = thang.split("-").map(Number);
-  return { dau: new Date(y, m - 1, 1), cuoi: new Date(y, m, 1) };
+  return { dau: dauThangVN(y, m), cuoi: dauThangVN(y, m + 1) };
 }
 
-/** Ngày ghi trên báo cáo: tháng đang chạy → hôm nay; tháng đã qua → ngày cuối tháng. dd/mm/yyyy. */
+/** Ngày ghi trên báo cáo: tháng đang chạy → hôm nay; tháng đã qua → ngày cuối tháng (giờ Việt Nam). dd/mm/yyyy. */
 export function ngayBaoCao(thang: string, bayGio = new Date()): string {
-  const { cuoi } = khoangThang(thang);
-  const d = bayGio < cuoi && bayGio >= khoangThang(thang).dau ? bayGio : new Date(cuoi.getTime() - 24 * 3600 * 1000);
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  const { dau, cuoi } = khoangThang(thang);
+  const n = ngayCuaVN(bayGio < cuoi && bayGio >= dau ? bayGio : new Date(cuoi.getTime() - 1));
+  return `${hai(n.ngay)}/${hai(n.thang)}/${n.nam}`;
 }
 
 /** Một dòng báo cáo tháng (đã có số) — dùng chung cho trang, bản in và tệp Word. */
@@ -171,6 +493,28 @@ export type DongThietYeu = {
 /** Thiếu: có mức tối thiểu và số hiện có (đã biết) thấp hơn. */
 export function laThieu(d: Pick<DongThietYeu, "toiThieuSo" | "hienCo">): boolean {
   return d.toiThieuSo > 0 && d.hienCo !== null && d.hienCo < d.toiThieuSo - 1e-9;
+}
+
+/**
+ * Phần cần bổ sung của một mục dưới mức tối thiểu: thiếu bao nhiêu, theo đơn vị của cột
+ * Tối thiểu ("2 set", hiện có 1 → thiếu 1 "set"). null khi không thiếu.
+ */
+export function canBoSung(d: Pick<DongThietYeu, "toiThieu" | "toiThieuSo" | "hienCo">): { so: number; donVi: string } | null {
+  if (!laThieu(d)) return null;
+  return {
+    so: Math.round((d.toiThieuSo - (d.hienCo ?? 0)) * 100) / 100,
+    donVi: sach(d.toiThieu ?? "").replace(/^(½|\d+(?:[.,]\d+)?(?:\s*\/\s*\d+)?)\s*/, ""),
+  };
+}
+
+/** Tóm tắt từng nhóm của báo cáo tháng: số mục, dưới tối thiểu, chưa có số hiện có. */
+export function tongHopNhom(dong: readonly Pick<DongThietYeu, "nhom" | "toiThieuSo" | "hienCo">[]): { nhom: string; soMuc: number; soThieu: number; soChuaCoSo: number }[] {
+  return gomNhom([...dong]).map((g) => ({
+    nhom: g.nhom,
+    soMuc: g.dong.length,
+    soThieu: g.dong.filter(laThieu).length,
+    soChuaCoSo: g.dong.filter((d) => d.hienCo === null).length,
+  }));
 }
 
 /** Gom dòng theo nhóm, giữ thứ tự xuất hiện. */

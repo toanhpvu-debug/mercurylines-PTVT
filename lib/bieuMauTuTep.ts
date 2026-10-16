@@ -11,6 +11,7 @@
  * scripts/kiem-tra-bieu-mau-tu-tep.ts.
  */
 import JSZip from "jszip";
+import { moTepWord } from "@/lib/docWord";
 
 export type TruongBieuMau = {
   companyName: string;
@@ -218,9 +219,8 @@ async function docXlsx(buffer: Buffer): Promise<KetQuaTrichBieuMau> {
 }
 
 async function docDocCu(buffer: Buffer): Promise<KetQuaTrichBieuMau> {
-  const { default: WordExtractor } = await import("word-extractor");
-  const doc = await new WordExtractor().extract(buffer);
-  const dong = [...doc.getHeaders({ includeFooters: false }).split(/\r?\n/), ...doc.getBody().split(/\r?\n/).slice(0, 30)]
+  const doc = await moTepWord(buffer);
+  const dong = [...doc.dau(false).split(/\r?\n/), ...doc.than().split(/\r?\n/).slice(0, 30)]
     .flatMap((l) => l.split("\t"))
     .map(sach)
     .filter(Boolean);

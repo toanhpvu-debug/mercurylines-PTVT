@@ -13,10 +13,11 @@
  */
 import os from "node:os";
 import path from "node:path";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
-import { docHangMLS1104, soTuToiThieu, tachHang, thangHopLe, type MucThietYeuDoc } from "@/lib/thietYeu";
-import { layBangThietYeu } from "@/lib/thietYeuServer";
+import { moTepWord } from "@/lib/docWord";
+import { docBangThietYeu, ghepHangWord, soTuToiThieu, thangHopLe, type MucThietYeuDoc } from "@/lib/thietYeu";
+import { apDungNhapThietYeu, layBangThietYeu, layLichSuThietYeu, tongQuanDoiThietYeu } from "@/lib/thietYeuServer";
 
 const prisma = new PrismaClient();
 let dat = 0;
@@ -36,8 +37,7 @@ async function mucThu(): Promise<MucThietYeuDoc[]> {
   const desktop = path.join(os.homedir(), "Desktop");
   const tep = existsSync(desktop) ? readdirSync(desktop).find((f) => /^MLS-11-04 DM.*\.doc$/i.test(f)) : undefined;
   if (tep) {
-    const { default: WordExtractor } = await import("word-extractor");
-    const kq = docHangMLS1104(tachHang((await new WordExtractor().extract(path.join(desktop, tep))).getBody()));
+    const kq = docBangThietYeu(ghepHangWord((await moTepWord(readFileSync(path.join(desktop, tep)))).than()));
     console.log(`  Doc ${tep}: ${kq.muc.length} muc`);
     return kq.muc;
   }
@@ -136,7 +136,85 @@ async function main() {
   );
 }
 
+/**
+ * Nhập tệp (apDungNhapThietYeu) trên một tàu tạm tạo trong giao dịch: lần đầu tạo hết; tệp
+ * tháng sau "cập nhật" giữ số các tháng đã lưu, thêm mục mới vào đúng nhóm, giữ mục không có
+ * trong tệp; "đồng bộ" xóa mục không còn trong tệp; tệp tháng cũ không đè số hiện có mới hơn.
+ */
+async function kiemNhapTep() {
+  console.log("\n=== Nhap tep vao danh muc (tau tam, cuon nguoc) ===");
+  const m = (nhom: string, stt: string, moTa: string, toiThieu: string, hienCo: number | null, partNo: string | null = null): MucThietYeuDoc => ({
+    nhom,
+    stt,
+    moTa,
+    partNo,
+    toiThieu,
+    toiThieuSo: soTuToiThieu(toiThieu),
+    tonDau: hienCo,
+    nhan: hienCo === null ? null : 0,
+    tieuThu: hienCo === null ? null : 0,
+    hienCo,
+    viTri: "E/R",
+  });
+  const A = "A. Phụ tùng cho Máy chính (Spare Parts for Main Engine)";
+  const B = "B. Phụ tùng cho Máy phát (Spare parts for Generator)";
+  const tep1 = [m(A, "1", "Main Bearing (Bạc trục)", "2 set", 1, "P-001"), m(A, "2", "Thrust bearing", "1 set", 0), m(A, "3", "Exh. valve spindle", "2 pcs", 2), m(B, "1", "Main Bearing (Bạc trục)", "6 set", 0), m(B, "2", "Cylinder head", "3 pcs", 1)];
+  const ten = (ids: { moTa: string; nhom: string }[]) => ids.map((x) => `${x.nhom.slice(0, 1)}:${x.moTa}`);
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        const tau = await tx.vessel.create({ data: { code: `THU-TY-${Date.now()}`, name: "TAU THU MLS-11-04" }, select: { id: true } });
+        const danhMuc = () => tx.phuTungThietYeu.findMany({ where: { vesselId: tau.id }, orderBy: { thuTu: "asc" }, select: { id: true, nhom: true, moTa: true, hienCo: true } });
+        const nhap = (muc: MucThietYeuDoc[], cheDo: "capNhat" | "dongBo", thang: string) =>
+          apDungNhapThietYeu(tx, { vesselId: tau.id, muc, ganKho: muc.map(() => null), cheDo, thang, nguoi: "Kiem thu" });
+
+        const k1 = await nhap(tep1, "capNhat", "2026-09");
+        kiemTra("lan dau: tao het, so ghi vao thang cua tep", k1, { taoMoi: 5, capNhat: 0, xoa: 0, soThang: 5 });
+        const ds1 = await danhMuc();
+        kiemTra("lan dau: thu tu theo tep", ten(ds1), ["A:Main Bearing (Bạc trục)", "A:Thrust bearing", "A:Exh. valve spindle", "B:Main Bearing (Bạc trục)", "B:Cylinder head"]);
+        kiemTra("lan dau: so thang 2026-09", await tx.phuTungThietYeuThang.count({ where: { item: { vesselId: tau.id }, thang: "2026-09" } }), 5);
+
+        // Tệp tháng 10: A1 đổi số, A2 vẫn có, A4 mới, B2 vẫn có; A3, B1 không còn trong tệp.
+        const tep2 = [m(A, "1", "Main Bearing (Bạc trục):", "2 set", 2, "P-001"), m(A, "2", "Thrust bearing", "1 set", 1), m(A, "4", "Piston crown", "1 pce", 1), m(B, "2", "Cylinder head", "3 pcs", 3)];
+        const k2 = await nhap(tep2, "capNhat", "2026-10");
+        kiemTra("cap nhat: 1 moi, 3 cap nhat, khong xoa", k2, { taoMoi: 1, capNhat: 3, xoa: 0, soThang: 4 });
+        const ds2 = await danhMuc();
+        kiemTra("cap nhat: giu muc khong co trong tep, muc moi vao cuoi nhom A", ten(ds2), [
+          "A:Main Bearing (Bạc trục)",
+          "A:Thrust bearing",
+          "A:Exh. valve spindle",
+          "A:Piston crown",
+          "B:Main Bearing (Bạc trục)",
+          "B:Cylinder head",
+        ]);
+        kiemTra("cap nhat: cung id (giu lich su) va so hien co moi", [ds2[0].id === ds1[0].id, ds2[0].hienCo], [true, 2]);
+        kiemTra("cap nhat: so thang 09 cua muc cu van con", await tx.phuTungThietYeuThang.count({ where: { itemId: ds1[0].id } }), 2);
+
+        // Tệp tháng 8 (cũ hơn tháng đã lưu): ghi số tháng 8, không đè số hiện có của tháng 10.
+        await nhap([m(A, "1", "Main Bearing (Bạc trục)", "2 set", 9, "P-001")], "capNhat", "2026-08");
+        kiemTra("tep thang cu: khong de so hien co moi hon", (await danhMuc())[0].hienCo, 2);
+
+        const ls = await layLichSuThietYeu(tau.id, "2026-10", 3, tx);
+        kiemTra("lich su 3 thang: thang, so da luu, hien co muc A1", [ls.thang, ls.daLuu, ls.muc[0].hienCo, ls.muc[0].soThangThieu], [["2026-08", "2026-09", "2026-10"], [1, 5, 4], [9, 1, 2], 1]);
+        const tq = (await tongQuanDoiThietYeu([tau.id], "2026-10", tx)).get(tau.id);
+        kiemTra("toan doi: so muc, thieu, da luu thang, thang gan nhat", tq && [tq.soMuc, tq.daLuuThang, tq.thangGanNhat], [6, 4, "2026-10"]);
+
+        // Đồng bộ: thứ tự theo tệp, xóa mục không còn trong tệp (cả số tháng).
+        const k3 = await nhap(tep2, "dongBo", "2026-10");
+        kiemTra("dong bo: xoa 2 muc khong con trong tep", [k3.taoMoi, k3.capNhat, k3.xoa], [0, 4, 2]);
+        kiemTra("dong bo: danh muc dung theo tep", ten(await danhMuc()), ["A:Main Bearing (Bạc trục)", "A:Thrust bearing", "A:Piston crown", "B:Cylinder head"]);
+        throw new CuonNguoc();
+      },
+      { timeout: 120_000, maxWait: 20_000 }
+    );
+  } catch (e) {
+    if (!(e instanceof CuonNguoc)) throw e;
+  }
+  kiemTra("da cuon nguoc (khong con tau tam)", await prisma.vessel.count({ where: { name: "TAU THU MLS-11-04" } }), 0);
+}
+
 main()
+  .then(kiemNhapTep)
   .catch((e) => {
     truot++;
     console.error(e);

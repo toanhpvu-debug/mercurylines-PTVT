@@ -1190,6 +1190,16 @@ sơn ([`lib/kyQuy.ts`](lib/kyQuy.ts): quý theo giờ Việt Nam, neo vào tồn
   dưới 1 quý / nằm kho (không biến động) / có nhận-tiêu thụ*, sắp xếp theo tiêu thụ / đủ dùng / tên / mã; thẻ từng quý đếm
   số mặt hàng và số lần nhập / xuất; **Xuất Excel thống kê** (`/api/export/thong-ke-ton`). Để đặt tồn tối thiểu, lập yêu cầu
   đúng lúc và nhận ra hàng nằm kho.
+- **Theo chức danh quản lý trên tàu**: mỗi mặt hàng thuộc chức danh *giữ và kiểm kê* nó — cùng cột *Giữ bởi* ở Danh mục vật tư
+  ([`lib/chucDanhChiuTrachNhiem.ts`](lib/chucDanhChiuTrachNhiem.ts): gán tay `responsibleRank`, không có thì suy theo cụm máy —
+  máy chính Máy hai, máy phụ Máy ba, phân ly Máy tư… — rồi theo bộ phận). Trang thống kê có bảng **Theo chức danh quản lý**
+  (gom theo bộ phận Boong / Máy / Điện / Phục vụ; mỗi chức danh: số mặt hàng, có nhận / có tiêu thụ kèm số lần, dưới tối thiểu,
+  đủ dùng dưới 1 quý, nằm kho — chỉ đếm, không cộng số lượng khác đơn vị; mỗi mặt hàng tính một lần cho người trực tiếp giữ).
+  Ô **Chức danh quản lý** (`?rank=2E`, `?rank=toi` = phần của chính người xem) lọc thống kê, báo cáo theo quý (ô *Bộ phận* trên
+  tờ in ghi thêm chức danh) và cả hai file Excel (MLS-11-06 của riêng phần một người đếm — tải lại lên kiểm kê chỉ đụng các dòng
+  trong file; Excel thống kê thêm cột *Giữ bởi* và trang *Theo chuc danh*). Chọn chức danh chỉ huy là gồm cả phần cấp dưới
+  giữ (như ô lọc ở Danh mục): Thuyền trưởng — toàn tàu, Đại phó — + thủy thủ trưởng, Phó ba; Máy trưởng — cả buồng máy; Sĩ quan
+  điện — + thợ điện; Bếp trưởng — + phục vụ viên.
 - Báo cáo **MLS-11-01** (tháng) và mọi mốc tháng / quý ở trên tính theo **giờ Việt Nam** (máy chủ Dokploy chạy giờ UTC — mốc
   tháng theo giờ máy lệch 7 tiếng, phiếu ghi 0–7 giờ sáng ngày 1 rơi sang tháng trước).
 - Mã: [`lib/tonKhoQuy.ts`](lib/tonKhoQuy.ts) (thuần: xếp dòng kho vào kỳ, đọc ô kỳ, thống kê nhiều quý),

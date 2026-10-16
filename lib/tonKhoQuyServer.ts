@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { chucDanhBaoTrum, chucDanhChiuTrachNhiem } from "@/lib/chucDanhChiuTrachNhiem";
 import type { GiaoDichVatTu } from "@/lib/tonKhoQuy";
 
 /*
@@ -9,6 +10,10 @@ import type { GiaoDichVatTu } from "@/lib/tonKhoQuy";
  * mọi dòng kho từ một mốc tới nay, và thông tin mặt hàng — mặt hàng của danh mục
  * tàu cộng mặt hàng đã gỡ khỏi danh mục mà vẫn còn tồn / có dòng trong kỳ (bản kiểm
  * kê phải phản ánh đủ hàng thật trên tàu, như file Excel MLS-11-06).
+ *
+ * Mỗi mặt hàng mang CHỨC DANH GIỮ (người giữ và kiểm kê — cột "Giữ bởi" ở danh mục,
+ * lib/chucDanhChiuTrachNhiem.ts) để báo cáo / thống kê lọc và gom theo chức danh
+ * quản lý trên tàu.
  */
 
 /** Bộ phận theo hậu tố mã kho (như báo cáo MLS-11-01): ENG = Máy, DECK = Boong, STORE = Kho tiêu hao. */
@@ -27,6 +32,8 @@ export type VatTuKy = {
   equipment: string | null;
   minStock: number;
   nhom: string;
+  /** Chức danh trực tiếp giữ và kiểm kê (MST, CO, BSN, CE, 2E…); null = không xếp được. */
+  chucDanh: string | null;
 };
 
 export type DuLieuTonKy = {
@@ -38,7 +45,14 @@ export type DuLieuTonKy = {
   vatTu: Map<number, VatTuKy>;
 };
 
-export async function taiDuLieuTonKy(x: { vesselId: number; boPhan: string; loai: string; tuNgay: Date }): Promise<DuLieuTonKy> {
+export async function taiDuLieuTonKy(x: {
+  vesselId: number;
+  boPhan: string;
+  loai: string;
+  tuNgay: Date;
+  /** Chỉ hàng chức danh này phụ trách (chức danh chỉ huy bao trùm cấp dưới); trống = mọi chức danh. */
+  chucDanh?: string;
+}): Promise<DuLieuTonKy> {
   const hauTo = HAU_TO_KHO[x.boPhan] ?? null;
   const khoTau = await prisma.warehouse.findMany({ where: { vesselId: x.vesselId }, select: { id: true, code: true }, orderBy: { code: "asc" } });
   const kho = khoTau.filter((w) => !hauTo || w.code.endsWith(hauTo));
@@ -66,26 +80,49 @@ export async function taiDuLieuTonKy(x: { vesselId: number; boPhan: string; loai
       materialType: true,
       equipment: true,
       minStock: true,
-      category: { select: { name: true } },
+      responsibleRank: true,
+      department: true,
+      nhomQuanLy: true,
+      category: { select: { name: true, code: true } },
     },
   });
-  const vatTu = new Map<number, VatTuKy>(
-    mh.map((m) => [
-      m.id,
-      {
-        id: m.id,
+  const coChucDanh = mh.map((m) => ({
+    m,
+    chucDanh:
+      chucDanhChiuTrachNhiem({
+        responsibleRank: m.responsibleRank,
+        categoryCode: m.category?.code ?? null,
+        categoryName: m.category?.name ?? null,
+        department: m.department,
+        equipment: m.equipment,
         code: m.code,
+        impa: m.impa,
         nameVn: m.nameVn,
         nameEn: m.nameEn,
-        impa: m.impa,
-        partNumber: m.partNumber,
-        uom: m.uom,
+        nhomQuanLy: m.nhomQuanLy,
         materialType: m.materialType,
-        equipment: m.equipment,
-        minStock: m.minStock,
-        nhom: m.category?.name ?? m.equipment ?? (m.materialType === "SPARE" ? "Spare" : "Store"),
-      },
-    ])
+      })?.chucDanh ?? null,
+  }));
+  const vatTu = new Map<number, VatTuKy>(
+    coChucDanh
+      .filter(({ chucDanh }) => !x.chucDanh || chucDanhBaoTrum(x.chucDanh, chucDanh))
+      .map(({ m, chucDanh }) => [
+        m.id,
+        {
+          id: m.id,
+          code: m.code,
+          nameVn: m.nameVn,
+          nameEn: m.nameEn,
+          impa: m.impa,
+          partNumber: m.partNumber,
+          uom: m.uom,
+          materialType: m.materialType,
+          equipment: m.equipment,
+          minStock: m.minStock,
+          nhom: m.category?.name ?? m.equipment ?? (m.materialType === "SPARE" ? "Spare" : "Store"),
+          chucDanh,
+        },
+      ])
   );
   const tonHienTai = new Map<number, number>();
   const khoChinh = new Map<number, number>();

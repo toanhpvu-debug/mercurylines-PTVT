@@ -18,6 +18,7 @@
  *     nằm thẳng ở cột đó: cập nhật theo file rồi in lại kỳ đó ra đúng file.
  */
 import { laKiemKe } from "@/lib/baoCao1101";
+import { CHUC_DANH } from "@/lib/maVatTu";
 import { QUY_LA_MA, bonCotQuy, dauThangVN, heThongQuy, lam3, mocQuy, quyCua, type BonCotQuy, type GiaoDichKy, type HeThongQuy, type KyQuy, type ThangNam } from "@/lib/kyQuy";
 
 /** Một dòng kho (InventoryTransaction) đủ để xếp vào kỳ. */
@@ -285,4 +286,57 @@ export function canhBaoThongKe(x: Pick<ThongKeMatHang, "tonHienTai" | "duDungQuy
     sapHet: x.duDungQuy !== null && x.duDungQuy < 1,
     khongDong: x.khongBienDong,
   };
+}
+
+/** Một dòng của bảng thống kê THEO CHỨC DANH QUẢN LÝ (người giữ và kiểm kê mặt hàng trên tàu). */
+export type DongChucDanh = {
+  /** Mã chức danh (lib/maVatTu.ts CHUC_DANH: CO, BSN, CE, 2E…); null = mặt hàng không xếp được chức danh. */
+  chucDanh: string | null;
+  soMatHang: number;
+  /** Số mặt hàng có nhận trong các quý thống kê, và số lần nhập thật. */
+  matNhan: number;
+  lanNhan: number;
+  /** Số mặt hàng có tiêu thụ, và số lần xuất dùng thật. */
+  matTieu: number;
+  lanXuat: number;
+  /** Đếm theo ba nhãn cảnh báo của canhBaoThongKe. */
+  thieu: number;
+  sapHet: number;
+  khongDong: number;
+};
+
+/**
+ * Gom thống kê từng mặt hàng theo chức danh TRỰC TIẾP giữ: mỗi mặt hàng tính đúng một
+ * lần cho người giữ nó, không cộng dồn lên chức danh chỉ huy (bảng xếp theo bộ phận nên
+ * cấp trên đọc được cả nhóm; lọc một chức danh chỉ huy thì trang mới gộp cả cấp dưới).
+ * Chỉ ĐẾM mặt hàng / số lần, không cộng số lượng — hàng khác đơn vị (cái, lít, kg) cộng
+ * lại vô nghĩa. Thứ tự: theo CHUC_DANH (bộ phận → cấp bậc), mã lạ sau đó, chưa xác định
+ * xuống cuối.
+ */
+export function thongKeTheoChucDanh(ds: readonly { x: ThongKeMatHang; chucDanh: string | null; minStock: number }[]): DongChucDanh[] {
+  const theo = new Map<string | null, DongChucDanh>();
+  for (const { x, chucDanh, minStock } of ds) {
+    const khoa = chucDanh?.trim() || null;
+    let d = theo.get(khoa);
+    if (!d) {
+      d = { chucDanh: khoa, soMatHang: 0, matNhan: 0, lanNhan: 0, matTieu: 0, lanXuat: 0, thieu: 0, sapHet: 0, khongDong: 0 };
+      theo.set(khoa, d);
+    }
+    const n = canhBaoThongKe(x, minStock);
+    d.soMatHang++;
+    if (x.tongNhan !== 0) d.matNhan++;
+    if (x.tongTieuThu !== 0) d.matTieu++;
+    d.lanNhan += x.theoQuy.reduce((s, q) => s + q.soLanNhan, 0);
+    d.lanXuat += x.theoQuy.reduce((s, q) => s + q.soLanXuat, 0);
+    if (n.thieu) d.thieu++;
+    if (n.sapHet) d.sapHet++;
+    if (n.khongDong) d.khongDong++;
+  }
+  const thuTu = Object.keys(CHUC_DANH);
+  const hang = (c: string | null) => (c === null ? 2 : thuTu.includes(c) ? 0 : 1);
+  return [...theo.values()].sort(
+    (a, b) =>
+      hang(a.chucDanh) - hang(b.chucDanh) ||
+      (hang(a.chucDanh) === 0 ? thuTu.indexOf(a.chucDanh!) - thuTu.indexOf(b.chucDanh!) : (a.chucDanh ?? "").localeCompare(b.chucDanh ?? ""))
+  );
 }

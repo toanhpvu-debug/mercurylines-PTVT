@@ -18,6 +18,8 @@ import {
 import { LAP_YEU_CAU } from "@/lib/roles";
 import { kyThang, ngayCuaVN, quyCua, type ThangNam } from "@/lib/kyQuy";
 import { soLieuKyVatTu, tenKyThang, thangCuaQuy } from "@/lib/tonKhoQuy";
+import { CHUC_DANH, chucDanhCuaNguoiDung } from "@/lib/maVatTu";
+import { docLocChucDanh, laNguoiPhuTrach } from "@/lib/chucDanhChiuTrachNhiem";
 
 /** Bộ phận theo hậu tố mã kho (như báo cáo MLS-11-01): ENG = Máy, DECK = Boong, STORE = Kho tiêu hao. */
 const BO_PHAN: Record<string, { hauTo: string | null; nhan: string }> = {
@@ -74,6 +76,9 @@ export async function GET(request: Request) {
   const type = ["ALL", "STORE", "SPARE"].includes(typeRaw) ? typeRaw : "ALL";
   const deptRaw = String(url.searchParams.get("dept") || "ALL");
   const dept = Object.hasOwn(BO_PHAN, deptRaw) ? deptRaw : "ALL";
+  // Chức danh quản lý (?rank=): chỉ hàng chức danh đó giữ / phụ trách — mỗi người đếm phần
+  // mình; tải lại lên kiểm kê chỉ đụng các dòng có trong file.
+  const rank = docLocChucDanh(url.searchParams.get("rank"), chucDanhCuaNguoiDung(user));
   if (!Number.isInteger(vesselId) || vesselId <= 0) {
     return NextResponse.json(
       { error: t("actionsModule.taiLieu_thieuTau") },
@@ -158,6 +163,23 @@ export async function GET(request: Request) {
   const coOKho = new Set([...inventoryGroup.filter((r) => Number(r._sum.quantity ?? 0) !== 0).map((r) => r.materialId), ...kyTx.map((x) => x.materialId)]);
   const rows = [...links.map((l) => l.material), ...extraMaterials]
     .filter((m) => dept === "ALL" || coOKho.has(m.id))
+    .filter(
+      (m) =>
+        !rank ||
+        laNguoiPhuTrach(rank, {
+          responsibleRank: m.responsibleRank,
+          categoryCode: m.category?.code ?? null,
+          categoryName: m.category?.name ?? null,
+          department: m.department,
+          equipment: m.equipment,
+          code: m.code,
+          impa: m.impa,
+          nameVn: m.nameVn,
+          nameEn: m.nameEn,
+          nhomQuanLy: m.nhomQuanLy,
+          materialType: m.materialType,
+        })
+    )
     .map((m) => {
       const c = soKy.get(m.id);
       return {
@@ -234,7 +256,7 @@ export async function GET(request: Request) {
   // đổi Date theo UTC — dùng nửa đêm UTC của đúng ngày đó để Excel hiện đúng ngày.
   const ngayTo = ngayCuaVN(new Date(Math.min(ky.ketThuc.getTime() - 1, now.getTime())));
   ws.getCell("H7").value = new Date(Date.UTC(ngayTo.nam, ngayTo.thang - 1, ngayTo.ngay));
-  ws.getCell("C8").value = BO_PHAN[dept].nhan ? `${BO_PHAN[dept].nhan} · ${typeLabels[type]}` : typeLabels[type];
+  ws.getCell("C8").value = [BO_PHAN[dept].nhan || null, typeLabels[type], rank ? CHUC_DANH[rank].ten : null].filter(Boolean).join(" · ");
   ws.getCell("H8").value = tenKyThang(kyChon.tu, kyChon.den);
 
   // Điền dòng bằng hàm dùng chung với bản tự dựng (lib/bieuMauKiemKe.ts): nó
@@ -254,9 +276,10 @@ export async function GET(request: Request) {
   const safeCode =
     vessel.code.replace(/[^\x20-\x7E]/g, "_").replace(/["\\]/g, "_") ||
     String(vessel.id);
-  const asciiName = `MLS-11-06_${safeCode}_${dateStr}.xlsx`;
+  const duoiRank = rank ? `_${rank}` : "";
+  const asciiName = `MLS-11-06_${safeCode}_${dateStr}${duoiRank}.xlsx`;
   const utf8Name = encodeURIComponent(
-    `MLS-11-06_${vessel.code}_${dateStr}.xlsx`
+    `MLS-11-06_${vessel.code}_${dateStr}${duoiRank}.xlsx`
   );
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {

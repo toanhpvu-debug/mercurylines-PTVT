@@ -1,14 +1,18 @@
+import { Fragment } from "react";
 import Form from "next/form";
 import Link from "next/link";
-import { BarChart3, Download, FileText } from "lucide-react";
+import { BarChart3, Download, FileText, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { chonDuocTau, requireScopedUser, trongPhamVi, vesselIdWhere, vesselScopeDayDu } from "@/lib/auth";
 import { QUY_LA_MA, mocQuy, quyCua } from "@/lib/kyQuy";
-import { cacQuyThongKe, canhBaoThongKe, thongKeNhieuQuy } from "@/lib/tonKhoQuy";
+import { CHUC_DANH, chucDanhCuaNguoiDung } from "@/lib/maVatTu";
+import { chucDanhBaoTrum, docLocChucDanh, phamViChucDanh } from "@/lib/chucDanhChiuTrachNhiem";
+import { cacQuyThongKe, canhBaoThongKe, thongKeNhieuQuy, thongKeTheoChucDanh, type DongChucDanh } from "@/lib/tonKhoQuy";
 import { taiDuLieuTonKy } from "@/lib/tonKhoQuyServer";
 import { duongDanTheKho } from "@/lib/theKho";
 import { layT } from "@/lib/i18n/server";
-import { Badge, Button, Card, Field, Input, Notice, PageHeader, Select, Stat, Table, TableWrap, Td, Th, Tr, buttonClass } from "@/components/ui";
+import { Badge, Button, Card, Field, Input, Notice, PageHeader, Select, Stat, Table, TableWrap, Td, Th, Tr, TrNhom, buttonClass } from "@/components/ui";
+import ChonChucDanh from "@/components/ChonChucDanh";
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +30,10 @@ const SAP_XEP = ["TIEU_THU", "DU_DUNG", "TEN", "MA"] as const;
 export default async function ThongKeTonPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vessel?: string; nam?: string; dept?: string; type?: string; q?: string; loc?: string; sx?: string }>;
+  searchParams: Promise<{ vessel?: string; nam?: string; dept?: string; type?: string; q?: string; loc?: string; sx?: string; rank?: string }>;
 }) {
   const user = await requireScopedUser();
-  const { t, tTuDo } = await layT();
+  const { t, tTuDo, tenChucDanh, tenBoPhan } = await layT();
   const scope = vesselScopeDayDu(user);
   const sp = await searchParams;
   const vessels = await prisma.vessel.findMany({ where: vesselIdWhere(scope), orderBy: { code: "asc" }, select: { id: true, code: true, name: true } });
@@ -44,6 +48,9 @@ export default async function ThongKeTonPage({
   const q = String(sp.q ?? "").trim().toLowerCase();
   const loc = (LOC as readonly string[]).includes(String(sp.loc)) ? String(sp.loc) : "TAT_CA";
   const sx = (SAP_XEP as readonly string[]).includes(String(sp.sx)) ? String(sp.sx) : "TIEU_THU";
+  // Chức danh quản lý (người giữ và kiểm kê — cột Giữ bởi ở danh mục); "toi" = chức danh của người đang xem.
+  const chucDanhCuaToi = chucDanhCuaNguoiDung(user);
+  const rank = docLocChucDanh(sp.rank, chucDanhCuaToi);
   const cacNam = Array.from({ length: 5 }, (_, i) => hienTai.nam - i);
 
   if (!tau) {
@@ -58,10 +65,25 @@ export default async function ThongKeTonPage({
   const cacQuy = cacQuyThongKe(bayGio, nam);
   const du = await taiDuLieuTonKy({ vesselId: tau.id, boPhan: dept, loai, tuNgay: mocQuy(cacQuy[0]).batDau });
   const tk = thongKeNhieuQuy(du.tonHienTai, du.giaoDich, cacQuy, bayGio);
-  const tatCa = tk
+  const coSo = tk
     .map((x) => ({ x, m: du.vatTu.get(x.materialId)! }))
     .filter(({ m }) => Boolean(m))
     .filter(({ m }) => !q || [m.nameVn, m.nameEn, m.code, m.impa, m.partNumber].some((v) => (v ?? "").toLowerCase().includes(q)));
+  // Bảng theo chức danh tính trên MỌI chức danh (cùng tàu / kỳ / bộ phận / loại / tìm); thẻ quý
+  // và bảng mặt hàng theo chức danh đang chọn.
+  const theoChucDanh = thongKeTheoChucDanh(coSo.map(({ x, m }) => ({ x, chucDanh: m.chucDanh, minStock: m.minStock })));
+  const nhomChucDanh: { khoa: string; ten: string; soMatHang: number; dong: DongChucDanh[] }[] = [];
+  for (const d of theoChucDanh) {
+    const bp = d.chucDanh && CHUC_DANH[d.chucDanh] ? CHUC_DANH[d.chucDanh].boPhan : null;
+    let g = nhomChucDanh.find((x) => x.khoa === (bp ?? "KHAC"));
+    if (!g) {
+      g = { khoa: bp ?? "KHAC", ten: bp ? tenBoPhan(bp) : t("tonQuy.chucDanhNhomKhac"), soMatHang: 0, dong: [] };
+      nhomChucDanh.push(g);
+    }
+    g.soMatHang += d.soMatHang;
+    g.dong.push(d);
+  }
+  const tatCa = rank ? coSo.filter(({ m }) => chucDanhBaoTrum(rank, m.chucDanh)) : coSo;
   const locDong = tatCa.filter(({ x, m }) => {
     const n = canhBaoThongKe(x, m.minStock);
     if (loc === "THIEU") return n.thieu;
@@ -93,19 +115,28 @@ export default async function ThongKeTonPage({
   const so = (n: number) => String(Math.round(n * 1000) / 1000);
   const nhanBoPhan = (k: string) =>
     k === "ENG" ? t("inventory.bpMay") : k === "DECK" ? t("inventory.bpBoong") : k === "STORE" ? t("inventory.bpKhoTieuHao") : t("inventory.bpTatCa");
-  const thamSoXuat = new URLSearchParams({ vessel: String(tau.id), dept, type: loai, ...(nam ? { nam: String(nam) } : {}), loc, sx, ...(q ? { q } : {}) });
+  const thamSoXuat = new URLSearchParams({ vessel: String(tau.id), dept, type: loai, ...(nam ? { nam: String(nam) } : {}), loc, sx, ...(q ? { q } : {}), ...(rank ? { rank } : {}) });
+  /** Đường dẫn lại trang này với bộ lọc hiện tại, đổi chức danh. */
+  const lienChucDanh = (cd: string) =>
+    `/inventory/thong-ke?${new URLSearchParams({ vessel: String(tau.id), dept, type: loai, ...(nam ? { nam: String(nam) } : {}), sx, ...(sp.q ? { q: sp.q } : {}), rank: cd })}`;
+  const phamVi = rank ? phamViChucDanh(rank) : [];
 
   return (
     <div className="space-y-5">
       <div>
-        <Link href={`/inventory/bao-cao-quy?vessel=${tau.id}&dept=${dept}&type=${loai}`} className="mb-3 inline-block text-sm text-[var(--text-brand)] hover:underline">
+        <Link
+          href={`/inventory/bao-cao-quy?vessel=${tau.id}&dept=${dept}&type=${loai}${rank ? `&rank=${rank}` : ""}`}
+          className="mb-3 inline-block text-sm text-[var(--text-brand)] hover:underline"
+        >
           ← {t("tonQuy.tieuDe")}
         </Link>
         <PageHeader title={t("tonQuy.tkTieuDe")} subtitle={t("tonQuy.tkMoTa")} />
       </div>
 
       <Card>
-        <Form action="/inventory/thong-ke" className="flex flex-wrap items-end gap-3">
+        {/* key theo bộ lọc: bấm tên chức danh ở bảng dưới là điều hướng phía trình duyệt — không
+            dựng lại form thì các ô chọn (defaultValue) vẫn giữ giá trị cũ. */}
+        <Form key={[tau.id, nam ?? "", dept, loai, loc, sx, sp.q ?? "", rank].join("|")} action="/inventory/thong-ke" className="flex flex-wrap items-end gap-3">
           {chonDuocTau(scope) ? (
             <Field label={t("tonQuy.tau")} className="w-60">
               <Select name="vessel" defaultValue={tau.id}>
@@ -144,6 +175,9 @@ export default async function ThongKeTonPage({
               <option value="STORE">{t("tonQuy.loaiStore")}</option>
               <option value="SPARE">{t("tonQuy.loaiSpare")}</option>
             </Select>
+          </Field>
+          <Field label={t("tonQuy.chucDanh")} className="w-56">
+            <ChonChucDanh giaTri={sp.rank === "toi" && rank ? "toi" : rank} chucDanhCuaToi={chucDanhCuaToi} />
           </Field>
           <Field label={t("tonQuy.tkLoc")} className="w-48">
             <Select name="loc" defaultValue={loc}>
@@ -191,6 +225,66 @@ export default async function ThongKeTonPage({
       </div>
 
       <Card>
+        <h2 className="inline-flex items-center gap-2 text-base font-semibold text-[var(--text-primary)]">
+          <Users className="size-4" />
+          {t("tonQuy.tkCdTieuDe")}
+        </h2>
+        <p className="mt-1 mb-3 text-sm text-[var(--text-secondary)]">{t("tonQuy.tkCdMoTa")}</p>
+        {theoChucDanh.length === 0 ? (
+          <p className="text-sm text-[var(--text-muted)]">{t("tonQuy.tkKhongCo")}</p>
+        ) : (
+          <TableWrap>
+            <Table dense>
+              <thead>
+                <tr>
+                  <Th>{t("tonQuy.tkCd_chucDanh")}</Th>
+                  <Th className="text-right">{t("tonQuy.tkCd_matHang")}</Th>
+                  <Th className="text-right">{t("tonQuy.tkCd_nhan")}</Th>
+                  <Th className="text-right">{t("tonQuy.tkCd_tieu")}</Th>
+                  <Th className="text-right">{t("tonQuy.tkCd_thieu")}</Th>
+                  <Th className="text-right">{t("tonQuy.tkCd_sapHet")}</Th>
+                  <Th className="text-right">{t("tonQuy.tkCd_khongDong")}</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {nhomChucDanh.map((g) => (
+                  <Fragment key={g.khoa}>
+                    <TrNhom colSpan={7}>
+                      {g.ten} <span className="font-normal text-[var(--text-muted)]">· {t("tonQuy.tkTongDong", { n: g.soMatHang })}</span>
+                    </TrNhom>
+                    {g.dong.map((d) => (
+                      <Tr key={d.chucDanh ?? "?"} className={rank && phamVi.includes(d.chucDanh ?? "") ? "bg-brand-500/10" : undefined}>
+                        <Td>
+                          {d.chucDanh ? (
+                            <Link href={lienChucDanh(d.chucDanh)} className="font-medium text-[var(--text-brand)] hover:underline">
+                              {tenChucDanh(d.chucDanh)} <span className="text-xs text-[var(--text-muted)]">({d.chucDanh})</span>
+                            </Link>
+                          ) : (
+                            <span className="text-[var(--text-muted)]">{t("tonQuy.chucDanhChuaRo")}</span>
+                          )}
+                        </Td>
+                        <Td className="tabular text-right font-semibold">{d.soMatHang}</Td>
+                        <OChucDanh n={d.matNhan} lan={d.lanNhan} chu={t("tonQuy.tkCd_lan", { lan: d.lanNhan })} />
+                        <OChucDanh n={d.matTieu} lan={d.lanXuat} chu={t("tonQuy.tkCd_lan", { lan: d.lanXuat })} />
+                        <Td className={`tabular text-right ${d.thieu ? "font-semibold text-[var(--text-danger)]" : "text-[var(--text-muted)]"}`}>{d.thieu || "–"}</Td>
+                        <Td className={`tabular text-right ${d.sapHet ? "font-semibold text-[var(--text-warning)]" : "text-[var(--text-muted)]"}`}>{d.sapHet || "–"}</Td>
+                        <Td className="tabular text-right text-[var(--text-secondary)]">{d.khongDong || "–"}</Td>
+                      </Tr>
+                    ))}
+                  </Fragment>
+                ))}
+              </tbody>
+            </Table>
+          </TableWrap>
+        )}
+      </Card>
+
+      <Card>
+        {rank && (
+          <Notice tone="info" className="mb-2">
+            {t("tonQuy.dangXemPhan", { ten: tenChucDanh(rank), ds: phamVi.map((c) => tenChucDanh(c)).join(", ") })}
+          </Notice>
+        )}
         <p className="mb-2 inline-flex items-center gap-2 text-sm text-[var(--text-secondary)]">
           <BarChart3 className="size-4" />
           {t("tonQuy.tkTongDong", { n: locDong.length })}
@@ -258,7 +352,10 @@ export default async function ThongKeTonPage({
                       <Td>
                         <p className="font-medium text-[var(--text-primary)]">{m.nameVn}</p>
                         <div className="mt-0.5 flex flex-wrap gap-1">
-                          <span className="text-xs text-[var(--text-muted)]">{m.nhom}</span>
+                          <span className="text-xs text-[var(--text-muted)]">
+                            {m.nhom}
+                            {m.chucDanh ? ` · ${t("tonQuy.giuBoi", { ten: tenChucDanh(m.chucDanh) })}` : ""}
+                          </span>
                           {n.thieu && <Badge tone="danger">{t("tonQuy.tkBadgeThieu")}</Badge>}
                           {n.sapHet && <Badge tone="warning">{t("tonQuy.tkBadgeSapHet")}</Badge>}
                           {n.khongDong && <Badge tone="muted">{t("tonQuy.tkBadgeKhongDong")}</Badge>}
@@ -293,6 +390,22 @@ function FragmentQuy({ nhan, tieu }: { nhan: string; tieu: string }) {
       <Th className="text-right text-xs">{nhan}</Th>
       <Th className="text-right text-xs">{tieu}</Th>
     </>
+  );
+}
+
+/** Ô "có nhận / có tiêu thụ" của bảng theo chức danh: số mặt hàng, dưới là số lần. */
+function OChucDanh({ n, lan, chu }: { n: number; lan: number; chu: string }) {
+  return (
+    <Td className="tabular text-right">
+      {n ? (
+        <>
+          <span className="font-semibold">{n}</span>
+          {lan ? <span className="block text-xs text-[var(--text-muted)]">{chu}</span> : null}
+        </>
+      ) : (
+        <span className="text-[var(--text-muted)]">–</span>
+      )}
+    </Td>
   );
 }
 

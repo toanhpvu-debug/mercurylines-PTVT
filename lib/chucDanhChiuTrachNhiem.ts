@@ -1,4 +1,4 @@
-import { NHOM_THIET_BI, type BoPhan } from "@/lib/maVatTu";
+import { CHUC_DANH, NHOM_THIET_BI, type BoPhan } from "@/lib/maVatTu";
 import { nhomCuaVatTu } from "@/lib/phanNhomBanChat";
 
 /**
@@ -174,8 +174,31 @@ export function laNguoiPhuTrach(
   rankFilter: string,
   m: MonChiuTrachNhiem
 ): boolean {
-  const tn = chucDanhChiuTrachNhiem(m);
-  if (!tn) return false;
-  if (tn.chucDanh === rankFilter) return true;
-  return (BAO_TRUM[rankFilter] ?? []).includes(tn.chucDanh);
+  return chucDanhBaoTrum(rankFilter, chucDanhChiuTrachNhiem(m)?.chucDanh);
+}
+
+/**
+ * Cùng luật với laNguoiPhuTrach khi đã biết sẵn chức danh GIỮ của mặt hàng (tính một
+ * lần cho cả danh sách — báo cáo / thống kê theo quý): đúng chức danh đó, hoặc chức
+ * danh chỉ huy bao trùm nó.
+ */
+export function chucDanhBaoTrum(rankFilter: string, chucDanhGiu: string | null | undefined): boolean {
+  if (!chucDanhGiu) return false;
+  return chucDanhGiu === rankFilter || (BAO_TRUM[rankFilter] ?? []).includes(chucDanhGiu);
+}
+
+/** Các chức danh giữ hàng nằm trong phần `rankFilter` phụ trách: chính nó rồi tới cấp dưới. */
+export function phamViChucDanh(rankFilter: string): string[] {
+  return [rankFilter, ...(BAO_TRUM[rankFilter] ?? [])];
+}
+
+/**
+ * Ô lọc chức danh trên đường dẫn (?rank=): mã chức danh (CHUC_DANH) hoặc "toi" = chức
+ * danh của chính người đang xem (lib/maVatTu.ts chucDanhCuaNguoiDung). Sai / trống → ""
+ * (mọi chức danh).
+ */
+export function docLocChucDanh(raw: unknown, chucDanhCuaToi: string | null): string {
+  const s = String(raw ?? "").trim();
+  if (s === "toi") return chucDanhCuaToi && CHUC_DANH[chucDanhCuaToi] ? chucDanhCuaToi : "";
+  return Object.hasOwn(CHUC_DANH, s) ? s : "";
 }

@@ -3,7 +3,8 @@
  *   - phần thuần: đọc ô kỳ "From month / Từ tháng … đến …" (lib/tonKhoQuy.ts), kỳ của
  *     một lần kiểm kê, đầu biểu mẫu MLS-11-06 từ lưới ô, xếp dòng kho vào kỳ (điều
  *     chỉnh kiểm kê cũ gộp, dòng file kiểm kê theo cột), MLS-11-01 theo cột, thống kê
- *     nhiều quý, bộ đọc AI chế độ "kiemKe" với ba cột kỳ;
+ *     nhiều quý, thống kê theo chức danh quản lý (người giữ), bộ đọc AI chế độ "kiemKe"
+ *     với ba cột kỳ;
  *   - đọc file: MLS-11-06 dựng tại chỗ (đầu biểu mẫu + bốn cột), tờ mẫu gốc và file
  *     app đã xuất trên Desktop nếu có;
  *   - trên database thật trong MỘT giao dịch rồi cuộn ngược: kiểm kê ngày cũ giữ
@@ -21,7 +22,8 @@ import { dauBieuMauKiemKe, dongTuAi, dongTuExcel, kyCuaKiemKe, ngayTuOExcel, typ
 import { apDungKeHoachKiemKe, goKiemKeTx, lapKeHoachKiemKe, LoiKiemKe } from "@/lib/kiemKeServer";
 import { chuoiNgayVN, dauThangVN, mocQuy } from "@/lib/kyQuy";
 import { docDauKiemKeExcel, parseMaterialExcel } from "@/lib/materialImport";
-import { cacQuyThongKe, giaoDichKyVatTu, kyKiemKeTuFile, kyTuChuMls1106, soLieuKyVatTu, tenKyThang, thongKeNhieuQuy, type GiaoDichVatTu } from "@/lib/tonKhoQuy";
+import { cacQuyThongKe, giaoDichKyVatTu, kyKiemKeTuFile, kyTuChuMls1106, soLieuKyVatTu, tenKyThang, thongKeNhieuQuy, thongKeTheoChucDanh, type GiaoDichVatTu } from "@/lib/tonKhoQuy";
+import { chucDanhBaoTrum, docLocChucDanh, phamViChucDanh } from "@/lib/chucDanhChiuTrachNhiem";
 
 const prisma = new PrismaClient();
 let dat = 0;
@@ -185,6 +187,34 @@ function phanThuan() {
     3,
   ]);
   kiemTra("thong ke: hang nam kho", [b.khongBienDong, b.tbTieuThuQuy, b.duDungQuy], [true, 0, null]);
+
+  // ── Thống kê theo chức danh quản lý (người trực tiếp giữ) ──
+  const cd = thongKeTheoChucDanh([
+    { x: a, chucDanh: "2E", minStock: 20 },
+    { x: b, chucDanh: "BSN", minStock: 0 },
+    { x: b, chucDanh: null, minStock: 0 },
+    { x: a, chucDanh: "CO", minStock: 0 },
+  ]);
+  kiemTra(
+    "theo chuc danh: dem mat hang / lan, thu tu bo phan -> cap bac, chua ro xuong cuoi",
+    cd.map((d) => [d.chucDanh, d.soMatHang, d.matNhan, d.lanNhan, d.matTieu, d.lanXuat, d.thieu, d.sapHet, d.khongDong]),
+    [
+      ["CO", 1, 1, 2, 1, 3, 0, 0, 0],
+      ["BSN", 1, 0, 0, 0, 0, 0, 0, 1],
+      ["2E", 1, 1, 2, 1, 3, 1, 0, 0],
+      [null, 1, 0, 0, 0, 0, 0, 0, 1],
+    ]
+  );
+  kiemTra(
+    "loc chuc danh: ma / toi / sai",
+    [docLocChucDanh("2E", null), docLocChucDanh("toi", "CE"), docLocChucDanh("toi", null), docLocChucDanh("XYZ", "CE"), docLocChucDanh(undefined, "CE"), docLocChucDanh("__proto__", null)],
+    ["2E", "CE", "", "", "", ""]
+  );
+  kiemTra(
+    "chuc danh chi huy bao trum cap duoi",
+    [chucDanhBaoTrum("CE", "3E"), chucDanhBaoTrum("3E", "CE"), chucDanhBaoTrum("CO", "BSN"), chucDanhBaoTrum("CO", "2O"), chucDanhBaoTrum("MST", "ELC"), chucDanhBaoTrum("2E", null), phamViChucDanh("CE")],
+    [true, false, true, false, true, false, ["CE", "2E", "3E", "4E", "OIL", "FIT"]]
+  );
 
   // ── Bộ đọc AI chế độ "kiemKe" với ba cột kỳ ──
   const ai = chuanHoaKetQuaAi({

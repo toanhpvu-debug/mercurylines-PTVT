@@ -6,10 +6,13 @@ import { chonDuocTau, requireScopedUser, trongPhamVi, vesselIdWhere, vesselScope
 import { QUY_LA_MA, docKyQuy, mocQuy, ngayCuaVN, quyCua } from "@/lib/kyQuy";
 import { soLieuKyVatTu, tenKyThang, thangCuaQuy } from "@/lib/tonKhoQuy";
 import { soHieuHang, taiDuLieuTonKy } from "@/lib/tonKhoQuyServer";
+import { chucDanhCuaNguoiDung } from "@/lib/maVatTu";
+import { docLocChucDanh } from "@/lib/chucDanhChiuTrachNhiem";
 import { duongDanTheKho } from "@/lib/theKho";
 import { layT } from "@/lib/i18n/server";
 import LogoBieuMau from "@/components/LogoBieuMau";
 import PrintButton from "@/components/PrintButton";
+import ChonChucDanh from "@/components/ChonChucDanh";
 import { Button, Card, Field, Input, Notice, PageHeader, Select, Stat, buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -27,10 +30,10 @@ const BO_PHAN = ["ALL", "ENG", "DECK", "STORE"] as const;
 export default async function BaoCaoTonQuyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vessel?: string; quy?: string; nam?: string; dept?: string; type?: string; q?: string; dong?: string }>;
+  searchParams: Promise<{ vessel?: string; quy?: string; nam?: string; dept?: string; type?: string; q?: string; dong?: string; rank?: string }>;
 }) {
   const user = await requireScopedUser();
-  const { t, ngay } = await layT();
+  const { t, ngay, tenChucDanh } = await layT();
   const scope = vesselScopeDayDu(user);
   const sp = await searchParams;
   const vessels = await prisma.vessel.findMany({ where: vesselIdWhere(scope), orderBy: { code: "asc" }, select: { id: true, code: true, name: true } });
@@ -43,6 +46,9 @@ export default async function BaoCaoTonQuyPage({
   const loai = sp.type === "STORE" || sp.type === "SPARE" ? sp.type : "ALL";
   const q = String(sp.q ?? "").trim().toLowerCase();
   const chiCoDong = sp.dong === "1";
+  // Chức danh quản lý (người giữ và kiểm kê) — Máy hai in / xuất đúng phần mình; "toi" = của tôi.
+  const chucDanhCuaToi = chucDanhCuaNguoiDung(user);
+  const rank = docLocChucDanh(sp.rank, chucDanhCuaToi);
   const hienTai = quyCua(bayGio);
   const cacNam = Array.from({ length: 5 }, (_, i) => hienTai.nam - i);
 
@@ -55,7 +61,7 @@ export default async function BaoCaoTonQuyPage({
     );
   }
 
-  const du = await taiDuLieuTonKy({ vesselId: tau.id, boPhan: dept, loai, tuNgay: moc.batDau });
+  const du = await taiDuLieuTonKy({ vesselId: tau.id, boPhan: dept, loai, tuNgay: moc.batDau, chucDanh: rank });
   const soLieu = soLieuKyVatTu(du.tonHienTai, du.giaoDich, moc);
   const tatCa = soLieu
     .map((s) => ({ s, m: du.vatTu.get(s.materialId)! }))
@@ -70,7 +76,7 @@ export default async function BaoCaoTonQuyPage({
   const thang = thangCuaQuy(ky);
   const cuoiQuy = new Date(Math.min(moc.ketThuc.getTime() - 1, bayGio.getTime()));
   const so = (n: number) => String(Math.round(n * 1000) / 1000);
-  const thamSoXuat = new URLSearchParams({ vessel: String(tau.id), quy: String(ky.quy), nam: String(ky.nam), dept, type: loai });
+  const thamSoXuat = new URLSearchParams({ vessel: String(tau.id), quy: String(ky.quy), nam: String(ky.nam), dept, type: loai, ...(rank ? { rank } : {}) });
   const nhanBoPhan = (k: string) =>
     k === "ENG" ? t("inventory.bpMay") : k === "DECK" ? t("inventory.bpBoong") : k === "STORE" ? t("inventory.bpKhoTieuHao") : t("inventory.bpTatCa");
   const nhanLoai = loai === "STORE" ? t("tonQuy.loaiStore") : loai === "SPARE" ? t("tonQuy.loaiSpare") : t("tonQuy.loaiTatCa");
@@ -87,7 +93,7 @@ export default async function BaoCaoTonQuyPage({
           subtitle={t("tonQuy.moTa")}
           action={
             <>
-              <Link href={`/inventory/thong-ke?vessel=${tau.id}&dept=${dept}&type=${loai}`} className={buttonClass("secondary")}>
+              <Link href={`/inventory/thong-ke?vessel=${tau.id}&dept=${dept}&type=${loai}${rank ? `&rank=${rank}` : ""}`} className={buttonClass("secondary")}>
                 <BarChart3 className="size-4" />
                 {t("tonQuy.nutThongKe")}
               </Link>
@@ -148,6 +154,9 @@ export default async function BaoCaoTonQuyPage({
               <option value="STORE">{t("tonQuy.loaiStore")}</option>
               <option value="SPARE">{t("tonQuy.loaiSpare")}</option>
             </Select>
+          </Field>
+          <Field label={t("tonQuy.chucDanh")} className="w-56">
+            <ChonChucDanh giaTri={sp.rank === "toi" && rank ? "toi" : rank} chucDanhCuaToi={chucDanhCuaToi} />
           </Field>
           <Field label={t("tonQuy.timKiem")} className="w-56">
             <Input name="q" defaultValue={sp.q ?? ""} />
@@ -215,7 +224,7 @@ export default async function BaoCaoTonQuyPage({
             <span className="font-semibold">{t("tonQuy.inNgay")}</span> {`${String(vn.ngay).padStart(2, "0")}/${String(vn.thang).padStart(2, "0")}/${vn.nam}`}
           </p>
           <p>
-            <span className="font-semibold">{t("tonQuy.inBoPhan")}</span> {dept === "ALL" ? nhanLoai : `${nhanBoPhan(dept)} · ${nhanLoai}`}
+            <span className="font-semibold">{t("tonQuy.inBoPhan")}</span> {[dept === "ALL" ? null : nhanBoPhan(dept), nhanLoai, rank ? tenChucDanh(rank) : null].filter(Boolean).join(" · ")}
           </p>
           <p className="text-right">
             <span className="font-semibold">{t("tonQuy.inKy")}</span> {tenKyThang(thang.tu, thang.den)}

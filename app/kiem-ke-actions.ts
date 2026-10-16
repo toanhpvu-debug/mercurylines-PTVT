@@ -346,6 +346,7 @@ export async function apDungKiemKe(id: number, sua: unknown): Promise<KetQuaKiem
     // gắn lần kiểm kê này.
     const themMoi = truocThem.dong.filter((k) => k.trangThai === "MOI" && dong[k.i].themMoi && dong[k.i].ton !== null).map((k) => dong[k.i]);
     let taoMoi = 0;
+    const idMoi = new Set<number>();
     if (themMoi.length) {
       const kho = await prisma.warehouse.findMany({ where: { vesselId: kk.vesselId }, select: { id: true, code: true } });
       const theoLoai: Partial<Record<"ENG" | "DECK" | "STORE", number>> = {};
@@ -382,13 +383,14 @@ export async function apDungKiemKe(id: number, sua: unknown): Promise<KetQuaKiem
         return { message: t("actions.nhap_trungMaDoDongThoi") };
       }
       taoMoi = nhap.createdCount;
+      for (const x of nhap.resolved ?? []) if (x.taoMoi) idMoi.add(x.materialId);
     }
 
     // Kế hoạch lập lại sau khi thêm mặt hàng mới (giờ đã ghép được), rồi áp dụng — máy
     // chủ lập lại từng nhóm ngay trong giao dịch (đọc lại tồn + lịch sử lúc ghi).
     const keHoach = themMoi.length ? await lapKeHoachKiemKe(kk.vesselId, dong, kk.khoChon, ky) : truocThem;
     const kq = await prisma.$transaction(
-      (tx) => apDungKeHoachKiemKe(tx, { vesselId: kk.vesselId, keHoach, kiemKeId: kk.id, tenFile: kk.fileName, nguoi: actor.name }),
+      (tx) => apDungKeHoachKiemKe(tx, { vesselId: kk.vesselId, keHoach, kiemKeId: kk.id, tenFile: kk.fileName, nguoi: actor.name, moi: idMoi }),
       { timeout: 120_000, maxWait: 10_000 }
     ).catch((e: unknown) => {
       if (e instanceof LoiKiemKe && e.ma === "am") return { loiAm: e.thamSo } as const;
@@ -400,14 +402,17 @@ export async function apDungKiemKe(id: number, sua: unknown): Promise<KetQuaKiem
       return { message: t("kiemKe.loiAm", { dong: a.dong, ma: a.ma, ten: a.ten, so: a.so }) };
     }
     const tong = keHoach.tong;
+    // Hàng vừa thêm mới đếm riêng ở "thêm mới", không lẫn vào đổi tồn / không đổi. Kế hoạch
+    // lập lại SAU khi thêm, nên dòng còn "chưa có" chính là dòng không chọn thêm.
+    const khongDoi = keHoach.dong.filter((k) => k.trangThai === "KHONG_DOI" && !(k.materialId !== null && idMoi.has(k.materialId))).length;
     const ketQua = {
       thayDoi: kq.soDong,
       tang: kq.tang,
       giam: kq.giam,
       soButToan: kq.soButToan,
-      khongDoi: tong.KHONG_DOI,
+      khongDoi,
       themMoi: taoMoi,
-      moiKhongThem: tong.MOI - themMoi.length,
+      moiKhongThem: tong.MOI,
       khongSo: tong.KHONG_SO,
       boQua: tong.BO_QUA,
       gop: tong.GOP,
@@ -422,7 +427,7 @@ export async function apDungKiemKe(id: number, sua: unknown): Promise<KetQuaKiem
       action: "kiem-ke-ap-dung",
       path: `/inventory/kiem-ke/${kk.id}`,
       vesselId: kk.vesselId,
-      detail: `Áp dụng kiểm kê ${kk.fileName} (${kk.vessel.code}, ${ky.coKy ? `kỳ ${chuoiNgay(ky.batDau)} – ${chuoiNgay(new Date(ky.ketThuc.getTime() - 1))}` : `ngày ${chuoiNgay(kk.ngayKiemKe)}`}): ${kq.soDong} mặt hàng đổi (${kq.tang} tăng, ${kq.giam} giảm, ${kq.soButToan} dòng ghi), ${tong.KHONG_DOI} khớp sẵn, ${taoMoi} thêm mới, ${ketQua.moiKhongThem} chưa có trong danh mục không thêm`,
+      detail: `Áp dụng kiểm kê ${kk.fileName} (${kk.vessel.code}, ${ky.coKy ? `kỳ ${chuoiNgay(ky.batDau)} – ${chuoiNgay(new Date(ky.ketThuc.getTime() - 1))}` : `ngày ${chuoiNgay(kk.ngayKiemKe)}`}): ${kq.soDong} mặt hàng đổi (${kq.tang} tăng, ${kq.giam} giảm, ${kq.soButToan} dòng ghi), ${khongDoi} khớp sẵn, ${taoMoi} thêm mới, ${ketQua.moiKhongThem} chưa có trong danh mục không thêm`,
     });
     revalidatePath("/inventory");
     revalidatePath("/inventory/kiem-ke");

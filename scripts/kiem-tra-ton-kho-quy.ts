@@ -362,6 +362,14 @@ async function phanDatabase() {
           kiemTra("hai kho: chon han kho thi doi chieu duoc", [keD2.dong[0].trangThai, keD2.dong[0].tonSau], ["THAY_DOI", 9]);
         } else console.log("  (bo qua thu hai kho: tau chi co mot kho)");
 
+        // 3c. Mặt hàng vừa thêm vào danh mục từ chính file (moi): ghi tồn ban đầu, nhưng không đếm là "đổi tồn".
+        const e = await tx.material.create({ data: { code: ma(), nameVn: "HANG THU MOI TU FILE ZZQ", uom: "PCS" } });
+        await tx.vesselMaterial.create({ data: { vesselId, materialId: e.id } });
+        const f = await taoHang("HANG THU CO SAN ZZQ", 2, []);
+        const keE = await lapKeHoachKiemKe(vesselId, [dongMau(e.nameVn, 7), dongMau(f.nameVn, 5)], String(kho.id), kyA, tx);
+        const kqE = await apDungKeHoachKiemKe(tx, { vesselId, keHoach: keE, kiemKeId: 990005, tenFile: "THU-E.xlsx", nguoi: "Kiểm thử", bayGio, moi: new Set([e.id]) });
+        kiemTra("them moi: ghi ton ban dau, khong dem la doi ton", [kqE.soDong, kqE.tang, kqE.soButToan, await tonCua(e.id), await tonCua(f.id)], [1, 1, 2, 7, 5]);
+
         // 4. Gỡ: trả tồn như cũ, xóa đúng các dòng đã ghi.
         const go = await goKiemKeTx(tx, 990002);
         kiemTra("go kiem ke ky: ton tro lai, dong da xoa", [go, await tonCua(b.id), await tx.inventoryTransaction.count({ where: { kiemKeId: 990002 } })], [{ soDong: 1, soMatHang: 1 }, 26, 0]);

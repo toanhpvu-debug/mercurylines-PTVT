@@ -114,7 +114,8 @@ export default async function KiemKeChiTietPage({ params }: { params: Promise<{ 
             giam: kq.giam ?? 0,
             khongDoi: kq.khongDoi ?? 0,
             moi: kq.themMoi ?? 0,
-            moiKhongThem: kq.moiKhongThem ?? 0,
+            // Lần áp dụng từ bản 7d90d9f tới trước bản sửa trừ số thêm mới hai lần (ra số âm).
+            moiKhongThem: (kq.moiKhongThem ?? 0) < 0 ? Math.max(0, (kq.moiKhongThem ?? 0) + (kq.themMoi ?? 0)) : (kq.moiKhongThem ?? 0),
             khongSo: kq.khongSo ?? 0,
           })}
         </Notice>

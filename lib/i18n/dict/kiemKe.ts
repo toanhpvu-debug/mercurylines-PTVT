@@ -50,7 +50,7 @@ export const kiemKe = tuDien(
     dangDocLai: "Đã giao AI đọc lại — trang tự cập nhật khi xong.",
     ghiChuDoc: "Kết quả đọc file:",
     goiYDoiChieu:
-      "Đối chiếu từng dòng: số đếm đọc sai thì sửa ngay trong ô, dòng không muốn cập nhật thì tick Bỏ qua. Mặt hàng chưa có trong danh mục KHÔNG được thêm trừ khi bạn tick Thêm mới. Mặt hàng có trong danh mục mà không có trong file giữ nguyên tồn.",
+      "Đối chiếu từng dòng: số đếm đọc sai thì sửa ngay trong ô, dòng không muốn cập nhật thì tick Bỏ qua. Mặt hàng chưa có trong danh mục KHÔNG được thêm trừ khi bạn tick Thêm mới (tick Thêm mới tất cả ở đầu cột để chọn hết một lần). Mặt hàng có trong danh mục mà không có trong file giữ nguyên tồn.",
     the_THAY_DOI: "Đổi tồn",
     the_KHONG_DOI: "Không đổi",
     the_MOI: "Chưa có trong danh mục",
@@ -119,6 +119,7 @@ export const kiemKe = tuDien(
     ngoaiDanhMucTau: "chưa gán cho tàu — áp dụng sẽ gán",
     gopVao: "cộng vào dòng {n}",
     themMoi: "Thêm mới",
+    themMoiTatCa: "Thêm mới tất cả",
     trangTep: "tr.{n}",
     luu: "Lưu đối chiếu",
     dangLuu: "Đang lưu...",
@@ -197,7 +198,7 @@ export const kiemKe = tuDien(
     dangDocLai: "AI re-reading started — this page updates itself when done.",
     ghiChuDoc: "File reading result:",
     goiYDoiChieu:
-      "Review each row: fix a misread count directly in its cell, tick Skip for rows you do not want to update. Items not in the catalogue are NOT added unless you tick Add new. Catalogue items missing from the file keep their stock.",
+      "Review each row: fix a misread count directly in its cell, tick Skip for rows you do not want to update. Items not in the catalogue are NOT added unless you tick Add new (tick Add all new in the column header to select them all at once). Catalogue items missing from the file keep their stock.",
     the_THAY_DOI: "Stock change",
     the_KHONG_DOI: "Unchanged",
     the_MOI: "Not in catalogue",
@@ -266,6 +267,7 @@ export const kiemKe = tuDien(
     ngoaiDanhMucTau: "not yet assigned to the vessel — applying assigns it",
     gopVao: "added to row {n}",
     themMoi: "Add new",
+    themMoiTatCa: "Add all new",
     trangTep: "p.{n}",
     luu: "Save review",
     dangLuu: "Saving...",

@@ -370,7 +370,16 @@ export function ghiChuKiemKe(b: ButToanBaoCao, x: { tenFile: string; id: number;
  */
 export async function apDungKeHoachKiemKe(
   tx: Db,
-  x: { vesselId: number; keHoach: KeHoachKiemKe; kiemKeId: number | null; tenFile: string; nguoi: string; bayGio?: Date }
+  x: {
+    vesselId: number;
+    keHoach: KeHoachKiemKe;
+    kiemKeId: number | null;
+    tenFile: string;
+    nguoi: string;
+    bayGio?: Date;
+    /** Mặt hàng vừa thêm vào danh mục từ chính file này: vẫn ghi tồn ban đầu, nhưng không đếm vào đổi tồn / tăng / giảm. */
+    moi?: ReadonlySet<number>;
+  }
 ): Promise<{ soDong: number; tang: number; giam: number; soButToan: number }> {
   const ky = x.keHoach.ky;
   const bayGio = x.bayGio ?? new Date();
@@ -391,6 +400,7 @@ export async function apDungKeHoachKiemKe(
       });
     }
     if (k.trangThai === "KHONG_DOI") continue;
+    const laMoi = x.moi?.has(k.materialId) ?? false;
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KHOA_TON_KHO_ADVISORY}::int, ${khoaAdvisoryDongTon(k.materialId, k.warehouseId)}::int)`;
     const ton = await tx.inventory.findUnique({
       where: { materialId_warehouseId: { materialId: k.materialId, warehouseId: k.warehouseId } },
@@ -429,7 +439,7 @@ export async function apDungKeHoachKiemKe(
         update: { quantity: { increment: kh.tongDoi }, vesselId: x.vesselId },
         create: { materialId: k.materialId, warehouseId: k.warehouseId, vesselId: x.vesselId, quantity: kh.tongDoi },
       });
-      tang++;
+      if (!laMoi) tang++;
     } else if (kh.tongDoi < -1e-9) {
       const tru = await tx.inventory.updateMany({
         where: { materialId: k.materialId, warehouseId: k.warehouseId, quantity: { gte: -kh.tongDoi - 1e-6 } },
@@ -438,9 +448,9 @@ export async function apDungKeHoachKiemKe(
       if (tru.count === 0) throw loiAm();
       // Sai số làm tròn (−0.0000001) không để lại tồn âm.
       await tx.inventory.updateMany({ where: { materialId: k.materialId, warehouseId: k.warehouseId, quantity: { lt: 0 } }, data: { quantity: 0 } });
-      giam++;
+      if (!laMoi) giam++;
     }
-    soDong++;
+    if (!laMoi) soDong++;
   }
   return { soDong, tang, giam, soButToan };
 }

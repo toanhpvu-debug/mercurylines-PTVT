@@ -1226,7 +1226,9 @@ file** ở đầu trang Tồn kho. Cách dễ nhất: xuất MLS-11-06 của qu�
   kho nhiều dòng thì **cộng dồn**. Ô tồn trống = chưa đếm → không đụng tới. Mặt hàng trong danh mục mà không có trong file **giữ
   nguyên tồn**. Dòng làm tồn hiện tại **âm** (sau ngày kiểm kê đã xuất nhiều hơn số đếm) bị đánh dấu và chặn áp dụng.
 - **Không nhập lại mặt hàng đã có.** Mặt hàng chưa có trong danh mục chỉ được thêm khi người đối chiếu tick *Thêm mới* (đi qua
-  đúng đường nhập danh mục, cùng luật sinh mã); tồn ban đầu của nó đi qua cùng kế hoạch, đúng ngày, gắn lần kiểm kê.
+  đúng đường nhập danh mục, cùng luật sinh mã); tồn ban đầu của nó đi qua cùng kế hoạch, đúng ngày, gắn lần kiểm kê. File nhiều
+  hàng mới (tàu mới, danh mục chưa nhập): bộ lọc *Chưa có* → ô **Thêm mới tất cả** ở đầu cột chọn / bỏ hết một lần (dòng ô tồn
+  trống không tính). Tóm tắt sau khi áp dụng đếm hàng thêm mới riêng — không lẫn vào "đổi tồn" / "không đổi".
 - **Áp dụng** (Thuyền trưởng / Máy trưởng của tàu / quản trị): kế hoạch được lập lại ở máy chủ trong giao dịch (khóa dòng tồn —
   cùng khóa với phiếu nhập / xuất tay — đọc lại tồn và lịch sử lúc ghi). Bấm hai lần không ghi hai lần (giữ chỗ trạng thái
   `DANG_AP_DUNG`). Đã có lần kiểm kê **ngày sau** được áp dụng cho tàu → chặn (áp lần cũ hơn làm lệch số của lần đó).

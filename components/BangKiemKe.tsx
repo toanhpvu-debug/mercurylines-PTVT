@@ -128,8 +128,16 @@ export default function BangKiemKe({
   const giam = thayDoi.filter((r) => (r.tonSau ?? 0) < (r.tonHienTai ?? 0)).length;
   const soThemMoi = tinh.filter((r) => r.trangThai === "MOI" && sua[r.i].themMoi).length;
   const hien = loc === "TAT_CA" ? tinh : tinh.filter((r) => nhomLoc(r.trangThai) === loc);
+  // Ô "Thêm mới tất cả" ở đầu cột: đúng các dòng chưa có trong danh mục đang hiện
+  // (có số đếm, không bỏ qua — cùng điều kiện hiện ô Thêm mới của từng dòng).
+  const moiHien = hien.filter((r) => r.trangThai === "MOI");
+  const chonMoiHien = moiHien.filter((r) => sua[r.i].themMoi).length;
 
   const doi = (i: number, patch: Partial<Sua>) => setSua((ds) => ds.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+  const chonHetMoi = (themMoi: boolean) => {
+    const tap = new Set(moiHien.map((r) => r.i));
+    setSua((ds) => ds.map((s, j) => (tap.has(j) ? { ...s, themMoi } : s)));
+  };
   const goiLen = (): SuaDongKiemKe[] =>
     sua.map((s, i) => ({ i, ton: s.ton, boQua: s.boQua, themMoi: s.themMoi, ...(dong[i].bc || s.tonDau || s.nhan || s.tieuThu ? { bc: { tonDau: s.tonDau, nhan: s.nhan, tieuThu: s.tieuThu } } : {}) }));
 
@@ -212,7 +220,26 @@ export default function BangKiemKe({
             <tr>
               <Th className="w-10">{t("kiemKe.cot_dong")}</Th>
               <Th>{t("kiemKe.cot_tenFile")}</Th>
-              <Th>{t("kiemKe.cot_khop")}</Th>
+              <Th>
+                {t("kiemKe.cot_khop")}
+                {dangSua && moiHien.length > 0 && (
+                  <label className="mt-1.5 flex items-center gap-1.5 text-sm font-medium tracking-normal normal-case text-[var(--text-primary)]">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-brand-600"
+                      checked={chonMoiHien === moiHien.length}
+                      ref={(o) => {
+                        if (o) o.indeterminate = chonMoiHien > 0 && chonMoiHien < moiHien.length;
+                      }}
+                      onChange={(e) => chonHetMoi(e.target.checked)}
+                    />
+                    {t("kiemKe.themMoiTatCa")}{" "}
+                    <span className="tabular text-[var(--text-muted)]">
+                      ({chonMoiHien}/{moiHien.length})
+                    </span>
+                  </label>
+                )}
+              </Th>
               <Th>{t("kiemKe.cot_kho")}</Th>
               {coCotKy && <Th className="text-right">{t("kiemKe.cot_kyFile")}</Th>}
               <Th className="text-right">{t("kiemKe.cot_tonDem")}</Th>

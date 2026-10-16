@@ -27,6 +27,7 @@ import {
 } from "@/lib/departments";
 import { nhomCuaVatTu } from "@/lib/phanNhomBanChat";
 import InventoryForm from "@/components/InventoryForm";
+import KhungBang from "@/components/KhungBang";
 import {
   duongDanTheKho,
   khoaDongTon,
@@ -558,8 +559,14 @@ export default async function InventoryPage({
                       MLS-11-06
                     </a>
                   </summary>
-                  {/* Bảng có thanh cuộn riêng + tiêu đề ghim để dò nhanh trong danh sách dài */}
-                  <div className="mx-4 mb-4 max-h-80 overflow-auto rounded-lg border border-[var(--border-subtle)]">
+                  {/* Bảng có thanh cuộn riêng + tiêu đề ghim để dò nhanh trong danh sách dài; thanh
+                      nhỏ phía trên để phóng / thu chữ, mở rộng khung, xem toàn màn hình. */}
+                  <KhungBang
+                    ten="ton-kho"
+                    caoMacDinh={singleVessel ? "cao" : "gon"}
+                    className="mx-4 mb-4"
+                    tieuDe={`${vessel.code} — ${vessel.name} · ${t("inventory.nDong", { n: rows.length })}`}
+                  >
                     <Table dense>
                       <thead className="sticky top-0 z-10 bg-[var(--surface-raised)]">
                         <tr>
@@ -797,7 +804,7 @@ export default async function InventoryPage({
                         })}
                       </tbody>
                     </Table>
-                  </div>
+                  </KhungBang>
                 </details>
               </Card>
             );
@@ -856,7 +863,7 @@ export default async function InventoryPage({
                 title={t("inventory.chuaCoGiaoDich")}
               />
             ) : (
-              <div className="max-h-80 overflow-auto rounded-lg border border-[var(--border-subtle)]">
+              <KhungBang ten="nhat-ky-kho" tieuDe={t("inventory.lichSuGanDay")}>
                 <Table dense>
                   <thead className="sticky top-0 z-10 bg-[var(--surface-raised)]">
                     <tr>
@@ -953,7 +960,7 @@ export default async function InventoryPage({
                     })}
                   </tbody>
                 </Table>
-              </div>
+              </KhungBang>
             )}
             <p className="mt-3 text-xs text-[var(--text-muted)]">
               {t("inventory.ghiChuGhiSoLuc")}

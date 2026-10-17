@@ -1,9 +1,11 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
   Boxes,
+  ChevronRight,
   ClipboardList,
   Download,
   FileText,
@@ -26,7 +28,6 @@ import { cn } from "@/lib/cn";
 import {
   Badge,
   Card,
-  CardHeader,
   EmptyState,
   PageHeader,
   TONE_YEU_CAU,
@@ -42,6 +43,51 @@ import {
 export const dynamic = "force-dynamic";
 
 const LINK = "text-brand-700 hover:underline dark:text-brand-300";
+
+/** Tiêu đề khung gập: cùng một dáng với trang Tồn kho / Sơn. */
+const SUMMARY =
+  "flex cursor-pointer select-none list-none flex-wrap items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--surface-sunken)] [&::-webkit-details-marker]:hidden";
+
+/**
+ * Một mục của hồ sơ tàu, GẬP được: dòng tiêu đề (mũi tên · biểu tượng · tên · ghi chú ngắn · nút bên
+ * phải) luôn hiện, nội dung mở khi bấm. Mục phụ (báo cáo, sửa / xóa tàu, kho) gập sẵn cho trang gọn;
+ * Tồn kho và Yêu cầu mở sẵn. Nút trong dòng tiêu đề vẫn bấm được mà không gập / mở mục.
+ */
+function MucGap({
+  icon,
+  tieuDe,
+  ghiChu,
+  nut,
+  mo = false,
+  className,
+  children,
+}: {
+  icon: ReactNode;
+  tieuDe: ReactNode;
+  ghiChu?: ReactNode;
+  nut?: ReactNode;
+  mo?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card padded={false} className={className}>
+      <details open={mo} className="group">
+        <summary className={SUMMARY}>
+          <ChevronRight
+            aria-hidden="true"
+            className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
+          />
+          {icon}
+          {tieuDe}
+          {ghiChu && <span className="text-xs font-normal text-[var(--text-muted)]">{ghiChu}</span>}
+          {nut && <span className="ml-auto">{nut}</span>}
+        </summary>
+        <div className="border-t border-[var(--border-subtle)] px-4 py-4">{children}</div>
+      </details>
+    </Card>
+  );
+}
 
 // Chỉ giữ TONE ở đây; nhãn trạng thái lấy từ từ điển (labels.vesselStatus_* cho
 // ACTIVE/INACTIVE, vessels.trangThaiBaoDuong cho MAINTENANCE).
@@ -168,17 +214,17 @@ export default async function VesselDetailPage({
 
       <VesselSwitcher hienTai={vessel.id} duongDan={(id) => `/vessels/${id}`} />
 
-      <Card>
-        <CardHeader
-          icon={<FileText className="size-4" />}
-          title={t("vessels.baoCaoNhanh")}
-          action={
-            <Link href="/documents" className={buttonClass("secondary", "sm")}>
-              {t("vessels.taiLenXemTatCa")}
-              <ArrowRight className="size-4" />
-            </Link>
-          }
-        />
+      <MucGap
+        icon={<FileText className="size-4 text-[var(--text-muted)]" />}
+        tieuDe={t("vessels.baoCaoNhanh")}
+        ghiChu={documents.length ? t("vessels.nTepGanNhat", { n: documents.length }) : t("vessels.chuaCoBaoCaoTau")}
+        nut={
+          <Link href="/documents" className={buttonClass("secondary", "sm")}>
+            {t("vessels.taiLenXemTatCa")}
+            <ArrowRight className="size-4" />
+          </Link>
+        }
+      >
         {documents.length === 0 ? (
           <EmptyState
             icon={<FileText className="size-5" />}
@@ -245,15 +291,16 @@ export default async function VesselDetailPage({
             </Table>
           </TableWrap>
         )}
-      </Card>
+      </MucGap>
 
       {canManage && (
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-          <Card className="xl:col-span-2">
-            <CardHeader
-              icon={<Pencil className="size-4" />}
-              title={t("vessels.suaThongTinTau")}
-            />
+        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-3">
+          <MucGap
+            className="xl:col-span-2"
+            icon={<Pencil className="size-4 text-[var(--text-muted)]" />}
+            tieuDe={t("vessels.suaThongTinTau")}
+            ghiChu={t("vessels.goiSuaThongTin")}
+          >
             <VesselEditForm
               vessel={{
                 id: vessel.id,
@@ -267,27 +314,23 @@ export default async function VesselDetailPage({
                 mainEngineModel: vessel.mainEngineModel,
               }}
             />
-          </Card>
-          <Card>
-            <CardHeader
-              icon={<Trash2 className="size-4" />}
-              title={t("vessels.xoaTau")}
-              subtitle={t("vessels.luuYXoaTau")}
-            />
+          </MucGap>
+          <MucGap icon={<Trash2 className="size-4 text-[var(--text-muted)]" />} tieuDe={t("vessels.xoaTau")}>
+            <p className="mb-3 text-sm text-[var(--text-secondary)]">{t("vessels.luuYXoaTau")}</p>
             <VesselDeleteButton
               id={vessel.id}
               name={vessel.name}
               requestCount={requests.length}
             />
-          </Card>
+          </MucGap>
         </div>
       )}
 
-      <Card>
-        <CardHeader
-          icon={<Warehouse className="size-4" />}
-          title={t("vessels.khoTrenTau")}
-        />
+      <MucGap
+        icon={<Warehouse className="size-4 text-[var(--text-muted)]" />}
+        tieuDe={t("vessels.khoTrenTau")}
+        ghiChu={t("vessels.nKho", { n: vessel.warehouses.length })}
+      >
         {vessel.warehouses.length === 0 ? (
           <EmptyState
             icon={<Warehouse className="size-5" />}
@@ -322,23 +365,21 @@ export default async function VesselDetailPage({
             </Table>
           </TableWrap>
         )}
-      </Card>
+      </MucGap>
 
-      <Card>
-        <CardHeader
-          icon={<Boxes className="size-4" />}
-          title={t("vessels.tonKhoCuaTau", { ten: vessel.name })}
-          action={
-            /* Nhập/xuất và xuất kiểm kê làm ở module Tồn kho — ở đây chỉ xem. */
-            <Link
-              href={`/inventory?vessel=${vessel.id}`}
-              className={buttonClass("secondary", "sm")}
-            >
-              {t("vessels.nhapXuatKiemKe")}
-              <ArrowRight className="size-4" />
-            </Link>
-          }
-        />
+      {/* 4) Tồn kho — mở sẵn, gập được. Nhập/xuất và xuất kiểm kê làm ở module Tồn kho — ở đây chỉ xem. */}
+      <MucGap
+        mo
+        icon={<Boxes className="size-4 text-[var(--text-muted)]" />}
+        tieuDe={t("vessels.tonKhoCuaTau", { ten: vessel.name })}
+        ghiChu={t("vessels.nDongTon", { n: tongTonKho })}
+        nut={
+          <Link href={`/inventory?vessel=${vessel.id}`} className={buttonClass("secondary", "sm")}>
+            {t("vessels.nhapXuatKiemKe")}
+            <ArrowRight className="size-4" />
+          </Link>
+        }
+      >
         {tongTonKho === 0 ? (
           <EmptyState
             icon={<Boxes className="size-5" />}
@@ -424,23 +465,21 @@ export default async function VesselDetailPage({
             </Table>
           </TableWrap>
         )}
-      </Card>
+      </MucGap>
 
-      <Card>
-        <CardHeader
-          icon={<ClipboardList className="size-4" />}
-          title={t("vessels.yeuCauCuaTau", { ten: vessel.name })}
-          action={
-            /* Tạo, duyệt, xóa yêu cầu làm ở module Yêu cầu vật tư. */
-            <Link
-              href={`/requests?vessel=${vessel.id}`}
-              className={buttonClass("secondary", "sm")}
-            >
-              {t("vessels.taoDuyetYeuCau")}
-              <ArrowRight className="size-4" />
-            </Link>
-          }
-        />
+      {/* 5) Yêu cầu — mở sẵn, gập được. Tạo, duyệt, xóa yêu cầu làm ở module Yêu cầu vật tư. */}
+      <MucGap
+        mo
+        icon={<ClipboardList className="size-4 text-[var(--text-muted)]" />}
+        tieuDe={t("vessels.yeuCauCuaTau", { ten: vessel.name })}
+        ghiChu={t("vessels.nYeuCauTau", { n: requests.length })}
+        nut={
+          <Link href={`/requests?vessel=${vessel.id}`} className={buttonClass("secondary", "sm")}>
+            {t("vessels.taoDuyetYeuCau")}
+            <ArrowRight className="size-4" />
+          </Link>
+        }
+      >
         {requests.length === 0 ? (
           <EmptyState
             icon={<ClipboardList className="size-5" />}
@@ -524,7 +563,7 @@ export default async function VesselDetailPage({
             </Table>
           </TableWrap>
         )}
-      </Card>
+      </MucGap>
     </div>
   );
 }

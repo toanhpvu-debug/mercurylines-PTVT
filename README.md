@@ -1193,8 +1193,11 @@ Trong bảng danh sách, cả **mã tàu lẫn tên tàu** đều bấm được
 
 Trang **hồ sơ tàu** (`/vessels/[id]`) chỉ để *xem*: thông tin tàu, danh sách kho, bảng tóm tắt
 tồn kho (cột **Mã VT · Tên mặt hàng · Kho** · ĐVT · Tồn · Giữ · Khả dụng, sắp theo mã — cùng mặt
-hàng ở hai kho đứng liền nhau) và yêu cầu, tài liệu gần đây. Mọi thao tác đều dẫn sang module
-chuyên trách, đã lọc sẵn theo tàu:
+hàng ở hai kho đứng liền nhau) và yêu cầu, tài liệu gần đây. Mỗi mục là một **khung gập** (cùng
+dáng trang Tồn kho): *Báo cáo từ tàu* (số tệp gần nhất), *Chỉnh sửa thông tin tàu*, *Xóa tàu* (quản
+trị) và *Kho trên tàu* (số kho) **gập sẵn** cho trang gọn; *Tồn kho* (số dòng) và *Yêu cầu* (số yêu cầu)
+mở sẵn, gập được. Nút trong dòng tiêu đề (Tải lên / xem tất cả, Nhập / xuất kho, Tạo / duyệt yêu
+cầu) bấm thẳng, không gập / mở mục. Mọi thao tác đều dẫn sang module chuyên trách, đã lọc sẵn theo tàu:
 
 | Muốn làm gì | Làm ở đâu |
 |---|---|

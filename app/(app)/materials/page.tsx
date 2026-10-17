@@ -418,9 +418,11 @@ export default async function MaterialsPage({
         : null,
       nameVn: m.nameVn,
     }));
-    // Đang TÌM thì hiện hết dòng khớp: cắt 40 dòng lúc này là giấu đúng thứ người
-    // ta vừa gõ để tìm. Trang xin quá số trang (danh mục vừa ngắn lại) → trang cuối.
-    const hetMot = showAll || Boolean(q);
+    // Đang TÌM cũng chia trang 40 dòng mỗi bộ phận (số dòng khớp ở huy hiệu bộ phận, chuyển
+    // trang / "Xem tất cả" như thường): đo 2026-10-17, gõ một chữ "a" khớp 762 / 780 dòng —
+    // hiện hết là 1,9 MB tải về và trình duyệt đứng 0,5 s (máy chậm: 3,7 s). Trang xin quá số
+    // trang (danh mục vừa ngắn lại) → trang cuối.
+    const hetMot = showAll;
     const soTrang = hetMot ? 1 : Math.max(1, Math.ceil(sorted.length / PER_DEPT_LIMIT));
     // Vừa sửa: mở trang chứa dòng cuộn tới (hoặc dòng vừa sửa đầu tiên của bộ phận này) — sửa
     // xong là thấy ngay mặt hàng ở chỗ mới, không phải lật trang tìm.

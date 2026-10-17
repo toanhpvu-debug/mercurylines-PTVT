@@ -13,11 +13,13 @@ import { useNgonNgu } from "@/lib/i18n/client";
  * Danh mục gốc có hơn 600 dòng. Trước đây ô tìm nằm trong một form phải bấm
  * "Tìm", còn muốn tới phần Máy hay Điện thì cuộn qua hàng trăm dòng. Thanh này
  * giải quyết cả hai:
- *   - Gõ là lọc: sau 300 ms không gõ nữa, đường dẫn đổi `?q=` và server trả về
- *     đúng các dòng khớp trong TOÀN BỘ danh mục (trang không cắt 40 dòng đầu mỗi
- *     bộ phận khi đang tìm). Lọc ở server chứ không ẩn/hiện dòng trên trang, vì
- *     trang mặc định chỉ dựng 40 dòng đầu mỗi bộ phận — lọc trên trang sẽ bỏ sót
- *     phần chưa dựng.
+ *   - Gõ là lọc: ngừng gõ 500 ms (hoặc bấm Enter) thì đường dẫn đổi `?q=` và server
+ *     tìm trong TOÀN BỘ danh mục (vẫn chia trang 40 dòng mỗi bộ phận, số dòng khớp
+ *     ở mục lục bên dưới). Lọc ở server chứ không chỉ ẩn/hiện dòng trên trang, vì
+ *     trang chỉ dựng một trang mỗi bộ phận — lọc trên trang sẽ bỏ sót phần chưa dựng.
+ *   - MỘT ký tự thì chỉ lọc các dòng đang hiện, không hỏi server (gõ thêm hoặc Enter
+ *     mới tìm cả danh mục): đo 2026-10-17, "a" khớp 762 / 780 dòng — tải 1,9 MB, trình
+ *     duyệt đứng 0,5 s, máy chậm 3,7 s, mà người gõ chậm hay dừng sau chữ đầu.
  *   - Mục lục bộ phận: mỗi ô là một liên kết #neo tới đầu bộ phận đó kèm số
  *     dòng; bấm là nhảy, không cuộn tay. Ô vàng = bộ phận đang hiện một trang
  *     (vd. 41–80/300 — chuyển trang ở dòng tiêu đề bộ phận).
@@ -32,6 +34,8 @@ import { useNgonNgu } from "@/lib/i18n/client";
  * của React, để lại thì React dùng lại thẻ <tr> cũ mà vẫn ẩn.
  */
 const DAU_AN = "data-an-tim";
+/** Số ký tự tối thiểu để tự hỏi server khi ngừng gõ (Enter thì tìm với mọi độ dài). */
+const TU_TIM_TU = 2;
 
 /** Báo cho ChonHangLoat đếm lại ô tick (nó nghe sự kiện change nổi bọt). */
 function baoDoiChon() {
@@ -132,9 +136,12 @@ export default function TimNhanhDanhMuc({
     if (gt.trim() === qTrenUrl.trim()) boLocTam();
     else locTam(gt);
     if (hen.current !== null) window.clearTimeout(hen.current);
+    hen.current = null;
     // Đã lọc tạm ngay trên trang nên chờ lâu hơn một chút mới hỏi server: bớt
-    // các lượt tải cả trang giữa chừng khi người dùng còn đang gõ.
-    hen.current = window.setTimeout(() => dayLenUrl(gt), 500);
+    // các lượt tải cả trang giữa chừng khi người dùng còn đang gõ. Một ký tự thì
+    // không hỏi (chờ gõ thêm hoặc Enter); chữ trùng đường dẫn thì không có gì để hỏi.
+    const n = gt.trim().length;
+    if (gt.trim() !== qTrenUrl.trim() && (n === 0 || n >= TU_TIM_TU)) hen.current = window.setTimeout(() => dayLenUrl(gt), 500);
   };
 
   // Kết quả server về (đường dẫn đổi): bỏ lọc tạm; nếu người dùng đã gõ tiếp
@@ -224,7 +231,9 @@ export default function TimNhanhDanhMuc({
           )}
         </label>
         <span className="tabular shrink-0 text-sm text-[var(--text-secondary)]">
-          {t("materials.dangHienNTrongM", { n: String(dangHien), m: String(tongDong) })}
+          {q.trim().length > 0 && q.trim().length < TU_TIM_TU && q.trim() !== qTrenUrl.trim()
+            ? t("materials.timGoThem")
+            : t("materials.dangHienNTrongM", { n: String(dangHien), m: String(tongDong) })}
         </span>
       </form>
 

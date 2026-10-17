@@ -350,8 +350,8 @@ export default async function VesselDetailPage({
               <thead>
                 <tr>
                   <Th>{t("vessels.cotMaVatTu")}</Th>
-                  <Th>{t("chung.kho")}</Th>
                   <Th>{t("vessels.cotTenVatTu")}</Th>
+                  <Th>{t("chung.kho")}</Th>
                   <Th>{t("chung.donVi")}</Th>
                   <Th align="right">{t("vessels.cotTon")}</Th>
                   <Th align="right">{t("vessels.cotGiu")}</Th>
@@ -370,10 +370,10 @@ export default async function VesselDetailPage({
                       <Td className="font-display text-xs tracking-wide whitespace-nowrap">
                         {inventory.material.code}
                       </Td>
+                      <Td>{inventory.material.nameVn}</Td>
                       <Td className="text-[var(--text-secondary)]">
                         {inventory.warehouse.name}
                       </Td>
-                      <Td>{inventory.material.nameVn}</Td>
                       <Td>
                         <span className="text-xs text-[var(--text-secondary)]">
                           {inventory.material.uom}

@@ -223,6 +223,8 @@ export default async function InventoryPage({
               equipment: true,
               department: true,
               nhomQuanLy: true,
+              // Người giữ đã gán quyết định nhóm bộ phận (lib/phanNhomBanChat.ts) — như Danh mục.
+              responsibleRank: true,
               uom: true,
               category: { select: { name: true } },
             },
@@ -347,6 +349,7 @@ export default async function InventoryPage({
       categoryName: inv.material.category?.name,
       equipment: inv.material.equipment,
       nhomQuanLy: inv.material.nhomQuanLy,
+      responsibleRank: inv.material.responsibleRank,
       nguonPhu: inv.warehouse.code,
     }).nhom;
   const deptSections = DEPARTMENTS;

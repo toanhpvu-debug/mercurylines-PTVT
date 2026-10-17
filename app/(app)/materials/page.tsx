@@ -108,6 +108,8 @@ export default async function MaterialsPage({
     q?: string;
     full?: string;
     rank?: string;
+    /** Lọc một nhóm bộ phận: DECK · ENGINE · ELEC · SERVICE · SAFETY · OTHER (khóa của DEPARTMENTS). */
+    bp?: string;
     /** Trang của từng bộ phận: trang_DECK=2, trang_ENGINE=3… (mỗi trang PER_DEPT_LIMIT dòng). */
     [trang: `trang_${string}`]: string | undefined;
   }>;
@@ -131,7 +133,12 @@ export default async function MaterialsPage({
     q: qRaw,
     full,
     rank: rankRaw,
+    bp: bpRaw,
   } = sp;
+  // Lọc theo bộ phận = đúng các mục Boong · Máy · Điện · Sinh hoạt & Phục vụ · An toàn chung
+  // mà bảng đang chia (nhomCuaVatTu) — cột "Giữ bởi" cũng suy từ chính nhóm đó, nên lọc "Máy"
+  // thì mọi dòng ra đều do người ngành máy giữ, không có dòng nào tự mâu thuẫn.
+  const boPhanLoc = DEPARTMENTS.some((d) => d.key === bpRaw) ? String(bpRaw) : "";
   // Lọc theo chức danh giữ vật tư — dùng khi kiểm kê bàn giao ca: máy hai chỉ
   // cần thấy đúng phần mình ký nhận, không phải cuộn qua cả danh mục tàu.
   //
@@ -194,10 +201,19 @@ export default async function MaterialsPage({
     if (q) params.set("q", qRaw ?? "");
     if (showAll) params.set("full", "1");
     if (rankFilter) params.set("rank", rankFilter);
+    if (boPhanLoc) params.set("bp", boPhanLoc);
     const qs = params.toString();
     return qs ? `/materials?${qs}` : "/materials";
   };
   const vesselKey = isVesselMode ? String(selectedVesselId) : "master";
+  /** Đổi nhóm bộ phận đang lọc, giữ nguyên tàu / loại / chức danh / từ khóa; trang về 1. */
+  const buildHrefBoPhan = (nextBp: string) => {
+    const p = new URLSearchParams(buildHref(filterType, isVesselMode ? vesselKey : null).split("?")[1] ?? "");
+    if (nextBp) p.set("bp", nextBp);
+    else p.delete("bp");
+    const qs = p.toString();
+    return qs ? `/materials?${qs}` : "/materials";
+  };
   // Đổi MỖI bộ lọc chức danh, giữ nguyên tàu / loại / từ khóa đang xem — đổi
   // một thứ mà mất mấy thứ kia là người dùng phải chọn lại từ đầu.
   const buildHrefRank = (nextRank: string) => {
@@ -207,6 +223,7 @@ export default async function MaterialsPage({
     if (q) params.set("q", qRaw ?? "");
     if (showAll) params.set("full", "1");
     if (nextRank) params.set("rank", nextRank);
+    if (boPhanLoc) params.set("bp", boPhanLoc);
     const qs = params.toString();
     return qs ? `/materials?${qs}` : "/materials";
   };
@@ -304,7 +321,7 @@ export default async function MaterialsPage({
         })
       )
     : allRows;
-  const rows = q
+  const rowsTruocBoPhan = q
     ? theoChucDanh.filter((m) =>
         [
           m.nameVn,
@@ -322,18 +339,13 @@ export default async function MaterialsPage({
       )
     : theoChucDanh;
 
-  // Nhóm theo bộ phận tàu như form công ty: Boong → Máy → Điện → Phục vụ →
-  // An toàn → Khác. Trong mỗi bộ phận: vật tư trước, phụ tùng sau theo thiết bị.
-  type Row = (typeof rows)[number];
-  // categoryNameById đã dựng ở trên (dùng cho bộ lọc chức danh). Dùng lại ở đây
-  // để gom nhóm — kiểu của rows không mang quan hệ category nên không đọc thẳng
-  // m.category được.
-  const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name }));
-  const byDept = new Map<string, Row[]>();
   // Nhóm theo BẢN CHẤT mặt hàng (lib/phanNhomBanChat.ts) — cùng hàm với cột
-  // "Giữ bởi" và trang Tồn kho; quản trị ghim tay được (Sửa hàng loạt).
+  // "Giữ bởi" và trang Tồn kho; quản trị ghim tay được (Sửa hàng loạt); người
+  // giữ đã gán kéo hàng về bộ phận của người đó.
   const phanNhomById = new Map<number, KetQuaPhanNhom>();
-  for (const m of rows) {
+  /** Số dòng mỗi nhóm bộ phận TRƯỚC khi lọc bộ phận — số trên các nút lọc. */
+  const demTheoBoPhan = new Map<string, number>();
+  for (const m of rowsTruocBoPhan) {
     const pn = nhomCuaVatTu({
       nameVn: m.nameVn,
       nameEn: m.nameEn,
@@ -344,9 +356,23 @@ export default async function MaterialsPage({
       categoryName: m.categoryId ? categoryNameById.get(m.categoryId) : null,
       equipment: m.equipment,
       nhomQuanLy: m.nhomQuanLy,
+      responsibleRank: m.responsibleRank,
     });
     phanNhomById.set(m.id, pn);
-    const key = pn.nhom;
+    demTheoBoPhan.set(pn.nhom, (demTheoBoPhan.get(pn.nhom) ?? 0) + 1);
+  }
+  const rows = boPhanLoc ? rowsTruocBoPhan.filter((m) => phanNhomById.get(m.id)?.nhom === boPhanLoc) : rowsTruocBoPhan;
+
+  // Nhóm theo bộ phận tàu như form công ty: Boong → Máy → Điện → Phục vụ →
+  // An toàn → Khác. Trong mỗi bộ phận: vật tư trước, phụ tùng sau theo thiết bị.
+  type Row = (typeof rows)[number];
+  // categoryNameById đã dựng ở trên (dùng cho bộ lọc chức danh). Dùng lại ở đây
+  // để gom nhóm — kiểu của rows không mang quan hệ category nên không đọc thẳng
+  // m.category được.
+  const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name }));
+  const byDept = new Map<string, Row[]>();
+  for (const m of rows) {
+    const key = phanNhomById.get(m.id)!.nhom;
     const list = byDept.get(key);
     if (list) list.push(m);
     else byDept.set(key, [m]);
@@ -478,10 +504,11 @@ export default async function MaterialsPage({
             // next/form: đổi tàu / lọc / tìm chỉ tải phần nội dung (chuyển trang
             // phía client, khung chờ hiện ngay) thay vì tải lại cả trang như
             // <form method="get"> thường. Áp dụng cho cả ô tìm kiếm bên dưới.
-            <Form action="/materials" className="flex items-center gap-2">
+            <Form key={vesselKey} action="/materials" className="flex items-center gap-2">
               {filterType !== "ALL" && (
                 <input type="hidden" name="type" value={filterType} />
               )}
+              {boPhanLoc && <input type="hidden" name="bp" value={boPhanLoc} />}
               <div className="w-60">
                 <Select name="vessel" defaultValue={vesselKey}>
                   <option value="master">{t("materials.optDanhMucGoc")}</option>
@@ -556,7 +583,9 @@ export default async function MaterialsPage({
               </Link>
             ))}
           </div>
-          <Form action="/materials" className="ml-auto flex flex-wrap items-center gap-2">
+          {/* key: chuyển trang bằng liên kết (Xem mặt hàng tôi quản lý…) thì ô chọn
+              uncontrolled vẫn giữ giá trị cũ — dựng lại theo chức danh đang lọc. */}
+          <Form key={rankFilter} action="/materials" className="ml-auto flex flex-wrap items-center gap-2">
             {filterType !== "ALL" && (
               <input type="hidden" name="type" value={filterType} />
             )}
@@ -564,6 +593,7 @@ export default async function MaterialsPage({
               <input type="hidden" name="vessel" value={vesselKey} />
             )}
             {showAll && <input type="hidden" name="full" value="1" />}
+            {boPhanLoc && <input type="hidden" name="bp" value={boPhanLoc} />}
             <div className="w-52">
               <Select name="rank" defaultValue={rankFilter}>
                 <option value="">{t("materials.moiChucDanh")}</option>
@@ -593,6 +623,51 @@ export default async function MaterialsPage({
               {t("chung.loc")}
             </Button>
           </Form>
+        </div>
+
+        {/* Lọc theo nhóm bộ phận — đúng các mục của bảng; số là số dòng mỗi nhóm
+            theo các bộ lọc khác đang chọn (loại, chức danh, từ khóa). */}
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+          <span
+            className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]"
+            title={t("materials.locBoPhanGoiY")}
+          >
+            {t("materials.boPhan")}
+          </span>
+          <nav aria-label={t("materials.boPhan")} className="flex flex-wrap items-center gap-1.5">
+            {[
+              { key: "", ten: t("materials.moiBoPhan"), so: rowsTruocBoPhan.length },
+              ...DEPARTMENTS.map((d) => ({
+                key: d.key,
+                ten: tTuDo(`labels.deptNgan_${d.key}`),
+                so: demTheoBoPhan.get(d.key) ?? 0,
+              })),
+            ]
+              // Nhóm không có dòng nào thì ẩn (trừ nhóm đang lọc — để còn bỏ lọc được).
+              .filter((x) => x.key === "" || x.so > 0 || x.key === boPhanLoc)
+              .map((x) => {
+                const dangChon = boPhanLoc === x.key;
+                return (
+                  <Link
+                    key={x.key || "tat-ca"}
+                    href={buildHrefBoPhan(x.key)}
+                    aria-current={dangChon ? "page" : undefined}
+                    title={t("materials.locBoPhanGoiY")}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition",
+                      dangChon
+                        ? "border-brand-700 bg-brand-700 text-white"
+                        : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)] hover:text-[var(--text-primary)]"
+                    )}
+                  >
+                    {x.ten}
+                    <span className={cn("tabular font-medium", dangChon ? "text-white/80" : "text-[var(--text-muted)]")}>
+                      {x.so}
+                    </span>
+                  </Link>
+                );
+              })}
+          </nav>
         </div>
       </Card>
 

@@ -139,5 +139,27 @@ kiemTra("dai pho bao trum Pho ba (cuu sinh)", laNguoiPhuTrach("CO", { nameVn: "P
 kiemTra("thuyen truong bao trum ca Phuc vu vien", laNguoiPhuTrach("MST", { nameVn: "Garbage bag", code: "E-IMPA-0114", categoryName: "Engine Stores", materialType: "STORE" }), true);
 kiemTra("bep truong bao trum Phuc vu vien", laNguoiPhuTrach("CCK", { nameVn: "Garbage bag", code: "E-IMPA-0114", categoryName: "Engine Stores", materialType: "STORE" }), true);
 
+console.log("\n=== 4) Tu thuoc: khong bi chu 'oxygen / thermometer / cup' keo sang May / Bep ===");
+// Tên thật trong danh sách MEDICINE (2026-10-17 còn nằm ở Máy / Bếp, người giữ Máy trưởng / Bếp trưởng).
+for (const ten of ["Medical Oxygen Cylinder Set (40L200BAR)", "Oxygen Resuscitator (2L200BAR)", "Forehead Thermometer", "Eye Irrigation Cup", "Welding Eye Care Solution"])
+  kiemTra(`${ten} -> An toan / y te`, bc(ten), "SAFETY/MED");
+kiemTra("tu thuoc kho boong -> Pho hai", giu("Medical Oxygen Cylinder Set (40L200BAR)", "D-IMPA-0763", ""), { chucDanh: "2O", nguon: "ban-chat" });
+kiemTra("binh oxy HAN van la do han", [bc("High Pressure gas Cylinder, Oxygen", "85.01.42"), bc("Regulator, Oxygen", "85.01.92"), bc("Welders' Goggle", "85.11.1..")], ["ENGINE/TOL", "ENGINE/TOL", "ENGINE/TOL"]);
+kiemTra("nhiet ke may van la vat tu xuong may", bc("90°Angle thermometers thread"), "ENGINE/TOL");
+kiemTra("nhiet ke tron khong du can cu -> theo danh sach goc", [bc("Thermometer"), nhomCuaVatTu({ nameVn: "Thermometer", materialType: "STORE", code: "D-IMPA-0783", department: "D" }).nhom], [null, "DECK"]);
+kiemTra("coc an van la do bep", bc("Coffee cup with saucer"), "SERVICE/UTN");
+
+console.log("\n=== 5) Nguoi giu da gan quyet dinh nhom bo phan (tru hang an toan) ===");
+// Cầu chì dự phòng máy phân ly dầu nước — file kiểm kê của Máy tư: lọc "Điện" mà ra hàng Máy tư giữ là sai.
+const cauChi = { nameVn: "Fuse 3A", materialType: "STORE", code: "E-IMPA-0360", department: "E" };
+kiemTra("chua gan: cau chi -> Dien", nhomCuaVatTu(cauChi).nhom, "ELEC");
+kiemTra("gan May tu: cau chi -> May", [nhomCuaVatTu({ ...cauChi, responsibleRank: "4E" }).nhom, nhomCuaVatTu({ ...cauChi, responsibleRank: "4E" }).nguon], ["ENGINE", "nguoi-giu"]);
+kiemTra("gan Tho dien: ve Dien", nhomCuaVatTu({ ...cauChi, responsibleRank: "ELC" }).nhom, "ELEC");
+kiemTra("gang tay gan May truong van o An toan chung", nhomCuaVatTu({ nameVn: "Work safety gloves", impa: "190104", materialType: "STORE", code: "E-IMPA-0024", responsibleRank: "CE" }).nhom, "SAFETY");
+kiemTra("ghim tay thang ca nguoi giu", nhomCuaVatTu({ ...cauChi, responsibleRank: "4E", nhomQuanLy: "ELEC" }).nhom, "ELEC");
+kiemTra("chuc danh la bi bo qua", nhomCuaVatTu({ ...cauChi, responsibleRank: "XYZ" }).nhom, "ELEC");
+kiemTra("phu tung gan Thuy thu truong -> Boong", nhomCuaVatTu({ nameVn: "Windlass brake lining", materialType: "SPARE", code: "E-SPR-0099", responsibleRank: "BSN" }).nhom, "DECK");
+kiemTra("cot Giu boi van la nguoi da gan", chucDanhChiuTrachNhiem({ ...cauChi, responsibleRank: "4E" }), { chucDanh: "4E", nguon: "gan" });
+
 console.log(`\n=== TONG: ${dat} dat / ${truot} truot ===`);
 if (truot) process.exit(1);

@@ -16,6 +16,7 @@
  */
 import { chuongImpa } from "@/lib/nhomImpa";
 import { departmentOfMaterial } from "@/lib/departments";
+import { CHUC_DANH } from "@/lib/maVatTu";
 
 export type NhomHienThi = "DECK" | "ENGINE" | "ELEC" | "SERVICE" | "SAFETY";
 export const NHOM_HIEN_THI: readonly NhomHienThi[] = ["DECK", "ENGINE", "ELEC", "SERVICE", "SAFETY"];
@@ -47,6 +48,10 @@ const LUAT: readonly Luat[] = [
   // ── Hàn cắt: dụng cụ xưởng máy, kể cả găng / kính hàn ──────────────────────
   {
     re: / (weld\w*|welder s?|electrodes?|que han|day han|may han|kinh han|mat na han|han (dien|hoi|cat)|acetylen\w*|axetylen|oxygen|oxy|propane|gas cylinder|cutting (torch|touch)|gas cutting\w*|cutting tips?|bep cat|mo cat|dong ho (chi bao )?ap luc (gas|oxy)|handshield|hand shield) /,
+    // Bình oxy Y TẾ, máy hồi sức, dung dịch rửa mắt cho thợ hàn nằm trong tủ thuốc —
+    // không phải đồ hàn (danh sách MEDICINE thật: "Medical Oxygen Cylinder Set",
+    // "Oxygen Resuscitator", "Welding Eye Care Solution" từng bị xếp vào Máy).
+    tru: / (medical|y te|resuscitat\w*|hoi suc|eye (care|wash|irrigation)\w*|rua mat|first ?aid|so cuu|cap cuu) /,
     nhom: "ENGINE",
     nhomCongTy: "TOL",
     lyDo: "hàn cắt — dụng cụ xưởng máy",
@@ -65,7 +70,15 @@ const LUAT: readonly Luat[] = [
     nhomCongTy: "FFA",
     lyDo: "trang bị cứu hỏa",
   },
-  { re: / (first ?aid|so cuu|medicines?|medical|y te|stretchers?|cang cuu thuong|bandages?|bang gac) /, nhom: "SAFETY", nhomCongTy: "MED", lyDo: "y tế, sơ cứu" },
+  {
+    // Kèm máy hồi sức, rửa mắt, nhiệt kế đo trán / y tế — đứng TRƯỚC luật đồ bếp ("cup")
+    // và luật xưởng máy ("thermometer") nên "Eye Irrigation Cup", "Forehead Thermometer"
+    // của tủ thuốc không rơi vào Bếp / Máy.
+    re: / (first ?aid|so cuu|medicines?|medical|y te|stretchers?|cang cuu thuong|bandages?|bang gac|resuscitat\w*|hoi suc|eye (irrigation|wash|care)\w*|rua mat|forehead|clinical thermometers?|nhiet ke (y te|kep nach|hong ngoai|do tran)) /,
+    nhom: "SAFETY",
+    nhomCongTy: "MED",
+    lyDo: "y tế, sơ cứu",
+  },
   {
     re: / (may do (nong do )?khi|gas detectors?|multi ?gas|oxygen meters?|luoi an toan|nut lo lu|scupper plugs?|sopep|oil spill\w*) /,
     nhom: "SAFETY",
@@ -144,8 +157,10 @@ const LUAT: readonly Luat[] = [
     lyDo: "vật tư, dụng cụ boong",
   },
   // ── Máy: vật tư xưởng máy chỉ dùng cho máy móc ─────────────────────────────
+  // Nhiệt kế chỉ tính là đồ máy khi ghi rõ kiểu lắp máy (ren, góc, mặt số, lưỡng kim):
+  // "Thermometer" trơn có cả trong tủ thuốc — không đủ căn cứ, để theo danh sách gốc.
   {
-    re: / (bearings?|vong bi|bac dan|gaskets?|gioang|packings?|jointing|teflon|seal tape|cao su non|valves?|van (cau|bi|cong|mot chieu)|pipes?|ong (thep|dong|inox)|elbows?|co han|flanges?|mat bich|valve compound|cat ra|calipers?|thuoc cap|micrometers?|panme|thermometers?|nhiet ke|manometers?|pressure gauges?|dong ho ap|walnut|turbo\w*|filter elements?|loc dau|ultrason\w*|degreas\w*|tay dau|condenser tube|lamella|insulation blanket|asbestos) /,
+    re: / (bearings?|vong bi|bac dan|gaskets?|gioang|packings?|jointing|teflon|seal tape|cao su non|valves?|van (cau|bi|cong|mot chieu)|pipes?|ong (thep|dong|inox)|elbows?|co han|flanges?|mat bich|valve compound|cat ra|calipers?|thuoc cap|micrometers?|panme|(angle|dial|bimetal\w*|stem|threaded) thermometers?|thermometers? (thread\w*|dial|bimetal\w*|stem|angle)|nhiet ke (ren|goc|mat so|luong kim)|manometers?|pressure gauges?|dong ho ap|walnut|turbo\w*|filter elements?|loc dau|ultrason\w*|degreas\w*|tay dau|condenser tube|lamella|insulation blanket|asbestos) /,
     tru: / (wrench\w*|cle|spanners?|frying|kitchen|galley) /,
     nhom: "ENGINE",
     nhomCongTy: "TOL",
@@ -198,6 +213,11 @@ export type VatTuPhanNhom = {
   equipment?: string | null;
   /** Nhóm quản trị GHIM tay (cột Material.nhomQuanLy) — thắng mọi suy luận. */
   nhomQuanLy?: string | null;
+  /**
+   * Người giữ đã GÁN (cột Material.responsibleRank — gán tay, hoặc chức danh trong tên file kiểm
+   * kê): hàng thuộc bộ phận của người đó, trừ hàng an toàn.
+   */
+  responsibleRank?: string | null;
   /** Chuỗi phụ để đoán như cũ khi không có mã (VD mã kho ở trang Tồn kho). */
   nguonPhu?: string | null;
 };
@@ -205,8 +225,11 @@ export type VatTuPhanNhom = {
 export type KetQuaPhanNhom = {
   nhom: string;
   banChat: BanChat | null;
-  /** ghim: quản trị chọn · ban-chat: theo bản chất · cu: cách xếp cũ (theo sheet / thiết bị / mã). */
-  nguon: "ghim" | "ban-chat" | "cu";
+  /**
+   * ghim: quản trị chọn · nguoi-giu: theo bộ phận của người giữ đã gán · ban-chat: theo bản
+   * chất · cu: cách xếp cũ (theo sheet / thiết bị / mã).
+   */
+  nguon: "ghim" | "nguoi-giu" | "ban-chat" | "cu";
   /** Nhóm theo cách xếp cũ — để biết mặt hàng có được CHUYỂN nhóm không. */
   nhomCu: string;
 };
@@ -215,10 +238,15 @@ const THEO_CHU_MA: Record<string, NhomHienThi> = { D: "DECK", E: "ENGINE", L: "E
 
 /**
  * Nhóm hiển thị (Boong · Máy · Điện · Sinh hoạt & Phục vụ · An toàn chung) của
- * một mặt hàng — MỘT hàm cho trang Danh mục, Tồn kho và cột "Giữ bởi":
+ * một mặt hàng — MỘT hàm cho trang Danh mục (kể cả bộ lọc bộ phận), Tồn kho và
+ * cột "Giữ bởi":
  *   1. quản trị ghim tay (nhomQuanLy);
- *   2. bản chất (banChatVatTu: tên hàng, chương IMPA);
- *   3. cách xếp cũ (theo nhóm file nhập / thiết bị) — riêng "An toàn chung"
+ *   2. người giữ đã gán (responsibleRank) → bộ phận của người đó: cầu chì dự
+ *      phòng của máy phân ly dầu nước do Máy tư giữ nằm ở Máy, không ở Điện —
+ *      lọc "Điện" mà ra hàng Máy tư giữ là tự mâu thuẫn. Trừ hàng có bản chất
+ *      an toàn: găng, nút tai kho máy vẫn ở An toàn chung;
+ *   3. bản chất (banChatVatTu: tên hàng, chương IMPA);
+ *   4. cách xếp cũ (theo nhóm file nhập / thiết bị) — riêng "An toàn chung"
  *      chỉ giữ hàng có bản chất an toàn: món lọt vào đó chỉ vì nằm trong sheet
  *      "Vật tư bảo hộ & an toàn" (thước rút, giẻ lau...) về lại bộ phận theo
  *      chữ đầu mã.
@@ -228,6 +256,8 @@ export function nhomCuaVatTu(m: VatTuPhanNhom): KetQuaPhanNhom {
   const bc = banChatVatTu({ nameVn: m.nameVn ?? "", nameEn: m.nameEn, impa: m.impa, materialType: m.materialType });
   const ghim = (m.nhomQuanLy ?? "").trim().toUpperCase();
   if ((NHOM_HIEN_THI as readonly string[]).includes(ghim)) return { nhom: ghim, banChat: bc, nguon: "ghim", nhomCu };
+  const boPhanGiu = CHUC_DANH[(m.responsibleRank ?? "").trim()]?.boPhan;
+  if (boPhanGiu && bc?.nhom !== "SAFETY") return { nhom: THEO_CHU_MA[boPhanGiu], banChat: bc, nguon: "nguoi-giu", nhomCu };
   if (bc) return { nhom: bc.nhom, banChat: bc, nguon: "ban-chat", nhomCu };
   if (nhomCu === "SAFETY" && m.materialType !== "SPARE") {
     const chu = /^([DELC])-/i.exec(m.code ?? "")?.[1]?.toUpperCase();

@@ -1122,6 +1122,20 @@ Danh mục và yêu cầu vật tư được dựng theo 3 mẫu Excel của cô
   tới đầu đúng bộ phận đó (`#bo-phan-ENGINE`); xin quá số trang → trang cuối; đổi bộ lọc → về
   trang 1. Đang tìm hoặc *xem tất cả* thì không chia trang. Thanh chuyển trang không in ra.
 
+  **Lọc theo bộ phận** (hàng nút *Bộ phận* trên thanh công cụ): **Mọi bộ phận · Boong · Máy ·
+  Điện · Phục vụ · An toàn chung** (· Khác nếu có), mỗi nút kèm số dòng theo các bộ lọc khác đang
+  chọn (loại, chức danh, từ khóa) — cộng lại đúng bằng *Mọi bộ phận*. Lọc theo **đúng các mục của
+  bảng** (`nhomCuaVatTu`), mà cột *Giữ bởi* cũng suy từ chính nhóm đó: lọc Máy thì **mọi dòng đều
+  do người ngành máy giữ** (Máy trưởng / hai / ba / tư, thợ máy…), Boong → thuyền trưởng, đại phó,
+  Phó hai, Phó ba, thủy thủ trưởng; Điện → sĩ quan điện, thợ điện; Phục vụ → bếp trưởng, phục vụ
+  viên. Đường dẫn `?bp=ENGINE` (DECK · ENGINE · ELEC · SERVICE · SAFETY · OTHER); giữ nguyên khi đổi
+  tàu, loại, chức danh, khi tìm và chuyển trang. Để lọc không tự mâu thuẫn, nhóm của một mặt hàng
+  xét theo thứ tự: ghim tay → **người giữ đã gán** (cầu chì dự phòng máy phân ly do Máy tư giữ nằm ở
+  Máy, không ở Điện; hàng an toàn vẫn ở An toàn chung) → bản chất (tên hàng) → danh sách gốc. Đồ y
+  tế của tủ thuốc ("Medical Oxygen Cylinder", "Oxygen Resuscitator", "Forehead Thermometer", "Eye
+  Irrigation Cup"…) không còn bị chữ *oxygen / thermometer / cup* kéo sang Máy / Bếp — về An toàn
+  chung, Phó hai giữ; nhiệt kế trơn (không ghi kiểu lắp máy) để theo danh sách gốc.
+
   Hai quy tắc đáng lưu ý trong cách phân nhóm: thiết bị của phụ tùng lấy từ trường
   `equipment`, **không có thì lấy tên Nhóm (Category)** — file kiểm kê MLS-11-06 ghi thiết bị
   ở cột "Nhóm" chứ không phải trường riêng; và phụ tùng không đoán được bộ phận thì xếp vào

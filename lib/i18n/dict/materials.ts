@@ -21,6 +21,10 @@ export const materials = tuDien(
     dangXemPhanCuaBan: "Đang xem phần của bạn ({n} mặt hàng)",
     xemVatTuToiQuanLy: "Xem mặt hàng tôi quản lý",
     moiChucDanh: "Mọi chức danh",
+    boPhan: "Bộ phận",
+    moiBoPhan: "Mọi bộ phận",
+    locBoPhanGoiY:
+      "Lọc theo đúng các mục của bảng. Cột \"Giữ bởi\" cũng theo nhóm này: lọc Máy thì mọi dòng đều do người ngành máy giữ.",
     timGoiY: "Tìm tên, mã, IMPA, Part No, hãng...",
     chuaGanTauKhongXem:
       "Bạn chưa được gán tàu phụ trách nên chưa xem được danh mục. Vui lòng liên hệ quản trị viên.",
@@ -227,6 +231,10 @@ export const materials = tuDien(
     dangXemPhanCuaBan: "Viewing your part ({n} items)",
     xemVatTuToiQuanLy: "View the items I manage",
     moiChucDanh: "All ranks",
+    boPhan: "Department",
+    moiBoPhan: "All departments",
+    locBoPhanGoiY:
+      "Filters by the same sections as the table. The \"Held by\" column follows them too: filter Engine and every row is held by an engine-room rank.",
     timGoiY: "Search name, code, IMPA, Part No., maker...",
     chuaGanTauKhongXem:
       "You have not been assigned to a vessel, so no catalogue can be shown. Please contact the administrator.",

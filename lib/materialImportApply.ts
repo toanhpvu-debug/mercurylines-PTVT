@@ -5,6 +5,10 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { departmentOfMaterial } from "@/lib/departments";
 import {
+  boPhanTuMaNhom,
+  CHUC_DANH,
+  chucDanhThuocBoPhan,
+  chucDanhTrongTen,
   doanLoai,
   sinhMaNgan,
   sttTheoNhom,
@@ -46,6 +50,12 @@ export type ApplyImportInput = {
   items: ImportedItem[];
   fileName: string;
   actorName: string;
+  /**
+   * File là danh sách kiểm kê / danh mục do MỘT người giữ lập ("… BOILLER 4E.xlsx"): chức danh
+   * trong tên file giao luôn cho hàng mới. Phiếu giao của nhà cung cấp thì không — tên file là
+   * số phiếu, không nói ai giữ hàng.
+   */
+  chucDanhTheoTenTep?: boolean;
 };
 
 export type ApplyImportResult = {
@@ -75,6 +85,7 @@ export async function applyMaterialImport(
     items,
     fileName,
     actorName,
+    chucDanhTheoTenTep = false,
   } = input;
   // Kho ghi tồn cho từng dòng: ưu tiên ánh xạ theo sheet, không có thì dùng kho cố định.
   const warehouseFor = (item: ImportedItem): number | null => {
@@ -192,10 +203,14 @@ export async function applyMaterialImport(
         }
       }
       if (!material) {
+        // Ô Nhóm ghi MÃ BỘ PHẬN ("E", "E1"…"E10" của MLS-11-06-B) là bộ phận, không phải
+        // tên nhóm: không lập nhóm "E" — cột Nhóm sẽ hiện trơ một chữ cái — mà lấy làm bộ
+        // phận của mặt hàng bên dưới.
+        const boPhanNhom = boPhanTuMaNhom(item.group);
         // Nhóm (Group) → Category: tìm theo TÊN trước; slug bỏ dấu tiếng Việt,
         // nếu trùng mã với nhóm khác tên thì thêm hậu tố -2, -3...
         let categoryId: number | null = null;
-        if (item.group) {
+        if (item.group && !boPhanNhom) {
           const key = norm(item.group);
           if (categoryCache.has(key)) {
             categoryId = categoryCache.get(key)!;
@@ -228,20 +243,32 @@ export async function applyMaterialImport(
         // không suy được thì có thiết bị đi kèm → phụ tùng, còn lại theo loại
         // đã chọn. Phải chốt loại TRƯỚC khi sinh mã, vì mã đi theo loại.
         const loaiHang = item.materialType ?? (item.equipment ? "SPARE" : kind);
-        // Bộ phận suy từ nhóm / thiết bị / tên — cùng một hàm mà giao diện dùng
-        // để gom nhóm, nên mã và chỗ hiển thị không bao giờ nói hai điều khác
-        // nhau về cùng một món hàng.
+        // Tên sheet / tên file mang chức danh ("VẬT TƯ MAU HỎNG 4E", "… BOILLER
+        // 4E.xlsx" — hàng Máy tư giữ): hàng của chức danh đó, thuộc bộ phận của
+        // chức danh đó. Sheet nói cụ thể hơn file nên được xét trước.
+        const chucDanhTep = chucDanhTrongTen(item.sheet) ?? (chucDanhTheoTenTep ? chucDanhTrongTen(fileName) : null);
+        // Bộ phận: mã bộ phận ở ô Nhóm → bộ phận của chức danh trong tên sheet /
+        // file → suy từ nhóm / thiết bị / tên / tên sheet (cùng một hàm mà giao
+        // diện dùng để gom nhóm, nên mã và chỗ hiển thị không nói hai điều khác
+        // nhau). Không ra gì mới lùi về Boong.
         const boPhan =
+          boPhanNhom ??
+          (chucDanhTep ? CHUC_DANH[chucDanhTep]?.boPhan : undefined) ??
           BO_PHAN_THEO_NHOM[
             departmentOfMaterial(
-              [item.group, item.equipment, item.name],
+              [item.group, item.equipment, item.name, item.sheet],
               loaiHang
             )
-          ] ?? "D";
+          ] ??
+          "D";
         material = await tx.material.create({
           data: {
             code: nextCode(boPhan, loaiHang, categoryId),
             department: boPhan,
+            // Người giữ ghi rõ trong tên sheet / file thì gán luôn (cột "Giữ bởi"
+            // hiện "đã gán"), miễn chức danh đó giữ được hàng của bộ phận này.
+            responsibleRank:
+              chucDanhTep && chucDanhThuocBoPhan(chucDanhTep, boPhan as BoPhan) ? chucDanhTep : null,
             nameVn: item.name,
             nameEn: item.nameEn?.trim() || null,
             impa: item.impa,

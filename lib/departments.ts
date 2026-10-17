@@ -4,6 +4,8 @@
 // Dùng chung cho trang Tồn kho và trang Danh mục vật tư — trước đây logic này
 // nằm lọt trong trang Tồn kho nên trang Danh mục không có cách phân nhóm nào.
 
+import { boPhanTuMaNhom } from "@/lib/maVatTu";
+
 /**
  * Tên hiển thị của bộ phận nằm ở từ điển (`labels.dept_<KEY>`), không ở đây:
  * nơi nào hiện ra màn hình thì tra theo `key` để đổi được theo ngôn ngữ. File
@@ -22,8 +24,9 @@ const RULES: readonly DepartmentRule[] = [
     key: "ENGINE",
     icon: "⚙️",
     // Kèm tên thiết bị buồng máy hay gặp trong file kiểm kê thật: bơm, máy nén,
-    // máy phân ly, nồi hơi, xử lý nước dằn/nước thải, tuabin, xuồng cứu sinh...
-    re: /máy|may chinh|engine|\beng\b|-eng|compressor|separator|purifier|boiler|\bpump\b|ballast|bwms|sewage|turbine|turbo|cooler|incinerator|lifeboat|generator|\btank\b/i,
+    // máy phân ly, nồi hơi, xử lý nước dằn/nước thải, phân ly dầu nước (OWS),
+    // bình hydrophore, tuabin, xuồng cứu sinh...
+    re: /máy|may chinh|engine|\beng\b|-eng|compressor|separator|purifier|boiler|\bpump\b|ballast|bwms|sewage|\bows\b|oily water|hydrophore|turbine|turbo|cooler|incinerator|lifeboat|generator|\btank\b/i,
   },
   {
     key: "ELEC",
@@ -62,6 +65,10 @@ export const DEPARTMENTS: readonly Department[] = [
 export function departmentOf(sources: (string | null | undefined)[]): string {
   for (const src of sources) {
     if (!src) continue;
+    // Mã bộ phận trơn ("E", "E3" — ô Nhóm của MLS-11-06-B) nói thẳng bộ phận; các
+    // luật chữ bên dưới không bắt được một chữ cái.
+    const ma = boPhanTuMaNhom(src);
+    if (ma) return THEO_MA_BO_PHAN[ma];
     const hit = RULES.find((d) => d.re.test(src));
     if (hit) return hit.key;
   }
@@ -127,7 +134,8 @@ export function equipmentOf(m: MaterialLike): string | null {
   const fromField = (m.equipment ?? "").trim();
   if (fromField) return fromField;
   const fromCategory = (m.categoryName ?? "").trim();
-  if (fromCategory) return fromCategory;
+  // Nhóm là mã bộ phận ("E") thì không phải tên máy.
+  if (fromCategory && !boPhanTuMaNhom(fromCategory)) return fromCategory;
   return THIET_BI_CHUA_RO;
 }
 

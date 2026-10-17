@@ -149,6 +149,34 @@ async function main() {
   kiemTra("vat tu: ton tren tau", vt?.rob, 24);
   kiemTra("vat tu: vao kho boong", warehouseKindForSheet(vt?.sheet ?? null), "DECK");
 
+  console.log("\n4. O Nhom ghi MA BO PHAN (E, E3) — khong thanh ten may");
+  // Bố cục MLS-11-06 thật (file "BOILLER 4E" của M.ODYSSEY, 16/10/2026): sheet vật tư của Máy tư
+  // ghi "E" ở cột Group. Sheet phụ tùng mà cột Group ghi "E3" thì đó cũng là bộ phận, không phải
+  // tên máy — trước đây thành thiết bị "E3".
+  const dauCot = ["S. No.", "Group", "Description", "", "IMPA Code", "Unit", "Last R.O.B", "Receive", "Cons.", "R.O.B"];
+  const wb3 = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    wb3,
+    XLSX.utils.aoa_to_sheet([
+      ["MERCURY LINES COMPANY LIMITED", "", "", "STORES INVENTORY"],
+      ["Dept./ Bộ phận:", "", "Materials of 4E"],
+      dauCot,
+      [1, "E", "Butterfly valve(Van cánh bướm tay quay DN250)", "", "756337", "pcs", 2, "", "", 2],
+      [2, "E", "Bolt & nut M12x1.25x55mm, ren suốt", "", "NA", "set", 10, 30, "", 40],
+    ]),
+    "VẬT TƯ MAU HỎNG 4E"
+  );
+  XLSX.utils.book_append_sheet(wb3, XLSX.utils.aoa_to_sheet([dauCot, [1, "E3", "O-ring 50x3", "", "", "PC", 4, "", "", 4]]), "Spare Parts");
+  const kq3 = parseMaterialExcel(Buffer.from(XLSX.write(wb3, { type: "buffer", bookType: "xlsx" }) as ArrayBuffer));
+  const van = kq3.items.find((x) => x.name.startsWith("Butterfly"));
+  const bl = kq3.items.find((x) => x.name.startsWith("Bolt"));
+  const oRing = kq3.items.find((x) => x.name.startsWith("O-ring"));
+  kiemTra("doc du 3 dong", kq3.items.length, 3);
+  kiemTra("vat tu May tu: o nhom giu chu 'E' (luc ghi danh muc moi doc ra bo phan)", [van?.group, bl?.group], ["E", "E"]);
+  kiemTra("vat tu May tu: la vat tu, khong co thiet bi", [van?.materialType, van?.equipment, bl?.equipment], ["STORE", null, null]);
+  kiemTra("vat tu May tu: giu ten sheet (de lay chuc danh 4E)", bl?.sheet, "VẬT TƯ MAU HỎNG 4E");
+  kiemTra("phu tung nhom 'E3': khong thanh ten may", [oRing?.materialType, oRing?.equipment, oRing?.group], ["SPARE", null, "E3"]);
+
   console.log(`\n=== TONG: ${dat} dat / ${truot} truot ===`);
   process.exit(truot ? 1 : 0);
 }

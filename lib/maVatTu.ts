@@ -191,6 +191,34 @@ export function chucDanhThuocBoPhan(chucDanh: string, boPhan: BoPhan): boolean {
 }
 
 /**
+ * Ô "Nhóm / Group" của biểu mẫu kiểm kê có khi ghi MÃ BỘ PHẬN chứ không phải tên nhóm hàng:
+ * MLS-11-06-B bộ phận Máy chia nhóm E1 … E10, danh sách "Materials of 4E" ghi trơn "E". Đó là
+ * bộ phận — cùng chữ cái với mã vật tư (E-IMPA-… = Máy). Lấy làm TÊN nhóm thì cột Nhóm hiện trơ
+ * một chữ "E" (đọc thành "Máy" cạnh mã D-… và người giữ Thủy thủ trưởng — dễ hiểu nhầm), còn
+ * bộ phận không đoán ra nên rơi về Boong mặc định (lần nhập 16/10/2026: 80 mặt hàng của Máy tư).
+ *
+ * Trả về chữ cái bộ phận (D · E · L · C), null nếu ô không phải mã bộ phận. Số nhóm 1–99 không
+ * có số 0 đứng đầu: "C02" là CO2 gõ nhầm số 0, không phải nhóm 2 của bộ phận Phục vụ.
+ */
+export function boPhanTuMaNhom(nhom: string | null | undefined): BoPhan | null {
+  const m = /^\s*([DELC])\s*-?\s*(?:[1-9]\d?)?\s*$/i.exec(String(nhom ?? ""));
+  return m ? (m[1].toUpperCase() as BoPhan) : null;
+}
+
+/**
+ * Chức danh ghi ngay trong TÊN SHEET hoặc TÊN FILE kiểm kê — mỗi sĩ quan lập file của phần mình
+ * giữ: "MLS-11-06 … BOILLER 4E.xlsx", sheet "VẬT TƯ MAU HỎNG 4E" là hàng của Máy tư. Mặt hàng MỚI
+ * thêm từ đó giao luôn cho chức danh ấy (và bộ phận của chức danh) thay vì để app đoán theo chữ
+ * — đoán không ra thì rơi về Boong / Thủy thủ trưởng như lần nhập 16/10/2026.
+ * Chỉ nhận mã có số (2E 3E 4E 2O 3O) đứng riêng một từ: chữ trơn như "OIL" trong "OIL SEPARATOR"
+ * là tên thiết bị, không phải thợ dầu.
+ */
+export function chucDanhTrongTen(ten: string | null | undefined): string | null {
+  const m = /(?:^|[^A-Z0-9])([234]E|[23]O)(?![A-Z0-9])/i.exec(String(ten ?? ""));
+  return m ? m[1].toUpperCase() : null;
+}
+
+/**
  * Nhóm thiết bị — tầng phân loại giữa bộ phận và từng món hàng.
  *
  * Ba nguyên tắc khi đặt nhóm, để danh sách này không phình ra vô tội vạ:

@@ -10,6 +10,8 @@
 import { CHUONG_IMPA, chuongImpa, laTenBoPhan } from "@/lib/nhomImpa";
 import { chucDanhChiuTrachNhiem, laNguoiPhuTrach } from "@/lib/chucDanhChiuTrachNhiem";
 import { NHOM_THIET_BI } from "@/lib/maVatTu";
+import { THIET_BI_CHUA_RO, departmentOf, equipmentOf } from "@/lib/departments";
+import { nhomCuaVatTu } from "@/lib/phanNhomBanChat";
 import { TU_DIEN } from "@/lib/i18n/tuDien";
 
 let dat = 0;
@@ -51,6 +53,16 @@ kiemTra(
   ["Hệ thống đèn hàng hải", "MAIN ENGINE", "Hand tools", "Lashing", "Oil Separator", "Thiết bị an toàn", "LIFEBOAT 380J-3 ENGINE"].map((x) => laTenBoPhan(x)),
   [false, false, false, false, false, false, false]
 );
+
+// Ô Nhóm của MLS-11-06-B ghi mã bộ phận E1…E10, danh sách "Materials of 4E" ghi trơn "E" — chỉ nói
+// bộ phận (một chữ "E" cạnh mã D-… và Thủy thủ trưởng là dễ hiểu nhầm nhất), không hiện ở cột Nhóm.
+kiemTra("ma bo phan tron cung la ten bo phan", ["E", "E3", "E10", " e 7 ", "D", "L-2", "C"].map((x) => laTenBoPhan(x)), Array(7).fill(true));
+kiemTra("chu cai dau ten that khong bi bat nham", ["E-BOOK", "ELEC PANEL", "D-RING", "C02", "CO2", "E123", "X1"].map((x) => laTenBoPhan(x)), Array(7).fill(false));
+kiemTra("bo phan tu nhom la ma bo phan", [departmentOf(["E"]), departmentOf(["D3"]), departmentOf(["E1", "Deck"]), departmentOf(["L"])], ["ENGINE", "DECK", "ENGINE", "ELEC"]);
+kiemTra("phu tung nhom 'E' khong thanh ten may", equipmentOf({ materialType: "SPARE", categoryName: "E", nameVn: "O-ring" }), THIET_BI_CHUA_RO);
+const nhomE = { materialType: "STORE", categoryName: "E", nameVn: "Bolt & nut M12x1.25x55mm, ren suốt", code: "E-IMPA-0302" };
+kiemTra("hang nhom 'E' chua ghi bo phan -> Máy, nguoi giu kho may", [nhomCuaVatTu(nhomE).nhom, chucDanhChiuTrachNhiem(nhomE)], ["ENGINE", { chucDanh: "CE", nguon: "bo-phan" }]);
+kiemTra("da gan May tu -> giu nguyen", chucDanhChiuTrachNhiem({ ...nhomE, department: "E", responsibleRank: "4E" }), { chucDanh: "4E", nguon: "gan" });
 
 console.log("\n=== 3) Nguoi giu theo nhom IMPA ===");
 const boong = { materialType: "STORE", department: "D", categoryName: "Boong (Deck)", code: "D-IMPA-0801" };

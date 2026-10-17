@@ -377,6 +377,8 @@ export async function apDungKiemKe(id: number, sua: unknown): Promise<KetQuaKiem
         })),
         fileName: kk.fileName,
         actorName: actor.name,
+        // File kiểm kê do một người giữ lập ("… BOILLER 4E.xlsx" — Máy tư).
+        chucDanhTheoTenTep: true,
       });
       if (nhap.conflict) {
         await traLai();

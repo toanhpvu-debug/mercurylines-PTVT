@@ -12,6 +12,8 @@
 import {
   CHUC_DANH,
   NHOM_THIET_BI,
+  boPhanTuMaNhom,
+  chucDanhTrongTen,
   boPhanYeuCau,
   chucDanhCuaNguoiDung,
   chucDanhThuocBoPhan,
@@ -821,6 +823,33 @@ kiemTra(
   loiTrung({ mon: daCo[1], theo: "impa" }).includes("Ngừng dùng"),
   true
 );
+
+console.log("\n13. O Nhom cua file kiem ke ghi MA BO PHAN (E, E1..E10) va chuc danh trong ten sheet");
+// File thật M.ODYSSEY 16/10/2026: MLS-11-06-B bộ phận Máy chia nhóm E1…E10; sheet "VẬT TƯ MAU HỎNG
+// 4E" (ô Bộ phận "Materials of 4E") ghi trơn "E" — bộ nhập cũ lập nhóm tên "E", xếp 80 mặt hàng
+// của Máy tư vào Boong.
+kiemTra(
+  "ma bo phan",
+  ["E", "E1", "E10", " e3 ", "D", "L-2", "C"].map(boPhanTuMaNhom),
+  ["E", "E", "E", "E", "D", "L", "C"]
+);
+kiemTra(
+  "khong phai ma bo phan",
+  ["E123", "E0", "C02", "CO2", "Engine Stores", "E-BOOK", "", null, "X1"].map(boPhanTuMaNhom),
+  [null, null, null, null, null, null, null, null, null]
+);
+kiemTra(
+  "chuc danh trong ten sheet",
+  ["VẬT TƯ MAU HỎNG 4E", "Materials of 2E", "3E SPARE", "Hải đồ 2O", "BOILLER 4E_1", "4e store"].map(chucDanhTrongTen),
+  ["4E", "2E", "3E", "2O", "4E", "4E"]
+);
+kiemTra(
+  "ten sheet khong ghi chuc danh",
+  ["OIL SEPARATOR", "ME spare part", "QUÝ 3-2026", "H2O TANK", "4ED", "CO2", "MAIN ENGINE", "", null].map(chucDanhTrongTen),
+  [null, null, null, null, null, null, null, null, null]
+);
+kiemTra("May tu giu duoc hang bo phan May", chucDanhThuocBoPhan("4E", "E"), true);
+kiemTra("Pho hai khong giu hang bo phan May", chucDanhThuocBoPhan("2O", "E"), false);
 
 console.log(`\n=== TONG: ${dat} dat / ${truot} truot ===`);
 process.exit(truot ? 1 : 0);

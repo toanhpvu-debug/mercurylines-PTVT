@@ -1,6 +1,7 @@
 import "server-only";
 import { docSo } from "@/lib/docSo";
 import { dauBieuMauKiemKe, type DauKiemKe } from "@/lib/kiemKe";
+import { boPhanTuMaNhom } from "@/lib/maVatTu";
 
 import * as XLSX from "xlsx";
 
@@ -308,8 +309,11 @@ function parseSheet(
       uom,
       // Sheet phụ tùng thường không có dòng tiêu đề "A. Phụ tùng máy chính"
       // mà ghi thẳng tên máy vào cột Nhóm. Bỏ qua nó thì hai chi tiết trùng tên
-      // của hai máy khác nhau bị gộp làm một và tồn kho đè lên nhau.
-      equipment: currentEquipment ?? (laPhuTung ? groupCell : null),
+      // của hai máy khác nhau bị gộp làm một và tồn kho đè lên nhau. Trừ khi ô
+      // Nhóm là mã bộ phận ("E", "E3"): đó không phải tên máy.
+      equipment: currentEquipment ?? (laPhuTung && !boPhanTuMaNhom(groupCell) ? groupCell : null),
+      // Giữ nguyên chữ trong file (kể cả mã bộ phận) — lúc ghi vào danh mục
+      // materialImportApply mới đọc nó ra bộ phận hay tên nhóm.
       group: groupCell,
       minStock: minParsed.qty ?? 0,
       rob: Number.isFinite(robRaw) && robRaw >= 0 ? robRaw : null,

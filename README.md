@@ -1320,6 +1320,14 @@ ADMIN/Thuyền trưởng upload file theo form công ty để nạp nhanh danh m
 
 Vật tư trùng (theo IMPA / Part No / tên + thiết bị; mã giữ chỗ "-", "N/A" bị bỏ qua) chỉ được **gán vào tàu**, không tạo bản sao — nhập lại cùng file không sinh trùng lặp. Vật tư mới có mã theo khuôn `[bộ phận]-IMPA-####` / `[bộ phận]-SPR-####` (xem mục dưới). Mục **"Kiểm soát phụ tùng thiết yếu"** trên Dashboard đọc danh mục MLS-11-04 riêng (không đọc danh mục vật tư chung) — xem mục dưới.
 
+**Bộ phận và người giữ của hàng MỚI** (cả khi thêm từ trang Kiểm kê) — đọc theo thứ tự:
+
+1. Ô **Nhóm / Group** ghi **mã bộ phận** (`E`, `E1`…`E10` như MLS-11-06-B bộ phận Máy; `D`, `L`, `C`) → đó là bộ phận, **không** lập nhóm tên "E" (cột Nhóm sẽ hiện trơ một chữ cái, đọc nhầm thành "Máy" cạnh mã D-… và Thủy thủ trưởng). Với phụ tùng, ô đó cũng không thành tên máy.
+2. **Tên sheet**, rồi **tên file** (file kiểm kê / danh mục, không áp cho phiếu giao) ghi **chức danh** `2E` `3E` `4E` `2O` `3O` đứng riêng một từ — "MLS-11-06 … BOILLER **4E**.xlsx", sheet "VẬT TƯ MAU HỎNG **4E**" → bộ phận của chức danh đó, cột *Giữ bởi* gán luôn chức danh (Máy tư).
+3. Không có hai manh mối trên thì suy theo nhóm / thiết bị / tên hàng / tên sheet như trước; không ra gì mới lùi về Boong.
+
+Lần kiểm kê 16/10/2026 của M.ODYSSEY (file BOILLER 4E) nhập trước khi có luật này: 100 mặt hàng của Máy tư rơi vào Boong (mã `D-IMPA-07xx/08xx`, người giữ suy ra Thủy thủ trưởng, cột Nhóm "E"). Sửa bằng **`sua-nhom-ma-bo-phan.cmd`** (không có `--dong-y` thì chỉ liệt kê): áp đúng luật trên cho hàng đã thêm từ kiểm kê — bộ phận, mã mới `E-IMPA-…` (tồn kho, giao dịch giữ nguyên vì gắn theo id), người giữ, bỏ nhóm mã bộ phận; ghi nhật ký. Đã chạy trên máy văn phòng 17/10/2026: `D-IMPA-0701…0719`, `0801…0880` → `E-IMPA-0302…0400`, Máy tư giữ.
+
 ### Mã đang dùng: `[bộ phận]-IMPA-####` · `[bộ phận]-SPR-####`
 
 Toàn bộ danh mục dùng một khuôn duy nhất, nói được **bộ phận** và **loại hàng**:

@@ -10,6 +10,7 @@
  * Tên hiển thị nằm ở từ điển (`labels.impaChuong_<số chương>`). Kiểm ở
  * scripts/kiem-tra-nhom-impa.ts.
  */
+import { boPhanTuMaNhom } from "@/lib/maVatTu";
 
 /** Các chương của IMPA Marine Stores Guide. */
 export const CHUONG_IMPA = [
@@ -56,6 +57,9 @@ const TEN_BO_PHAN = new Set(
 export function laTenBoPhan(ten: string | null | undefined): boolean {
   const k = boDau(String(ten ?? ""));
   if (!k) return true;
+  // Mã bộ phận trơn ("E", "E3" — ô Nhóm của MLS-11-06-B) cũng chỉ nói bộ phận, mà còn dễ
+  // đọc nhầm hơn: một chữ "E" cạnh mã D-… và người giữ Thủy thủ trưởng.
+  if (boPhanTuMaNhom(ten)) return true;
   const gon = k.replace(/^vat tu /, "").replace(/ (stores?|dept|department)$/, "").trim();
   return TEN_BO_PHAN.has(k) || TEN_BO_PHAN.has(gon);
 }

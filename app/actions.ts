@@ -2191,6 +2191,8 @@ export async function importMaterials(
       items: parsed.items,
       fileName: file.name,
       actorName: actor.name,
+      // File kiểm kê / danh mục MLS-11-06 của một người giữ ("… MAIN ENGINE 2E.xlsx").
+      chucDanhTheoTenTep: true,
     });
   if (conflict) {
     return { message: t("actions.nhap_trungMaDoDongThoi") };

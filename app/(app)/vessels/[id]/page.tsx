@@ -93,7 +93,8 @@ export default async function VesselDetailPage({
   const [inventories, tongTonKho, requests, documents] = await Promise.all([
     prisma.inventory.findMany({
       where: { vesselId: id },
-      orderBy: [{ warehouseId: "asc" }, { materialId: "asc" }],
+      // Mã VT là cột đầu của bảng → sắp theo mã (cùng mặt hàng ở hai kho thì đứng liền nhau).
+      orderBy: [{ material: { code: "asc" } }, { warehouseId: "asc" }],
       take: GIOI_HAN_TON_KHO,
       include: {
         warehouse: true,
@@ -348,8 +349,8 @@ export default async function VesselDetailPage({
             <Table dense>
               <thead>
                 <tr>
-                  <Th>{t("chung.kho")}</Th>
                   <Th>{t("vessels.cotMaVatTu")}</Th>
+                  <Th>{t("chung.kho")}</Th>
                   <Th>{t("vessels.cotTenVatTu")}</Th>
                   <Th>{t("chung.donVi")}</Th>
                   <Th align="right">{t("vessels.cotTon")}</Th>
@@ -366,11 +367,11 @@ export default async function VesselDetailPage({
                       key={inventory.id}
                       className="transition-colors hover:bg-[var(--surface-sunken)]/50"
                     >
-                      <Td className="text-[var(--text-secondary)]">
-                        {inventory.warehouse.name}
-                      </Td>
                       <Td className="font-display text-xs tracking-wide whitespace-nowrap">
                         {inventory.material.code}
+                      </Td>
+                      <Td className="text-[var(--text-secondary)]">
+                        {inventory.warehouse.name}
                       </Td>
                       <Td>{inventory.material.nameVn}</Td>
                       <Td>

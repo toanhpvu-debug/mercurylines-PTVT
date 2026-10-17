@@ -20,13 +20,14 @@ import { kyThang, ngayCuaVN, quyCua, type ThangNam } from "@/lib/kyQuy";
 import { soLieuKyVatTu, tenKyThang, thangCuaQuy } from "@/lib/tonKhoQuy";
 import { CHUC_DANH, chucDanhCuaNguoiDung } from "@/lib/maVatTu";
 import { docLocChucDanh, laNguoiPhuTrach } from "@/lib/chucDanhChiuTrachNhiem";
+import { khoThuocBoPhan } from "@/lib/khoTau";
 
-/** Bộ phận theo hậu tố mã kho (như báo cáo MLS-11-01): ENG = Máy, DECK = Boong, STORE = Kho tiêu hao. */
-const BO_PHAN: Record<string, { hauTo: string | null; nhan: string }> = {
-  ALL: { hauTo: null, nhan: "" },
-  ENG: { hauTo: "-ENG", nhan: "Máy" },
-  DECK: { hauTo: "-DECK", nhan: "Boong" },
-  STORE: { hauTo: "-STORE", nhan: "Kho tiêu hao" },
+/** Bộ phận theo khối trong mã kho (như báo cáo MLS-11-01): ENG = Máy, DECK = Boong, STORE = Kho tiêu hao. */
+const BO_PHAN: Record<string, { nhan: string }> = {
+  ALL: { nhan: "" },
+  ENG: { nhan: "Máy" },
+  DECK: { nhan: "Boong" },
+  STORE: { nhan: "Kho tiêu hao" },
 };
 
 /**
@@ -103,8 +104,8 @@ export async function GET(request: Request) {
   const kyChon = kyXuat(url, now);
   const ky = kyThang(kyChon.tu, kyChon.den);
   const khoTau = await prisma.warehouse.findMany({ where: { vesselId }, select: { id: true, code: true } });
-  const hauTo = BO_PHAN[dept].hauTo;
-  const khoIds = khoTau.filter((w) => !hauTo || w.code.endsWith(hauTo)).map((w) => w.id);
+  // Khối đọc từ mã kho (lib/khoTau.ts): kho thêm như ML-001-ENG-ECR vẫn vào tờ của Máy.
+  const khoIds = khoTau.filter((w) => khoThuocBoPhan(w.code, dept)).map((w) => w.id);
   const [links, inventoryGroup, kyTx] = await Promise.all([
     prisma.vesselMaterial.findMany({
       where: {

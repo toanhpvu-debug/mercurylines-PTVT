@@ -42,6 +42,8 @@ import {
   sttTheoNhom,
 } from "@/lib/maVatTu";
 import { docKhaiMoi, loiTrung, timTrung } from "@/lib/vatTuMoiChoTau";
+import { khoChinhTheoLoai } from "@/lib/khoTau";
+import { taoKhoChuan } from "@/lib/khoTauServer";
 import {
   CHI_HUY_TAU,
   ROLES,
@@ -297,15 +299,20 @@ export async function createVessel(
     return { message: t("actions.tau_maVaTenBatBuoc"), values };
   }
   try {
-    await prisma.vessel.create({
-      data: {
-        code,
-        name,
-        imo: imo || null,
-        flag: flag || null,
-        vesselType: vesselType || null,
-        ...may.data,
-      },
+    // Tàu mới có sẵn ba kho chuẩn (boong / máy / tiêu hao) như mọi tàu đang có — thiếu
+    // kho thì không nhập được tồn nào. Thêm / sửa / xóa kho ở mục "Kho trên tàu".
+    await prisma.$transaction(async (tx) => {
+      const tau = await tx.vessel.create({
+        data: {
+          code,
+          name,
+          imo: imo || null,
+          flag: flag || null,
+          vesselType: vesselType || null,
+          ...may.data,
+        },
+      });
+      await taoKhoChuan(tx, tau);
     });
   } catch (error) {
     if (
@@ -2138,12 +2145,9 @@ export async function importMaterials(
       where: { vesselId },
       select: { id: true, code: true },
     });
-    const map: Partial<Record<"ENG" | "DECK" | "STORE", number>> = {};
-    for (const w of vesselWarehouses) {
-      if (/-ENG$/i.test(w.code)) map.ENG = w.id;
-      else if (/-DECK$/i.test(w.code)) map.DECK = w.id;
-      else if (/-STORE$/i.test(w.code)) map.STORE = w.id;
-    }
+    // Kho CHÍNH của mỗi khối (lib/khoTau.ts) — tàu có thêm kho ML-001-ENG-ECR thì
+    // hàng mới vẫn vào ML-001-ENG như trước.
+    const map = khoChinhTheoLoai(vesselWarehouses);
     if (!map.ENG && !map.DECK && !map.STORE) {
       return { message: t("actions.kho_khongTuDinhTuyenDuoc") };
     }

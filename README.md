@@ -1200,13 +1200,16 @@ mở sẵn, gập được. Nút trong dòng tiêu đề (Tải lên / xem tất
 cầu) bấm thẳng, không gập / mở mục. Bảng tồn kho **50 dòng mỗi trang** (`?trang=n`, thanh « ‹ Trang n/N › kèm
 "Dòng 51–100 / 520" ở đầu khung và nút trước / sau ở cuối bảng; xin quá số trang thì mở trang cuối) trong khung
 **thu / phóng chữ · Mở rộng / Thu gọn · Toàn màn hình** như trang Tồn kho (`KhungBang`, nút chuyển trang dùng chung
-`components/PhanTrang.tsx` với Danh mục). Mọi thao tác đều dẫn sang module chuyên trách, đã lọc sẵn theo tàu:
+`components/PhanTrang.tsx` với Danh mục). Mọi thao tác đều dẫn sang module chuyên trách, đã lọc sẵn theo tàu —
+riêng **kho / vị trí cất hàng** không có module nào khác nên được quản lý ngay ở mục *Kho trên tàu* (xem
+[Kho / vị trí trên tàu](#kho--vị-trí-trên-tàu-hồ-sơ-tàu--kho-trên-tàu)):
 
 | Muốn làm gì | Làm ở đâu |
 |---|---|
 | Nhập / xuất kho · Xuất kiểm kê MLS-11-06 | **Tồn kho** — `/inventory?vessel=<id>` |
 | Tạo · trình · duyệt · xóa yêu cầu | **Yêu cầu vật tư** — `/requests?vessel=<id>` |
 | Sửa danh mục vật tư của tàu | **Vật tư** — chọn tàu ở bộ chọn |
+| Thêm · sửa · xóa kho, chuyển hàng giữa các kho | **Hồ sơ tàu** — mục *Kho trên tàu* |
 
 Trước đây trang tàu nhúng luôn form nhập/xuất, form tạo yêu cầu và nút duyệt — tức là bản sao
 thu nhỏ của 3 module khác. Sửa logic ở module chính thì trang tàu lệch theo (đã xảy ra thật với
@@ -1222,6 +1225,17 @@ Trang tồn kho bố cục theo luồng làm việc: **Tổng quan** (3 thẻ th
 Thay cho hai danh sách dài (8 phụ tùng thiết yếu + 8 dòng tồn thấp), Dashboard có **một bảng** *Cảnh báo theo tàu*: mỗi tàu có cảnh báo hoặc có danh mục thiết yếu một dòng — **Thiết yếu thiếu** (thiếu / theo dõi → `/materials/thiet-yeu?vessel=<id>`), **Tồn kho thiếu** (→ `/inventory?vessel=<id>&low=1`, dòng phụ "hết hàng" hoặc "x hết · y dưới tối thiểu"), **Sơn** dưới định mức (→ `/paint/<id>`); tàu nhiều cảnh báo lên đầu, tàu không có gì gom vào một dòng *Không cảnh báo: …*. Thuyền viên chỉ thấy tàu mình.
 
 Ô KPI **Cảnh báo tồn kho** đếm **đúng quy tắc của trang Tồn kho** (nhãn "N thiếu", ô "Chỉ thiếu"): một dòng tồn (mặt hàng + kho) thiếu khi *tồn − giữ ≤ mức tối thiểu* — một câu SQL `COUNT … FILTER` gộp theo tàu, không tải từng mặt hàng. Trước đây Dashboard đếm "tổng tồn < tối thiểu"; danh mục chưa đặt mức tối thiểu nào (0 / 805 dòng tồn có mức > 0, ngày 2026-10-17) nên ô luôn **0** trong khi trang Tồn kho báo 9 và 39 dòng thiếu ở hai tàu — các dòng **đã hết hàng**. Nay ô báo 48 ("dòng hết / thiếu ở 2 tàu"), bấm vào là danh sách chỉ thiếu. Đặt mức tối thiểu cho mặt hàng quan trọng thì cột *Tồn kho thiếu* tách được "x hết · y dưới tối thiểu".
+
+### Kho / vị trí trên tàu (hồ sơ tàu → *Kho trên tàu*)
+
+Mỗi tàu có ba kho chuẩn `<tàu>-DECK` · `-ENG` · `-STORE` (tàu thêm mới được tạo sẵn cả ba). Để chỉ rõ phụ tùng, vật tư cất ở đâu, Thuyền trưởng / Máy trưởng của tàu (kể cả người được ủy quyền) và quản trị **thêm / sửa / xóa kho** ngay tại mục này — bảng có cột *Khối* và *Mặt hàng* (bấm số là trang Tồn kho lọc đúng kho đó, `?wh=`); người khác chỉ xem.
+
+- **Thêm:** chọn nhanh một chỗ cất trên tàu (cùng danh sách 17 vị trí của phụ tùng thiết yếu — E/R store, ECR, Bosun store, Paint store…) hoặc tự gõ tên; chọn **khối** (Máy / Boong / Vật tư tiêu hao) và **mã vị trí**. Mã kho = `<tàu>-<KHỐI>-<MÃ VỊ TRÍ>`, ví dụ `ML-001-ENG-ECR`, `ML-001-DECK-PAINT`; hộp thêm hiện trước mã, mã trùng thì khóa nút Lưu; tên lưu kèm tên tàu như các kho sẵn có (đổi tên tàu thì tên kho đổi theo).
+- **Khối quyết định báo cáo:** MLS-11-01, xuất MLS-11-06, báo cáo quý và thống kê theo bộ phận đọc khối từ mã kho (`lib/khoTau.ts` `loaiKhoTuMa`: đoạn -ENG / -DECK / -STORE đầu tiên sau mã tàu), nên kho thêm vẫn nằm đúng bộ phận. Nhập file và kiểm kê chọn kho "tự động" vẫn ghi hàng chưa có chỗ vào **kho chính** của khối — kho mang đúng mã `<tàu>-<KHỐI>` (`khoChinhTheoLoai`).
+- **Chuyển hàng:** chọn kho đích, lọc, đánh dấu mặt hàng → dòng tồn (cả số đang giữ) **và toàn bộ lịch sử nhập / xuất** của mặt hàng ở kho cũ đi theo sang kho mới (`lib/khoTauServer.ts` `chuyenHangTx`, khóa cùng vùng với mọi chỗ ghi tồn). Đây là chỉ rõ chỗ cất, không phải xuất / nhập: thẻ kho ở chỗ mới vẫn đủ dòng và cộng ra đúng số tồn, tổng tồn của tàu không đổi, không sinh phiếu nào (báo cáo tiêu thụ không thấy lần xuất giả), gỡ phiếu giao / gỡ kiểm kê về sau trừ đúng chỗ hàng đang nằm. Mặt hàng đã có ở kho đích thì cộng vào dòng đó. Chuyển sang kho khác khối thì hộp chuyển cảnh báo: báo cáo theo bộ phận (cả kỳ trước) tính các mặt hàng đó vào khối mới.
+- **Xóa** chỉ khi kho trống thật: không dòng tồn (kể cả dòng số 0), không dòng nhập / xuất, không lần kiểm kê đang chờ áp dụng đã chọn kho này — và không phải **kho cuối cùng của khối** (nhập file / kiểm kê "tự động" cần mỗi khối còn một kho; cũng vì thế kho cuối của khối không đổi sang khối khác được). Nút Xóa bị khóa kèm lý do. Câu DELETE có điều kiện, nên phiếu nhập chen vào đúng lúc đó không bị xóa theo (khóa ngoại tồn kho → kho là CASCADE).
+- Xóa kho và chuyển hàng chỉ làm ở bản văn phòng / máy chủ (gói đồng bộ không mang lệnh xóa và lịch sử đã sửa), như xóa mặt hàng. Nhật ký: `kho-them`, `kho-sua`, `kho-xoa`, `kho-chuyen-hang` (số mặt hàng, số dòng cộng dồn, số dòng nhập / xuất đi theo).
+- Kiểm thử: `scripts/kiem-tra-kho-tau.ts` — quy ước mã, và trên database trong giao dịch cuộn ngược: chuyển hàng (cộng dồn, lịch sử đi theo, tổng tồn tàu / khối Máy không đổi), điều kiện xóa, ba kho chuẩn của tàu mới.
 
 ### Tồn kho theo quý (MLS-11-06) và thống kê xuất nhập tồn
 

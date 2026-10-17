@@ -16,10 +16,13 @@ import {
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
+  canManageVesselCatalog,
   requireScopedUser,
   trongPhamVi,
   vesselScopeDayDu,
 } from "@/lib/auth";
+import { laBanTau } from "@/lib/banCai";
+import BangKhoTau from "@/components/BangKhoTau";
 import VesselEditForm from "@/components/VesselEditForm";
 import VesselDeleteButton from "@/components/VesselDeleteButton";
 import VesselSwitcher from "@/components/VesselSwitcher";
@@ -153,7 +156,7 @@ export default async function VesselDetailPage({
         material: true,
       },
     });
-  const [tonTrangXin, tongTonKho, requests, documents] = await Promise.all([
+  const [tonTrangXin, tongTonKho, requests, documents, demTonKho, demGiaoDichKho, banTau] = await Promise.all([
     layTon(trangXin),
     prisma.inventory.count({ where: { vesselId: id } }),
     prisma.materialRequest.findMany({
@@ -175,7 +178,14 @@ export default async function VesselDetailPage({
         uploadedBy: { select: { name: true } },
       },
     }),
+    // Mục "Kho trên tàu": số mặt hàng / dòng nhập xuất của từng kho (kho còn hàng thì chưa xóa được).
+    prisma.inventory.groupBy({ by: ["warehouseId"], where: { vesselId: id }, _count: { _all: true } }),
+    prisma.inventoryTransaction.groupBy({ by: ["warehouseId"], where: { vesselId: id }, _count: { _all: true } }),
+    laBanTau(),
   ]);
+  const soTheoKho = (dem: { warehouseId: number; _count: { _all: number } }[]) => new Map(dem.map((d) => [d.warehouseId, d._count._all]));
+  const matHangTheoKho = soTheoKho(demTonKho);
+  const giaoDichTheoKho = soTheoKho(demGiaoDichKho);
   // Xin quá số trang (tồn kho vừa ít đi, đường dẫn cũ) → trang cuối.
   const soTrangTon = Math.max(1, Math.ceil(tongTonKho / MOI_TRANG_TON));
   const trangTon = Math.min(trangXin, soTrangTon);
@@ -349,45 +359,24 @@ export default async function VesselDetailPage({
         </div>
       )}
 
+      {/* Kho / vị trí cất hàng — chỉ huy của tàu và quản trị thêm, sửa, xóa kho, chuyển hàng giữa các kho. */}
       <MucGap
         icon={<Warehouse className="size-4 text-[var(--text-muted)]" />}
         tieuDe={t("vessels.khoTrenTau")}
         ghiChu={t("vessels.nKho", { n: vessel.warehouses.length })}
       >
-        {vessel.warehouses.length === 0 ? (
-          <EmptyState
-            icon={<Warehouse className="size-5" />}
-            title={t("vessels.chuaCoKho")}
-          />
-        ) : (
-          <TableWrap>
-            <Table dense>
-              <thead>
-                <tr>
-                  <Th>{t("vessels.cotMaKho")}</Th>
-                  <Th>{t("vessels.cotTenKho")}</Th>
-                  <Th>{t("vessels.cotLoai")}</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {vessel.warehouses.map((warehouse) => (
-                  <Tr
-                    key={warehouse.id}
-                    className="transition-colors hover:bg-[var(--surface-sunken)]/50"
-                  >
-                    <Td className="font-display text-xs tracking-wide whitespace-nowrap">
-                      {warehouse.code}
-                    </Td>
-                    <Td className="font-medium">{warehouse.name}</Td>
-                    <Td className="text-[var(--text-secondary)]">
-                      {warehouse.warehouseType}
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-            </Table>
-          </TableWrap>
-        )}
+        <BangKhoTau
+          tau={{ id: vessel.id, code: vessel.code, name: vessel.name }}
+          kho={vessel.warehouses.map((w) => ({
+            id: w.id,
+            code: w.code,
+            name: w.name,
+            soMatHang: matHangTheoKho.get(w.id) ?? 0,
+            soGiaoDich: giaoDichTheoKho.get(w.id) ?? 0,
+          }))}
+          quanLy={canManageVesselCatalog(user, vessel.id)}
+          vanPhong={!banTau}
+        />
       </MucGap>
 
       {/* 4) Tồn kho — mở sẵn, gập được. Nhập/xuất và xuất kiểm kê làm ở module Tồn kho — ở đây chỉ xem. */}

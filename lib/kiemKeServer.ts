@@ -7,6 +7,7 @@ import { KHOA_TON_KHO_ADVISORY, khoaAdvisoryDongTon } from "@/lib/theKho";
 import { keHoachNhomKiemKe, type DongKiemKe, type SoFileKiemKe } from "@/lib/kiemKe";
 import { cotGhiButToan, heThongQuy, kieuGhiButToan, lam3, type ButToanBaoCao, type HeThongQuy } from "@/lib/kyQuy";
 import { giaoDichKyVatTu } from "@/lib/tonKhoQuy";
+import { khoChinhTheoLoai } from "@/lib/khoTau";
 
 export type { SoFileKiemKe };
 
@@ -176,12 +177,8 @@ export async function lapKeHoachKiemKe(vesselId: number, dong: DongKiemKe[], kho
   const traHeThong = boTra(tatCa);
   const khoIds = kho.map((k) => k.id);
   const maKho = new Map(kho.map((k) => [k.id, k.code]));
-  const khoTheoLoai: Partial<Record<WarehouseKind, number>> = {};
-  for (const k of kho) {
-    if (/-ENG$/i.test(k.code)) khoTheoLoai.ENG ??= k.id;
-    else if (/-DECK$/i.test(k.code)) khoTheoLoai.DECK ??= k.id;
-    else if (/-STORE$/i.test(k.code)) khoTheoLoai.STORE ??= k.id;
-  }
+  // Kho CHÍNH của mỗi khối (lib/khoTau.ts) — kho / vị trí thêm sau không giành chỗ của nó.
+  const khoTheoLoai: Partial<Record<WarehouseKind, number>> = khoChinhTheoLoai(kho);
   const khoCoDinh = khoChon !== "AUTO" && khoIds.includes(Number(khoChon)) ? Number(khoChon) : null;
 
   const ton = await db.inventory.findMany({ where: { warehouseId: { in: khoIds } }, select: { materialId: true, warehouseId: true, quantity: true } });

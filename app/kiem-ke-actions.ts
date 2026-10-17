@@ -27,6 +27,7 @@ import {
   type DongKiemKe,
 } from "@/lib/kiemKe";
 import { kyKiemKeTuFile } from "@/lib/tonKhoQuy";
+import { khoChinhTheoLoai } from "@/lib/khoTau";
 
 /*
  * KIỂM KÊ THEO FILE (MLS-11-06) — thuyền viên đếm hàng, điền biểu mẫu kiểm kê
@@ -349,12 +350,8 @@ export async function apDungKiemKe(id: number, sua: unknown): Promise<KetQuaKiem
     const idMoi = new Set<number>();
     if (themMoi.length) {
       const kho = await prisma.warehouse.findMany({ where: { vesselId: kk.vesselId }, select: { id: true, code: true } });
-      const theoLoai: Partial<Record<"ENG" | "DECK" | "STORE", number>> = {};
-      for (const w of kho) {
-        if (/-ENG$/i.test(w.code)) theoLoai.ENG ??= w.id;
-        else if (/-DECK$/i.test(w.code)) theoLoai.DECK ??= w.id;
-        else if (/-STORE$/i.test(w.code)) theoLoai.STORE ??= w.id;
-      }
+      // Kho CHÍNH của mỗi khối (lib/khoTau.ts), kể cả khi tàu có thêm kho / vị trí riêng.
+      const theoLoai = khoChinhTheoLoai(kho);
       const { applyMaterialImport } = await import("@/lib/materialImportApply");
       const nhap = await applyMaterialImport({
         vesselId: kk.vesselId,

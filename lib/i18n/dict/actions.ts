@@ -84,7 +84,7 @@ export const actions = tuDien(
     kho_khongHopLe: "Kho không hợp lệ.",
     kho_khongThuocTauDaChon: "Kho không thuộc tàu đã chọn.",
     kho_khongTuDinhTuyenDuoc:
-      "Tàu này chưa có kho nào có mã kết thúc bằng -ENG / -DECK / -STORE nên không tự định tuyến được. Hãy chọn một kho cụ thể.",
+      "Tàu này chưa có kho nào thuộc khối Máy / Boong / Vật tư tiêu hao (mã <tàu>-ENG / -DECK / -STORE) nên không tự định tuyến được. Hãy chọn một kho cụ thể, hoặc thêm kho ở mục Kho trên tàu của hồ sơ tàu.",
     kho_nhanKhongThuocTauCuaDon: "Kho nhận không thuộc tàu của đơn.",
     kho_vuiLongChonKhoNhan:
       "Vui lòng chọn kho nhận cho vật tư có trong danh mục.",
@@ -334,7 +334,7 @@ export const actions = tuDien(
     kho_khongThuocTauDaChon:
       "The warehouse does not belong to the selected vessel.",
     kho_khongTuDinhTuyenDuoc:
-      "This vessel has no warehouse whose code ends in -ENG / -DECK / -STORE, so automatic routing is not possible. Please pick a specific warehouse.",
+      "This vessel has no Engine / Deck / Consumable store warehouse (code <vessel>-ENG / -DECK / -STORE), so automatic routing is not possible. Pick a specific warehouse, or add one under Warehouses on board on the vessel page.",
     kho_nhanKhongThuocTauCuaDon:
       "The receiving warehouse does not belong to the vessel of this order.",
     kho_vuiLongChonKhoNhan:

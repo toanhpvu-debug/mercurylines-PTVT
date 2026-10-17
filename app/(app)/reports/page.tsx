@@ -12,6 +12,7 @@ import { chuoiNgay1101, coSo1101, ghiChu1101, loaiGiaoDich, nhanNguonPO, tongHop
 import { dauThangVN, ngayCuaVN } from "@/lib/kyQuy";
 import { layT } from "@/lib/i18n/server";
 import type { KhoaDich } from "@/lib/i18n/tuDien";
+import { khoThuocBoPhan } from "@/lib/khoTau";
 import {
   Button,
   Card,
@@ -24,13 +25,13 @@ import {
 
 export const dynamic = "force-dynamic";
 
-// Hậu tố mã kho của từng bộ phận; NHÃN là khóa từ điển, dịch lúc dựng để đổi
-// theo ngôn ngữ đang chọn.
-const DEPT_OPTIONS: Record<string, { khoa: KhoaDich; suffix: string | null }> = {
-  ENG: { khoa: "inventory.bpMay", suffix: "-ENG" },
-  DECK: { khoa: "inventory.bpBoong", suffix: "-DECK" },
-  STORE: { khoa: "inventory.bpKhoTieuHao", suffix: "-STORE" },
-  ALL: { khoa: "inventory.bpTatCa", suffix: null },
+// Bộ phận = khối trong mã kho (lib/khoTau.ts); NHÃN là khóa từ điển, dịch lúc
+// dựng để đổi theo ngôn ngữ đang chọn.
+const DEPT_OPTIONS: Record<string, { khoa: KhoaDich }> = {
+  ENG: { khoa: "inventory.bpMay" },
+  DECK: { khoa: "inventory.bpBoong" },
+  STORE: { khoa: "inventory.bpKhoTieuHao" },
+  ALL: { khoa: "inventory.bpTatCa" },
 };
 
 export default async function ReportsPage({
@@ -84,9 +85,8 @@ export default async function ReportsPage({
   const allWarehouses = await prisma.warehouse.findMany({
     where: { vesselId: selectedVessel.id },
   });
-  const warehouses = dept.suffix
-    ? allWarehouses.filter((w) => w.code.endsWith(dept.suffix as string))
-    : allWarehouses;
+  // Khối đọc từ mã kho (lib/khoTau.ts): kho thêm như ML-001-ENG-ECR vẫn vào báo cáo của Máy.
+  const warehouses = allWarehouses.filter((w) => khoThuocBoPhan(w.code, deptKey));
   const warehouseIds = warehouses.map((w) => w.id);
 
   const [inventories, transactions, materials] = await Promise.all([

@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { chucDanhBaoTrum, chucDanhChiuTrachNhiem } from "@/lib/chucDanhChiuTrachNhiem";
+import { khoThuocBoPhan } from "@/lib/khoTau";
 import type { GiaoDichVatTu } from "@/lib/tonKhoQuy";
 
 /*
@@ -16,7 +17,10 @@ import type { GiaoDichVatTu } from "@/lib/tonKhoQuy";
  * quản lý trên tàu.
  */
 
-/** Bộ phận theo hậu tố mã kho (như báo cáo MLS-11-01): ENG = Máy, DECK = Boong, STORE = Kho tiêu hao. */
+/**
+ * Bộ phận theo khối trong mã kho (như báo cáo MLS-11-01): ENG = Máy, DECK = Boong, STORE = Kho tiêu
+ * hao — "ML-001-ENG" và kho thêm "ML-001-ENG-ECR" đều là Máy (lib/khoTau.ts loaiKhoTuMa).
+ */
 export const HAU_TO_KHO: Record<string, string | null> = { ALL: null, ENG: "-ENG", DECK: "-DECK", STORE: "-STORE" };
 export const LOAI_HANG = ["ALL", "STORE", "SPARE"] as const;
 
@@ -53,9 +57,9 @@ export async function taiDuLieuTonKy(x: {
   /** Chỉ hàng chức danh này phụ trách (chức danh chỉ huy bao trùm cấp dưới); trống = mọi chức danh. */
   chucDanh?: string;
 }): Promise<DuLieuTonKy> {
-  const hauTo = HAU_TO_KHO[x.boPhan] ?? null;
   const khoTau = await prisma.warehouse.findMany({ where: { vesselId: x.vesselId }, select: { id: true, code: true }, orderBy: { code: "asc" } });
-  const kho = khoTau.filter((w) => !hauTo || w.code.endsWith(hauTo));
+  // Khối của kho đọc từ mã (lib/khoTau.ts): kho thêm như ML-001-ENG-ECR vẫn thuộc Máy.
+  const kho = khoTau.filter((w) => khoThuocBoPhan(w.code, x.boPhan));
   const khoIds = kho.map((w) => w.id);
   const loai = x.loai === "STORE" || x.loai === "SPARE" ? x.loai : null;
   const [ton, gd, lienKet] = await Promise.all([

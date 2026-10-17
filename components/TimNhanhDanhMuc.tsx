@@ -52,6 +52,17 @@ function boLocTam() {
   if (co) baoDoiChon();
 }
 
+/**
+ * Chữ của một dòng để lọc tạm — trừ ô thao tác: chữ trên nút (Sửa / Ngừng sử dụng / Xóa / Gỡ khỏi
+ * tàu) khớp mọi chữ "s", "x", "a"… nên quản trị gõ một chữ là không dòng nào bị ẩn (QA 2026-10-17).
+ */
+const chuDong = (tr: HTMLTableRowElement) =>
+  [...tr.cells]
+    .filter((o) => !o.querySelector("button[data-thao-tac]"))
+    .map((o) => o.textContent ?? "")
+    .join(" ")
+    .toLowerCase();
+
 function locTam(gt: string) {
   boLocTam();
   const q = gt.trim().toLowerCase();
@@ -62,7 +73,7 @@ function locTam(gt: string) {
   };
   for (const o of document.querySelectorAll<HTMLInputElement>("input[data-chon-vat-tu]")) {
     const tr = o.closest("tr");
-    if (tr && !(tr.textContent ?? "").toLowerCase().includes(q)) {
+    if (tr && !chuDong(tr).includes(q)) {
       an(tr);
       // Dòng bị ẩn thì bỏ tick — không để thao tác hàng loạt chạy lên dòng không thấy.
       o.checked = false;
@@ -112,6 +123,10 @@ export default function TimNhanhDanhMuc({
     const p = new URLSearchParams(window.location.search);
     if (gt.trim()) p.set("q", gt.trim());
     else p.delete("q");
+    // Từ khóa mới = kết quả mới: mọi bộ phận về trang 1 và bỏ dấu "vừa sửa" (den kéo trang tới
+    // mặt hàng vừa sửa). Giữ trang_* cũ thì kết quả tìm mở ở trang 7 của Máy, giấu mất 240 dòng
+    // khớp đầu (QA 2026-10-17). Liên kết ‹ › của chính kết quả tìm vẫn mang trang_* cùng q.
+    for (const k of [...p.keys()]) if (k.startsWith("trang_") || k === "den") p.delete(k);
     daDay.current = gt.trim();
     const qs = p.toString();
     const href = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;

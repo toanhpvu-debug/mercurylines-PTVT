@@ -560,6 +560,33 @@ export type DongIn = {
 /** Chín ô của một hàng mục, đúng thứ tự cột trên mẫu MLS-11-04. */
 export const COT_IN = ["stt", "moTa", "partNo", "toiThieu", "tonDau", "nhan", "tieuThu", "hienCo", "viTri"] as const;
 
+/**
+ * VỊ TRÍ CÓ THỂ cất phụ tùng thiết yếu trên tàu — gợi ý cho ô "Vị trí / Location" khi sửa (vẫn gõ
+ * tự do được), và chọn một lần cho cả nhóm. `ma` là chữ in lên mẫu, viết tắt như tàu vẫn ghi (file
+ * MLS-11-04 của M.ODYSSEY ghi "E/R"); tên đầy đủ hai thứ tiếng ở từ điển (thietYeu.viTri_<khoa>).
+ * Thứ tự: buồng máy và các chỗ trong buồng máy trước (đa số phụ tùng thiết yếu là của máy), rồi
+ * các buồng / kho khác.
+ */
+export const VI_TRI_CO_THE = [
+  { khoa: "ER", ma: "E/R" },
+  { khoa: "ER_STORE", ma: "E/R store" },
+  { khoa: "ER_WORKSHOP", ma: "E/R workshop" },
+  { khoa: "ER_UPPER", ma: "E/R upper flat" },
+  { khoa: "ER_LOWER", ma: "E/R lower flat" },
+  { khoa: "ECR", ma: "ECR" },
+  { khoa: "PURIFIER", ma: "Purifier room" },
+  { khoa: "SG", ma: "S/G room" },
+  { khoa: "EMG_GEN", ma: "EM'CY gen. room" },
+  { khoa: "CO2", ma: "CO2 room" },
+  { khoa: "CRANE", ma: "Crane house" },
+  { khoa: "DECK_STORE", ma: "Deck store" },
+  { khoa: "BOSUN", ma: "Bosun store" },
+  { khoa: "FORE", ma: "Fore store" },
+  { khoa: "PAINT", ma: "Paint store" },
+  { khoa: "BRIDGE", ma: "Bridge" },
+  { khoa: "LIFEBOAT", ma: "Lifeboat" },
+] as const;
+
 export function dongInTu(d: DongThietYeu): DongIn {
   return {
     id: String(d.id),

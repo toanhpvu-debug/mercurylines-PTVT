@@ -40,8 +40,10 @@ import {
   thangHopLe,
   thangTuongLai,
   tongHopNhom,
+  VI_TRI_CO_THE,
   type DongThietYeu,
 } from "@/lib/thietYeu";
+import { TU_DIEN } from "@/lib/i18n/tuDien";
 
 let dat = 0;
 let truot = 0;
@@ -53,6 +55,18 @@ function kiemTra(ten: string, thuc: unknown, mong: unknown) {
   }
 }
 const dem = (s: string, re: RegExp) => (s.match(re) ?? []).length;
+
+// ─── 0) Vị trí có thể (gợi ý ô Vị trí / Location) ────────────────────────────
+console.log("\n=== 0) Vi tri co the ===");
+{
+  const vi = TU_DIEN.thietYeu.vi as Record<string, string>;
+  const en = TU_DIEN.thietYeu.en as Record<string, string>;
+  kiemTra("khong trung khoa / chu in", [new Set(VI_TRI_CO_THE.map((v) => v.khoa)).size, new Set(VI_TRI_CO_THE.map((v) => v.ma)).size], [VI_TRI_CO_THE.length, VI_TRI_CO_THE.length]);
+  kiemTra("moi vi tri co ten VI + EN", VI_TRI_CO_THE.filter((v) => !vi[`viTri_${v.khoa}`] || !en[`viTri_${v.khoa}`]).map((v) => v.khoa), []);
+  // "E/R" — chữ tàu đang ghi trong file MLS-11-04 thật — phải là lựa chọn ĐẦU, đúng từng ký tự.
+  kiemTra("E/R dung dau, dung chu tau ghi", [VI_TRI_CO_THE[0].ma, vi.viTri_ER, en.viTri_ER], ["E/R", "Buồng máy", "Engine room"]);
+  kiemTra("chu in khong qua 120 ky tu (cot viTri)", VI_TRI_CO_THE.every((v) => v.ma.length <= 120), true);
+}
 
 // ─── 1) Quy đổi & tiện ích ──────────────────────────────────────────────────
 console.log("\n=== 1) Quy doi toi thieu, thang, ngay ===");

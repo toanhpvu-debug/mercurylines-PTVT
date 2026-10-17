@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, Download, FilePenLine, FolderPlus, Pencil, Plus, Printer, RotateCcw, Trash2, X } from "lucide-react";
 import LogoBieuMau from "@/components/LogoBieuMau";
 import { goDanhMucThietYeu, luuThangThietYeu, themPhuTungThietYeu, xoaPhuTungThietYeu } from "@/app/thiet-yeu-actions";
-import { COT_IN, SU_KIEN_XOA_BAN_IN, dongInTu, gomNhom, khoaBanIn, laThieuIn, soIn, soTrongO, xoaBanInCuaTau, type DongIn, type DongThietYeu } from "@/lib/thietYeu";
+import { COT_IN, SU_KIEN_XOA_BAN_IN, VI_TRI_CO_THE, dongInTu, gomNhom, khoaBanIn, laThieuIn, soIn, soTrongO, xoaBanInCuaTau, type DongIn, type DongThietYeu } from "@/lib/thietYeu";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Badge, Button, Field, Input, Notice, Select } from "@/components/ui";
 
@@ -23,11 +23,17 @@ const O = "border border-black p-1";
 /** Ô đã sửa tay khác số liệu gốc: tô nhẹ trên màn hình, in ra vẫn trắng. */
 const DA_SUA = "bg-amber-100/70 dark:bg-amber-500/15 print:bg-transparent";
 
-/** Một ô: đang sửa là <input>, không thì là chữ. Ở cấp module để ô không mất con trỏ khi gõ. */
-function Cell({ sua, giaTri, onChange, trai }: { sua: boolean; giaTri: string; onChange: (v: string) => void; trai?: boolean }) {
+/**
+ * Một ô: đang sửa là <input>, không thì là chữ. Ở cấp module để ô không mất con trỏ khi gõ.
+ * `goiY` = id của <datalist> gợi ý (ô Vị trí: danh sách vị trí có thể, vẫn gõ tự do được).
+ */
+function Cell({ sua, giaTri, onChange, trai, goiY }: { sua: boolean; giaTri: string; onChange: (v: string) => void; trai?: boolean; goiY?: string }) {
   if (!sua) return <>{giaTri}</>;
-  return <input value={giaTri} onChange={(e) => onChange(e.target.value)} className={`${O_SUA} ${trai ? "text-left" : "text-center"}`} />;
+  return <input value={giaTri} onChange={(e) => onChange(e.target.value)} list={goiY} className={`${O_SUA} ${trai ? "text-left" : "text-center"}`} />;
 }
+
+/** id của <datalist> vị trí có thể (một cái cho cả bảng). */
+const DS_VI_TRI = "vi-tri-thiet-yeu";
 
 const TONE_NGUON = { DA_LUU: "success", KHO: "info", UOC: "muted" } as const;
 
@@ -296,11 +302,26 @@ export default function BangThietYeu({
   const nhomHienThi = gomNhom(dong);
   const doiO = (d: DongIn, k: (typeof COT_IN)[number]) => (v: string) =>
     suaSo ? setDongSo((ds) => ds.map((x) => (x.id === d.id ? tinhLai(x, { [k]: v }) : x))) : suaDongIn(d.id, { [k]: v });
+  // Vị trí có thể trên tàu (lib/thietYeu.ts) — gợi ý cho ô Vị trí và ô "Vị trí cho cả nhóm".
+  const luaChonViTri = VI_TRI_CO_THE.map((v) => ({ value: v.ma, label: tTuDo(`thietYeu.viTri_${v.khoa}`) }));
+  /** Ghi một vị trí cho mọi dòng của nhóm (số tháng: lưu khi bấm Lưu; bản in: chỉ bản in). */
+  const datViTriNhom = (nhom: string, viTri: string) =>
+    suaSo
+      ? setDongSo((ds) => ds.map((x) => (x.nhom === nhom ? { ...x, viTri } : x)))
+      : doiBanIn((b) => ({ ...b, dong: b.dong.map((x) => (x.nhom === nhom ? { ...x, viTri } : x)) }));
   const laSua = (d: DongIn, k: keyof DongIn) => !suaSo && Boolean(banIn) && gocTheoId.get(d.id)?.[k] !== d[k];
   const dangSua = suaIn || suaSo;
 
   return (
     <div className="space-y-3">
+      {/* Gợi ý cho ô Vị trí khi sửa: chọn trong danh sách hoặc gõ tự do. */}
+      <datalist id={DS_VI_TRI}>
+        {luaChonViTri.map((x) => (
+          <option key={x.value} value={x.value}>
+            {x.label}
+          </option>
+        ))}
+      </datalist>
       <div className="no-print flex flex-wrap items-center gap-2">
         {suaSo ? (
           <>
@@ -510,13 +531,24 @@ export default function BangThietYeu({
                 onDoiTen={(v) => doiTenNhom(g.nhom, v)}
                 onThemDong={() => themDongIn(g.nhom)}
                 nhanThemDong={t("thietYeu.themDongIn")}
+                suaViTri={dangSua}
+                luaChonViTri={luaChonViTri}
+                nhanViTriNhom={t("thietYeu.viTriCaNhom")}
+                goiYViTriNhom={t("thietYeu.viTriCaNhomGoiY")}
+                onDatViTri={(v) => datViTriNhom(g.nhom, v)}
               >
                 {g.dong.map((d) => {
                   const thieu = laThieuIn(d);
                   const nguon = nguonTheoId.get(d.id);
                   const o = (k: (typeof COT_IN)[number], cls = "") => (
                     <td className={`${O} ${cls} ${laSua(d, k) ? DA_SUA : ""}`}>
-                      <Cell sua={dangSua && (suaIn || k !== "stt")} giaTri={d[k]} onChange={doiO(d, k)} trai={k === "moTa"} />
+                      <Cell
+                        sua={dangSua && (suaIn || k !== "stt")}
+                        giaTri={d[k]}
+                        onChange={doiO(d, k)}
+                        trai={k === "moTa"}
+                        goiY={k === "viTri" ? DS_VI_TRI : undefined}
+                      />
                     </td>
                   );
                   return (
@@ -589,6 +621,11 @@ function NhomRows({
   onDoiTen,
   onThemDong,
   nhanThemDong,
+  suaViTri,
+  luaChonViTri,
+  nhanViTriNhom,
+  goiYViTriNhom,
+  onDatViTri,
   children,
 }: {
   nhom: string;
@@ -597,13 +634,42 @@ function NhomRows({
   onDoiTen: (v: string) => void;
   onThemDong: () => void;
   nhanThemDong: string;
+  /** Đang sửa (bản in hoặc số tháng): hiện ô chọn vị trí cho cả nhóm. */
+  suaViTri: boolean;
+  luaChonViTri: { value: string; label: string }[];
+  nhanViTriNhom: string;
+  goiYViTriNhom: string;
+  onDatViTri: (v: string) => void;
   children: React.ReactNode;
 }) {
   return (
     <>
       <tr>
         <td colSpan={9} className={`${O} text-left font-bold ${daSua ? DA_SUA : ""}`}>
-          <Cell sua={sua} giaTri={nhom} onChange={onDoiTen} trai />
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <Cell sua={sua} giaTri={nhom} onChange={onDoiTen} trai />
+            </div>
+            {suaViTri && (
+              // Ô chọn ghi MỘT vị trí cho mọi dòng của nhóm — xong thì về lại dòng nhắc.
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) onDatViTri(e.target.value);
+                }}
+                title={goiYViTriNhom}
+                aria-label={nhanViTriNhom}
+                className="no-print max-w-56 shrink-0 rounded border border-[var(--border-subtle)] bg-[var(--surface-raised)] px-1 py-0.5 text-xs font-normal text-[var(--text-secondary)]"
+              >
+                <option value="">{nhanViTriNhom}</option>
+                {luaChonViTri.map((x) => (
+                  <option key={x.value} value={x.value}>
+                    {x.value} — {x.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         </td>
         <td className={`no-print ${O} text-center`}>
           {sua && (

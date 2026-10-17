@@ -19,7 +19,8 @@ import { useNgonNgu } from "@/lib/i18n/client";
  *     trang mặc định chỉ dựng 40 dòng đầu mỗi bộ phận — lọc trên trang sẽ bỏ sót
  *     phần chưa dựng.
  *   - Mục lục bộ phận: mỗi ô là một liên kết #neo tới đầu bộ phận đó kèm số
- *     dòng; bấm là nhảy, không cuộn tay. Ô vàng = bộ phận đang bị cắt bớt.
+ *     dòng; bấm là nhảy, không cuộn tay. Ô vàng = bộ phận đang hiện một trang
+ *     (vd. 41–80/300 — chuyển trang ở dòng tiêu đề bộ phận).
  *   - Phím "/" đưa con trỏ vào ô tìm từ bất kỳ đâu trên trang.
  * Các tham số khác trên đường dẫn (loại, tàu, chức danh) giữ nguyên.
  *
@@ -75,7 +76,8 @@ export default function TimNhanhDanhMuc({
   tongDong,
   dangHien,
 }: {
-  nhom: { key: string; label: string; total: number; hienThi: number }[];
+  /** `tu` = vị trí (từ 0) dòng đầu đang hiện khi bộ phận đang ở trang 2, 3… */
+  nhom: { key: string; label: string; total: number; hienThi: number; tu?: number }[];
   tongDong: number;
   dangHien: number;
 }) {
@@ -221,7 +223,7 @@ export default function TimNhanhDanhMuc({
             >
               {n.label}
               <Badge tone={n.hienThi < n.total ? "warning" : "neutral"}>
-                {n.hienThi < n.total ? `${n.hienThi}/${n.total}` : n.total}
+                {n.hienThi < n.total ? `${(n.tu ?? 0) + 1}–${(n.tu ?? 0) + n.hienThi}/${n.total}` : n.total}
               </Badge>
             </a>
           ))}

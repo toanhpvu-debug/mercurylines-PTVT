@@ -1115,6 +1115,12 @@ Danh mục và yêu cầu vật tư được dựng theo 3 mẫu Excel của cô
   Bảng danh mục dùng cùng khung với Tồn kho (`components/KhungBang.tsx`): **thu / phóng chữ**
   và **Toàn màn hình** — làm tại chỗ nên ô đã tick và thanh thao tác hàng loạt còn nguyên, thanh
   tìm nhanh + *Nhảy tới* đi theo khung (bảng vẫn dài theo trang như cũ khi không phóng to).
+  Mỗi bộ phận hiện **40 dòng một trang** — chuyển trang bằng **« ‹ Trang n/m › »** ngay sau tên
+  bộ phận và ở **dòng cuối bộ phận** (đọc hết trang là bấm *Trang sau ›*). Nhãn và ô *Nhảy tới*
+  ghi khoảng đang xem (vd. `41–80/300`). Trang của từng bộ phận nằm trên đường dẫn
+  (`?trang_ENGINE=2&trang_DECK=3`), chuyển trang bộ phận này giữ nguyên trang bộ phận khác và cuộn
+  tới đầu đúng bộ phận đó (`#bo-phan-ENGINE`); xin quá số trang → trang cuối; đổi bộ lọc → về
+  trang 1. Đang tìm hoặc *xem tất cả* thì không chia trang. Thanh chuyển trang không in ra.
 
   Hai quy tắc đáng lưu ý trong cách phân nhóm: thiết bị của phụ tùng lấy từ trường
   `equipment`, **không có thì lấy tên Nhóm (Category)** — file kiểm kê MLS-11-06 ghi thiết bị
@@ -1759,7 +1765,8 @@ toàn đội chứ không nhìn theo một chức danh.
 ### Tìm kiếm và giới hạn hiển thị
 
 Danh mục có 600+ dòng nên trang **Vật tư** có ô **tìm theo tên / mã / IMPA / Part No / hãng /
-thiết bị**, và mặc định chỉ hiện **40 dòng đầu mỗi bộ phận** kèm link *xem tất cả*.
+thiết bị**, và mặc định mỗi bộ phận chỉ hiện **một trang 40 dòng** (chuyển trang « ‹ › » ở đầu
+và cuối bộ phận) kèm link *xem tất cả*.
 
 Lý do không hiện hết mặc định: dựng đủ 606 dòng tạo hơn **20.000 phần tử DOM** và 109 KB HTML —
 trình duyệt bắt đầu ì từ khoảng 10.000 phần tử. Cắt còn 40 dòng/bộ phận đưa về **6.886 phần tử,

@@ -10,6 +10,10 @@ import {
   ArrowRight,
   Boxes,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Cog,
   FileText,
   Filter,
@@ -104,6 +108,8 @@ export default async function MaterialsPage({
     q?: string;
     full?: string;
     rank?: string;
+    /** Trang của từng bộ phận: trang_DECK=2, trang_ENGINE=3… (mỗi trang PER_DEPT_LIMIT dòng). */
+    [trang: `trang_${string}`]: string | undefined;
   }>;
 }) {
   const user = await requireScopedUser();
@@ -118,13 +124,14 @@ export default async function MaterialsPage({
   // Xóa khỏi danh mục dùng chung: chỉ quản trị TẠI VĂN PHÒNG (bản trên tàu không
   // được xóa — đồng bộ không mang lệnh xóa, xem lib/banCai.ts).
   const xoaDuoc = canManageMaster && !(await laBanTau());
+  const sp = await searchParams;
   const {
     type,
     vessel: vesselParam,
     q: qRaw,
     full,
     rank: rankRaw,
-  } = await searchParams;
+  } = sp;
   // Lọc theo chức danh giữ vật tư — dùng khi kiểm kê bàn giao ca: máy hai chỉ
   // cần thấy đúng phần mình ký nhận, không phải cuộn qua cả danh mục tàu.
   //
@@ -346,8 +353,14 @@ export default async function MaterialsPage({
   }
   // Thiết bị suy từ tên Nhóm (file kiểm kê ghi thiết bị ở cột Nhóm).
   // Trang này từng dựng hơn 20.000 phần tử DOM khi hiện hết 600 dòng — trình
-  // duyệt ì hẳn. Mặc định cắt bớt mỗi bộ phận; muốn xem hết thì bấm "Xem tất cả".
+  // duyệt ì hẳn. Mặc định mỗi bộ phận hiện một TRANG 40 dòng, chuyển trang bằng
+  // « ‹ › » ở dòng đầu và dòng cuối bộ phận (?trang_DECK=2…); muốn xem hết thì bấm
+  // "Xem tất cả".
   const PER_DEPT_LIMIT = 40;
+  const trangCua = (key: string) => {
+    const n = Number(sp[`trang_${key}`]);
+    return Number.isInteger(n) && n >= 1 ? n : 1;
+  };
   const deptGroups = DEPARTMENTS.map((d) => {
     const sorted = sortWithinDepartment(byDept.get(d.key) ?? [], (m) => ({
       materialType: m.materialType,
@@ -357,14 +370,30 @@ export default async function MaterialsPage({
         : null,
       nameVn: m.nameVn,
     }));
+    // Đang TÌM thì hiện hết dòng khớp: cắt 40 dòng lúc này là giấu đúng thứ người
+    // ta vừa gõ để tìm. Trang xin quá số trang (danh mục vừa ngắn lại) → trang cuối.
+    const hetMot = showAll || Boolean(q);
+    const soTrang = hetMot ? 1 : Math.max(1, Math.ceil(sorted.length / PER_DEPT_LIMIT));
+    const trang = Math.min(trangCua(d.key), soTrang);
+    const tu = (trang - 1) * PER_DEPT_LIMIT;
     return {
       ...d,
       total: sorted.length,
-      // Đang TÌM thì hiện hết dòng khớp: cắt 40 dòng đầu lúc này là giấu đúng
-      // thứ người ta vừa gõ để tìm.
-      rows: showAll || q ? sorted : sorted.slice(0, PER_DEPT_LIMIT),
+      trang,
+      soTrang,
+      /** Vị trí (tính từ 0) của dòng đầu đang hiện trong bộ phận. */
+      tu,
+      rows: hetMot ? sorted : sorted.slice(tu, tu + PER_DEPT_LIMIT),
     };
   }).filter((d) => d.total > 0);
+  /** Đường dẫn sang trang `n` của một bộ phận: giữ bộ lọc + trang đang xem của bộ phận khác, cuộn tới đúng bộ phận đó. */
+  const hrefTrang = (key: string, n: number) => {
+    const p = new URLSearchParams(buildHref(filterType, isVesselMode ? vesselKey : null).split("?")[1] ?? "");
+    for (const d of deptGroups) if (d.key !== key && d.trang > 1) p.set(`trang_${d.key}`, String(d.trang));
+    if (n > 1) p.set(`trang_${key}`, String(n));
+    const qs = p.toString();
+    return `/materials${qs ? `?${qs}` : ""}#bo-phan-${key}`;
+  };
   const hiddenCount = deptGroups.reduce(
     (n, d) => n + (d.total - d.rows.length),
     0
@@ -676,6 +705,7 @@ export default async function MaterialsPage({
                     label: tTuDo(`labels.dept_${d.key}`),
                     total: d.total,
                     hienThi: d.rows.length,
+                    tu: d.tu,
                   }))}
                   tongDong={rows.length}
                   dangHien={rows.length - hiddenCount}
@@ -731,6 +761,13 @@ export default async function MaterialsPage({
                       // (chỉ với phụ tùng) — VD Máy chính, Máy đèn.
                       let lastEquip: string | null = null;
                       const DeptIcon = DEPT_ICON[dept.key] ?? Package;
+                      const nhanTrang = {
+                        dau: t("materials.trangDau"),
+                        truoc: t("materials.trangTruoc"),
+                        sau: t("materials.trangSau"),
+                        cuoi: t("materials.trangCuoi"),
+                        trang: t("materials.trangN", { n: dept.trang, tong: dept.soTrang }),
+                      };
                       return (
                         <tbody key={dept.key} id={`bo-phan-${dept.key}`} className="scroll-mt-36">
                           <TrNhom colSpan={colCount}>
@@ -746,9 +783,19 @@ export default async function MaterialsPage({
                                 <DeptIcon className="size-4 text-[var(--text-muted)]" />
                                 {tTuDo(`labels.dept_${dept.key}`)}
                                 <Badge tone={dept.rows.length < dept.total ? "warning" : "neutral"}>
-                                  {dept.rows.length < dept.total ? `${dept.rows.length}/${dept.total}` : dept.total}
+                                  {dept.rows.length < dept.total ? `${dept.tu + 1}–${dept.tu + dept.rows.length}/${dept.total}` : dept.total}
                                 </Badge>
                               </span>
+                              {/* Ngay sau tên bộ phận, không đẩy sang mép phải: bảng rộng hơn
+                                  màn hình thì mép phải dòng tiêu đề nằm khuất. */}
+                              {dept.soTrang > 1 && (
+                                <PhanTrangBoPhan
+                                  trang={dept.trang}
+                                  soTrang={dept.soTrang}
+                                  href={(n) => hrefTrang(dept.key, n)}
+                                  nhan={nhanTrang}
+                                />
+                              )}
                               <NutThuGonNhom />
                             </div>
                           </TrNhom>
@@ -1015,6 +1062,31 @@ export default async function MaterialsPage({
                               </Fragment>
                             );
                           })}
+                          {/* Đọc hết trang này của bộ phận thì sang trang sau ngay tại đây,
+                              không phải cuộn ngược lên dòng tiêu đề. */}
+                          {dept.soTrang > 1 && (
+                            <tr className="no-print">
+                              <td colSpan={colCount} className="border-t border-[var(--border-subtle)] px-4 py-2">
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                  <span className="text-xs text-[var(--text-muted)]">
+                                    {t("materials.cuoiTrangBoPhan", {
+                                      bp: tTuDo(`labels.dept_${dept.key}`),
+                                      tu: dept.tu + 1,
+                                      den: dept.tu + dept.rows.length,
+                                      tong: dept.total,
+                                    })}
+                                  </span>
+                                  <PhanTrangBoPhan
+                                    trang={dept.trang}
+                                    soTrang={dept.soTrang}
+                                    href={(n) => hrefTrang(dept.key, n)}
+                                    nhan={nhanTrang}
+                                    coChu
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       );
                     })}
@@ -1036,5 +1108,74 @@ export default async function MaterialsPage({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Chuyển trang của MỘT bộ phận: « đầu · ‹ trước · Trang 2/8 · sau › · cuối ». Đứng ở dòng tiêu
+ * đề bộ phận (nút chỉ có biểu tượng) và ở dòng cuối bộ phận (`coChu`: nút trước / sau ghi cả chữ —
+ * đọc hết trang là bấm). Là liên kết thường (dựng ở máy chủ) — trang mở lại đúng đầu bộ phận (#neo).
+ */
+function PhanTrangBoPhan({
+  trang,
+  soTrang,
+  href,
+  nhan,
+  coChu = false,
+}: {
+  trang: number;
+  soTrang: number;
+  href: (n: number) => string;
+  nhan: { dau: string; truoc: string; sau: string; cuoi: string; trang: string };
+  /** Nút trước / sau ghi cả chữ (dòng cuối bộ phận). */
+  coChu?: boolean;
+}) {
+  const nut = (n: number, ten: string, Icon: LucideIcon, tat: boolean, chu?: "truoc" | "sau") => {
+    const ghiChu = coChu && chu !== undefined;
+    const noiDung = !ghiChu ? (
+      <Icon className="size-4" />
+    ) : chu === "truoc" ? (
+      <>
+        <Icon className="size-4" />
+        {ten}
+      </>
+    ) : (
+      <>
+        {ten}
+        <Icon className="size-4" />
+      </>
+    );
+    const lop = cn(
+      "inline-flex h-7 items-center justify-center gap-1 rounded-md",
+      ghiChu ? "border border-[var(--border-subtle)] px-2" : "w-7"
+    );
+    return tat ? (
+      <span aria-hidden="true" className={cn(lop, "text-[var(--text-muted)] opacity-40")}>
+        {noiDung}
+      </span>
+    ) : (
+      <Link
+        href={href(n)}
+        title={ten}
+        aria-label={ten}
+        className={cn(
+          lop,
+          "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+          // Dòng tiêu đề nền chìm → nhấn nổi; dòng cuối nền bảng → nhấn chìm.
+          coChu ? "hover:bg-[var(--surface-sunken)]" : "hover:bg-[var(--surface-raised)]"
+        )}
+      >
+        {noiDung}
+      </Link>
+    );
+  };
+  return (
+    <nav aria-label={nhan.trang} className={cn("no-print inline-flex items-center text-xs font-medium", coChu ? "gap-1" : "gap-0.5")}>
+      {nut(1, nhan.dau, ChevronsLeft, trang <= 1)}
+      {nut(trang - 1, nhan.truoc, ChevronLeft, trang <= 1, "truoc")}
+      <span className="tabular px-1.5 whitespace-nowrap text-[var(--text-secondary)]">{nhan.trang}</span>
+      {nut(trang + 1, nhan.sau, ChevronRight, trang >= soTrang, "sau")}
+      {nut(soTrang, nhan.cuoi, ChevronsRight, trang >= soTrang)}
+    </nav>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronsDownUp, ChevronsUpDown, Maximize2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Button } from "@/components/ui";
@@ -52,6 +52,7 @@ export default function KhungBang({
   const [cao, setCao] = useState<Cao>(caoMacDinh);
   const [toanMan, setToanMan] = useState(false);
   const [daNap, setDaNap] = useState(false);
+  const goc = useRef<HTMLDivElement>(null);
 
   // Nạp lựa chọn đã nhớ (sau khi hydrate — đọc ngay lúc dựng sẽ lệch HTML máy chủ).
   useEffect(() => {
@@ -67,6 +68,22 @@ export default function KhungBang({
     }, 0);
     return () => window.clearTimeout(id);
   }, [khoa]);
+
+  // Mở thẳng một đường dẫn có #neo nằm trong bảng (tab mới, bấm chuyển trang khi trang chưa tải
+  // xong): trang tới qua loading.tsx nên lúc trình duyệt tìm neo thì bảng chưa có — nó không cuộn.
+  // Cuộn giúp một lần, sau khi đã áp cỡ chữ đã nhớ; người dùng đã tự cuộn thì thôi. Chuyển trang
+  // trong app (trang đã chạy) thì Next tự cuộn tới neo, khung không dựng lại nên không chạy lại.
+  useEffect(() => {
+    if (!daNap || window.scrollY > 0) return;
+    let id = "";
+    try {
+      id = decodeURIComponent(window.location.hash.slice(1));
+    } catch {
+      return;
+    }
+    const dich = id ? document.getElementById(id) : null;
+    if (dich && goc.current?.contains(dich)) dich.scrollIntoView({ block: "start" });
+  }, [daNap]);
 
   const nho = (x: { coChu: number; cao: Cao }) => {
     try {
@@ -104,6 +121,7 @@ export default function KhungBang({
 
   return (
     <div
+      ref={goc}
       className={cn(
         toanMan
           ? // Dưới thanh đầu trang (h-14), phủ cả cột menu. Neo #bộ-phận trong khung chỉ cần chừa tiêu đề cột.

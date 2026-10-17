@@ -7,6 +7,7 @@ import { goVatTuKhoiTauHangLoat, suaVatTuHangLoat, xoaVatTuHangLoat, type PatchH
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Button, Field, Input, Notice, Select } from "@/components/ui";
 import { Modal } from "@/components/ui-client";
+import ChonNguoiGiu from "@/components/ChonNguoiGiu";
 
 /**
  * Thanh thao tác hàng loạt cho bảng danh mục (/materials).
@@ -269,6 +270,7 @@ function SuaHangLoatDialog({
   const [isCritical, setIsCritical] = useState("__giu");
   const [isActive, setIsActive] = useState("__giu");
   const [nhomQuanLy, setNhomQuanLy] = useState("__giu");
+  const [nguoiGiu, setNguoiGiu] = useState("__giu");
 
   const gui = () => {
     const patch: PatchHangLoat = {};
@@ -280,6 +282,7 @@ function SuaHangLoatDialog({
     if (isCritical !== "__giu") patch.isCritical = isCritical === "1";
     if (isActive !== "__giu") patch.isActive = isActive === "1";
     if (nhomQuanLy !== "__giu") patch.nhomQuanLy = nhomQuanLy === "" ? null : nhomQuanLy;
+    if (nguoiGiu !== "__giu") patch.responsibleRank = nguoiGiu === "" ? null : nguoiGiu;
     onSubmit(patch);
   };
 
@@ -321,6 +324,16 @@ function SuaHangLoatDialog({
                 </option>
               ))}
             </Select>
+          </Field>
+          <Field label={t("materials.nguoiGiu")} hint={t("materials.nguoiGiuGoiY")} className="md:col-span-2">
+            <ChonNguoiGiu
+              value={nguoiGiu}
+              onChange={(e) => setNguoiGiu(e.target.value)}
+              dau={[
+                { value: "__giu", label: t("materials.giuNguyen") },
+                { value: "", label: t("materials.nguoiGiuTuSuy") },
+              ]}
+            />
           </Field>
           <Field label={t("chung.donVi")}>
             <Input value={uom} onChange={(e) => setUom(e.target.value)} placeholder={t("materials.giuNguyen")} maxLength={20} />

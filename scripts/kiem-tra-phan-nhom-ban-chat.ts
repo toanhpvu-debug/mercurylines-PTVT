@@ -8,7 +8,7 @@
  *
  * Chạy:  node --conditions=react-server --import ./node_modules/tsx/dist/loader.mjs scripts/kiem-tra-phan-nhom-ban-chat.ts
  */
-import { banChatVatTu, nhomCuaVatTu } from "@/lib/phanNhomBanChat";
+import { banChatVatTu, laNhomTuThuoc, nhomCuaVatTu } from "@/lib/phanNhomBanChat";
 import { chucDanhChiuTrachNhiem, laNguoiPhuTrach } from "@/lib/chucDanhChiuTrachNhiem";
 
 let dat = 0;
@@ -148,6 +148,19 @@ kiemTra("binh oxy HAN van la do han", [bc("High Pressure gas Cylinder, Oxygen", 
 kiemTra("nhiet ke may van la vat tu xuong may", bc("90°Angle thermometers thread"), "ENGINE/TOL");
 kiemTra("nhiet ke tron khong du can cu -> theo danh sach goc", [bc("Thermometer"), nhomCuaVatTu({ nameVn: "Thermometer", materialType: "STORE", code: "D-IMPA-0783", department: "D" }).nhom], [null, "DECK"]);
 kiemTra("coc an van la do bep", bc("Coffee cup with saucer"), "SERVICE/UTN");
+
+console.log("\n=== 4b) Nhom 'Y te & tu thuoc': ten thuoc khong luat nao bat duoc ===");
+kiemTra("nhom tu thuoc", ["Y tế & tủ thuốc", "Tủ thuốc", "Medical stores", "MEDICINE"].map(laNhomTuThuoc), [true, true, true, true]);
+kiemTra("khong nham thuoc do", ["Thước đo", "Vật tư Boong", "Engine Stores", "", null].map(laNhomTuThuoc), [false, false, false, false, false]);
+const tuThuoc = (nameVn: string, code = "D-IMPA-0725", department = "D") => ({ nameVn, materialType: "STORE", code, department, categoryName: "Y tế & tủ thuốc" });
+// Tên thật trong danh sách MEDICINE: thuốc, găng phẫu thuật (luật bảo hộ), nhiệt kế trơn, máy đo huyết áp điện tử (chữ "elec").
+for (const ten of ["Amoxicillin Capsules", "Banlangen Granules", "Surgical Gloves", "Thermometer", "Electronic Sphygmomanometer", "Rendan"]) {
+  const pn = nhomCuaVatTu(tuThuoc(ten));
+  kiemTra(`${ten} trong tu thuoc -> An toan chung / y te, Pho hai`, [pn.nhom, pn.banChat?.nhomCongTy, chucDanhChiuTrachNhiem(tuThuoc(ten))], ["SAFETY", "MED", { chucDanh: "2O", nguon: "ban-chat" }]);
+}
+kiemTra("may do huyet ap con ma L- cu van vao tu thuoc", nhomCuaVatTu(tuThuoc("Electronic Sphygmomanometer", "L-IMPA-0301", "L")).nhom, "SAFETY");
+kiemTra("gang phau thuat NGOAI tu thuoc van la bao ho (giu kho dang chua)", chucDanhChiuTrachNhiem({ nameVn: "Surgical Gloves", materialType: "STORE", code: "D-IMPA-0780", department: "D" }), { chucDanh: "BSN", nguon: "bo-phan" });
+kiemTra("gan tay thang nhom tu thuoc", chucDanhChiuTrachNhiem({ ...tuThuoc("Amoxicillin Capsules"), responsibleRank: "MST" }), { chucDanh: "MST", nguon: "gan" });
 
 console.log("\n=== 5) Nguoi giu da gan quyet dinh nhom bo phan (tru hang an toan) ===");
 // Cầu chì dự phòng máy phân ly dầu nước — file kiểm kê của Máy tư: lọc "Điện" mà ra hàng Máy tư giữ là sai.

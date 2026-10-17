@@ -23,6 +23,11 @@ export const materials = tuDien(
     moiChucDanh: "Mọi chức danh",
     boPhan: "Bộ phận",
     moiBoPhan: "Mọi bộ phận",
+    nguoiGiu: "Người giữ (cột Giữ bởi)",
+    nguoiGiuGoiY:
+      "Gán người giữ thì mặt hàng về nhóm bộ phận của người đó (hàng an toàn vẫn ở An toàn chung). Để tự suy thì app suy từ nhóm như trước.",
+    nguoiGiuTuSuy: "— Tự suy theo nhóm (bỏ gán) —",
+    nguoiGiuTuSuyHien: "— Tự suy theo nhóm (hiện: {ten}) —",
     locBoPhanGoiY:
       "Lọc theo đúng các mục của bảng. Cột \"Giữ bởi\" cũng theo nhóm này: lọc Máy thì mọi dòng đều do người ngành máy giữ.",
     timGoiY: "Tìm tên, mã, IMPA, Part No, hãng...",
@@ -233,6 +238,11 @@ export const materials = tuDien(
     moiChucDanh: "All ranks",
     boPhan: "Department",
     moiBoPhan: "All departments",
+    nguoiGiu: "Held by (rank)",
+    nguoiGiuGoiY:
+      "Assigning a holder moves the item to that rank's department (safety items stay in General safety). Leave it automatic to derive it from the group as before.",
+    nguoiGiuTuSuy: "— Automatic from group (unassigned) —",
+    nguoiGiuTuSuyHien: "— Automatic from group (now: {ten}) —",
     locBoPhanGoiY:
       "Filters by the same sections as the table. The \"Held by\" column follows them too: filter Engine and every row is held by an engine-room rank.",
     timGoiY: "Search name, code, IMPA, Part No., maker...",

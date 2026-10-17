@@ -292,6 +292,22 @@ export default async function MaterialsPage({
     : masterMaterials;
   const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
   const categoryCodeById = new Map(categories.map((c) => [c.id, c.code]));
+  /** Mặt hàng → đầu vào của chucDanhChiuTrachNhiem — cột "Giữ bởi" và ô người giữ của form Sửa. */
+  const monGiu = (m: (typeof allRows)[number]) => ({
+    responsibleRank: m.responsibleRank,
+    categoryCode: m.categoryId ? categoryCodeById.get(m.categoryId) : null,
+    categoryName: m.categoryId ? categoryNameById.get(m.categoryId) : null,
+    department: m.department,
+    equipment: m.equipment,
+    code: m.code,
+    impa: m.impa,
+    nameVn: m.nameVn,
+    nameEn: m.nameEn,
+    nhomQuanLy: m.nhomQuanLy,
+    materialType: m.materialType,
+  });
+  /** Người giữ app tự suy nếu BỎ gán — để ô chọn của form Sửa ghi "Tự suy (hiện: …)". */
+  const giuSuyRa = (m: (typeof allRows)[number]) => chucDanhChiuTrachNhiem({ ...monGiu(m), responsibleRank: null })?.chucDanh ?? null;
 
   // Lọc theo chức danh phụ trách — khớp ĐÚNG cột "Giữ bởi".
   //
@@ -981,23 +997,7 @@ export default async function MaterialsPage({
                                       // Chức danh chịu trách nhiệm: ưu tiên cột đã gán, nếu
                                       // trống thì suy theo nhóm thiết bị / bộ phận nên MỌI
                                       // dòng đều có người giữ hiện ra, không còn "—".
-                                      const tn = chucDanhChiuTrachNhiem({
-                                        responsibleRank: material.responsibleRank,
-                                        categoryCode: material.categoryId
-                                          ? categoryCodeById.get(material.categoryId)
-                                          : null,
-                                        categoryName: material.categoryId
-                                          ? categoryNameById.get(material.categoryId)
-                                          : null,
-                                        department: material.department,
-                                        equipment: material.equipment,
-                                        code: material.code,
-                                        impa: material.impa,
-                                        nameVn: material.nameVn,
-                                        nameEn: material.nameEn,
-                                        nhomQuanLy: material.nhomQuanLy,
-                                        materialType: material.materialType,
-                                      });
+                                      const tn = chucDanhChiuTrachNhiem(monGiu(material));
                                       if (!tn) {
                                         return (
                                           <span className="text-xs text-[var(--text-muted)]">
@@ -1095,8 +1095,10 @@ export default async function MaterialsPage({
                                               maxStock: material.maxStock,
                                               isCritical: material.isCritical,
                                               isActive: material.isActive,
+                                              responsibleRank: material.responsibleRank,
                                             }}
                                             categories={categoryOptions}
+                                            nguoiGiuSuyRa={giuSuyRa(material)}
                                             onlyEdit
                                           />
                                         )}
@@ -1127,8 +1129,10 @@ export default async function MaterialsPage({
                                           maxStock: material.maxStock,
                                           isCritical: material.isCritical,
                                           isActive: material.isActive,
+                                          responsibleRank: material.responsibleRank,
                                         }}
                                         categories={categoryOptions}
+                                        nguoiGiuSuyRa={giuSuyRa(material)}
                                         xoaDuoc={xoaDuoc}
                                       />
                                     </Td>

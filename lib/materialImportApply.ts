@@ -4,11 +4,15 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { departmentOfMaterial } from "@/lib/departments";
+import { laNhomTuThuoc } from "@/lib/phanNhomBanChat";
 import {
   boPhanTuMaNhom,
   CHUC_DANH,
   chucDanhThuocBoPhan,
   chucDanhTrongTen,
+  laTenTuThuoc,
+  NHOM_THIET_BI,
+  TEN_NHOM_TU_THUOC,
   doanLoai,
   sinhMaNgan,
   sttTheoNhom,
@@ -51,9 +55,10 @@ export type ApplyImportInput = {
   fileName: string;
   actorName: string;
   /**
-   * File là danh sách kiểm kê / danh mục do MỘT người giữ lập ("… BOILLER 4E.xlsx"): chức danh
-   * trong tên file giao luôn cho hàng mới. Phiếu giao của nhà cung cấp thì không — tên file là
-   * số phiếu, không nói ai giữ hàng.
+   * File là danh sách kiểm kê / danh mục do MỘT người giữ lập ("… BOILLER 4E.xlsx", "… SPAIRE
+   * MEDICINE.xlsx"): chức danh trong tên file giao luôn cho hàng mới, file tủ thuốc thì hàng vào
+   * nhóm "Y tế & tủ thuốc". Phiếu giao của nhà cung cấp thì không — tên file là số phiếu, không
+   * nói ai giữ hàng.
    */
   chucDanhTheoTenTep?: boolean;
 };
@@ -207,16 +212,22 @@ export async function applyMaterialImport(
         // tên nhóm: không lập nhóm "E" — cột Nhóm sẽ hiện trơ một chữ cái — mà lấy làm bộ
         // phận của mặt hàng bên dưới.
         const boPhanNhom = boPhanTuMaNhom(item.group);
+        // Danh sách TỦ THUỐC (sheet / file "MEDICINE", "Thuốc"…) mà ô Nhóm trống: hàng vào
+        // nhóm "Y tế & tủ thuốc" → An toàn chung, Phó hai giữ. Tên thuốc không luật chữ nào
+        // nhận ra — để trống là rơi về Boong / Thủy thủ trưởng như lần nhập 16/10/2026.
+        const tenNhom =
+          item.group ??
+          (laTenTuThuoc(item.sheet) || (chucDanhTheoTenTep && laTenTuThuoc(fileName)) ? TEN_NHOM_TU_THUOC : null);
         // Nhóm (Group) → Category: tìm theo TÊN trước; slug bỏ dấu tiếng Việt,
         // nếu trùng mã với nhóm khác tên thì thêm hậu tố -2, -3...
         let categoryId: number | null = null;
-        if (item.group && !boPhanNhom) {
-          const key = norm(item.group);
+        if (tenNhom && !boPhanNhom) {
+          const key = norm(tenNhom);
           if (categoryCache.has(key)) {
             categoryId = categoryCache.get(key)!;
           } else {
             let cat = await tx.category.findFirst({
-              where: { name: item.group },
+              where: { name: tenNhom },
             });
             if (!cat) {
               const slugBase = key
@@ -232,7 +243,7 @@ export async function applyMaterialImport(
                 catCode = `CAT-${slugBase || "nhom"}-${suffix++}`;
               }
               cat = await tx.category.create({
-                data: { code: catCode, name: item.group },
+                data: { code: catCode, name: tenNhom },
               });
             }
             categoryId = cat.id;
@@ -254,9 +265,12 @@ export async function applyMaterialImport(
         const boPhan =
           boPhanNhom ??
           (chucDanhTep ? CHUC_DANH[chucDanhTep]?.boPhan : undefined) ??
+          // Nhóm tủ thuốc thuộc bộ phận của nhóm MED (Boong): "Electronic Sphygmomanometer"
+          // của tủ thuốc không được thành hàng Điện chỉ vì chữ "elec".
+          (laNhomTuThuoc(tenNhom) ? NHOM_THIET_BI.MED.boPhan : undefined) ??
           BO_PHAN_THEO_NHOM[
             departmentOfMaterial(
-              [item.group, item.equipment, item.name, item.sheet],
+              [tenNhom, item.equipment, item.name, item.sheet],
               loaiHang
             )
           ] ??

@@ -219,6 +219,20 @@ export function chucDanhTrongTen(ten: string | null | undefined): string | null 
 }
 
 /**
+ * Tên sheet / tên file là danh sách TỦ THUỐC ("MEDICINE", "… SPAIRE MEDICINE.xlsx", "Thuốc", "Y
+ * tế") → hàng mới vào nhóm "Y tế & tủ thuốc" (nhóm MED của bộ phân loại công ty, Phó hai giữ).
+ * Tên thuốc (Amoxicillin, Banlangen Granules…) không luật chữ nào bắt được — lần nhập 16/10/2026,
+ * 73 món tủ thuốc rơi về Boong, Thủy thủ trưởng giữ. Chữ Việt so CÓ DẤU: "thước" (thước đo) bỏ
+ * dấu cũng thành "thuoc".
+ */
+export function laTenTuThuoc(ten: string | null | undefined): boolean {
+  return /medicine|medical|tủ thuốc|thuốc|y tế/i.test(String(ten ?? "").normalize("NFC"));
+}
+
+/** Tên nhóm (Category) của tủ thuốc — đúng tên nhóm MED trong bộ phân loại công ty. */
+export const TEN_NHOM_TU_THUOC = "Y tế & tủ thuốc";
+
+/**
  * Nhóm thiết bị — tầng phân loại giữa bộ phận và từng món hàng.
  *
  * Ba nguyên tắc khi đặt nhóm, để danh sách này không phình ra vô tội vạ:

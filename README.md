@@ -1134,7 +1134,16 @@ Danh mục và yêu cầu vật tư được dựng theo 3 mẫu Excel của cô
   Máy, không ở Điện; hàng an toàn vẫn ở An toàn chung) → bản chất (tên hàng) → danh sách gốc. Đồ y
   tế của tủ thuốc ("Medical Oxygen Cylinder", "Oxygen Resuscitator", "Forehead Thermometer", "Eye
   Irrigation Cup"…) không còn bị chữ *oxygen / thermometer / cup* kéo sang Máy / Bếp — về An toàn
-  chung, Phó hai giữ; nhiệt kế trơn (không ghi kiểu lắp máy) để theo danh sách gốc.
+  chung, Phó hai giữ; nhiệt kế trơn (không ghi kiểu lắp máy) để theo danh sách gốc. Hàng thuộc
+  nhóm **"Y tế & tủ thuốc"** (nhóm MED của bộ phân loại công ty) là đồ y tế bất kể tên — tên thuốc
+  (Amoxicillin, Banlangen…) không luật chữ nào bắt được: An toàn chung, Phó hai giữ.
+
+  **Đổi cột "Giữ bởi" (quản trị):** ô **Người giữ (cột Giữ bởi)** trong hộp **Sửa** của từng mặt
+  hàng và trong **Sửa hàng loạt** (tick nhiều dòng). Chọn chức danh (gom theo bộ phận) = gán tay —
+  nhãn chuyển màu "đã gán", và mặt hàng về nhóm bộ phận của người đó (hàng an toàn vẫn ở An toàn
+  chung). Chọn **Tự suy theo nhóm** = bỏ gán, app suy lại như trước; hộp Sửa ghi rõ hiện đang suy
+  ra ai ("hiện: Phó hai (2O)"). Mỗi lần đổi ghi nhật ký (`doi-nguoi-giu`, `sua-vat-tu-hang-loat`).
+  Chỉ tài khoản quản trị (ADMIN) thấy và lưu được.
 
   Hai quy tắc đáng lưu ý trong cách phân nhóm: thiết bị của phụ tùng lấy từ trường
   `equipment`, **không có thì lấy tên Nhóm (Category)** — file kiểm kê MLS-11-06 ghi thiết bị
@@ -1338,9 +1347,10 @@ Vật tư trùng (theo IMPA / Part No / tên + thiết bị; mã giữ chỗ "-"
 
 1. Ô **Nhóm / Group** ghi **mã bộ phận** (`E`, `E1`…`E10` như MLS-11-06-B bộ phận Máy; `D`, `L`, `C`) → đó là bộ phận, **không** lập nhóm tên "E" (cột Nhóm sẽ hiện trơ một chữ cái, đọc nhầm thành "Máy" cạnh mã D-… và Thủy thủ trưởng). Với phụ tùng, ô đó cũng không thành tên máy.
 2. **Tên sheet**, rồi **tên file** (file kiểm kê / danh mục, không áp cho phiếu giao) ghi **chức danh** `2E` `3E` `4E` `2O` `3O` đứng riêng một từ — "MLS-11-06 … BOILLER **4E**.xlsx", sheet "VẬT TƯ MAU HỎNG **4E**" → bộ phận của chức danh đó, cột *Giữ bởi* gán luôn chức danh (Máy tư).
-3. Không có hai manh mối trên thì suy theo nhóm / thiết bị / tên hàng / tên sheet như trước; không ra gì mới lùi về Boong.
+3. **Tên sheet / tên file là tủ thuốc** ("MEDICINE", "… SPAIRE MEDICINE.xlsx", "Thuốc", "Y tế" — chữ Việt so có dấu, "thước" không tính) mà ô Nhóm trống → nhóm **"Y tế & tủ thuốc"**, bộ phận Boong → An toàn chung, Phó hai giữ. (Máy đo huyết áp "Electronic Sphygmomanometer" của tủ thuốc từng thành hàng Điện chỉ vì chữ "elec".)
+4. Không có các manh mối trên thì suy theo nhóm / thiết bị / tên hàng / tên sheet như trước; không ra gì mới lùi về Boong.
 
-Lần kiểm kê 16/10/2026 của M.ODYSSEY (file BOILLER 4E) nhập trước khi có luật này: 100 mặt hàng của Máy tư rơi vào Boong (mã `D-IMPA-07xx/08xx`, người giữ suy ra Thủy thủ trưởng, cột Nhóm "E"). Sửa bằng **`sua-nhom-ma-bo-phan.cmd`** (không có `--dong-y` thì chỉ liệt kê): áp đúng luật trên cho hàng đã thêm từ kiểm kê — bộ phận, mã mới `E-IMPA-…` (tồn kho, giao dịch giữ nguyên vì gắn theo id), người giữ, bỏ nhóm mã bộ phận; ghi nhật ký. Đã chạy trên máy văn phòng 17/10/2026: `D-IMPA-0701…0719`, `0801…0880` → `E-IMPA-0302…0400`, Máy tư giữ.
+Lần kiểm kê 16/10/2026 của M.ODYSSEY nhập trước khi có luật này: file BOILLER 4E — 100 mặt hàng của Máy tư rơi vào Boong (mã `D-IMPA-07xx/08xx`, người giữ suy ra Thủy thủ trưởng, cột Nhóm "E"); file SPAIRE MEDICINE — 74 món tủ thuốc ở Boong / Thủy thủ trưởng (máy đo huyết áp ở Điện). Sửa bằng **`sua-nhom-ma-bo-phan.cmd`** (không có `--dong-y` thì chỉ liệt kê; `--het` liệt kê đủ): áp đúng luật trên cho hàng đã thêm từ kiểm kê — bộ phận, mã mới (tồn kho, giao dịch giữ nguyên vì gắn theo id; số mới nối tiếp dãy của nhóm, không nhặt lại số vừa trống), người giữ, nhóm; ghi nhật ký. Đã chạy trên máy văn phòng 17/10/2026 (sao lưu trước mỗi lần): `D-IMPA-0701…0719`, `0801…0880` → `E-IMPA-0302…0400`, Máy tư giữ; 74 món tủ thuốc → nhóm "Y tế & tủ thuốc", Phó hai giữ, `L-IMPA-0301` → `D-IMPA-0793`.
 
 ### Mã đang dùng: `[bộ phận]-IMPA-####` · `[bộ phận]-SPR-####`
 

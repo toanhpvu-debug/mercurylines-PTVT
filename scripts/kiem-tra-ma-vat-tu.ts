@@ -14,6 +14,8 @@ import {
   NHOM_THIET_BI,
   boPhanTuMaNhom,
   chucDanhTrongTen,
+  laTenTuThuoc,
+  TEN_NHOM_TU_THUOC,
   boPhanYeuCau,
   chucDanhCuaNguoiDung,
   chucDanhThuocBoPhan,
@@ -848,6 +850,18 @@ kiemTra(
   ["OIL SEPARATOR", "ME spare part", "QUÝ 3-2026", "H2O TANK", "4ED", "CO2", "MAIN ENGINE", "", null].map(chucDanhTrongTen),
   [null, null, null, null, null, null, null, null, null]
 );
+kiemTra(
+  "ten sheet / file tu thuoc",
+  ["MEDICINE", "-MLS-11-06 Store & Spare Part Inventory  SPAIRE MEDICINE.xlsx", "Tủ thuốc", "THUỐC", "Medical stores", "Y tế"].map(laTenTuThuoc),
+  [true, true, true, true, true, true]
+);
+// "thước" (thước đo) bỏ dấu cũng là "thuoc" — so phải giữ dấu.
+kiemTra(
+  "khong phai tu thuoc",
+  ["Thước đo", "THƯỚC CẶP", "ME spare part", "QUÝ 3-2026", "OWS", "", null].map(laTenTuThuoc),
+  [false, false, false, false, false, false, false]
+);
+kiemTra("ten nhom tu thuoc = nhom MED cua bo phan loai cong ty", TEN_NHOM_TU_THUOC, NHOM_THIET_BI.MED.ten);
 kiemTra("May tu giu duoc hang bo phan May", chucDanhThuocBoPhan("4E", "E"), true);
 kiemTra("Pho hai khong giu hang bo phan May", chucDanhThuocBoPhan("2O", "E"), false);
 

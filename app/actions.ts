@@ -3748,7 +3748,8 @@ export async function updateMaterial(
   formData: FormData
 ): Promise<{ message: string; success?: boolean }> {
   const { t } = await layT();
-  if (!(await requireActiveRole(["ADMIN"]))) {
+  const admin = await requireActiveRole(["ADMIN"]);
+  if (!admin) {
     return { message: t("chung.khongCoQuyen") };
   }
   const id = Number(formData.get("id"));
@@ -3765,6 +3766,13 @@ export async function updateMaterial(
   const nameVn = str("nameVn");
   if (!code || !nameVn) {
     return { message: t("actions.vatTu_maVaTenBatBuoc") };
+  }
+  // Người giữ (cột "Giữ bởi"): "" = để app tự suy theo nhóm; mã chức danh = gán tay. Form không
+  // gửi ô này (nơi gọi cũ) thì giữ nguyên.
+  const coNguoiGiu = formData.has("responsibleRank");
+  const nguoiGiu = str("responsibleRank") || null;
+  if (nguoiGiu && !Object.hasOwn(CHUC_DANH, nguoiGiu)) {
+    return { message: t("chung.duLieuKhongHopLe") };
   }
   const materialType = str("materialType") === "SPARE" ? "SPARE" : "STORE";
   const equipment = str("equipment");
@@ -3800,6 +3808,8 @@ export async function updateMaterial(
         // Mã đổi thì phân loại phải đổi theo. Giữ nguyên khi mã không đổi để
         // không xóa mất phân loại do gan-ma-vat-tu.cmd gán cho mã cũ.
         ...(code !== before.code ? phanLoaiTuMa(code) : {}),
+        // Người giữ chọn ở form thắng chức danh đọc từ mã (đặt SAU phanLoaiTuMa).
+        ...(coNguoiGiu ? { responsibleRank: nguoiGiu } : {}),
       },
     });
   } catch (error) {
@@ -3810,6 +3820,15 @@ export async function updateMaterial(
       return { message: t("actions.vatTu_maDaCoOVatTuKhac", { ma: code }) };
     }
     throw error;
+  }
+  if (coNguoiGiu && (before.responsibleRank ?? null) !== nguoiGiu) {
+    // Đổi người giữ là đổi trách nhiệm kiểm kê / bàn giao — để lại dấu ai đổi, lúc nào.
+    await ghiNhatKyNguoiDung(admin, {
+      vesselId: null,
+      action: "doi-nguoi-giu",
+      path: "/materials",
+      detail: `${code} ${nameVn}: người giữ ${before.responsibleRank ?? "tự suy"} → ${nguoiGiu ?? "tự suy"}`,
+    });
   }
   revalidatePath("/materials");
   revalidatePath("/inventory");

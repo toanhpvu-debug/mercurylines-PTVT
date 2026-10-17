@@ -10,6 +10,7 @@ import {
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Button, Field, Input, Notice, Select } from "@/components/ui";
 import { Modal } from "@/components/ui-client";
+import ChonNguoiGiu from "@/components/ChonNguoiGiu";
 
 export type EditableMaterial = {
   id: number;
@@ -27,6 +28,8 @@ export type EditableMaterial = {
   maxStock: number;
   isCritical: boolean;
   isActive: boolean;
+  /** Người giữ đã gán (cột "Giữ bởi"); null = app tự suy theo nhóm. */
+  responsibleRank: string | null;
 };
 
 type CategoryOption = { id: number; name: string };
@@ -34,11 +37,14 @@ type CategoryOption = { id: number; name: string };
 export default function MaterialRowActions({
   material,
   categories,
+  nguoiGiuSuyRa = null,
   onlyEdit = false,
   xoaDuoc = true,
 }: {
   material: EditableMaterial;
   categories: CategoryOption[];
+  /** Người giữ app đang tự suy (khi chưa gán) — để ô chọn nói rõ "tự suy" là ai. */
+  nguoiGiuSuyRa?: string | null;
   /**
    * Chỉ hiện nút Sửa. Dùng ở chế độ xem theo tàu: ngừng dùng / xóa là thao tác
    * trên bản ghi dùng chung toàn đội, làm từ danh mục gốc mới đúng ngữ cảnh.
@@ -145,6 +151,7 @@ export default function MaterialRowActions({
         <EditDialog
           material={material}
           categories={categories}
+          nguoiGiuSuyRa={nguoiGiuSuyRa}
           action={saveAction}
           pending={savePending}
           message={saveState.message}
@@ -162,6 +169,7 @@ export default function MaterialRowActions({
 function EditDialog({
   material,
   categories,
+  nguoiGiuSuyRa,
   action,
   pending,
   message,
@@ -170,13 +178,14 @@ function EditDialog({
 }: {
   material: EditableMaterial;
   categories: CategoryOption[];
+  nguoiGiuSuyRa: string | null;
   action: (formData: FormData) => void;
   pending: boolean;
   message: string;
   success?: boolean;
   onClose: () => void;
 }) {
-  const { t, tTuDo } = useNgonNgu();
+  const { t, tTuDo, tenChucDanh } = useNgonNgu();
   const [type, setType] = useState(material.materialType);
 
   return (
@@ -288,6 +297,23 @@ function EditDialog({
               />
             </Field>
           </div>
+
+          {/* Cột "Giữ bởi": gán tay thì thắng mọi suy luận và mặt hàng về nhóm bộ phận của người
+              giữ (trừ hàng an toàn); để "tự suy" thì app suy từ nhóm như trước. */}
+          <Field label={t("materials.nguoiGiu")} hint={t("materials.nguoiGiuGoiY")} className="md:col-span-3">
+            <ChonNguoiGiu
+              name="responsibleRank"
+              defaultValue={material.responsibleRank ?? ""}
+              dau={[
+                {
+                  value: "",
+                  label: nguoiGiuSuyRa
+                    ? t("materials.nguoiGiuTuSuyHien", { ten: `${tenChucDanh(nguoiGiuSuyRa)} (${nguoiGiuSuyRa})` })
+                    : t("materials.nguoiGiuTuSuy"),
+                },
+              ]}
+            />
+          </Field>
 
           <label className="flex items-center gap-2 md:col-span-3">
             <input

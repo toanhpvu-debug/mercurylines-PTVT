@@ -9,6 +9,7 @@ import { ghiNhatKy } from "@/lib/audit";
 import { laBanTau } from "@/lib/banCai";
 import { layT } from "@/lib/i18n/server";
 import { NHOM_HIEN_THI } from "@/lib/phanNhomBanChat";
+import { CHUC_DANH } from "@/lib/maVatTu";
 
 /*
  * Thao tác HÀNG LOẠT trên danh mục gốc (chọn nhiều dòng bằng ô tick ở
@@ -138,6 +139,8 @@ export type PatchHangLoat = {
   isActive?: boolean;
   /** Ghim nhóm hiển thị: DECK · ENGINE · ELEC · SERVICE · SAFETY; null = bỏ ghim (tự xếp theo bản chất); undefined = giữ nguyên. */
   nhomQuanLy?: string | null;
+  /** Người giữ (cột "Giữ bởi"): mã chức danh (CHUC_DANH); null = bỏ gán (app tự suy theo nhóm); undefined = giữ nguyên. */
+  responsibleRank?: string | null;
 };
 
 export type KetQuaSuaHangLoat = { message: string; success?: boolean; soDoi: number };
@@ -196,6 +199,19 @@ export async function suaVatTuHangLoat(idsRaw: number[], patch: PatchHangLoat): 
     } else if ((NHOM_HIEN_THI as readonly string[]).includes(String(patch.nhomQuanLy))) {
       data.nhomQuanLy = String(patch.nhomQuanLy);
       mota.push(`nhóm hiển thị=ghim ${data.nhomQuanLy}`);
+    } else {
+      return { message: t("chung.duLieuKhongHopLe"), soDoi: 0 };
+    }
+  }
+  if (patch.responsibleRank !== undefined) {
+    // Gán người giữ thì mặt hàng về nhóm bộ phận của người đó (trừ hàng an toàn) — xem
+    // nhomCuaVatTu; bỏ gán thì app suy lại từ nhóm như trước.
+    if (patch.responsibleRank === null) {
+      data.responsibleRank = null;
+      mota.push("người giữ=tự suy theo nhóm");
+    } else if (Object.hasOwn(CHUC_DANH, String(patch.responsibleRank))) {
+      data.responsibleRank = String(patch.responsibleRank);
+      mota.push(`người giữ=${data.responsibleRank}`);
     } else {
       return { message: t("chung.duLieuKhongHopLe"), soDoi: 0 };
     }

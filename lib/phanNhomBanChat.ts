@@ -188,11 +188,25 @@ const THEO_CHUONG: Partial<Record<string, Omit<Luat, "re" | "tru">>> = {
 };
 
 /**
+ * Nhóm (Category) là tủ thuốc — "Y tế & tủ thuốc" (TEN_NHOM_TU_THUOC, lib/maVatTu.ts), hoặc tên
+ * nhóm của file nhập nói rõ y tế / thuốc. So trên chữ bỏ dấu nên phải đủ cụm "tu thuoc" / "y te":
+ * "Thước đo" bỏ dấu là "thuoc do", không phải tủ thuốc.
+ */
+export function laNhomTuThuoc(ten: string | null | undefined): boolean {
+  return Boolean(ten) && / (tu thuoc|y te|medical\w*|medicines?|first aid) /.test(chuanChu(String(ten)));
+}
+
+/**
  * Bản chất của một VẬT TƯ (Store): nhóm hiển thị + nhóm con công ty + lý do.
  * null = không đủ căn cứ (hàng dùng chung, hoặc phụ tùng) — giữ cách xếp cũ.
+ *
+ * `nhomFile` (tên Category) chỉ dùng cho một việc: hàng nằm trong nhóm TỦ THUỐC thì là đồ y tế,
+ * xét TRƯỚC tên hàng — tên thuốc (Amoxicillin, Banlangen…) không luật nào bắt được, còn "Surgical
+ * Gloves", "Thermometer" của tủ thuốc mà xét theo tên thì thành bảo hộ / đồ xưởng máy.
  */
-export function banChatVatTu(m: { nameVn: string; nameEn?: string | null; impa?: string | null; materialType: string }): BanChat | null {
+export function banChatVatTu(m: { nameVn: string; nameEn?: string | null; impa?: string | null; materialType: string; nhomFile?: string | null }): BanChat | null {
   if (m.materialType === "SPARE") return null;
+  if (laNhomTuThuoc(m.nhomFile)) return { nhom: "SAFETY", nhomCongTy: "MED", lyDo: "nhóm tủ thuốc (y tế)" };
   const chu = chuanChu(`${m.nameVn} ${m.nameEn ?? ""}`);
   for (const l of LUAT) {
     if (l.re.test(chu) && !(l.tru && l.tru.test(chu))) return { nhom: l.nhom, nhomCongTy: l.nhomCongTy, lyDo: l.lyDo };
@@ -253,7 +267,7 @@ const THEO_CHU_MA: Record<string, NhomHienThi> = { D: "DECK", E: "ENGINE", L: "E
  */
 export function nhomCuaVatTu(m: VatTuPhanNhom): KetQuaPhanNhom {
   const nhomCu = departmentOfMaterial([m.categoryName, m.equipment, m.nguonPhu ?? m.code], m.materialType, m.department);
-  const bc = banChatVatTu({ nameVn: m.nameVn ?? "", nameEn: m.nameEn, impa: m.impa, materialType: m.materialType });
+  const bc = banChatVatTu({ nameVn: m.nameVn ?? "", nameEn: m.nameEn, impa: m.impa, materialType: m.materialType, nhomFile: m.categoryName });
   const ghim = (m.nhomQuanLy ?? "").trim().toUpperCase();
   if ((NHOM_HIEN_THI as readonly string[]).includes(ghim)) return { nhom: ghim, banChat: bc, nguon: "ghim", nhomCu };
   const boPhanGiu = CHUC_DANH[(m.responsibleRank ?? "").trim()]?.boPhan;

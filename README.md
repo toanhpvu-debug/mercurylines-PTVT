@@ -1231,7 +1231,10 @@ sơn ([`lib/kyQuy.ts`](lib/kyQuy.ts): quý theo giờ Việt Nam, neo vào tồn
   tổng, **tiêu thụ trung bình một quý** (chỉ quý đã hết), **tồn hiện tại đủ dùng mấy quý**; lọc *dưới tối thiểu / đủ dùng
   dưới 1 quý / nằm kho (không biến động) / có nhận-tiêu thụ*, sắp xếp theo tiêu thụ / đủ dùng / tên / mã; thẻ từng quý đếm
   số mặt hàng và số lần nhập / xuất; **Xuất Excel thống kê** (`/api/export/thong-ke-ton`). Để đặt tồn tối thiểu, lập yêu cầu
-  đúng lúc và nhận ra hàng nằm kho.
+  đúng lúc và nhận ra hàng nằm kho. Bảng mặt hàng mặc định hiện **100 dòng đầu** theo cách sắp đang chọn, có *Xem tất cả*
+  (`?full=1`, tối đa 500 — hơn nữa thì lọc hẹp hơn hoặc xuất Excel); thẻ quý, bảng theo chức danh và Excel vẫn tính mọi
+  dòng. Đo 2026-10-17: 500 dòng × 21 ô = 13.004 phần tử DOM, 2,1 MB HTML, máy chậm đứng 1,2 s; 100 dòng: 3.030 phần tử,
+  0,5 MB, không còn tác vụ dài.
 - **Theo chức danh quản lý trên tàu**: mỗi mặt hàng thuộc chức danh *giữ và kiểm kê* nó — cùng cột *Giữ bởi* ở Danh mục vật tư
   ([`lib/chucDanhChiuTrachNhiem.ts`](lib/chucDanhChiuTrachNhiem.ts): gán tay `responsibleRank`, không có thì suy theo cụm máy —
   máy chính Máy hai, máy phụ Máy ba, phân ly Máy tư… — rồi theo bộ phận). Trang thống kê có bảng **Theo chức danh quản lý**

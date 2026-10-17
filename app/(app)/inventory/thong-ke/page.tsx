@@ -16,7 +16,15 @@ import ChonChucDanh from "@/components/ChonChucDanh";
 
 export const dynamic = "force-dynamic";
 
+/** Xem tất cả (?full=1): tối đa chừng này dòng — hơn nữa thì lọc hẹp hơn hoặc xuất Excel. */
 const TOI_DA_DONG = 500;
+/**
+ * Mặc định chỉ dựng chừng này dòng đầu (đã sắp theo tiêu thụ / đủ dùng / tên / mã), có liên kết "Xem
+ * tất cả": đo 2026-10-17 trên dữ liệu thật, 500 dòng × 21 ô = 13.004 nút DOM, 2,1 MB HTML, một tác
+ * vụ dài 1,2 s trên máy chậm (thuyền viên cũng vậy). Thẻ quý, bảng theo chức danh và Excel vẫn tính
+ * trên mọi dòng.
+ */
+const HIEN_MAC_DINH = 100;
 const BO_PHAN = ["ALL", "ENG", "DECK", "STORE"] as const;
 const LOC = ["TAT_CA", "CO_DONG", "THIEU", "SAP_HET", "KHONG_DONG"] as const;
 const SAP_XEP = ["TIEU_THU", "DU_DUNG", "TEN", "MA"] as const;
@@ -30,7 +38,7 @@ const SAP_XEP = ["TIEU_THU", "DU_DUNG", "TEN", "MA"] as const;
 export default async function ThongKeTonPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vessel?: string; nam?: string; dept?: string; type?: string; q?: string; loc?: string; sx?: string; rank?: string }>;
+  searchParams: Promise<{ vessel?: string; nam?: string; dept?: string; type?: string; q?: string; loc?: string; sx?: string; rank?: string; full?: string }>;
 }) {
   const user = await requireScopedUser();
   const { t, tTuDo, tenChucDanh, tenBoPhan } = await layT();
@@ -98,7 +106,8 @@ export default async function ThongKeTonPage({
     if (sx === "DU_DUNG") return (a.x.duDungQuy ?? Infinity) - (b.x.duDungQuy ?? Infinity) || b.x.tongTieuThu - a.x.tongTieuThu;
     return b.x.tongTieuThu - a.x.tongTieuThu || a.m.nameVn.localeCompare(b.m.nameVn, "vi");
   });
-  const dong = locDong.slice(0, TOI_DA_DONG);
+  const xemHet = sp.full === "1";
+  const dong = locDong.slice(0, xemHet ? TOI_DA_DONG : HIEN_MAC_DINH);
   // Thẻ từng quý: bao nhiêu mặt hàng có nhận / tiêu thụ / điều chỉnh, bao nhiêu lần.
   const theQuy = cacQuy.map((k, i) => {
     const qs = tatCa.map(({ x }) => x.theoQuy[i]);
@@ -289,11 +298,18 @@ export default async function ThongKeTonPage({
           <BarChart3 className="size-4" />
           {t("tonQuy.tkTongDong", { n: locDong.length })}
         </p>
-        {locDong.length > dong.length && (
+        {!xemHet && locDong.length > dong.length ? (
+          <Notice tone="info" className="mb-2">
+            {t("tonQuy.tkHienDau", { n: dong.length, tong: locDong.length })}{" "}
+            <Link href={`/inventory/thong-ke?${thamSoXuat}&full=1`} className="font-medium text-[var(--text-brand)] hover:underline">
+              {t("chung.xemTatCa")}
+            </Link>
+          </Notice>
+        ) : locDong.length > dong.length ? (
           <Notice tone="warning" className="mb-2">
             {t("tonQuy.gioiHan", { n: dong.length, tong: locDong.length })}
           </Notice>
-        )}
+        ) : null}
         {dong.length === 0 ? (
           <p className="text-sm text-[var(--text-muted)]">{t("tonQuy.tkKhongCo")}</p>
         ) : (

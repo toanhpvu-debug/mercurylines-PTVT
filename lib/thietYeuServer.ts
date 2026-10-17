@@ -30,15 +30,15 @@ export async function layBangThietYeu(
   const ids = muc.map((m) => m.id);
   const [daLuu, truocDo] = await Promise.all([
     db.phuTungThietYeuThang.findMany({ where: { itemId: { in: ids }, thang } }),
-    db.phuTungThietYeuThang.findMany({
-      where: { itemId: { in: ids }, thang: { lt: thang } },
-      orderBy: { thang: "desc" },
-      select: { itemId: true, hienCo: true, viTri: true },
-    }),
+    // Tháng đã lưu GẦN NHẤT trước tháng đang xem của từng mục: một dòng mỗi mục (DISTINCT ON, có
+    // sẵn chỉ mục duy nhất itemId + thang) — không kéo hết mọi tháng từ trước tới nay rồi bỏ đi.
+    db.$queryRaw<{ itemId: number; hienCo: number | null; viTri: string | null }[]>`
+      SELECT DISTINCT ON ("itemId") "itemId", "hienCo", "viTri" FROM "PhuTungThietYeuThang"
+      WHERE "itemId" = ANY(${ids}) AND "thang" < ${thang}
+      ORDER BY "itemId", "thang" DESC`,
   ]);
   const luuTheoMuc = new Map(daLuu.map((r) => [r.itemId, r]));
-  const truocTheoMuc = new Map<number, { hienCo: number | null; viTri: string | null }>();
-  for (const r of truocDo) if (!truocTheoMuc.has(r.itemId)) truocTheoMuc.set(r.itemId, r);
+  const truocTheoMuc = new Map(truocDo.map((r) => [r.itemId, r]));
 
   // Số từ kho cho các mục có gắn mặt hàng mà chưa lưu tháng này.
   const canKho = [...new Set(muc.filter((m) => m.materialId && !luuTheoMuc.has(m.id)).map((m) => m.materialId as number))];
@@ -366,7 +366,13 @@ export type TongQuanTauThietYeu = {
 export async function tongQuanDoiThietYeu(vesselIds: number[], thang: string, db: Prisma.TransactionClient = prisma): Promise<Map<number, TongQuanTauThietYeu>> {
   const [muc, so] = await Promise.all([
     db.phuTungThietYeu.findMany({ where: { vesselId: { in: vesselIds } }, select: { id: true, vesselId: true, toiThieuSo: true, hienCo: true } }),
-    db.phuTungThietYeuThang.findMany({ where: { item: { vesselId: { in: vesselIds } } }, select: { thang: true, item: { select: { vesselId: true } } } }),
+    // Mỗi tàu một dòng: số mục đã lưu tháng đang xem và tháng gần nhất có số — đếm trong
+    // PostgreSQL, không kéo mọi dòng tháng của cả đội từ trước tới nay (tăng mãi theo năm).
+    db.$queryRaw<{ vesselId: number; daLuu: number; ganNhat: string | null }[]>`
+      SELECT i."vesselId" AS "vesselId", (COUNT(*) FILTER (WHERE t."thang" = ${thang}))::int AS "daLuu", MAX(t."thang") AS "ganNhat"
+      FROM "PhuTungThietYeuThang" t JOIN "PhuTungThietYeu" i ON i."id" = t."itemId"
+      WHERE i."vesselId" = ANY(${vesselIds})
+      GROUP BY i."vesselId"`,
   ]);
   const ra = new Map<number, TongQuanTauThietYeu>();
   const lay = (vesselId: number) => {
@@ -384,9 +390,9 @@ export async function tongQuanDoiThietYeu(vesselIds: number[], thang: string, db
     if (m.hienCo === null) x.soChuaCoSo++;
   }
   for (const r of so) {
-    const x = lay(r.item.vesselId);
-    if (r.thang === thang) x.daLuuThang++;
-    if (!x.thangGanNhat || r.thang > x.thangGanNhat) x.thangGanNhat = r.thang;
+    const x = lay(r.vesselId);
+    x.daLuuThang = r.daLuu;
+    x.thangGanNhat = r.ganNhat;
   }
   return ra;
 }

@@ -1299,6 +1299,10 @@ Mỗi lần nhập/xuất đều ghi **thời điểm thực hiện** (`occurred
 
 ### Theo từng mặt hàng: cột "Nhập / Xuất gần nhất" và thẻ kho
 
+Cột của bảng tồn kho (trang **Tồn kho**, từng tàu): **Mã · Tên mặt hàng · Kho** · ĐVT · Tồn · Khả
+dụng · Tối thiểu · Nhập gần nhất · Xuất gần nhất — mã đứng đầu như bảng tồn kho ở hồ sơ tàu; dòng
+trong mỗi bộ phận giữ thứ tự cũ (phụ tùng gom theo thiết bị).
+
 Bảng tồn kho có thêm hai cột **Nhập gần nhất** và **Xuất gần nhất** cho từng dòng: ngày · số
 lượng, ghi chú ở dòng dưới. Lấy bằng **một** câu SQL `DISTINCT ON` cho cả trang
 (`lib/theKho.ts`) thay vì hỏi từng dòng — 630 dòng tồn mà hỏi lẻ là 1.260 truy vấn mỗi lần mở

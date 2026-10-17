@@ -572,10 +572,11 @@ export default async function InventoryPage({
                   >
                     <Table dense>
                       <thead className="sticky top-0 z-10 bg-[var(--surface-raised)]">
+                        {/* Mã → Tên mặt hàng → Kho (như bảng tồn kho ở hồ sơ tàu): dò theo mã trước. */}
                         <tr>
-                          <Th>{t("chung.kho")}</Th>
                           <Th>{t("chung.ma")}</Th>
                           <Th>{t("inventory.cotTenVatTu")}</Th>
+                          <Th>{t("chung.kho")}</Th>
                           <Th>{t("chung.donVi")}</Th>
                           <Th align="right">{t("inventory.cotTon")}</Th>
                           <Th align="right">{t("inventory.cotKhaDung")}</Th>
@@ -704,11 +705,6 @@ export default async function InventoryPage({
                                       </tr>
                                     )}
                                     <Tr className="transition-colors hover:bg-[var(--surface-sunken)]/50">
-                                      <Td className="whitespace-nowrap">
-                                        <span className="font-display text-xs tracking-wide text-[var(--text-muted)]">
-                                          {inventory.warehouse.code}
-                                        </span>
-                                      </Td>
                                       <Td className="font-display text-xs tracking-wide whitespace-nowrap">
                                         <Link
                                           href={duongDanTheKho(
@@ -740,6 +736,11 @@ export default async function InventoryPage({
                                             </Badge>
                                           )}
                                         </div>
+                                      </Td>
+                                      <Td className="whitespace-nowrap">
+                                        <span className="font-display text-xs tracking-wide text-[var(--text-muted)]">
+                                          {inventory.warehouse.code}
+                                        </span>
                                       </Td>
                                       <Td>
                                         <span className="text-xs text-[var(--text-secondary)]">

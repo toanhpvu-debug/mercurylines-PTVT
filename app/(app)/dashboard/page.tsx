@@ -8,7 +8,6 @@ import {
   ClipboardList,
   Paintbrush,
   ShoppingCart,
-  Wrench,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { CHUC_DANH, chucDanhCuaNguoiDung } from "@/lib/maVatTu";
@@ -29,8 +28,12 @@ import {
   Stat,
   TONE_DON_MUA,
   TONE_YEU_CAU,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  Tr,
   buttonClass,
-  type Tone,
 } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -68,17 +71,14 @@ const PO_THU_TU = [
   "CANCELLED",
 ];
 
-/** Màu thanh tồn thấp theo mức thiếu: càng thiếu càng đỏ. */
-function toneThieu(pct: number): Tone {
-  return pct < 40 ? "danger" : pct < 75 ? "warning" : "info";
-}
-
 const LINK = "text-sm text-brand-700 hover:underline dark:text-brand-300";
 
 export default async function DashboardPage() {
   const user = await requireScopedUser();
   const { t, tTuDo, ngay, tenChucDanh, tenBoPhan, locale } = await layT();
   const scope = vesselScopeDayDu(user);
+  // Tàu trong phạm vi cho câu SQL gộp (null = toàn đội) — cùng cách trang Tồn kho.
+  const tauPhamVi = scope.all ? null : (scope.vesselIds ?? [scope.vesselId ?? -1]);
   // Chức danh giữ vật tư của người đang đăng nhập: dùng cho dải "phần của bạn"
   // ngay đầu trang. Người văn phòng (quản trị, quản lý kỹ thuật) không giữ kho
   // nào nên không hiện dải này.
@@ -95,7 +95,7 @@ export default async function DashboardPage() {
     recentRequests,
     recentTx,
     inventoryGroup,
-    materials,
+    canhBaoTon,
     vessels,
     spareLinks,
     paintStocks,
@@ -139,58 +139,50 @@ export default async function DashboardPage() {
       where: vesselWhere(scope),
       _sum: { quantity: true },
     }),
-    // Chỉ lấy 4 cột thật sự dùng tới (tra tên + mã + mức tối thiểu cho phần tồn
-    // thấp và nhật ký kho gần đây), không kéo cả 15 cột của 600+ dòng.
-    prisma.material.findMany({
-      select: { id: true, code: true, nameVn: true, minStock: true },
-    }),
-    prisma.vessel.findMany({ where: vesselIdWhere(scope) }),
+    // CẢNH BÁO TỒN KHO theo tàu — ĐÚNG quy tắc trang Tồn kho (nhãn "N thiếu", ô "Chỉ thiếu"):
+    // một dòng tồn (mặt hàng + kho) thiếu khi khả dụng = tồn − giữ ≤ tối thiểu; `het` = khả dụng ≤ 0.
+    // Dashboard cũ đếm "tổng tồn < tối thiểu" — mà danh mục chưa đặt mức tối thiểu nào (0 / 805 dòng,
+    // 2026-10-17) nên luôn ra 0 trong khi trang Tồn kho báo 9 / 39 thiếu (các dòng đã hết hàng).
+    tauPhamVi === null
+      ? prisma.$queryRaw<{ vesselId: number; thieu: number; het: number }[]>`
+          SELECT i."vesselId" AS "vesselId",
+            (COUNT(*) FILTER (WHERE i."quantity" - i."reservedQuantity" <= m."minStock"))::int AS "thieu",
+            (COUNT(*) FILTER (WHERE i."quantity" - i."reservedQuantity" <= 0))::int AS "het"
+          FROM "Inventory" i JOIN "Material" m ON m."id" = i."materialId"
+          GROUP BY i."vesselId"`
+      : prisma.$queryRaw<{ vesselId: number; thieu: number; het: number }[]>`
+          SELECT i."vesselId" AS "vesselId",
+            (COUNT(*) FILTER (WHERE i."quantity" - i."reservedQuantity" <= m."minStock"))::int AS "thieu",
+            (COUNT(*) FILTER (WHERE i."quantity" - i."reservedQuantity" <= 0))::int AS "het"
+          FROM "Inventory" i JOIN "Material" m ON m."id" = i."materialId"
+          WHERE i."vesselId" = ANY(${tauPhamVi})
+          GROUP BY i."vesselId"`,
+    prisma.vessel.findMany({ where: vesselIdWhere(scope), orderBy: { code: "asc" } }),
     // Phụ tùng thiết yếu: danh mục RIÊNG MLS-11-04 của từng tàu (trang
     // /materials/thiet-yeu), chỉ các mục có mức tối thiểu quy đổi được.
     prisma.phuTungThietYeu.findMany({
       where: { ...vesselWhere(scope), toiThieuSo: { gt: 0 } },
-      select: {
-        moTa: true,
-        nhom: true,
-        toiThieu: true,
-        toiThieuSo: true,
-        hienCo: true,
-        materialId: true,
-        vesselId: true,
-        vessel: { select: { id: true, name: true } },
-      },
+      // Bảng theo tàu chỉ cần số: thiếu / theo dõi / chưa có số của từng tàu.
+      select: { toiThieuSo: true, hienCo: true, materialId: true, vesselId: true },
     }),
     // Tồn sơn toàn đội (theo phạm vi tàu) — để đếm loại dưới định mức tối thiểu.
     prisma.paintStock.findMany({
       where: vesselWhere(scope),
-      select: { quantity: true, minQty: true },
+      select: { vesselId: true, quantity: true, minQty: true },
     }),
   ]);
 
-  const materialById = new Map(materials.map((m) => [m.id, m]));
   const vesselById = new Map(vessels.map((v) => [v.id, v]));
-
-  const allLowStock = inventoryGroup
-    .map((row) => {
-      const material = materialById.get(row.materialId);
-      const vessel = vesselById.get(row.vesselId);
-      const total = Number(row._sum.quantity ?? 0);
-      if (material && vessel && total < material.minStock) {
-        return {
-          materialCode: material.code,
-          materialName: material.nameVn,
-          vesselId: vessel.id,
-          vesselName: vessel.name,
-          total,
-          minStock: material.minStock,
-          pct: material.minStock > 0 ? total / material.minStock : 0,
-        };
-      }
-      return null;
-    })
-    .filter((item): item is NonNullable<typeof item> => Boolean(item))
-    .sort((a, b) => a.pct - b.pct);
-  const lowStockRows = allLowStock.slice(0, 8);
+  // Tên mặt hàng cho 6 dòng nhật ký kho (giao dịch không khai quan hệ tới Material) — hỏi đúng 6 id
+  // thay vì kéo cả danh mục (780 dòng) như trước.
+  const tenVatTu = new Map(
+    (
+      await prisma.material.findMany({
+        where: { id: { in: [...new Set(recentTx.map((tx) => tx.materialId))] } },
+        select: { id: true, nameVn: true },
+      })
+    ).map((m) => [m.id, m.nameVn])
+  );
 
   // Kiểm soát phụ tùng thiết yếu: số hiện có (tháng gần nhất tàu đã lưu / lúc
   // nhập file; mục gắn kho mà chưa có số thì lấy tồn kho) so với mức tối thiểu.
@@ -202,11 +194,7 @@ export default async function DashboardPage() {
     ])
   );
   const spareTracked = spareLinks.map((muc) => ({
-    name: muc.moTa,
-    equipment: muc.nhom,
-    minLabel: muc.toiThieu ?? String(muc.toiThieuSo),
     vesselId: muc.vesselId,
-    vesselName: muc.vessel.name,
     current:
       muc.hienCo ??
       (muc.materialId !== null
@@ -214,16 +202,6 @@ export default async function DashboardPage() {
         : null),
     minStock: muc.toiThieuSo,
   }));
-  const spareStatus = spareTracked
-    .flatMap((s) =>
-      s.current === null
-        ? []
-        : [{ ...s, current: s.current, pct: s.minStock > 0 ? s.current / s.minStock : 1 }]
-    )
-    .sort((a, b) => a.pct - b.pct);
-  const spareChuaCoSo = spareTracked.length - spareStatus.length;
-  const spareShortages = spareStatus.filter((s) => s.current < s.minStock);
-  const spareTopRows = spareShortages.slice(0, 8);
 
   const reqCount = (status: string) =>
     reqByStatus.find((r) => r.status === status)?._count ?? 0;
@@ -247,6 +225,34 @@ export default async function DashboardPage() {
   const lowPaintCount = paintStocks.filter(
     (p) => p.minQty > 0 && p.quantity < p.minQty
   ).length;
+
+  // CẢNH BÁO THEO TÀU: mỗi tàu một dòng — phụ tùng thiết yếu dưới tối thiểu (MLS-11-04), tồn kho hết /
+  // thiếu, sơn dưới định mức; số nào cũng là liên kết mở đúng danh sách đã lọc của tàu đó.
+  const tonTheoTau = new Map(canhBaoTon.map((r) => [r.vesselId, r]));
+  const thietYeuTheoTau = new Map<number, { theoDoi: number; thieu: number; chuaCoSo: number }>();
+  for (const s of spareTracked) {
+    const x = thietYeuTheoTau.get(s.vesselId) ?? { theoDoi: 0, thieu: 0, chuaCoSo: 0 };
+    x.theoDoi++;
+    if (s.current === null) x.chuaCoSo++;
+    else if (s.current < s.minStock) x.thieu++;
+    thietYeuTheoTau.set(s.vesselId, x);
+  }
+  const sonTheoTau = new Map<number, number>();
+  for (const p of paintStocks) if (p.minQty > 0 && p.quantity < p.minQty) sonTheoTau.set(p.vesselId, (sonTheoTau.get(p.vesselId) ?? 0) + 1);
+  const canhBaoTau = vessels
+    .map((v) => {
+      const ton = tonTheoTau.get(v.id);
+      const ty = thietYeuTheoTau.get(v.id) ?? null;
+      const son = sonTheoTau.get(v.id) ?? 0;
+      return { v, ty, tonThieu: ton?.thieu ?? 0, tonHet: ton?.het ?? 0, son, tong: (ty?.thieu ?? 0) + (ton?.thieu ?? 0) + son };
+    })
+    // Tàu nhiều cảnh báo lên đầu; bằng nhau thì theo mã tàu.
+    .sort((a, b) => b.tong - a.tong || a.v.code.localeCompare(b.v.code));
+  // Hiện dòng cho tàu có cảnh báo hoặc có danh mục thiết yếu; tàu không có gì gom vào một dòng cuối.
+  const tauCoDong = canhBaoTau.filter((x) => x.tong > 0 || x.ty !== null);
+  const tauKhongCanhBao = canhBaoTau.filter((x) => x.tong === 0 && x.ty === null);
+  const tongTonThieu = canhBaoTau.reduce((n, x) => n + x.tonThieu, 0);
+  const soTauTonThieu = canhBaoTau.filter((x) => x.tonThieu > 0).length;
 
   return (
     <div className="space-y-5">
@@ -339,11 +345,12 @@ export default async function DashboardPage() {
           tone="info"
         />
         <Stat
-          href="/inventory"
+          href="/inventory?low=1"
           icon={<AlertTriangle className="size-4" />}
           label={t("dashboard.kpiCanhBao")}
-          value={allLowStock.length}
-          tone={allLowStock.length > 0 ? "danger" : "success"}
+          value={tongTonThieu}
+          sub={tongTonThieu > 0 ? t("dashboard.kpiCanhBaoSub", { n: soTauTonThieu }) : undefined}
+          tone={tongTonThieu > 0 ? "danger" : "success"}
         />
         <Stat
           href="/paint"
@@ -357,166 +364,93 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* Cột trái (2/3) */}
         <div className="space-y-5 lg:col-span-2">
-          {/* Kiểm soát nhanh phụ tùng thiết yếu — mục quan trọng nhất trên
-              Dashboard (thiếu là tàu có thể không chạy được): tiêu đề tô đỏ. */}
-          <Card>
-            <CardHeader
-              icon={<Wrench className="size-4" />}
-              title={
-                <span className="text-rose-600 dark:text-rose-400">
-                  {t("dashboard.kiemSoatPhuTung")}
-                </span>
-              }
-              action={
-                <div className="flex items-center gap-2">
-                  {spareShortages.length > 0 ? (
-                    <Badge tone="danger" dot>
-                      {t("dashboard.thieuTheoDoi", {
-                        thieu: spareShortages.length,
-                        tong: spareStatus.length,
-                      })}
-                    </Badge>
-                  ) : spareChuaCoSo > 0 ? (
-                    <Badge tone="warning" dot>
-                      {t("dashboard.chuaCoSoN", { n: spareChuaCoSo })}
-                    </Badge>
-                  ) : spareStatus.length > 0 ? (
-                    <Badge tone="success" dot>
-                      {t("dashboard.duTatCa", { tong: spareStatus.length })}
-                    </Badge>
-                  ) : null}
-                  <Link href="/materials/thiet-yeu" className={LINK}>
-                    {t("dashboard.baoCaoThietYeu")}
-                  </Link>
-                </div>
-              }
-            />
-            {spareTracked.length === 0 ? (
-              <p className="text-sm text-[var(--text-secondary)]">
-                {t("dashboard.chuaCoPhuTung")}{" "}
-                <Link href="/materials/thiet-yeu" className={LINK}>
-                  {t("dashboard.nhapTuFile")}
-                </Link>
-              </p>
-            ) : spareShortages.length === 0 ? (
-              <p className="text-sm text-[var(--text-secondary)]">
-                {spareChuaCoSo > 0 ? (
-                  <>
-                    {t("dashboard.chuaCoSoKiemTra", {
-                      n: spareChuaCoSo,
-                      tong: spareTracked.length,
-                    })}{" "}
-                    <Link href="/materials/thiet-yeu" className={LINK}>
-                      {t("dashboard.dienSoThang")}
-                    </Link>
-                  </>
-                ) : (
-                  t("dashboard.phuTungDuHet")
-                )}
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {spareTopRows.map((row, index) => {
-                  const pct = Math.max(0, Math.min(100, Math.round(row.pct * 100)));
-                  return (
-                    <div key={index} className="flex items-center gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm">
-                          <span className="font-medium text-[var(--text-primary)]">
-                            {row.name}
-                          </span>
-                          {row.equipment && (
-                            <span className="text-xs text-[var(--text-muted)]">
-                              {" "}
-                              · {row.equipment}
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-xs">
-                          <Link href={`/materials/thiet-yeu?vessel=${row.vesselId}`} className={LINK}>
-                            {row.vesselName}
-                          </Link>
-                        </p>
-                      </div>
-                      <div className="w-36 shrink-0">
-                        <div className="tabular mb-1 flex justify-between text-xs">
-                          <span className="font-semibold text-[var(--text-danger)]">
-                            {row.current}
-                          </span>
-                          <span className="text-[var(--text-muted)]">
-                            / {row.minLabel}
-                          </span>
-                        </div>
-                        <Meter value={pct} tone={toneThieu(pct)} className="h-2" />
-                      </div>
-                    </div>
-                  );
-                })}
-                {spareShortages.length > spareTopRows.length && (
-                  <Link href="/materials/thiet-yeu" className={`block pt-1 ${LINK}`}>
-                    {t("dashboard.xemTatCaThieu", { n: spareShortages.length })}
-                  </Link>
-                )}
-              </div>
-            )}
-          </Card>
-
-          {/* Cảnh báo tồn kho */}
+          {/* Cảnh báo theo tàu: một dòng mỗi tàu, số nào cũng bấm được để mở đúng danh sách đã lọc của
+              tàu đó — thay hai danh sách dài (8 phụ tùng thiết yếu + 8 dòng tồn thấp) cho Dashboard gọn. */}
           <Card>
             <CardHeader
               icon={<AlertTriangle className="size-4" />}
-              title={t("dashboard.canhBaoTonThap")}
-              action={
-                allLowStock.length > 0 ? (
-                  <Badge tone="danger" dot>
-                    {t("dashboard.nCanhBao", { n: allLowStock.length })}
-                  </Badge>
-                ) : undefined
-              }
+              title={t("dashboard.canhBaoTheoTau")}
+              subtitle={t("dashboard.canhBaoTheoTauGoiY")}
             />
-            {lowStockRows.length === 0 ? (
-              <p className="text-sm text-[var(--text-secondary)]">
-                {t("dashboard.khongDuoiTon")}
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {lowStockRows.map((row, index) => {
-                  const pct = Math.max(0, Math.min(100, Math.round(row.pct * 100)));
-                  return (
-                    <div key={index} className="flex items-center gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm">
-                          <span className="font-medium text-[var(--text-primary)]">
-                            {row.materialName}
-                          </span>{" "}
-                          <span className="font-display text-xs tracking-wide text-[var(--text-muted)]">
-                            {row.materialCode}
-                          </span>
-                        </p>
-                        <p className="text-xs">
-                          <Link href={`/vessels/${row.vesselId}`} className={LINK}>
-                            {row.vesselName}
+            {canhBaoTau.length === 0 ? (
+              <p className="text-sm text-[var(--text-secondary)]">{t("dashboard.chuaGanTau")}</p>
+            ) : tauCoDong.length === 0 ? null : (
+              <TableWrap>
+                <Table dense>
+                  <thead>
+                    <tr>
+                      <Th>{t("dashboard.cot_tau")}</Th>
+                      <Th className="text-right">{t("dashboard.cot_thietYeu")}</Th>
+                      <Th className="text-right">{t("dashboard.cot_tonKho")}</Th>
+                      <Th className="text-right">{t("dashboard.cot_son")}</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tauCoDong.map(({ v, ty, tonThieu, tonHet, son }) => (
+                      <Tr key={v.id}>
+                        <Td className="whitespace-nowrap">
+                          <Link href={`/vessels/${v.id}`} className="font-medium text-[var(--text-brand)] hover:underline">
+                            <span className="font-display text-xs tracking-wide">{v.code}</span> {v.name}
                           </Link>
-                        </p>
-                      </div>
-                      <div className="w-36 shrink-0">
-                        <div className="tabular mb-1 flex justify-between text-xs">
-                          <span className="font-semibold text-[var(--text-danger)]">
-                            {row.total}
-                          </span>
-                          <span className="text-[var(--text-muted)]">/ {row.minStock}</span>
-                        </div>
-                        <Meter value={pct} tone={toneThieu(pct)} className="h-2" />
-                      </div>
-                    </div>
-                  );
-                })}
-                {allLowStock.length > lowStockRows.length && (
-                  <Link href="/inventory" className={`block pt-1 ${LINK}`}>
-                    {t("dashboard.xemTatCaCanhBao", { n: allLowStock.length })}
-                  </Link>
-                )}
-              </div>
+                        </Td>
+                        <Td className="tabular text-right whitespace-nowrap">
+                          {ty === null ? (
+                            <Link href={`/materials/thiet-yeu?vessel=${v.id}`} className="text-xs text-[var(--text-muted)] hover:underline">
+                              {t("dashboard.chuaNhapDanhMuc")}
+                            </Link>
+                          ) : (
+                            <Link
+                              href={`/materials/thiet-yeu?vessel=${v.id}`}
+                              className={`hover:underline ${ty.thieu > 0 ? "font-semibold text-[var(--text-danger)]" : "text-[var(--text-success)]"}`}
+                            >
+                              {ty.thieu > 0 ? t("dashboard.thieuTrenTong", { thieu: ty.thieu, tong: ty.theoDoi }) : t("dashboard.duTong", { tong: ty.theoDoi })}
+                            </Link>
+                          )}
+                          {ty !== null && ty.chuaCoSo > 0 && (
+                            <span className="block text-xs text-[var(--text-warning)]">{t("dashboard.chuaCoSoN", { n: ty.chuaCoSo })}</span>
+                          )}
+                        </Td>
+                        <Td className="tabular text-right whitespace-nowrap">
+                          {tonThieu > 0 ? (
+                            <>
+                              <Link href={`/inventory?vessel=${v.id}&low=1`} className="font-semibold text-[var(--text-danger)] hover:underline">
+                                {tonThieu}
+                              </Link>
+                              <span className="block text-xs text-[var(--text-muted)]">
+                                {tonHet === tonThieu ? t("dashboard.hetHang") : t("dashboard.hetVaDuoi", { het: tonHet, duoi: tonThieu - tonHet })}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-[var(--text-muted)]">–</span>
+                          )}
+                        </Td>
+                        <Td className="tabular text-right whitespace-nowrap">
+                          {son > 0 ? (
+                            <Link href={`/paint/${v.id}`} className="font-semibold text-[var(--text-warning)] hover:underline">
+                              {son}
+                            </Link>
+                          ) : (
+                            <span className="text-[var(--text-muted)]">–</span>
+                          )}
+                        </Td>
+                      </Tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </TableWrap>
+            )}
+            {tauKhongCanhBao.length > 0 && (
+              <p className={`text-sm text-[var(--text-secondary)] ${tauCoDong.length ? "mt-3" : ""}`}>
+                <span className="text-[var(--text-success)]">✓</span> {t("dashboard.khongCanhBao")}{" "}
+                {tauKhongCanhBao.map(({ v }, i) => (
+                  <span key={v.id}>
+                    {i ? " · " : ""}
+                    <Link href={`/vessels/${v.id}`} className="text-[var(--text-brand)] hover:underline">
+                      {v.code}
+                    </Link>
+                  </span>
+                ))}
+              </p>
             )}
           </Card>
 
@@ -651,7 +585,6 @@ export default async function DashboardPage() {
             ) : (
               <div className="divide-y divide-[var(--border-subtle)]">
                 {recentTx.map((tx) => {
-                  const material = materialById.get(tx.materialId);
                   const vessel = vesselById.get(tx.vesselId);
                   const isIn = tx.type === "IN";
                   return (
@@ -671,7 +604,7 @@ export default async function DashboardPage() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm text-[var(--text-primary)]">
-                          {material?.nameVn ??
+                          {tenVatTu.get(tx.materialId) ??
                             t("dashboard.vatTuSo", { id: tx.materialId })}
                         </p>
                         <p className="text-xs text-[var(--text-secondary)]">

@@ -48,11 +48,9 @@ import MaterialForm from "@/components/MaterialForm";
 import { chuongImpa, laTenBoPhan } from "@/lib/nhomImpa";
 import { docDen } from "@/lib/viTriSauSua";
 import { nhomCuaVatTu, type KetQuaPhanNhom } from "@/lib/phanNhomBanChat";
-import MaterialRowActions from "@/components/MaterialRowActions";
-import {
-  VesselMaterialAddForm,
-  VesselMaterialRemoveButton,
-} from "@/components/VesselCatalogActions";
+import ThaoTacDongDanhMuc from "@/components/ThaoTacDongDanhMuc";
+import { BieuTuongThaoTac, BoBieuTuongThaoTac } from "@/components/BieuTuongThaoTac";
+import { VesselMaterialAddForm } from "@/components/VesselCatalogActions";
 import VatTuMoiChoTauForm from "@/components/VatTuMoiChoTauForm";
 import TimNhanhDanhMuc from "@/components/TimNhanhDanhMuc";
 import KhungBang from "@/components/KhungBang";
@@ -789,6 +787,44 @@ export default async function MaterialsPage({
                   : t("materials.danhMucGocN", { n: rows.length })
               }
             />
+            {/* Nút thao tác từng dòng (Sửa / Ngừng sử dụng / Xóa / Gỡ khỏi tàu) là HTML máy chủ;
+                MỘT thành phần nghe bấm cho cả bảng + bộ biểu tượng vẽ một lần (đo 2026-10-17:
+                cột Thao tác từng chiếm 33 nút DOM / dòng). Hộp Sửa chỉ cần dữ liệu khi được sửa
+                bản ghi dùng chung (quản trị). */}
+            {rows.length > 0 && ((isVesselMode && canEditVessel) || (!isVesselMode && canManageMaster)) && (
+              <>
+                <BoBieuTuongThaoTac />
+                <ThaoTacDongDanhMuc
+                  vatTu={
+                    canManageMaster
+                      ? deptGroups.flatMap((d) =>
+                          d.rows.map((m) => ({
+                            id: m.id,
+                            code: m.code,
+                            nameVn: m.nameVn,
+                            nameEn: m.nameEn,
+                            impa: m.impa,
+                            partNumber: m.partNumber,
+                            manufacturer: m.manufacturer,
+                            materialType: m.materialType,
+                            equipment: m.equipment,
+                            uom: m.uom,
+                            categoryId: m.categoryId,
+                            minStock: m.minStock,
+                            maxStock: m.maxStock,
+                            isCritical: m.isCritical,
+                            isActive: m.isActive,
+                            responsibleRank: m.responsibleRank,
+                            nguoiGiuSuyRa: giuSuyRa(m),
+                          }))
+                        )
+                      : []
+                  }
+                  categories={categoryOptions}
+                  vesselId={isVesselMode ? selectedVesselId : null}
+                />
+              </>
+            )}
             {/* Thanh nổi thao tác hàng loạt — chỉ hiện khi có dòng được tick.
                 Ô tick là <input> thường do server vẽ; thành phần này lắng
                 nghe chúng qua data-chon-* (xem components/ChonHangLoat.tsx). */}
@@ -1108,69 +1144,62 @@ export default async function MaterialsPage({
                                       )}
                                     </Td>
                                   )}
+                                  {/* Nút thao tác: HTML máy chủ (data-thao-tac + data-id), MỘT
+                                      ThaoTacDongDanhMuc cho cả bảng nghe bấm — xem thành phần đó. */}
                                   {isVesselMode && canEditVessel && (
                                     <Td>
                                       <div className="flex flex-col items-start gap-1">
                                         {/* Sửa ở đây là sửa bản ghi dùng chung toàn đội,
                                             nên chỉ quản trị viên mới thấy nút này. */}
                                         {canManageMaster && (
-                                          <MaterialRowActions
-                                            material={{
-                                              id: material.id,
-                                              code: material.code,
-                                              nameVn: material.nameVn,
-                                              nameEn: material.nameEn,
-                                              impa: material.impa,
-                                              partNumber: material.partNumber,
-                                              manufacturer: material.manufacturer,
-                                              materialType: material.materialType,
-                                              equipment: material.equipment,
-                                              uom: material.uom,
-                                              categoryId: material.categoryId,
-                                              minStock: material.minStock,
-                                              maxStock: material.maxStock,
-                                              isCritical: material.isCritical,
-                                              isActive: material.isActive,
-                                              responsibleRank: material.responsibleRank,
-                                            }}
-                                            categories={categoryOptions}
-                                            nguoiGiuSuyRa={giuSuyRa(material)}
-                                            onlyEdit
-                                          />
+                                          <Button type="button" size="sm" variant="secondary" icon={<BieuTuongThaoTac ten="sua" />} data-thao-tac="sua" data-id={material.id}>
+                                            {t("chung.sua")}
+                                          </Button>
                                         )}
-                                        <VesselMaterialRemoveButton
-                                          vesselId={selectedVesselId!}
-                                          materialId={material.id}
-                                          code={material.code}
-                                        />
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="danger"
+                                          icon={<BieuTuongThaoTac ten="goTau" />}
+                                          data-thao-tac="go-tau"
+                                          data-id={material.id}
+                                          data-ma={material.code}
+                                        >
+                                          {t("materials.nutGoKhoiTau")}
+                                        </Button>
                                       </div>
                                     </Td>
                                   )}
                                   {!isVesselMode && canManageMaster && (
                                     <Td>
-                                      <MaterialRowActions
-                                        material={{
-                                          id: material.id,
-                                          code: material.code,
-                                          nameVn: material.nameVn,
-                                          nameEn: material.nameEn,
-                                          impa: material.impa,
-                                          partNumber: material.partNumber,
-                                          manufacturer: material.manufacturer,
-                                          materialType: material.materialType,
-                                          equipment: material.equipment,
-                                          uom: material.uom,
-                                          categoryId: material.categoryId,
-                                          minStock: material.minStock,
-                                          maxStock: material.maxStock,
-                                          isCritical: material.isCritical,
-                                          isActive: material.isActive,
-                                          responsibleRank: material.responsibleRank,
-                                        }}
-                                        categories={categoryOptions}
-                                        nguoiGiuSuyRa={giuSuyRa(material)}
-                                        xoaDuoc={xoaDuoc}
-                                      />
+                                      <div className="flex flex-wrap items-center gap-1.5">
+                                        <Button type="button" size="sm" variant="secondary" icon={<BieuTuongThaoTac ten="sua" />} data-thao-tac="sua" data-id={material.id}>
+                                          {t("chung.sua")}
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="ghost"
+                                          icon={<BieuTuongThaoTac ten={material.isActive ? "ngung" : "dung"} />}
+                                          data-thao-tac={material.isActive ? "ngung" : "dung"}
+                                          data-id={material.id}
+                                        >
+                                          {material.isActive ? t("materials.nutNgungDung") : t("materials.nutDungLai")}
+                                        </Button>
+                                        {xoaDuoc && (
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="danger"
+                                            icon={<BieuTuongThaoTac ten="xoa" />}
+                                            data-thao-tac="xoa"
+                                            data-id={material.id}
+                                            data-ma={material.code}
+                                          >
+                                            {t("chung.xoa")}
+                                          </Button>
+                                        )}
+                                      </div>
                                     </Td>
                                   )}
                                 </Tr>

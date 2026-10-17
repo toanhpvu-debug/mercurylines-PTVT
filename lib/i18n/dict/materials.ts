@@ -110,9 +110,10 @@ export const materials = tuDien(
     vatTuQuanTrong: "Vật tư quan trọng / critical",
     nutThemVatTu: "Thêm mặt hàng",
 
-    // Sửa / ngừng dùng / xóa một dòng (MaterialRowActions)
+    // Sửa / ngừng dùng / xóa một dòng (ThaoTacDongDanhMuc)
     nutNgungDung: "Ngừng sử dụng",
     nutDungLai: "Dùng lại",
+    thaoTacLoi: "Không làm được — kiểm tra kết nối mạng rồi thử lại.",
     xacNhanXoa:
       "Xóa vĩnh viễn mặt hàng {ma}? Chỉ xóa được khi chưa có tồn kho và chưa dùng trong yêu cầu nào.",
 
@@ -331,6 +332,7 @@ export const materials = tuDien(
 
     nutNgungDung: "Deactivate",
     nutDungLai: "Reactivate",
+    thaoTacLoi: "Could not complete — check the network connection and try again.",
     xacNhanXoa:
       "Permanently delete item {ma}? It can only be deleted while it has no stock and is not used in any request.",
 

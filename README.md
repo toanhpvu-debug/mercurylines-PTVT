@@ -1780,6 +1780,15 @@ Hai điều được kiểm ở tầng server:
 tác động lên bản ghi dùng chung toàn đội nên làm từ **Danh mục gốc** mới đúng ngữ cảnh.
 Chỉ quản trị viên thấy nút Sửa.
 
+Các nút của từng dòng (*Sửa · Ngừng sử dụng / Dùng lại · Xóa*, theo tàu *Sửa · Gỡ khỏi tàu*) là `<button>`
+thường do máy chủ vẽ, mang `data-thao-tac` + `data-id`; **một** thành phần `components/ThaoTacDongDanhMuc.tsx`
+cho cả bảng nghe bấm: mở hộp Sửa (lưu xong đi theo mặt hàng như cũ), gọi action, báo kết quả ở góc trên
+(lỗi như *"đang có tồn kho nên không thể xóa"*), khóa nút trong lúc chờ. Biểu tượng vẽ nét một lần cho cả
+trang (`components/BieuTuongThaoTac.tsx`, `<use>`) — biểu tượng lucide bản 1.x là thành phần client, mỗi
+cái phải hydrate. Trước đây mỗi dòng là một thành phần client với 2 form + ô ẩn: đo 2026-10-17, trang quản trị
+**12.457 → 7.729 phần tử DOM** (theo tàu 9.626 → 6.366), hydrate trên máy chậm 4,1 → 2,8 s; kiểu dáng mọi ô
+và từng nút (vị trí, cỡ, màu, biểu tượng) trùng hệt bản cũ.
+
 ### Mỗi chức danh thấy phần vật tư của mình
 
 Đăng nhập xong, dải đầu trang Dashboard nói ngay *"Bạn là Thủy thủ trưởng · Boong — 143 mặt
@@ -1817,6 +1826,12 @@ và cuối bộ phận) kèm link *xem tất cả*.
 Lý do không hiện hết mặc định: dựng đủ 606 dòng tạo hơn **20.000 phần tử DOM** và 109 KB HTML —
 trình duyệt bắt đầu ì từ khoảng 10.000 phần tử. Cắt còn 40 dòng/bộ phận đưa về **6.886 phần tử,
 43 KB**, còn tìm kiếm thì thường ra dưới 500 phần tử.
+
+Ô tìm nhanh (`components/TimNhanhDanhMuc.tsx`) lọc ngay các dòng đang hiện khi gõ; ngừng gõ 500 ms mà đã có
+**từ 2 ký tự** (hoặc bấm **Enter**) thì mới hỏi máy chủ tìm trong cả danh mục — một ký tự thì ô đếm nhắc
+*"Gõ thêm chữ hoặc Enter để tìm cả danh mục"*. Kết quả tìm **vẫn chia trang 40 dòng mỗi bộ phận** (số khớp
+ở mục lục bộ phận, *xem tất cả* như thường). Đo 2026-10-17 (780 mặt hàng): gõ "a" rồi dừng từng tải 762 dòng
+— 1,9 MB, trình duyệt đứng 0,5 s (máy chậm 3,7 s); nay "a" + Enter ra 200 / 762 dòng, không còn tác vụ dài.
 
 ### IMPA và Part No. — phân biệt khi nhập file
 

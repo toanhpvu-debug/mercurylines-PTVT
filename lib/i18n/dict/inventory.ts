@@ -11,7 +11,7 @@ export const inventory = tuDien(
     chiSoDuoiToiThieu: "Dưới tối thiểu",
     chuaGanTauTonKho:
       "Bạn chưa được gán tàu phụ trách nên chưa xem được tồn kho. Vui lòng liên hệ quản trị viên.",
-    tatCaKho: "Tất cả kho",
+    tatCaKho: "Tất cả kho / vị trí",
     loai: "Loại",
     loaiCaHai: "Vật tư & phụ tùng",
     timPlaceholder: "Tìm tên / mã / IMPA...",
@@ -69,7 +69,7 @@ export const inventory = tuDien(
 
     // --- Form nhập / xuất kho ---
     chonVatTu: "Chọn mặt hàng",
-    chonKho: "Chọn kho",
+    chonKho: "Chọn kho / vị trí",
     optNhapKho: "Nhập kho",
     optXuatKho: "Xuất kho",
     goiYThoiDiem:
@@ -170,7 +170,7 @@ export const inventory = tuDien(
     chiSoDuoiToiThieu: "Below minimum",
     chuaGanTauTonKho:
       "You have not been assigned to a vessel, so inventory is not available. Please contact the administrator.",
-    tatCaKho: "All warehouses",
+    tatCaKho: "All warehouses / locations",
     loai: "Type",
     loaiCaHai: "Stores & spare parts",
     timPlaceholder: "Search name / code / IMPA...",
@@ -226,7 +226,7 @@ export const inventory = tuDien(
     inLuc: "Printed at",
 
     chonVatTu: "Select item",
-    chonKho: "Select warehouse",
+    chonKho: "Select warehouse / location",
     optNhapKho: "Receipt into store",
     optXuatKho: "Issue from store",
     goiYThoiDiem:

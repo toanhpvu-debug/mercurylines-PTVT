@@ -89,7 +89,7 @@ export const phieuGiao = tuDien(
     nutXoaDong: "Xóa dòng",
     nutLuuDong: "Lưu các dòng",
     daLuuDong: "Đã lưu {n} dòng.",
-    khoNhap: "Kho nhận hàng",
+    khoNhap: "Kho / vị trí nhận hàng",
     khoNhapMoTa:
       "Chọn kho để CỘNG số lượng vào tồn khi duyệt. Để trống thì chỉ đưa mặt hàng vào danh mục tàu, không ghi tồn.",
     khongGhiTon: "— Chỉ vào danh mục, không ghi tồn —",
@@ -210,7 +210,7 @@ export const phieuGiao = tuDien(
     nutXoaDong: "Delete line",
     nutLuuDong: "Save lines",
     daLuuDong: "Saved {n} lines.",
-    khoNhap: "Receiving warehouse",
+    khoNhap: "Receiving warehouse / location",
     khoNhapMoTa:
       "Choose a warehouse to ADD the quantities to stock on approval. Leave empty to only add items to the vessel catalogue without stock.",
     khongGhiTon: "— Catalogue only, no stock —",

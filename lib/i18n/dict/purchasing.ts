@@ -290,7 +290,7 @@ export const purchasing = tuDien(
 
     // Form nhận hàng
     khoNhanVao: "Kho nhận vào (cho vật tư có trong danh mục)",
-    chonKho: "Chọn kho",
+    chonKho: "Chọn kho / vị trí",
     cotSlDat: "SL đặt",
     cotDaNhan: "Đã nhận",
     cotNhanLanNay: "Nhận lần này",
@@ -651,7 +651,7 @@ export const purchasing = tuDien(
     nutTaoDonIfqPo: "Create order (RFQ / PO)",
 
     khoNhanVao: "Receiving warehouse (for items in the catalogue)",
-    chonKho: "Select a warehouse",
+    chonKho: "Select a warehouse / location",
     cotSlDat: "Qty ordered",
     cotDaNhan: "Received qty",
     cotNhanLanNay: "Receiving now",

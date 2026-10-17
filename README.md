@@ -1192,7 +1192,7 @@ Trong bảng danh sách, cả **mã tàu lẫn tên tàu** đều bấm được
 ## Nguyên tắc bố cục: mỗi nghiệp vụ một chỗ
 
 Trang **hồ sơ tàu** (`/vessels/[id]`) chỉ để *xem*: thông tin tàu, danh sách kho, bảng tóm tắt
-tồn kho (cột **Mã VT · Tên mặt hàng · Kho** · ĐVT · Tồn · Giữ · Khả dụng, sắp theo mã — cùng mặt
+tồn kho (cột **Mã VT · Tên mặt hàng · Kho / vị trí** · ĐVT · Tồn · Giữ · Khả dụng, sắp theo mã — cùng mặt
 hàng ở hai kho đứng liền nhau) và yêu cầu, tài liệu gần đây. Mỗi mục là một **khung gập** (cùng
 dáng trang Tồn kho): *Báo cáo từ tàu* (số tệp gần nhất), *Chỉnh sửa thông tin tàu*, *Xóa tàu* (quản
 trị) và *Kho trên tàu* (số kho) **gập sẵn** cho trang gọn; *Tồn kho* (số dòng) và *Yêu cầu* (số yêu cầu)
@@ -1328,9 +1328,12 @@ Mỗi lần nhập/xuất đều ghi **thời điểm thực hiện** (`occurred
 
 ### Theo từng mặt hàng: cột "Nhập / Xuất gần nhất" và thẻ kho
 
-Cột của bảng tồn kho (trang **Tồn kho**, từng tàu): **Mã · Tên mặt hàng · Kho** · ĐVT · Tồn · Khả
+Cột của bảng tồn kho (trang **Tồn kho**, từng tàu): **Mã · Tên mặt hàng · Kho / vị trí** · ĐVT · Tồn · Khả
 dụng · Tối thiểu · Nhập gần nhất · Xuất gần nhất — mã đứng đầu như bảng tồn kho ở hồ sơ tàu; dòng
-trong mỗi bộ phận giữ thứ tự cũ (phụ tùng gom theo thiết bị).
+trong mỗi bộ phận giữ thứ tự cũ (phụ tùng gom theo thiết bị). Mọi nhãn nói về nơi cất của dòng tồn
+(cột bảng, ô chọn kho khi nhập / xuất, nhận hàng PO, duyệt phiếu giao, kiểm kê, quét QR, thẻ kho)
+ghi **Kho / vị trí** — kho chính là chỗ cất trên tàu (xem
+[Kho / vị trí trên tàu](#kho--vị-trí-trên-tàu-hồ-sơ-tàu--kho-trên-tàu)).
 
 Bảng tồn kho có thêm hai cột **Nhập gần nhất** và **Xuất gần nhất** cho từng dòng: ngày · số
 lượng, ghi chú ở dòng dưới. Lấy bằng **một** câu SQL `DISTINCT ON` cho cả trang

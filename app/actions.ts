@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ipThat } from "@/lib/ipThat";
+import type { ViTriSauSua } from "@/lib/viTriSauSua";
 import { KHOA_TON_KHO_ADVISORY, khoaAdvisoryDongTon } from "@/lib/theKho";
 import {
   REQUEST_ALLOWED_FROM,
@@ -3744,9 +3745,9 @@ export async function deletePurchaseOrder(
 
 // Sửa vật tư ngay tại dòng trong bảng danh mục — không phải mở form riêng.
 export async function updateMaterial(
-  _prevState: { message: string; success?: boolean },
+  _prevState: { message: string; success?: boolean; viTri?: ViTriSauSua },
   formData: FormData
-): Promise<{ message: string; success?: boolean }> {
+): Promise<{ message: string; success?: boolean; viTri?: ViTriSauSua }> {
   const { t } = await layT();
   const admin = await requireActiveRole(["ADMIN"]);
   if (!admin) {
@@ -3832,5 +3833,7 @@ export async function updateMaterial(
   }
   revalidatePath("/materials");
   revalidatePath("/inventory");
-  return { message: t("actions.daLuuTen", { ten: nameVn }), success: true };
+  // Chỗ mới của mặt hàng (đổi người giữ / nhóm là nó sang bộ phận khác) — hộp Sửa đưa trang tới đó.
+  const { viTriSauSua } = await import("@/lib/viTriSauSuaServer");
+  return { message: t("actions.daLuuTen", { ten: nameVn }), success: true, viTri: await viTriSauSua([id]) };
 }

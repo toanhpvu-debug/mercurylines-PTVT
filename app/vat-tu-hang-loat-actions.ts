@@ -10,6 +10,8 @@ import { laBanTau } from "@/lib/banCai";
 import { layT } from "@/lib/i18n/server";
 import { NHOM_HIEN_THI } from "@/lib/phanNhomBanChat";
 import { CHUC_DANH } from "@/lib/maVatTu";
+import { viTriSauSua } from "@/lib/viTriSauSuaServer";
+import type { ViTriSauSua } from "@/lib/viTriSauSua";
 
 /*
  * Thao tác HÀNG LOẠT trên danh mục gốc (chọn nhiều dòng bằng ô tick ở
@@ -143,7 +145,13 @@ export type PatchHangLoat = {
   responsibleRank?: string | null;
 };
 
-export type KetQuaSuaHangLoat = { message: string; success?: boolean; soDoi: number };
+export type KetQuaSuaHangLoat = {
+  message: string;
+  success?: boolean;
+  soDoi: number;
+  /** Chỗ mới của các mặt hàng vừa sửa — thanh hàng loạt đưa trang tới đó. */
+  viTri?: ViTriSauSua;
+};
 
 /** Đổi vài trường cho nhiều mặt hàng; trường không gửi thì giữ nguyên. */
 export async function suaVatTuHangLoat(idsRaw: number[], patch: PatchHangLoat): Promise<KetQuaSuaHangLoat> {
@@ -243,5 +251,5 @@ export async function suaVatTuHangLoat(idsRaw: number[], patch: PatchHangLoat): 
     detail: `Sửa hàng loạt ${ids.length} vật tư: ${mota.join(", ")} — id ${ids.slice(0, 60).join(",")}${ids.length > 60 ? "…" : ""}`,
   });
   revalidatePath("/materials");
-  return { message: t("materials.hangLoat_daSua", { n: soDoi }), success: true, soDoi };
+  return { message: t("materials.hangLoat_daSua", { n: soDoi }), success: true, soDoi, viTri: await viTriSauSua(ids) };
 }

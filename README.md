@@ -1145,6 +1145,15 @@ Danh mục và yêu cầu vật tư được dựng theo 3 mẫu Excel của cô
   ra ai ("hiện: Phó hai (2O)"). Mỗi lần đổi ghi nhật ký (`doi-nguoi-giu`, `sua-vat-tu-hang-loat`).
   Chỉ tài khoản quản trị (ADMIN) thấy và lưu được.
 
+  **Sửa xong thì trang đi theo mặt hàng tới chỗ mới** (hộp Sửa và Sửa hàng loạt): máy chủ xếp lại
+  mặt hàng bằng đúng hai hàm của trang (nhóm bộ phận, người giữ — `lib/viTriSauSuaServer.ts`), trang
+  chuyển tới đó (`lib/viTriSauSua.ts`): đang lọc một bộ phận mà hàng đã sang bộ phận khác → lọc bộ
+  phận mới; đang lọc một chức danh không còn gồm người giữ mới → lọc người giữ mới; mở **đúng trang**
+  của mục chứa nó (`?den=<id>`), cuộn tới dòng (`#vat-tu-<id>`), dòng **tô sáng + nhãn "vừa sửa"**
+  (bấm sang chỗ khác thì hết tô). Hàng ra ngoài từ khóa đang tìm (đổi mã / tên) → thông báo kèm nút
+  **Xem mặt hàng ở chỗ mới**. Ô tìm nhanh theo đường dẫn khi đường dẫn đổi từ nơi khác (liên kết,
+  menu) — trước đây giữ chữ cũ và lọc tạm giấu mất dòng.
+
   Hai quy tắc đáng lưu ý trong cách phân nhóm: thiết bị của phụ tùng lấy từ trường
   `equipment`, **không có thì lấy tên Nhóm (Category)** — file kiểm kê MLS-11-06 ghi thiết bị
   ở cột "Nhóm" chứ không phải trường riêng; và phụ tùng không đoán được bộ phận thì xếp vào

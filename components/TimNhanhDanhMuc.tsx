@@ -108,6 +108,7 @@ export default function TimNhanhDanhMuc({
     const p = new URLSearchParams(window.location.search);
     if (gt.trim()) p.set("q", gt.trim());
     else p.delete("q");
+    daDay.current = gt.trim();
     const qs = p.toString();
     const href = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
     batDauTim(() => {
@@ -118,6 +119,9 @@ export default function TimNhanhDanhMuc({
   // Chữ đang gõ (ref, cập nhật trong sự kiện) — để hiệu ứng khi kết quả server về
   // biết người dùng đã gõ tiếp hay chưa.
   const qHienTai = useRef(qTrenUrl);
+  // Chữ mà CHÍNH ô này vừa đẩy lên đường dẫn — để phân biệt kết quả của mình về với đường
+  // dẫn đổi từ nơi khác (liên kết bỏ / đổi từ khóa, menu bên trái…). null = chưa đẩy gì.
+  const daDay = useRef<string | null>(null);
   const doiQ = (gt: string) => {
     setQ(gt);
     qHienTai.current = gt;
@@ -137,6 +141,18 @@ export default function TimNhanhDanhMuc({
   // sau lượt vừa về thì lọc tạm lại theo chữ hiện tại.
   useEffect(() => {
     boLocTam();
+    const tuNoiKhac =
+      daDay.current === null ? qHienTai.current.trim() !== qTrenUrl.trim() : qTrenUrl.trim() !== daDay.current;
+    if (tuNoiKhac) {
+      // Đường dẫn đổi từ nơi khác: ô tìm theo đường dẫn. Để nguyên chữ cũ thì lọc tạm theo chữ
+      // đó giấu mất dòng — vd. bấm "Xem mặt hàng ở chỗ mới" sau khi sửa, hay bấm menu Vật tư
+      // khi đang tìm.
+      if (hen.current !== null) window.clearTimeout(hen.current);
+      qHienTai.current = qTrenUrl;
+      daDay.current = null;
+      const id = window.setTimeout(() => setQ(qTrenUrl), 0);
+      return () => window.clearTimeout(id);
+    }
     if (qHienTai.current.trim() !== qTrenUrl.trim()) locTam(qHienTai.current);
   }, [qTrenUrl]);
   useEffect(() => boLocTam, []);

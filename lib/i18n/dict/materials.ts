@@ -28,6 +28,9 @@ export const materials = tuDien(
       "Gán người giữ thì mặt hàng về nhóm bộ phận của người đó (hàng an toàn vẫn ở An toàn chung). Để tự suy thì app suy từ nhóm như trước.",
     nguoiGiuTuSuy: "— Tự suy theo nhóm (bỏ gán) —",
     nguoiGiuTuSuyHien: "— Tự suy theo nhóm (hiện: {ten}) —",
+    vuaSua: "vừa sửa",
+    vuaSuaNgoaiBoLoc: "Đã lưu. Mặt hàng vừa sửa không còn nằm trong bộ lọc đang chọn.",
+    xemMatHangVuaSua: "Xem mặt hàng ở chỗ mới",
     locBoPhanGoiY:
       "Lọc theo đúng các mục của bảng. Cột \"Giữ bởi\" cũng theo nhóm này: lọc Máy thì mọi dòng đều do người ngành máy giữ.",
     timGoiY: "Tìm tên, mã, IMPA, Part No, hãng...",
@@ -243,6 +246,9 @@ export const materials = tuDien(
       "Assigning a holder moves the item to that rank's department (safety items stay in General safety). Leave it automatic to derive it from the group as before.",
     nguoiGiuTuSuy: "— Automatic from group (unassigned) —",
     nguoiGiuTuSuyHien: "— Automatic from group (now: {ten}) —",
+    vuaSua: "just edited",
+    vuaSuaNgoaiBoLoc: "Saved. The edited item is no longer within the current filters.",
+    xemMatHangVuaSua: "Show it in its new place",
     locBoPhanGoiY:
       "Filters by the same sections as the table. The \"Held by\" column follows them too: filter Engine and every row is held by an engine-room rank.",
     timGoiY: "Search name, code, IMPA, Part No., maker...",

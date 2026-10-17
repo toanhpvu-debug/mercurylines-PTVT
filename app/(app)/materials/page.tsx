@@ -46,6 +46,7 @@ import {
 } from "@/lib/chucDanhChiuTrachNhiem";
 import MaterialForm from "@/components/MaterialForm";
 import { chuongImpa, laTenBoPhan } from "@/lib/nhomImpa";
+import { docDen } from "@/lib/viTriSauSua";
 import { nhomCuaVatTu, type KetQuaPhanNhom } from "@/lib/phanNhomBanChat";
 import MaterialRowActions from "@/components/MaterialRowActions";
 import {
@@ -110,6 +111,8 @@ export default async function MaterialsPage({
     rank?: string;
     /** Lọc một nhóm bộ phận: DECK · ENGINE · ELEC · SERVICE · SAFETY · OTHER (khóa của DEPARTMENTS). */
     bp?: string;
+    /** Mặt hàng vừa sửa (id, nối bằng "-"): mở đúng trang chứa nó và tô sáng — lib/viTriSauSua.ts. */
+    den?: string;
     /** Trang của từng bộ phận: trang_DECK=2, trang_ENGINE=3… (mỗi trang PER_DEPT_LIMIT dòng). */
     [trang: `trang_${string}`]: string | undefined;
   }>;
@@ -139,6 +142,9 @@ export default async function MaterialsPage({
   // mà bảng đang chia (nhomCuaVatTu) — cột "Giữ bởi" cũng suy từ chính nhóm đó, nên lọc "Máy"
   // thì mọi dòng ra đều do người ngành máy giữ, không có dòng nào tự mâu thuẫn.
   const boPhanLoc = DEPARTMENTS.some((d) => d.key === bpRaw) ? String(bpRaw) : "";
+  // Vừa sửa xong (hộp Sửa / Sửa hàng loạt đưa tới đây): dòng đầu là chỗ cuộn tới (#vat-tu-<id>).
+  const denIds = docDen(sp.den);
+  const vuaSua = new Set(denIds);
   // Lọc theo chức danh giữ vật tư — dùng khi kiểm kê bàn giao ca: máy hai chỉ
   // cần thấy đúng phần mình ký nhận, không phải cuộn qua cả danh mục tàu.
   //
@@ -416,7 +422,11 @@ export default async function MaterialsPage({
     // ta vừa gõ để tìm. Trang xin quá số trang (danh mục vừa ngắn lại) → trang cuối.
     const hetMot = showAll || Boolean(q);
     const soTrang = hetMot ? 1 : Math.max(1, Math.ceil(sorted.length / PER_DEPT_LIMIT));
-    const trang = Math.min(trangCua(d.key), soTrang);
+    // Vừa sửa: mở trang chứa dòng cuộn tới (hoặc dòng vừa sửa đầu tiên của bộ phận này) — sửa
+    // xong là thấy ngay mặt hàng ở chỗ mới, không phải lật trang tìm.
+    const iDen = denIds.length ? sorted.findIndex((m) => m.id === denIds[0]) : -1;
+    const iVuaSua = iDen >= 0 ? iDen : vuaSua.size ? sorted.findIndex((m) => vuaSua.has(m.id)) : -1;
+    const trang = iVuaSua >= 0 && !hetMot ? Math.floor(iVuaSua / PER_DEPT_LIMIT) + 1 : Math.min(trangCua(d.key), soTrang);
     const tu = (trang - 1) * PER_DEPT_LIMIT;
     return {
       ...d,
@@ -687,6 +697,20 @@ export default async function MaterialsPage({
         </div>
       </Card>
 
+      {/* Vừa sửa mà mặt hàng ra ngoài bộ lọc đang chọn (từ khóa không còn khớp, đổi loại, "phần
+          của tôi" không còn gồm nó…): báo và đưa tới chỗ của nó, không để nó "biến mất". */}
+      {denIds.length > 0 && !rows.some((m) => vuaSua.has(m.id)) && (
+        <Notice tone="info">
+          {t("materials.vuaSuaNgoaiBoLoc")}{" "}
+          <Link
+            href={`/materials?${isVesselMode ? `vessel=${vesselKey}&` : ""}den=${denIds.join("-")}#vat-tu-${denIds[0]}`}
+            className="font-medium underline"
+          >
+            {t("materials.xemMatHangVuaSua")}
+          </Link>
+        </Notice>
+      )}
+
       {!isVesselMode && !scope.all ? (
         <Notice tone="warning">{t("materials.chuaGanTauKhongXem")}</Notice>
       ) : (
@@ -919,11 +943,16 @@ export default async function MaterialsPage({
                                   </tr>
                                 )}
                                 <Tr
+                                  id={vuaSua.has(material.id) ? `vat-tu-${material.id}` : undefined}
                                   className={cn(
                                     "transition-colors hover:bg-[var(--surface-sunken)]/50",
                                     !isVesselMode &&
                                       !material.isActive &&
-                                      "opacity-60"
+                                      "opacity-60",
+                                    // Vừa sửa: tô nền + vạch trái để thấy ngay mặt hàng ở chỗ mới; chừa
+                                    // khoảng dưới thanh tìm dính khi trang cuộn tới (#vat-tu-<id>).
+                                    vuaSua.has(material.id) &&
+                                      "scroll-mt-48 bg-[var(--tone-brand-bg)] shadow-[inset_4px_0_0_var(--text-brand)]"
                                   )}
                                 >
                                   <Td className="w-8">
@@ -939,6 +968,11 @@ export default async function MaterialsPage({
                                   </Td>
                                   <Td className="font-display text-xs tracking-wide whitespace-nowrap text-[var(--text-primary)]">
                                     {material.code}
+                                    {vuaSua.has(material.id) && (
+                                      <Badge tone="brand" className="ml-2 font-sans tracking-normal">
+                                        {t("materials.vuaSua")}
+                                      </Badge>
+                                    )}
                                   </Td>
                                   <Td>
                                     <p>

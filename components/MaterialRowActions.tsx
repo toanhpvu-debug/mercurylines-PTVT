@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Pencil, Power, PowerOff, Save, Trash2 } from "lucide-react";
+import { duongDanSauSua } from "@/lib/viTriSauSua";
 import {
   deleteMaterial,
   setMaterialActive,
@@ -54,10 +56,21 @@ export default function MaterialRowActions({
   xoaDuoc?: boolean;
 }) {
   const { t } = useNgonNgu();
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const [saveState, saveAction, savePending] = useActionState(updateMaterial, {
-    message: "",
-  });
+  const [saveState, saveAction, savePending] = useActionState(
+    async (truoc: Awaited<ReturnType<typeof updateMaterial>>, formData: FormData) => {
+      const kq = await updateMaterial(truoc, formData);
+      // Lưu xong thì ĐI THEO mặt hàng tới chỗ mới: đổi người giữ là nó sang bộ phận khác (có khi
+      // trang 3 của mục đó, hoặc ra ngoài bộ lọc đang chọn) — đóng hộp, mở đúng chỗ, tô sáng dòng.
+      if (kq.success && kq.viTri) {
+        setEditing(false);
+        router.push(duongDanSauSua(window.location.search, kq.viTri));
+      }
+      return kq;
+    },
+    { message: "" }
+  );
   const [toggleState, toggleAction, togglePending] = useActionState(
     setMaterialActive,
     { message: "" }

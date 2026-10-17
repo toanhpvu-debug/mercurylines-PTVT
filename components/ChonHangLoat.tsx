@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckSquare, ClipboardList, Pencil, Trash2, Unlink, X } from "lucide-react";
 import { goVatTuKhoiTauHangLoat, suaVatTuHangLoat, xoaVatTuHangLoat, type PatchHangLoat } from "@/app/vat-tu-hang-loat-actions";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { duongDanSauSua } from "@/lib/viTriSauSua";
 import { Button, Field, Input, Notice, Select } from "@/components/ui";
 import { Modal } from "@/components/ui-client";
 import ChonNguoiGiu from "@/components/ChonNguoiGiu";
@@ -170,6 +171,8 @@ export default function ChonHangLoat({
       if (r.success) {
         setMoSua(false);
         boChon();
+        // Đi theo các mặt hàng vừa sửa tới chỗ mới (đổi người giữ / nhóm là chúng sang bộ phận khác).
+        if (r.viTri) router.push(duongDanSauSua(window.location.search, r.viTri));
       }
     });
   };

@@ -525,12 +525,15 @@ export function Td({
 export function Tr({
   children,
   className,
+  id,
 }: {
   children: ReactNode;
   className?: string;
+  /** Neo #id — vd. dòng vừa sửa ở Danh mục để trang cuộn tới. */
+  id?: string;
 }) {
   return (
-    <tr className={cn("last:[&>td]:border-b-0", className)}>{children}</tr>
+    <tr id={id} className={cn("last:[&>td]:border-b-0", className)}>{children}</tr>
   );
 }
 

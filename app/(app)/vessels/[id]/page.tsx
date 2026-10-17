@@ -22,6 +22,8 @@ import {
   vesselScopeDayDu,
 } from "@/lib/auth";
 import { laBanTau } from "@/lib/banCai";
+import { tenKhoNgan } from "@/lib/khoTau";
+import { duongDanTheKho } from "@/lib/theKho";
 import BangKhoTau from "@/components/BangKhoTau";
 import VesselEditForm from "@/components/VesselEditForm";
 import VesselDeleteButton from "@/components/VesselDeleteButton";
@@ -48,6 +50,8 @@ import {
 export const dynamic = "force-dynamic";
 
 const LINK = "text-brand-700 hover:underline dark:text-brand-300";
+/** Liên kết không tô màu sẵn (tên mặt hàng, kho) — cả bảng xanh lè thì khó đọc; rê chuột mới hiện. */
+const LINK_AN = "hover:text-brand-700 hover:underline dark:hover:text-brand-300";
 
 /** Tiêu đề khung gập: cùng một dáng với trang Tồn kho / Sơn. */
 const SUMMARY =
@@ -431,12 +435,27 @@ export default async function VesselDetailPage({
                       key={inventory.id}
                       className="transition-colors hover:bg-[var(--surface-sunken)]/50"
                     >
+                      {/* Bấm thẳng vào mục: mã / tên → thẻ kho của mặt hàng ở đúng kho này; kho / vị trí →
+                          trang Tồn kho chỉ kho đó (tên gọn, không lặp tên tàu của chính trang này). */}
                       <Td className="font-display text-xs tracking-wide whitespace-nowrap">
-                        {inventory.material.code}
+                        <Link href={duongDanTheKho(inventory.materialId, inventory.warehouseId)} prefetch={false} className={LINK} title={t("inventory.moTheKho")}>
+                          {inventory.material.code}
+                        </Link>
                       </Td>
-                      <Td>{inventory.material.nameVn}</Td>
+                      <Td>
+                        <Link href={duongDanTheKho(inventory.materialId, inventory.warehouseId)} prefetch={false} className={LINK_AN}>
+                          {inventory.material.nameVn}
+                        </Link>
+                      </Td>
                       <Td className="text-[var(--text-secondary)]">
-                        {inventory.warehouse.name}
+                        <Link
+                          href={`/inventory?vessel=${vessel.id}&wh=${inventory.warehouseId}`}
+                          prefetch={false}
+                          className={LINK_AN}
+                          title={`${inventory.warehouse.code} — ${t("inventory.xemHangCuaKho")}`}
+                        >
+                          {tenKhoNgan(inventory.warehouse.name, vessel.name)}
+                        </Link>
                       </Td>
                       <Td>
                         <span className="text-xs text-[var(--text-secondary)]">

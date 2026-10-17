@@ -46,6 +46,7 @@ export const inventory = tuDien(
     cotXuatGanNhat: "Xuất gần nhất",
     chuaNhapXuat: "chưa có",
     moTheKho: "Mở thẻ kho — toàn bộ lịch sử nhập / xuất của mặt hàng này",
+    xemHangCuaKho: "Xem mọi mặt hàng ở kho / vị trí này",
 
     // --- Thẻ kho (/inventory/stock-card) ---
     theKho: "Thẻ kho",
@@ -205,6 +206,7 @@ export const inventory = tuDien(
     cotXuatGanNhat: "Last issue",
     chuaNhapXuat: "none yet",
     moTheKho: "Open the stock card — full receipt / issue history of this item",
+    xemHangCuaKho: "See every item at this warehouse / location",
 
     theKho: "Stock card",
     theKhoMoTa:

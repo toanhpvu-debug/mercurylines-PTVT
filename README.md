@@ -1193,7 +1193,8 @@ Trong bảng danh sách, cả **mã tàu lẫn tên tàu** đều bấm được
 
 Trang **hồ sơ tàu** (`/vessels/[id]`) chỉ để *xem*: thông tin tàu, danh sách kho, bảng tóm tắt
 tồn kho (cột **Mã VT · Tên mặt hàng · Kho / vị trí** · ĐVT · Tồn · Giữ · Khả dụng, sắp theo mã — cùng mặt
-hàng ở hai kho đứng liền nhau) và yêu cầu, tài liệu gần đây. Mỗi mục là một **khung gập** (cùng
+hàng ở hai kho đứng liền nhau; bấm mã / tên là mở thẻ kho, bấm kho / vị trí — tên gọn, không lặp tên
+tàu — là trang Tồn kho chỉ kho đó) và yêu cầu, tài liệu gần đây. Mỗi mục là một **khung gập** (cùng
 dáng trang Tồn kho): *Báo cáo từ tàu* (số tệp gần nhất), *Chỉnh sửa thông tin tàu*, *Xóa tàu* (quản
 trị) và *Kho trên tàu* (số kho) **gập sẵn** cho trang gọn; *Tồn kho* (số dòng) và *Yêu cầu* (số yêu cầu)
 mở sẵn, gập được. Nút trong dòng tiêu đề (Tải lên / xem tất cả, Nhập / xuất kho, Tạo / duyệt yêu
@@ -1341,8 +1342,12 @@ lượng, ghi chú ở dòng dưới. Lấy bằng **một** câu SQL `DISTINCT 
 trang. "Gần nhất" tính theo **thời điểm thực hiện**, không phải lúc ghi sổ: phiếu nhập bù ghi lùi
 ngày phải xếp đúng chỗ của nó trên dòng thời gian.
 
-Bấm vào **mã vật tư** (ở bảng tồn kho hoặc ở nhật ký) mở **thẻ kho**
-(`/inventory/stock-card?material=…&wh=…`): toàn bộ nhập / xuất của mặt hàng đó tại kho đó theo
+Bấm vào **mã hoặc tên mặt hàng** (ở bảng tồn kho của trang Tồn kho và hồ sơ tàu, hoặc mã ở nhật ký)
+mở **thẻ kho**; bấm **kho / vị trí** của dòng mở trang Tồn kho chỉ kho đó (`?vessel=…&wh=…`; đang lọc
+đúng kho đó thì ô không còn là liên kết). Liên kết trong dòng bảng đặt `prefetch={false}`: bảng vài
+trăm dòng mà Next tự tải trước từng thẻ kho đang hiện là vài chục yêu cầu thừa lên máy chủ mỗi lần
+mở trang — đo 2026-10-17: bớt 8 yêu cầu tải trước mỗi trang, tốc độ dựng trang Tồn kho không đổi.
+Thẻ kho (`/inventory/stock-card?material=…&wh=…`): toàn bộ nhập / xuất của mặt hàng đó tại kho đó theo
 thứ tự thời gian, có cột **tồn sau** từng dòng, ghi chú, người thực hiện, in được, và một form
 ghi nhập / xuất đã chọn sẵn vật tư + kho. Tồn sau cộng dồn phải ra **đúng tồn hiện tại**: nếu
 số tồn từng được đưa vào không qua giao dịch (nhập danh mục từ file kèm số tồn, gói đồng bộ, dữ

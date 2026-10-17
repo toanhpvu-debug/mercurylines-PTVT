@@ -87,6 +87,8 @@ function toneThieu(pct: number): Tone {
 }
 
 const LINK = "text-brand-700 hover:underline dark:text-brand-300";
+/** Liên kết không tô màu sẵn (tên mặt hàng, mã kho) — rê chuột mới hiện, bảng khỏi xanh lè. */
+const LINK_AN = "hover:text-brand-700 hover:underline dark:hover:text-brand-300";
 
 /**
  * Ô "nhập / xuất gần nhất" của một dòng tồn: ngày · số lượng, ghi chú ở dòng
@@ -711,6 +713,7 @@ export default async function InventoryPage({
                                             inventory.materialId,
                                             inventory.warehouseId
                                           )}
+                                          prefetch={false}
                                           className={LINK}
                                           title={t("inventory.moTheKho")}
                                         >
@@ -724,7 +727,16 @@ export default async function InventoryPage({
                                             isSpare && "pl-3"
                                           )}
                                         >
-                                          <span>{inventory.material.nameVn}</span>
+                                          <Link
+                                            href={duongDanTheKho(
+                                              inventory.materialId,
+                                              inventory.warehouseId
+                                            )}
+                                            prefetch={false}
+                                            className={LINK_AN}
+                                          >
+                                            {inventory.material.nameVn}
+                                          </Link>
                                           {isSpare && (
                                             <Badge tone="brand">
                                               {t("inventory.badgePhuTung")}
@@ -738,9 +750,21 @@ export default async function InventoryPage({
                                         </div>
                                       </Td>
                                       <Td className="whitespace-nowrap">
-                                        <span className="font-display text-xs tracking-wide text-[var(--text-muted)]">
-                                          {inventory.warehouse.code}
-                                        </span>
+                                        {/* Bấm mã kho → chỉ kho / vị trí đó (đang lọc đúng kho này thì thôi). */}
+                                        {whFilter === inventory.warehouseId ? (
+                                          <span className="font-display text-xs tracking-wide text-[var(--text-muted)]">
+                                            {inventory.warehouse.code}
+                                          </span>
+                                        ) : (
+                                          <Link
+                                            href={`/inventory?vessel=${inventory.vesselId}&wh=${inventory.warehouseId}`}
+                                            prefetch={false}
+                                            className={cn("font-display text-xs tracking-wide text-[var(--text-muted)]", LINK_AN)}
+                                            title={t("inventory.xemHangCuaKho")}
+                                          >
+                                            {inventory.warehouse.code}
+                                          </Link>
+                                        )}
                                       </Td>
                                       <Td>
                                         <span className="text-xs text-[var(--text-secondary)]">
@@ -909,6 +933,7 @@ export default async function InventoryPage({
                               <span className="inline-flex flex-wrap items-center gap-1.5">
                                 <Link
                                   href={duongDanTheKho(tx.materialId, tx.warehouseId)}
+                                  prefetch={false}
                                   className={cn("font-display text-xs tracking-wide", LINK)}
                                   title={t("inventory.moTheKho")}
                                 >

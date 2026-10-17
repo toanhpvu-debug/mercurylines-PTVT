@@ -1,11 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useEffectEvent, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Download, FilePenLine, FolderPlus, Pencil, Plus, Printer, RotateCcw, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Download, FilePenLine, FolderPlus, Pencil, Plus, Printer, RotateCcw, Save, Trash2, X } from "lucide-react";
 import LogoBieuMau from "@/components/LogoBieuMau";
 import { goDanhMucThietYeu, luuThangThietYeu, themPhuTungThietYeu, xoaPhuTungThietYeu } from "@/app/thiet-yeu-actions";
-import { COT_IN, SU_KIEN_XOA_BAN_IN, VI_TRI_CO_THE, dongInTu, gomNhom, khoaBanIn, laThieuIn, soIn, soTrongO, xoaBanInCuaTau, type DongIn, type DongThietYeu } from "@/lib/thietYeu";
+import {
+  COT_IN,
+  SU_KIEN_XOA_BAN_IN,
+  VI_TRI_CO_THE,
+  chuyenNhomDong,
+  doiChoDong,
+  doiTenNhomDong,
+  dongInTu,
+  ghepDongMoi,
+  gomNhom,
+  khoaBanIn,
+  laThieuIn,
+  soIn,
+  soTrongO,
+  xoaBanInCuaTau,
+  type DongIn,
+  type DongThietYeu,
+} from "@/lib/thietYeu";
 import { useNgonNgu } from "@/lib/i18n/client";
 import { Badge, Button, Field, Input, Notice, Select } from "@/components/ui";
 
@@ -34,6 +51,8 @@ function Cell({ sua, giaTri, onChange, trai, goiY }: { sua: boolean; giaTri: str
 
 /** id của <datalist> vị trí có thể (một cái cho cả bảng). */
 const DS_VI_TRI = "vi-tri-thiet-yeu";
+/** id ô Mô tả của khung thêm mục ("+ Mục" ở dòng nhóm đưa con trỏ tới đây). */
+const O_MO_TA_MOI = "thiet-yeu-mo-ta-moi";
 
 const TONE_NGUON = { DA_LUU: "success", KHO: "info", UOC: "muted" } as const;
 
@@ -62,8 +81,11 @@ function tinhLai(d: DongIn, patch: Partial<DongIn>): DongIn {
  *     tên tàu, ngày, tên nhóm, từng ô, thêm / bỏ dòng. Chỉ là bản để in, cất trong
  *     trình duyệt theo tàu + tháng, KHÔNG đổi số liệu hệ thống; in và "Xuất Word"
  *     đều ra đúng bản đã sửa cho tới khi bấm "Đặt lại".
- *   - "Sửa số tháng" (Máy trưởng / Đại phó / Thuyền trưởng / quản trị): sửa rồi
- *     LƯU vào hệ thống; thêm / xóa mục của danh mục.
+ *   - "Hiệu chỉnh danh mục & số lượng" (Máy trưởng / Đại phó / Thuyền trưởng / quản trị): sửa
+ *     rồi LƯU vào hệ thống — nhóm (đổi tên, chuyển mục sang nhóm khác), số thứ tự, thứ tự dòng,
+ *     mô tả, số phụ tùng, tối thiểu, số của tháng, vị trí; thêm / xóa mục. Lưu chốt cả số tháng,
+ *     hoặc "Chỉ lưu danh mục". Bật được từ nút ở đầu trang và từ bảng "Cần bổ sung" (HTML máy chủ
+ *     mang data-sua-thiet-yeu="<id mục>" — xem effect nghe bấm bên dưới).
  */
 export default function BangThietYeu({
   vesselId,
@@ -103,6 +125,10 @@ export default function BangThietYeu({
   const [dangGui, startTransition] = useTransition();
   const [dangXuat, setDangXuat] = useState(false);
   const [moi, setMoi] = useState({ nhom: dongGoc[0]?.nhom ?? "", nhomMoi: "", moTa: "", partNo: "", toiThieu: "" });
+  /** Mục vừa mở để hiệu chỉnh từ chỗ khác trên trang (tô sáng dòng). */
+  const [chiMuc, setChiMuc] = useState<string | null>(null);
+  /** Yêu cầu cuộn tới bảng / đúng mục sau khi bật hiệu chỉnh (n tăng mỗi lần bấm). */
+  const [cuonToi, setCuonToi] = useState<{ n: number; id: string | null } | null>(null);
 
   // Nạp bản in đã sửa của lần trước (nếu có). Chạy trong setTimeout để không
   // setState ngay trong thân effect.
@@ -130,15 +156,11 @@ export default function BangThietYeu({
     return () => window.removeEventListener(SU_KIEN_XOA_BAN_IN, nghe);
   }, [vesselId]);
 
-  // Server trả bảng mới (sau khi lưu / thêm / xóa mục): đang "Sửa số tháng" thì
-  // giữ ô đã gõ của mục cũ, thêm mục mới, bỏ mục đã xóa; không thì lấy nguyên.
+  // Server trả bảng mới (sau khi lưu / thêm / xóa mục): đang hiệu chỉnh thì giữ thứ tự và ô đã
+  // gõ của mục cũ, chèn mục mới vào cuối nhóm, bỏ mục đã xóa; không thì lấy nguyên.
   if (dongGoc !== gocTruoc) {
     setGocTruoc(dongGoc);
-    setDongSo((cu) => {
-      if (cheDo !== "so") return dongGocIn;
-      const cuTheoId = new Map(cu.map((d) => [d.id, d]));
-      return dongGocIn.map((g) => cuTheoId.get(g.id) ?? g);
-    });
+    setDongSo((cu) => (cheDo === "so" ? ghepDongMoi(cu, dongGocIn) : dongGocIn));
   }
 
   const suaIn = cheDo === "in";
@@ -188,8 +210,7 @@ export default function BangThietYeu({
   };
   const suaDongIn = (id: string, patch: Partial<DongIn>) =>
     doiBanIn((b) => ({ ...b, dong: b.dong.map((d) => (d.id === id ? tinhLai(d, patch) : d)) }));
-  const doiTenNhom = (cu: string, moiTen: string) =>
-    doiBanIn((b) => ({ ...b, dong: b.dong.map((d) => (d.nhom === cu ? { ...d, nhom: moiTen } : d)) }));
+  const doiTenNhom = (cu: string, moiTen: string) => doiBanIn((b) => ({ ...b, dong: doiTenNhomDong(b.dong, cu, moiTen) }));
   const themDongIn = (nhom: string) =>
     doiBanIn((b) => {
       const cuoi = b.dong.map((d) => d.nhom).lastIndexOf(nhom);
@@ -207,40 +228,95 @@ export default function BangThietYeu({
     });
   const boDongIn = (id: string) => doiBanIn((b) => ({ ...b, dong: b.dong.filter((d) => d.id !== id) }));
 
-  // ─── Sửa số tháng (lưu vào hệ thống) ───
+  // ─── Hiệu chỉnh danh mục & số lượng (lưu vào hệ thống) ───
   const bao = (r: { message: string; success?: boolean }) => setThongBao({ ok: Boolean(r.success), chu: r.message });
   const batDauSuaSo = () => {
     setDongSo(dongGocIn);
     setThongBao(null);
+    setChiMuc(null);
     setCheDo("so");
   };
-  const luu = () =>
-    startTransition(async () => {
-      const r = await luuThangThietYeu(
-        vesselId,
-        thang,
-        dongSo.map(({ id, moTa, partNo, toiThieu, tonDau, nhan, tieuThu, hienCo, viTri }) => ({ id: Number(id), moTa, partNo, toiThieu, tonDau, nhan, tieuThu, hienCo, viTri }))
-      );
-      bao(r);
-      if (r.success) {
-        setCheDo("xem");
-      }
-    });
+  const dongGui = () =>
+    dongSo.map(({ id, nhom, stt, moTa, partNo, toiThieu, tonDau, nhan, tieuThu, hienCo, viTri }) => ({ id: Number(id), nhom, stt, moTa, partNo, toiThieu, tonDau, nhan, tieuThu, hienCo, viTri }));
+  const xongLuu = (r: { message: string; success?: boolean }) => {
+    bao(r);
+    if (r.success) {
+      setCheDo("xem");
+      setChiMuc(null);
+    }
+  };
+  /** Lưu danh mục VÀ chốt số của tháng đang xem cho mọi mục (báo cáo tháng). */
+  const luu = () => startTransition(async () => xongLuu(await luuThangThietYeu(vesselId, thang, dongGui())));
+  /** Chỉ lưu danh mục (nhóm, số thứ tự, thứ tự, mô tả, số phụ tùng, tối thiểu, vị trí) — số tháng đã gõ thì hỏi lại. */
+  const luuDanhMuc = () => {
+    const soDaGo = dongSo.filter((d) => {
+      const g = gocTheoId.get(d.id);
+      return g && (["tonDau", "nhan", "tieuThu", "hienCo"] as const).some((k) => d[k] !== g[k]);
+    }).length;
+    if (soDaGo > 0 && !window.confirm(t("thietYeu.xacNhanChiDanhMuc", { n: soDaGo }))) return;
+    startTransition(async () => xongLuu(await luuThangThietYeu(vesselId, thang, dongGui(), { chiDanhMuc: true })));
+  };
   const huySo = () => {
     if (!window.confirm(t("thietYeu.xacNhanHuy"))) return;
     setDongSo(dongGocIn);
     setCheDo("xem");
     setThongBao(null);
+    setChiMuc(null);
   };
+  const doiCho = (id: string, huong: -1 | 1) => setDongSo((ds) => doiChoDong(ds, id, huong));
+  const chuyenNhom = (id: string, nhom: string) => setDongSo((ds) => chuyenNhomDong(ds, id, nhom));
+  const doiTenNhomSo = (cu: string, moiTen: string) => setDongSo((ds) => doiTenNhomDong(ds, cu, moiTen));
+  /** Nhóm đang có trên bảng (gồm tên vừa đổi, chưa lưu) — cho ô thêm mục và ô chuyển nhóm. */
+  const nhomDangCo = gomNhom(suaSo ? dongSo : dongGocIn).map((g) => g.nhom);
+  const nhomThem = nhomDangCo.includes(moi.nhom) || moi.nhom === "__moi__" ? moi.nhom : (nhomDangCo[0] ?? "__moi__");
   const them = () =>
     startTransition(async () => {
-      const nhom = moi.nhom === "__moi__" ? moi.nhomMoi : moi.nhom;
+      const nhom = nhomThem === "__moi__" ? moi.nhomMoi : nhomThem;
       const r = await themPhuTungThietYeu(vesselId, { nhom, moTa: moi.moTa, partNo: moi.partNo, toiThieu: moi.toiThieu });
       bao(r);
       if (r.success) {
         setMoi((m) => ({ ...m, nhom, nhomMoi: "", moTa: "", partNo: "", toiThieu: "" }));
       }
     });
+  /** "+ Mục" ở dòng nhóm: chọn sẵn nhóm đó ở ô thêm mục, đưa con trỏ tới ô mô tả. */
+  const themMucVaoNhom = (nhom: string) => {
+    setMoi((m) => ({ ...m, nhom }));
+    const o = document.getElementById(O_MO_TA_MOI);
+    o?.scrollIntoView({ behavior: "smooth", block: "center" });
+    o?.focus({ preventScroll: true });
+  };
+
+  // Nút "Hiệu chỉnh danh mục & số lượng" ở đầu trang và nút sửa của bảng "Cần bổ sung" là HTML máy
+  // chủ mang data-sua-thiet-yeu="<id mục>" (rỗng = cả bảng): bấm là bật hiệu chỉnh (giữ chỗ đang
+  // sửa dở), tô sáng mục và cuộn tới. Chưa nạp xong JS thì liên kết #… vẫn đưa tới bảng.
+  const moHieuChinh = useEffectEvent((id: string) => {
+    if (cheDo !== "so") {
+      setDongSo(dongGocIn);
+      setThongBao(null);
+      setCheDo("so");
+    }
+    setChiMuc(id || null);
+    setCuonToi((c) => ({ n: (c?.n ?? 0) + 1, id: id || null }));
+  });
+  useEffect(() => {
+    if (!coQuyen) return;
+    const bam = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = e.target instanceof Element ? e.target.closest("[data-sua-thiet-yeu]") : null;
+      if (!a) return;
+      e.preventDefault();
+      moHieuChinh(a.getAttribute("data-sua-thiet-yeu") ?? "");
+    };
+    document.addEventListener("click", bam);
+    return () => document.removeEventListener("click", bam);
+  }, [coQuyen]);
+  useEffect(() => {
+    if (!cuonToi) return;
+    const id = window.setTimeout(() => {
+      document.getElementById(cuonToi.id ? `muc-${cuonToi.id}` : "bang-thiet-yeu")?.scrollIntoView({ behavior: "smooth", block: cuonToi.id ? "center" : "start" });
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [cuonToi]);
   const goDanhMuc = () => {
     if (!window.confirm(t("thietYeu.xacNhanGoDanhMuc", { tau: tenTau, n: dongGoc.length }))) return;
     setThongBao(null);
@@ -298,7 +374,6 @@ export default function BangThietYeu({
     }
   };
 
-  const nhomCoSan = gomNhom(dongGocIn).map((g) => g.nhom);
   const nhomHienThi = gomNhom(dong);
   const doiO = (d: DongIn, k: (typeof COT_IN)[number]) => (v: string) =>
     suaSo ? setDongSo((ds) => ds.map((x) => (x.id === d.id ? tinhLai(x, { [k]: v }) : x))) : suaDongIn(d.id, { [k]: v });
@@ -313,7 +388,8 @@ export default function BangThietYeu({
   const dangSua = suaIn || suaSo;
 
   return (
-    <div className="space-y-3">
+    // id: đích của nút "Hiệu chỉnh danh mục & số lượng" ở đầu trang (#bang-thiet-yeu).
+    <div id="bang-thiet-yeu" className="scroll-mt-4 space-y-3">
       {/* Gợi ý cho ô Vị trí khi sửa: chọn trong danh sách hoặc gõ tự do. */}
       <datalist id={DS_VI_TRI}>
         {luaChonViTri.map((x) => (
@@ -328,10 +404,13 @@ export default function BangThietYeu({
             <Button type="button" variant="primary" size="sm" onClick={luu} loading={dangGui} icon={<Check className="size-4" />}>
               {dangGui ? t("thietYeu.dangLuu") : t("thietYeu.luuThang", { thang })}
             </Button>
+            <Button type="button" size="sm" onClick={luuDanhMuc} disabled={dangGui} title={t("thietYeu.chiLuuDanhMucGoiY")} icon={<Save className="size-4" />}>
+              {t("thietYeu.chiLuuDanhMuc")}
+            </Button>
             <Button type="button" variant="ghost" size="sm" onClick={huySo} disabled={dangGui} icon={<X className="size-4" />}>
               {t("thietYeu.huySua")}
             </Button>
-            <span className="text-xs text-[var(--text-muted)]">{t("thietYeu.goiYSua")}</span>
+            <span className="basis-full text-xs text-[var(--text-muted)]">{t("thietYeu.goiYSua")}</span>
           </>
         ) : suaIn ? (
           <>
@@ -350,7 +429,7 @@ export default function BangThietYeu({
             </Button>
             {coQuyen && (
               <Button type="button" size="sm" onClick={batDauSuaSo} icon={<Pencil className="size-4" />}>
-                {t("thietYeu.suaSo")}
+                {t("thietYeu.hieuChinh")}
               </Button>
             )}
             {goDuoc && (
@@ -391,8 +470,8 @@ export default function BangThietYeu({
       {suaSo && (
         <div className="no-print grid grid-cols-1 items-end gap-2 rounded-xl border border-dashed border-[var(--border-subtle)] bg-[var(--surface-sunken)] p-3 md:grid-cols-[14rem_1fr_9rem_9rem_auto]">
           <Field label={t("thietYeu.nhom")}>
-            <Select value={moi.nhom} onChange={(e) => setMoi({ ...moi, nhom: e.target.value })}>
-              {nhomCoSan.map((n) => (
+            <Select value={nhomThem} onChange={(e) => setMoi({ ...moi, nhom: e.target.value })}>
+              {nhomDangCo.map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
@@ -401,10 +480,10 @@ export default function BangThietYeu({
             </Select>
           </Field>
           <Field label={t("thietYeu.moTaMuc")}>
-            {moi.nhom === "__moi__" && (
+            {nhomThem === "__moi__" && (
               <Input className="mb-2" value={moi.nhomMoi} placeholder={t("thietYeu.tenNhomMoi")} onChange={(e) => setMoi({ ...moi, nhomMoi: e.target.value })} />
             )}
-            <Input value={moi.moTa} onChange={(e) => setMoi({ ...moi, moTa: e.target.value })} />
+            <Input id={O_MO_TA_MOI} value={moi.moTa} onChange={(e) => setMoi({ ...moi, moTa: e.target.value })} />
           </Field>
           <Field label={t("thietYeu.partNo")}>
             <Input value={moi.partNo} onChange={(e) => setMoi({ ...moi, partNo: e.target.value })} />
@@ -516,34 +595,35 @@ export default function BangThietYeu({
             </tr>
           </thead>
           <tbody>
-            {nhomHienThi.map((g) => (
+            {nhomHienThi.map((g, gi) => (
               <NhomRows
-                // Khóa theo dòng đầu nhóm, không theo tên: đang gõ đổi tên nhóm
-                // mà khóa đổi theo thì ô nhập bị gắn lại, mất con trỏ mỗi phím.
-                key={g.dong[0].id}
+                // Khóa theo vị trí nhóm, không theo tên hay dòng đầu: đang gõ đổi tên nhóm, hoặc đưa
+                // dòng đầu xuống dưới, thì nhóm không bị gắn lại (ô nhập / nút không mất con trỏ).
+                key={gi}
                 nhom={g.nhom}
-                sua={suaIn}
+                // Tên nhóm sửa được ở cả hai chế độ: bản in (chỉ bản in) và hiệu chỉnh (lưu, đổi cho mọi mục của nhóm).
+                sua={dangSua}
                 daSua={
                   Boolean(banIn) &&
                   !suaSo &&
                   (g.dong.some((d) => gocTheoId.has(d.id) && gocTheoId.get(d.id)!.nhom !== d.nhom) || g.dong.every((d) => !gocTheoId.has(d.id)))
                 }
-                onDoiTen={(v) => doiTenNhom(g.nhom, v)}
-                onThemDong={() => themDongIn(g.nhom)}
-                nhanThemDong={t("thietYeu.themDongIn")}
+                onDoiTen={(v) => (suaSo ? doiTenNhomSo(g.nhom, v) : doiTenNhom(g.nhom, v))}
+                onThemDong={() => (suaSo ? themMucVaoNhom(g.nhom) : themDongIn(g.nhom))}
+                nhanThemDong={suaSo ? t("thietYeu.themMucNhom") : t("thietYeu.themDongIn")}
                 suaViTri={dangSua}
                 luaChonViTri={luaChonViTri}
                 nhanViTriNhom={t("thietYeu.viTriCaNhom")}
                 goiYViTriNhom={t("thietYeu.viTriCaNhomGoiY")}
                 onDatViTri={(v) => datViTriNhom(g.nhom, v)}
               >
-                {g.dong.map((d) => {
+                {g.dong.map((d, i) => {
                   const thieu = laThieuIn(d);
                   const nguon = nguonTheoId.get(d.id);
                   const o = (k: (typeof COT_IN)[number], cls = "") => (
                     <td className={`${O} ${cls} ${laSua(d, k) ? DA_SUA : ""}`}>
                       <Cell
-                        sua={dangSua && (suaIn || k !== "stt")}
+                        sua={dangSua}
                         giaTri={d[k]}
                         onChange={doiO(d, k)}
                         trai={k === "moTa"}
@@ -552,7 +632,13 @@ export default function BangThietYeu({
                     </td>
                   );
                   return (
-                    <tr key={d.id} className={`text-center align-top ${thieu ? "bg-rose-50 print:bg-transparent dark:bg-rose-950/30" : ""}`}>
+                    <tr
+                      key={d.id}
+                      id={`muc-${d.id}`}
+                      className={`scroll-mt-24 text-center align-top ${
+                        suaSo && chiMuc === d.id ? "bg-sky-100 print:bg-transparent dark:bg-sky-500/20" : thieu ? "bg-rose-50 print:bg-transparent dark:bg-rose-950/30" : ""
+                      }`}
+                    >
                       {o("stt")}
                       {o("moTa", "text-left")}
                       {o("partNo")}
@@ -582,6 +668,51 @@ export default function BangThietYeu({
                             </button>
                           )}
                         </div>
+                        {suaSo && (
+                          // Đưa lên / xuống trong nhóm, chuyển sang nhóm khác — lưu khi bấm Lưu.
+                          <div className="mt-1 flex items-center justify-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => doiCho(d.id, -1)}
+                              disabled={i === 0}
+                              title={t("thietYeu.lenTren")}
+                              aria-label={t("thietYeu.lenTren")}
+                              className="rounded p-0.5 text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)] disabled:opacity-30"
+                            >
+                              <ArrowUp className="size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => doiCho(d.id, 1)}
+                              disabled={i === g.dong.length - 1}
+                              title={t("thietYeu.xuongDuoi")}
+                              aria-label={t("thietYeu.xuongDuoi")}
+                              className="rounded p-0.5 text-[var(--text-secondary)] hover:bg-[var(--surface-sunken)] disabled:opacity-30"
+                            >
+                              <ArrowDown className="size-3.5" />
+                            </button>
+                            {nhomDangCo.length > 1 && (
+                              <select
+                                value=""
+                                onChange={(e) => {
+                                  if (e.target.value) chuyenNhom(d.id, e.target.value);
+                                }}
+                                title={t("thietYeu.chuyenNhom")}
+                                aria-label={t("thietYeu.chuyenNhom")}
+                                className="w-16 rounded border border-[var(--border-subtle)] bg-[var(--surface-raised)] px-0.5 py-0.5 text-xs text-[var(--text-secondary)]"
+                              >
+                                <option value="">{t("thietYeu.chuyenNhomNgan")}</option>
+                                {nhomDangCo
+                                  .filter((n) => n !== d.nhom)
+                                  .map((n) => (
+                                    <option key={n} value={n}>
+                                      {n}
+                                    </option>
+                                  ))}
+                              </select>
+                            )}
+                          </div>
+                        )}
                         {nguon?.maVatTu && <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">{t("thietYeu.ganKho", { ma: nguon.maVatTu })}</p>}
                       </td>
                     </tr>

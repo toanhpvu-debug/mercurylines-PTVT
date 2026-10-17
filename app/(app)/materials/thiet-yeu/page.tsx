@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import Link from "next/link";
-import { Eye, History, PackageSearch, Ship } from "lucide-react";
+import { Eye, History, PackageSearch, Pencil, Ship } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireScopedUser, vesselIdWhere } from "@/lib/auth";
 import { coQuanLyThietYeu, vesselScopeDayDu } from "@/lib/roles";
@@ -11,7 +11,7 @@ import { layT } from "@/lib/i18n/server";
 import BangThietYeu from "@/components/BangThietYeu";
 import NhapThietYeuForm from "@/components/NhapThietYeuForm";
 import XoaBanInSauNhap from "@/components/XoaBanInSauNhap";
-import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, Notice, PageHeader, Select, Stat, Table, TableWrap, Td, Th, Tr, TrNhom } from "@/components/ui";
+import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, Notice, PageHeader, Select, Stat, Table, TableWrap, Td, Th, Tr, TrNhom, buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +101,14 @@ export default async function ThietYeuPage({
           <Button type="submit" variant="primary" icon={<Eye className="size-4" />}>
             {t("thietYeu.xem")}
           </Button>
+          {coQuyen && dong.length > 0 && (
+            // Bật chế độ hiệu chỉnh của bảng MLS-11-04 bên dưới (BangThietYeu nghe bấm theo
+            // data-sua-thiet-yeu) và cuộn tới bảng; chưa nạp xong JS thì vẫn nhảy tới bảng.
+            <a href="#bang-thiet-yeu" data-sua-thiet-yeu="" className={buttonClass("secondary", "md", "ml-auto")}>
+              <Pencil className="size-4" />
+              {t("thietYeu.hieuChinh")}
+            </a>
+          )}
         </form>
       </Card>
 
@@ -254,6 +262,7 @@ export default async function ThietYeuPage({
                           <Th className="text-right">{t("thietYeu.cot_toiThieu")}</Th>
                           <Th className="text-right">{t("thietYeu.cot_hienCo")}</Th>
                           <Th className="text-right">{t("thietYeu.cot_canThem")}</Th>
+                          {coQuyen && <Th className="w-10" aria-label={t("thietYeu.suaMucNay")} />}
                         </tr>
                       </thead>
                       <tbody>
@@ -273,6 +282,19 @@ export default async function ThietYeuPage({
                             <Td className="tabular whitespace-nowrap text-right font-semibold text-[var(--text-danger)]">
                               {soIn(can.so)} {can.donVi}
                             </Td>
+                            {coQuyen && (
+                              <Td>
+                                <a
+                                  href={`#muc-${d.id}`}
+                                  data-sua-thiet-yeu={d.id}
+                                  title={t("thietYeu.suaMucNay")}
+                                  aria-label={t("thietYeu.suaMucNay")}
+                                  className="inline-flex rounded p-1 text-[var(--text-brand)] hover:bg-[var(--surface-sunken)]"
+                                >
+                                  <Pencil className="size-4" />
+                                </a>
+                              </Td>
+                            )}
                           </Tr>
                         ))}
                       </tbody>

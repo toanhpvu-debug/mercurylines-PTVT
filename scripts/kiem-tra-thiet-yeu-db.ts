@@ -17,7 +17,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import { moTepWord } from "@/lib/docWord";
 import { docBangThietYeu, ghepHangWord, soTuToiThieu, thangHopLe, type MucThietYeuDoc } from "@/lib/thietYeu";
-import { apDungNhapThietYeu, layBangThietYeu, layLichSuThietYeu, tongQuanDoiThietYeu } from "@/lib/thietYeuServer";
+import { apDungNhapThietYeu, layBangThietYeu, layLichSuThietYeu, luuBangThietYeu, tongQuanDoiThietYeu, type DongHieuChinh } from "@/lib/thietYeuServer";
 
 const prisma = new PrismaClient();
 let dat = 0;
@@ -213,8 +213,98 @@ async function kiemNhapTep() {
   kiemTra("da cuon nguoc (khong con tau tam)", await prisma.vessel.count({ where: { name: "TAU THU MLS-11-04" } }), 0);
 }
 
+/**
+ * Hiệu chỉnh danh mục & số lượng (luuBangThietYeu) trên tàu tạm trong giao dịch: "chỉ lưu danh
+ * mục" đổi tên nhóm / chuyển nhóm / số thứ tự / thứ tự / tối thiểu / vị trí mà KHÔNG tạo số tháng
+ * (vị trí của tháng đã lưu đổi theo); lưu kèm số tháng thì chốt số mọi dòng; tháng cũ không đè số
+ * hiện có mới hơn; id của tàu khác bị bỏ qua; bản trình duyệt cũ không gửi nhóm thì giữ nhóm.
+ */
+async function kiemHieuChinh() {
+  console.log("\n=== Hieu chinh danh muc & so luong (tau tam, cuon nguoc) ===");
+  const A = "A. Phụ tùng cho Máy chính (Spare Parts for Main Engine)";
+  const B = "B. Phụ tùng cho Máy phát (Spare parts for Generator)";
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        const tau = await tx.vessel.create({ data: { code: `THU-HC-${Date.now()}`, name: "TAU THU HIEU CHINH 1104" }, select: { id: true } });
+        const tauKhac = await tx.vessel.create({ data: { code: `THU-HC2-${Date.now()}`, name: "TAU THU HIEU CHINH 1104" }, select: { id: true } });
+        const tao = (vesselId: number, nhom: string, thuTu: number, stt: string, moTa: string, hienCo: number) =>
+          tx.phuTungThietYeu.create({ data: { vesselId, nhom, thuTu, stt, moTa, toiThieu: "2 set", toiThieuSo: 2, viTri: "E/R", hienCo }, select: { id: true } }).then((x) => x.id);
+        const a1 = await tao(tau.id, A, 1, "1", "Main bearing", 1);
+        const a2 = await tao(tau.id, A, 2, "2", "Thrust bearing", 0);
+        const a3 = await tao(tau.id, A, 3, "3", "Exh. valve", 2);
+        const b1 = await tao(tau.id, B, 4, "1", "Cylinder head", 1);
+        const b2 = await tao(tau.id, B, 5, "2", "Fuel pump", 3);
+        const la = await tao(tauKhac.id, A, 1, "1", "Muc tau khac", 7);
+        await tx.phuTungThietYeuThang.create({ data: { itemId: a1, thang: "2026-10", hienCo: 1, viTri: "E/R" } });
+        const dong = (id: number, nhom: string, stt: string, moTa: string, x: { toiThieu?: string; viTri?: string; hienCo?: number | null } = {}): DongHieuChinh => ({
+          id,
+          nhom,
+          stt,
+          moTa,
+          partNo: null,
+          toiThieu: x.toiThieu ?? "2 set",
+          viTri: x.viTri ?? "E/R",
+          tonDau: null,
+          nhan: null,
+          tieuThu: null,
+          hienCo: x.hienCo ?? null,
+        });
+        const A2 = "A. Đổi tên nhóm máy chính";
+        // Bảng sau khi sửa: đổi tên nhóm A, A2 chuyển sang cuối nhóm B (số 3), A3 thành số 2, B đổi
+        // chỗ (số đứng yên ở vị trí), A1 tối thiểu 1 set + vị trí mới, A3 gõ số 5 (không được lưu).
+        const bang = [
+          dong(a1, A2, "1", "Main bearing", { toiThieu: "1 set", viTri: "E/R store", hienCo: 1 }),
+          dong(a3, A2, "2", "Exh. valve", { hienCo: 5 }),
+          dong(b2, B, "1", "Fuel pump", { hienCo: 3 }),
+          dong(b1, B, "2", "Cylinder head", { hienCo: 1 }),
+          dong(a2, B, "3", "Thrust bearing", { hienCo: 0 }),
+          dong(la, A2, "9", "Sua tau khac", { hienCo: 99 }),
+        ];
+        const danhMuc = () =>
+          tx.phuTungThietYeu.findMany({
+            where: { vesselId: tau.id },
+            orderBy: [{ thuTu: "asc" }, { id: "asc" }],
+            select: { id: true, nhom: true, stt: true, toiThieu: true, toiThieuSo: true, viTri: true, hienCo: true },
+          });
+        const nhin = (ds: { id: number; nhom: string; stt: string | null }[]) => ds.map((d) => `${d.nhom.slice(0, 1)}${d.nhom === A2 ? "'" : ""}:${[a1, a2, a3, b1, b2].indexOf(d.id)}#${d.stt}`);
+
+        const k1 = await luuBangThietYeu(tx, { vesselId: tau.id, thang: "2026-10", dong: bang, chiDanhMuc: true, nguoi: "Kiem thu" });
+        kiemTra("chi danh muc: 5 muc (bo id tau khac), 5 doi, 3 doi nhom, doi thu tu, 0 so thang", k1, { soMuc: 5, doiDanhMuc: 5, doiNhom: 3, doiThuTu: true, soThang: 0 });
+        const ds1 = await danhMuc();
+        kiemTra("chi danh muc: thu tu + nhom + so thu tu dung nhu bang", nhin(ds1), ["A':0#1", "A':2#2", "B:4#1", "B:3#2", "B:1#3"]);
+        kiemTra("chi danh muc: toi thieu 1 set (so quy doi 1), vi tri moi", [ds1[0].toiThieu, ds1[0].toiThieuSo, ds1[0].viTri], ["1 set", 1, "E/R store"]);
+        kiemTra("chi danh muc: khong tao so thang, khong doi hien co", [await tx.phuTungThietYeuThang.count({ where: { item: { vesselId: tau.id } } }), ds1[1].hienCo], [1, 2]);
+        kiemTra("chi danh muc: vi tri cua thang da luu doi theo", (await tx.phuTungThietYeuThang.findUnique({ where: { itemId_thang: { itemId: a1, thang: "2026-10" } } }))?.viTri, "E/R store");
+        kiemTra("muc cua tau khac khong bi dong toi", await tx.phuTungThietYeu.findUnique({ where: { id: la }, select: { nhom: true, stt: true, hienCo: true } }), { nhom: A, stt: "1", hienCo: 7 });
+
+        const k2 = await luuBangThietYeu(tx, { vesselId: tau.id, thang: "2026-10", dong: bang, chiDanhMuc: false, nguoi: "Kiem thu" });
+        kiemTra("luu kem so thang: khong doi danh muc nua, chot so 5 muc", k2, { soMuc: 5, doiDanhMuc: 0, doiNhom: 0, doiThuTu: false, soThang: 5 });
+        kiemTra("luu kem so thang: hien co cua muc theo so moi (A3 = 5)", (await danhMuc()).find((d) => d.id === a3)?.hienCo, 5);
+
+        await tx.phuTungThietYeuThang.create({ data: { itemId: a3, thang: "2026-11", hienCo: 4 } });
+        await luuBangThietYeu(tx, { vesselId: tau.id, thang: "2026-10", dong: [dong(a3, A2, "2", "Exh. valve", { hienCo: 8 })], chiDanhMuc: false, nguoi: "Kiem thu" });
+        kiemTra("thang cu: ghi so thang 10, khong de hien co (da co thang 11)", [(await tx.phuTungThietYeuThang.findUnique({ where: { itemId_thang: { itemId: a3, thang: "2026-10" } } }))?.hienCo, (await danhMuc()).find((d) => d.id === a3)?.hienCo], [8, 5]);
+        kiemTra("chi gui mot dong: muc khong gui giu nguyen thu tu sau no", nhin(await danhMuc()), ["A':2#2", "A':0#1", "B:4#1", "B:3#2", "B:1#3"]);
+
+        const cu = dong(b1, B, "2", "Cylinder head (sua)");
+        delete cu.nhom;
+        delete cu.stt;
+        await luuBangThietYeu(tx, { vesselId: tau.id, thang: "2026-10", dong: [cu], chiDanhMuc: true, nguoi: "Kiem thu" });
+        kiemTra("ban trinh duyet cu (khong gui nhom / so thu tu): giu nhom, doi mo ta", await tx.phuTungThietYeu.findUnique({ where: { id: b1 }, select: { nhom: true, stt: true, moTa: true } }), { nhom: B, stt: "2", moTa: "Cylinder head (sua)" });
+        throw new CuonNguoc();
+      },
+      { timeout: 120_000, maxWait: 20_000 }
+    );
+  } catch (e) {
+    if (!(e instanceof CuonNguoc)) throw e;
+  }
+  kiemTra("da cuon nguoc (khong con tau tam hieu chinh)", await prisma.vessel.count({ where: { name: "TAU THU HIEU CHINH 1104" } }), 0);
+}
+
 main()
   .then(kiemNhapTep)
+  .then(kiemHieuChinh)
   .catch((e) => {
     truot++;
     console.error(e);

@@ -11,7 +11,7 @@ import { fileExtension } from "@/lib/uploads";
 import { laBanTau } from "@/lib/banCai";
 import { cungTauTep, doiChieuThietYeu, gomNhom, laThieu, soTuToiThieu, thangHopLe, thangTuongLai, type KetQuaDocMLS1104, type MucThietYeuDoc } from "@/lib/thietYeu";
 import { DUOI_TEP_THIET_YEU, docTepThietYeu } from "@/lib/thietYeuTep";
-import { apDungNhapThietYeu, type CheDoNhapThietYeu } from "@/lib/thietYeuServer";
+import { apDungNhapThietYeu, luuBangThietYeu, type CheDoNhapThietYeu, type DongHieuChinh } from "@/lib/thietYeuServer";
 
 /*
  * PHỤ TÙNG THIẾT YẾU (MLS-11-04) — quản lý RIÊNG, tách khỏi danh mục vật tư
@@ -186,6 +186,9 @@ export async function nhapThietYeuTuTep(_prev: KetQuaThietYeu, formData: FormDat
 
 export type DongLuuThang = {
   id: number;
+  /** Nhóm như in trên mẫu ("A. Phụ tùng cho Máy chính …") — đổi tên nhóm / chuyển nhóm. */
+  nhom: string;
+  stt: string;
   moTa: string;
   partNo: string;
   toiThieu: string;
@@ -204,74 +207,81 @@ const soHoacNull = (s: string) => {
 };
 
 /**
- * Lưu số kiểm tra tháng (và các chỉnh sửa mô tả / số phụ tùng / tối thiểu / vị
- * trí) của cả bảng. Số hiện có của tháng mới nhất đã lưu thành hienCo của mục —
- * Dashboard và tháng sau dựa vào đó.
+ * Lưu bảng HIỆU CHỈNH DANH MỤC & SỐ LƯỢNG (lib/thietYeuServer.ts luuBangThietYeu): danh mục —
+ * nhóm (đổi tên / chuyển nhóm), số thứ tự, thứ tự dòng như trên bảng, mô tả, số phụ tùng, tối
+ * thiểu, vị trí — và số kiểm tra của tháng (chốt báo cáo tháng). `chiDanhMuc`: chỉ lưu danh mục,
+ * không chốt số tháng. Số hiện có của tháng mới nhất đã lưu thành hienCo của mục — Dashboard và
+ * tháng sau dựa vào đó.
  */
-export async function luuThangThietYeu(vesselIdRaw: number, thangRaw: string, dong: DongLuuThang[]): Promise<KetQuaThietYeu> {
+export async function luuThangThietYeu(
+  vesselIdRaw: number,
+  thangRaw: string,
+  dong: DongLuuThang[],
+  tuyChon?: { chiDanhMuc?: boolean }
+): Promise<KetQuaThietYeu> {
   const { t } = await layT();
   const actor = await requireActiveRole([...LAM_BAO_CAO_THIET_YEU]);
   const vesselId = Number(vesselIdRaw);
   if (!actor || !Number.isInteger(vesselId) || !coQuanLyThietYeu(actor, vesselId)) return { message: t("chung.khongCoQuyen") };
   const thang = thangHopLe(thangRaw);
   if (thang !== thangRaw) return { message: t("chung.duLieuKhongHopLe") };
+  const chiDanhMuc = tuyChon?.chiDanhMuc === true;
   const ds = Array.isArray(dong) ? dong.slice(0, TOI_DA_MUC) : [];
-  const muc = await prisma.phuTungThietYeu.findMany({ where: { vesselId, id: { in: ds.map((d) => Number(d.id)) } }, select: { id: true } });
+  const muc = await prisma.phuTungThietYeu.findMany({ where: { vesselId, id: { in: ds.map((d) => Number(d.id)).filter(Number.isInteger) } }, select: { id: true } });
   const hopLe = new Set(muc.map((m) => m.id));
-  const sach: { id: number; moTa: string; partNo: string | null; toiThieu: string | null; tonDau: number | null; nhan: number | null; tieuThu: number | null; hienCo: number | null; viTri: string | null }[] = [];
+  const chu = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
+  const sach: DongHieuChinh[] = [];
   for (let i = 0; i < ds.length; i++) {
     const d = ds[i];
     if (!hopLe.has(Number(d.id))) continue;
-    const so = [soHoacNull(d.tonDau), soHoacNull(d.nhan), soHoacNull(d.tieuThu), soHoacNull(d.hienCo)];
-    if (so.some((x) => Number.isNaN(x))) return { message: t("thietYeu.soSai", { n: i + 1 }) };
-    const moTa = String(d.moTa ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
+    const so = [soHoacNull(d.tonDau), soHoacNull(d.nhan), soHoacNull(d.tieuThu), soHoacNull(d.hienCo)].map((x) => (chiDanhMuc && Number.isNaN(x) ? null : x));
+    // Chỉ lưu danh mục thì số tháng không ghi — ô số gõ dở không chặn việc lưu.
+    if (!chiDanhMuc && so.some((x) => Number.isNaN(x))) return { message: t("thietYeu.soSai", { n: i + 1 }) };
+    const moTa = chu(d.moTa, 300);
     if (moTa.length < 2) return { message: t("thietYeu.thieuMoTa", { n: i + 1 }) };
+    // Bản trình duyệt cũ (trước khi có cột nhóm / số thứ tự) không gửi hai ô này → giữ nguyên.
+    const nhom = d.nhom === undefined ? undefined : chu(d.nhom, 200);
+    if (nhom === "") return { message: t("thietYeu.thieuNhom", { n: i + 1 }) };
     sach.push({
       id: Number(d.id),
+      nhom,
+      stt: d.stt === undefined ? undefined : chu(d.stt, 12) || null,
       moTa,
-      partNo: String(d.partNo ?? "").trim().slice(0, 80) || null,
-      toiThieu: String(d.toiThieu ?? "").trim().slice(0, 60) || null,
+      partNo: chu(d.partNo, 80) || null,
+      toiThieu: chu(d.toiThieu, 60) || null,
       tonDau: so[0],
       nhan: so[1],
       tieuThu: so[2],
       hienCo: so[3],
-      viTri: String(d.viTri ?? "").trim().slice(0, 120) || null,
+      viTri: chu(d.viTri, 120) || null,
     });
   }
-  // Tháng này có phải tháng mới nhất đã / đang lưu không — chỉ khi đó mới đè hienCo của mục.
-  const moiNhat = await prisma.phuTungThietYeuThang.findFirst({
-    where: { item: { vesselId }, thang: { gt: thang } },
-    select: { id: true },
+  const kq = await prisma.$transaction((tx) => luuBangThietYeu(tx, { vesselId, thang, dong: sach, chiDanhMuc, nguoi: actor.name }), {
+    timeout: 60_000,
+    maxWait: 10_000,
   });
-  await prisma.$transaction(async (tx) => {
-    for (const d of sach) {
-      await tx.phuTungThietYeu.update({
-        where: { id: d.id },
-        data: {
-          moTa: d.moTa,
-          partNo: d.partNo,
-          toiThieu: d.toiThieu,
-          toiThieuSo: soTuToiThieu(d.toiThieu),
-          viTri: d.viTri,
-          ...(moiNhat ? {} : { hienCo: d.hienCo }),
-        },
-      });
-      await tx.phuTungThietYeuThang.upsert({
-        where: { itemId_thang: { itemId: d.id, thang } },
-        update: { tonDau: d.tonDau, nhan: d.nhan, tieuThu: d.tieuThu, hienCo: d.hienCo, viTri: d.viTri, nguoiLuu: actor.name },
-        create: { itemId: d.id, thang, tonDau: d.tonDau, nhan: d.nhan, tieuThu: d.tieuThu, hienCo: d.hienCo, viTri: d.viTri, nguoiLuu: actor.name },
-      });
-    }
-  });
+  const chiTiet = [
+    `${kq.doiDanhMuc} mục sửa danh mục${kq.doiNhom ? ` (${kq.doiNhom} đổi nhóm)` : ""}`,
+    kq.doiThuTu ? "đổi thứ tự dòng" : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
   await ghiNhatKyNguoiDung(actor, {
-    action: "thiet-yeu-luu-thang",
+    action: chiDanhMuc ? "thiet-yeu-sua-danh-muc" : "thiet-yeu-luu-thang",
     path: "/materials/thiet-yeu",
     vesselId,
-    detail: `Lưu báo cáo phụ tùng thiết yếu tháng ${thang}: ${sach.length} mục`,
+    detail: chiDanhMuc
+      ? `Hiệu chỉnh danh mục phụ tùng thiết yếu (không chốt số tháng): ${chiTiet}`
+      : `Lưu báo cáo phụ tùng thiết yếu tháng ${thang}: ${kq.soThang} mục; ${chiTiet}`,
   });
   revalidatePath("/materials/thiet-yeu");
   revalidatePath("/dashboard");
-  return { message: t("thietYeu.daLuuThang", { n: sach.length, thang }), success: true };
+  return {
+    message: chiDanhMuc
+      ? t("thietYeu.daLuuDanhMuc", { n: kq.doiDanhMuc, thuTu: kq.doiThuTu ? t("thietYeu.daLuuDanhMucThuTu") : "" })
+      : t("thietYeu.daLuuThang", { n: kq.soThang, thang }),
+    success: true,
+  };
 }
 
 /** Thêm một mục vào danh mục thiết yếu của tàu (nhóm có sẵn hoặc nhóm mới). */

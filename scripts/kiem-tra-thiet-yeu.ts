@@ -24,9 +24,13 @@ import {
   congThang,
   cungTauTep,
   docBangThietYeu,
+  chuyenNhomDong,
   docHangMLS1104,
   doiChieuThietYeu,
+  doiChoDong,
+  doiTenNhomDong,
   dongInTu,
+  ghepDongMoi,
   ghepHangWord,
   gomNhom,
   laThieu,
@@ -351,6 +355,36 @@ const hangSua = raSua.match(/<w:tbl>[\s\S]*?<\/w:tbl>/)![0].match(/<w:tr\b[\s\S]
 kiemTra("ban sua: tieu de + 2 nhom + 2 dong + 1 trong", hangSua.length, 6);
 kiemTra("ban sua: o da sua vao Word", oCua(hangSua[2]).slice(1, 8).map((c) => c.trim()), ["Cylinder cover &lt;sua&gt;", "", "01 set", "2", "", "", "3"]);
 kiemTra("ban sua: ten tau / ngay sua tay", chuCua(raSua).includes("M. ODYSSEY (sua)") && chuCua(raSua).includes("01/10/2026"), true);
+
+// ─── 3c) Hiệu chỉnh danh mục trên bảng: đổi chỗ, chuyển nhóm, đổi tên nhóm, ghép ──
+console.log("\n=== 3c) Hieu chinh danh muc tren bang ===");
+{
+  const A = "A. Phụ tùng cho Máy chính";
+  const B = "B. Phụ tùng cho Máy phát";
+  const r = (id: string, nhom: string, stt: string) => ({ id, nhom, stt, moTa: `muc ${id}` });
+  const bang = [r("1", A, "1"), r("2", A, "2"), r("3", A, "3"), r("4", B, "1"), r("5", B, "2")];
+  const nhin = (ds: { id: string; nhom: string; stt: string }[]) => gomNhom(ds).map((g) => `${g.nhom.slice(0, 1)}:${g.dong.map((d) => `${d.id}#${d.stt}`).join(",")}`);
+
+  kiemTra("doi cho: A3 len tren — so thu tu dung yen o vi tri", nhin(doiChoDong(bang, "3", -1)), ["A:1#1,3#2,2#3", "B:4#1,5#2"]);
+  kiemTra("doi cho: dau nhom len / cuoi nhom xuong giu nguyen", [nhin(doiChoDong(bang, "1", -1)), nhin(doiChoDong(bang, "3", 1))], [nhin(bang), nhin(bang)]);
+  kiemTra("doi cho: khong vuot sang nhom khac (B1 len tren)", nhin(doiChoDong(bang, "4", -1)), nhin(bang));
+  kiemTra("doi cho: id la → giu nguyen, khong sua mang goc", [nhin(doiChoDong(bang, "x", 1)), bang[2].id], [nhin(bang), "3"]);
+
+  const chuyen = chuyenNhomDong(bang, "2", B);
+  kiemTra("chuyen nhom: A2 → cuoi nhom B, so tiep 3; nhom A danh lai 1, 2", nhin(chuyen), ["A:1#1,3#2", "B:4#1,5#2,2#3"]);
+  kiemTra("chuyen nhom: dong chuyen mang ten nhom moi, giu mo ta", chuyen.find((d) => d.id === "2"), { id: "2", nhom: B, stt: "3", moTa: "muc 2" });
+  const tuDat = [r("1", A, "1a"), r("2", A, "1b"), r("3", B, "1")];
+  kiemTra("chuyen nhom: so tu dat (1a, 1b) thi giu, khong danh lai", nhin(chuyenNhomDong(tuDat, "1", B)), ["A:2#1b", "B:3#1,1#2"]);
+  kiemTra("chuyen nhom: sang nhom dang o / nhom rong → giu nguyen", [nhin(chuyenNhomDong(bang, "1", A)), nhin(chuyenNhomDong(bang, "1", ""))], [nhin(bang), nhin(bang)]);
+  kiemTra("chuyen nhom: dong cuoi cung cua nhom → nhom bien mat", nhin(chuyenNhomDong([r("1", A, "1"), r("2", B, "1")], "1", B)), ["B:2#1,1#2"]);
+
+  kiemTra("doi ten nhom: moi dong cua nhom, nhom khac giu", nhin(doiTenNhomDong(bang, A, "C. Đổi tên")), ["C:1#1,2#2,3#3", "B:4#1,5#2"]);
+
+  const dangSua = [r("3", A, "1"), r("1", A, "2"), r("4", B, "1")]; // đã đổi chỗ, chưa lưu; mục 2 vừa bị xóa trên máy chủ
+  const mayChu = [r("1", A, "1"), r("3", A, "3"), r("4", B, "1"), r("6", A, "4")]; // máy chủ vừa thêm mục 6 vào nhóm A
+  kiemTra("ghep: giu thu tu dang sua, bo muc da xoa, muc moi vao cuoi nhom", nhin(ghepDongMoi(dangSua, mayChu)), ["A:3#1,1#2,6#4", "B:4#1"]);
+  kiemTra("ghep: muc moi thuoc nhom moi → cuoi bang", nhin(ghepDongMoi(dangSua, [...mayChu, r("7", "D. Mới", "1")])), ["A:3#1,1#2,6#4", "B:4#1", "D:7#1"]);
+}
 
 // ─── 4) Tệp MLS-11-04 thật trên Desktop (nếu có) ───────────────────────────
 // Đọc đúng đường app đọc (lib/docWord.ts + ghepHangWord). Thư mục thêm: biến môi trường

@@ -23,8 +23,8 @@ export const thietYeu = tuDien(
     nguon_KHO: "Từ kho",
     nguon_UOC: "Ước tính",
     nguonGiaiThich:
-      "Đã lưu = số tàu đã lưu cho tháng này. Từ kho = mục gắn với mặt hàng trong danh mục kho, số tính từ phiếu nhập / xuất trong tháng. Ước tính = chưa lưu: ban đầu lấy số hiện có của tháng trước, nhận / tiêu thụ để trống. Bấm \"Sửa số tháng\" rồi \"Lưu\" để chốt số.",
-    thangChuaLuu: "Tháng {thang} chưa lưu — số trên bảng là số gợi ý, bấm \"Sửa số tháng\" để điền và lưu.",
+      "Đã lưu = số tàu đã lưu cho tháng này. Từ kho = mục gắn với mặt hàng trong danh mục kho, số tính từ phiếu nhập / xuất trong tháng. Ước tính = chưa lưu: ban đầu lấy số hiện có của tháng trước, nhận / tiêu thụ để trống. Bấm \"Hiệu chỉnh danh mục & số lượng\" rồi \"Lưu danh mục & số tháng\" để chốt số.",
+    thangChuaLuu: "Tháng {thang} chưa lưu — số trên bảng là số gợi ý, bấm \"Hiệu chỉnh danh mục & số lượng\" để điền và lưu.",
     thangDaLuu: "Đã lưu tháng {thang}.",
     nhapTieuDe: "Nhập danh mục từ tệp MLS-11-04 có sẵn",
     nhapMoTa:
@@ -34,13 +34,27 @@ export const thietYeu = tuDien(
     nhapLai: "Nhập tệp MLS-11-04 (báo cáo tháng của tàu / danh mục sửa đổi)",
     khongThayMuc:
       "Không tìm thấy mục nào trong tệp. Tệp cần có bảng phụ tùng thiết yếu với dòng tiêu đề cột (Mô tả / Description, Tối thiểu / Minimum, Hiện có / Remain onboard…) như mẫu MLS-11-04, mỗi mục một số thứ tự, và các dòng nhóm \"A. …\", \"B. …\".",
-    suaSo: "Sửa số tháng",
-    luuThang: "Lưu tháng {thang}",
+    hieuChinh: "Hiệu chỉnh danh mục & số lượng",
+    suaMucNay: "Hiệu chỉnh mục này",
+    luuThang: "Lưu danh mục & số tháng {thang}",
+    chiLuuDanhMuc: "Chỉ lưu danh mục",
+    chiLuuDanhMucGoiY:
+      "Lưu nhóm, số thứ tự, thứ tự dòng, mô tả, số phụ tùng, tối thiểu, vị trí — KHÔNG chốt số của tháng (báo cáo tháng giữ nguyên).",
+    xacNhanChiDanhMuc:
+      "Số đã gõ ở {n} mục sẽ KHÔNG được lưu (chỉ lưu danh mục). Muốn giữ số thì bấm \"Lưu danh mục & số tháng\". Vẫn chỉ lưu danh mục?",
+    daLuuDanhMuc: "Đã lưu danh mục: {n} mục được sửa{thuTu}. Số các tháng giữ nguyên.",
+    daLuuDanhMucThuTu: ", đổi thứ tự dòng",
+    thieuNhom: "Dòng {n}: tên nhóm không được để trống.",
+    themMucNhom: "Mục",
+    lenTren: "Đưa lên",
+    xuongDuoi: "Đưa xuống",
+    chuyenNhom: "Chuyển mục này sang nhóm khác",
+    chuyenNhomNgan: "Nhóm…",
     dangLuu: "Đang lưu...",
     huySua: "Hủy sửa",
     xacNhanHuy: "Bỏ các thay đổi chưa lưu?",
     goiYSua:
-      "Gõ thẳng vào ô. Đổi Ban đầu / Nhận / Tiêu thụ thì Hiện có tự tính lại (vẫn sửa tay được). Mô tả, số phụ tùng, tối thiểu, vị trí sửa ở đây cũng được lưu vào danh mục.",
+      "Gõ thẳng vào ô: số thứ tự, mô tả, số phụ tùng, tối thiểu, số của tháng, vị trí; tên nhóm sửa ở dòng nhóm (đổi cho mọi mục của nhóm). ↑ ↓ đổi thứ tự trong nhóm, ô \"Nhóm…\" chuyển mục sang nhóm khác, \"+ Mục\" thêm mục vào nhóm. Đổi Ban đầu / Nhận / Tiêu thụ thì Hiện có tự tính lại (vẫn sửa tay được). \"Lưu danh mục & số tháng\" chốt cả báo cáo tháng; \"Chỉ lưu danh mục\" không đụng số các tháng.",
     soSai: "Dòng {n}: số phải là số không âm (bỏ trống nếu chưa có).",
     thieuMoTa: "Dòng {n}: mô tả không được để trống.",
     daLuuThang: "Đã lưu {n} mục cho tháng {thang}.",
@@ -184,8 +198,8 @@ export const thietYeu = tuDien(
     nguon_KHO: "From stock",
     nguon_UOC: "Estimated",
     nguonGiaiThich:
-      "Saved = figures the vessel saved for this month. From stock = item linked to a catalogue material, figures computed from this month's receipts / issues. Estimated = not saved yet: begin stock taken from last month's remaining, received / consumed left blank. Click \"Edit monthly figures\" then \"Save\" to lock them in.",
-    thangChuaLuu: "Month {thang} is not saved — the figures shown are suggestions; click \"Edit monthly figures\" to fill in and save.",
+      "Saved = figures the vessel saved for this month. From stock = item linked to a catalogue material, figures computed from this month's receipts / issues. Estimated = not saved yet: begin stock taken from last month's remaining, received / consumed left blank. Click \"Edit list & quantities\" then \"Save list & figures\" to lock them in.",
+    thangChuaLuu: "Month {thang} is not saved — the figures shown are suggestions; click \"Edit list & quantities\" to fill in and save.",
     thangDaLuu: "Month {thang} saved.",
     nhapTieuDe: "Import the list from an existing MLS-11-04 file",
     nhapMoTa:
@@ -195,13 +209,27 @@ export const thietYeu = tuDien(
     nhapLai: "Import an MLS-11-04 file (vessel's monthly report / revised list)",
     khongThayMuc:
       "No items found in the file. It needs an essential spare parts table with a column header row (Description, Minimum, Remain onboard…) as in the MLS-11-04 template, a number for each item, and group rows \"A. …\", \"B. …\".",
-    suaSo: "Edit monthly figures",
-    luuThang: "Save {thang}",
+    hieuChinh: "Edit list & quantities",
+    suaMucNay: "Edit this item",
+    luuThang: "Save list & {thang} figures",
+    chiLuuDanhMuc: "Save list only",
+    chiLuuDanhMucGoiY:
+      "Save groups, item numbers, row order, descriptions, part numbers, minimums and locations — WITHOUT locking this month's figures (the monthly report stays as it is).",
+    xacNhanChiDanhMuc:
+      "Figures typed for {n} items will NOT be saved (list only). To keep them, use \"Save list & figures\". Save the list only?",
+    daLuuDanhMuc: "List saved: {n} items changed{thuTu}. Monthly figures unchanged.",
+    daLuuDanhMucThuTu: ", row order changed",
+    thieuNhom: "Row {n}: the group name cannot be empty.",
+    themMucNhom: "Item",
+    lenTren: "Move up",
+    xuongDuoi: "Move down",
+    chuyenNhom: "Move this item to another group",
+    chuyenNhomNgan: "Group…",
     dangLuu: "Saving...",
     huySua: "Cancel editing",
     xacNhanHuy: "Discard unsaved changes?",
     goiYSua:
-      "Type straight into the cells. Changing Begin / Received / Consumed recalculates Remaining (you can still override it). Description, part no., minimum and location edited here are saved to the list too.",
+      "Type straight into the cells: item no., description, part no., minimum, the month's figures, location; edit a group name on its group row (applies to every item of the group). ↑ ↓ reorder within a group, the \"Group…\" box moves an item to another group, \"+ Item\" adds an item to the group. Changing Begin / Received / Consumed recalculates Remaining (you can still override it). \"Save list & figures\" also locks the monthly report; \"Save list only\" leaves every month's figures untouched.",
     soSai: "Row {n}: figures must be non-negative numbers (leave blank if unknown).",
     thieuMoTa: "Row {n}: the description cannot be empty.",
     daLuuThang: "Saved {n} items for {thang}.",

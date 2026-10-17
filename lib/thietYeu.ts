@@ -608,6 +608,74 @@ export function laThieuIn(d: Pick<DongIn, "toiThieu" | "hienCo">): boolean {
   return laThieu({ toiThieuSo: soTuToiThieu(d.toiThieu), hienCo: soTrongO(d.hienCo) });
 }
 
+// ─── Hiệu chỉnh danh mục ngay trên bảng (chế độ "Hiệu chỉnh danh mục & số lượng") ───
+//
+// Bảng hiển thị gom dòng theo nhóm (gomNhom: nhóm theo lần xuất hiện đầu, trong nhóm theo thứ
+// tự mảng) — nên đổi chỗ / chuyển nhóm chỉ là sắp lại mảng; lưu thì thứ tự mảng thành thuTu.
+
+type DongSapXep = { id: string; nhom: string; stt: string };
+
+/** Số thứ tự của nhóm đang là dãy 1, 2, 3… liền nhau theo thứ tự dòng. */
+function sttLienNhau(stt: readonly string[]): boolean {
+  return stt.length > 0 && stt.every((s, i) => /^\d+$/.test(s.trim()) && Number(s.trim()) === i + 1);
+}
+
+/**
+ * Đổi chỗ một dòng với dòng kề trên (-1) / dưới (+1) CÙNG NHÓM. Số thứ tự đứng yên ở vị trí
+ * (dòng lên trên nhận số của chỗ mới) — bản in vẫn đọc 1, 2, 3… Đầu / cuối nhóm thì giữ nguyên.
+ */
+export function doiChoDong<T extends DongSapXep>(ds: readonly T[], id: string, huong: -1 | 1): T[] {
+  const i = ds.findIndex((d) => d.id === id);
+  if (i < 0) return [...ds];
+  let j = i + huong;
+  while (j >= 0 && j < ds.length && ds[j].nhom !== ds[i].nhom) j += huong;
+  if (j < 0 || j >= ds.length) return [...ds];
+  const ra = [...ds];
+  ra[i] = { ...ds[j], stt: ds[i].stt };
+  ra[j] = { ...ds[i], stt: ds[j].stt };
+  return ra;
+}
+
+/**
+ * Chuyển một dòng sang nhóm khác: đứng cuối nhóm mới, số thứ tự tiếp sau số lớn nhất của nhóm
+ * đó; nhóm cũ đang đánh số 1, 2, 3… liền nhau thì đánh lại cho liền (số tự đặt khác thì giữ).
+ */
+export function chuyenNhomDong<T extends DongSapXep>(ds: readonly T[], id: string, nhomMoi: string): T[] {
+  const i = ds.findIndex((d) => d.id === id);
+  if (i < 0 || !nhomMoi || ds[i].nhom === nhomMoi) return [...ds];
+  const nhomCu = ds[i].nhom;
+  const danhLai = sttLienNhau(ds.filter((d) => d.nhom === nhomCu).map((d) => d.stt));
+  const conLai = ds.filter((_, k) => k !== i);
+  const sttMoi = String(Math.max(0, ...conLai.filter((d) => d.nhom === nhomMoi).map((d) => Number(d.stt.trim()) || 0)) + 1);
+  const cuoi = conLai.map((d) => d.nhom).lastIndexOf(nhomMoi);
+  const ra = [...conLai];
+  ra.splice(cuoi < 0 ? ra.length : cuoi + 1, 0, { ...ds[i], nhom: nhomMoi, stt: sttMoi });
+  if (!danhLai) return ra;
+  let n = 0;
+  return ra.map((d) => (d.nhom === nhomCu ? { ...d, stt: String(++n) } : d));
+}
+
+/** Đổi tên một nhóm: mọi dòng mang tên cũ nhận tên mới. */
+export function doiTenNhomDong<T extends { nhom: string }>(ds: readonly T[], cu: string, moi: string): T[] {
+  return ds.map((d) => (d.nhom === cu ? { ...d, nhom: moi } : d));
+}
+
+/**
+ * Bảng đang hiệu chỉnh nhận danh sách mới từ máy chủ (vừa thêm / xóa mục): giữ thứ tự và chữ
+ * đang sửa của các dòng cũ, bỏ dòng đã xóa, chèn dòng mới vào cuối nhóm của nó.
+ */
+export function ghepDongMoi<T extends { id: string; nhom: string }>(dangSua: readonly T[], tuMayChu: readonly T[]): T[] {
+  const coTrenMay = new Set(tuMayChu.map((d) => d.id));
+  const ra = dangSua.filter((d) => coTrenMay.has(d.id));
+  const daCo = new Set(ra.map((d) => d.id));
+  for (const g of tuMayChu) {
+    if (daCo.has(g.id)) continue;
+    const cuoi = ra.map((d) => d.nhom).lastIndexOf(g.nhom);
+    ra.splice(cuoi < 0 ? ra.length : cuoi + 1, 0, g);
+  }
+  return ra;
+}
+
 export const TOI_DA_DONG_IN = 600;
 
 /**

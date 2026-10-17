@@ -191,6 +191,103 @@ export async function apDungNhapThietYeu(
   return { taoMoi, capNhat, xoa, soThang };
 }
 
+// ─── Hiệu chỉnh danh mục & số lượng trên trang ──────────────────────────────
+
+/** Một dòng của bảng hiệu chỉnh, đã kiểm ở action. `nhom` / `stt` không gửi (bản trình duyệt cũ) = giữ nguyên. */
+export type DongHieuChinh = {
+  id: number;
+  nhom?: string;
+  stt?: string | null;
+  moTa: string;
+  partNo: string | null;
+  toiThieu: string | null;
+  viTri: string | null;
+  tonDau: number | null;
+  nhan: number | null;
+  tieuThu: number | null;
+  hienCo: number | null;
+};
+
+export type KetQuaHieuChinh = {
+  /** Số dòng hợp lệ đã xử lý. */
+  soMuc: number;
+  /** Số mục đổi chữ danh mục (nhóm, số thứ tự, mô tả, số phụ tùng, tối thiểu, vị trí). */
+  doiDanhMuc: number;
+  /** Trong đó: số mục đổi nhóm (đổi tên nhóm / chuyển nhóm). */
+  doiNhom: number;
+  /** Thứ tự dòng có đổi không. */
+  doiThuTu: boolean;
+  /** Số mục đã ghi số tháng `thang` (0 khi chỉ lưu danh mục). */
+  soThang: number;
+};
+
+/**
+ * Lưu bảng HIỆU CHỈNH DANH MỤC & SỐ LƯỢNG của một tàu (trang /materials/thiet-yeu), trong giao dịch
+ * của nơi gọi:
+ *   - danh mục (mọi lần lưu): nhóm — đổi tên nhóm / chuyển nhóm, số thứ tự, THỨ TỰ DÒNG đúng như
+ *     gửi lên, mô tả, số phụ tùng, tối thiểu (kèm số quy đổi), vị trí. Mục của tàu không có trong
+ *     danh sách (vừa thêm ở máy khác…) giữ nguyên, xếp sau;
+ *   - số tháng `thang` (ban đầu / nhận / tiêu thụ / hiện có / vị trí) của MỌI dòng gửi lên = chốt báo
+ *     cáo tháng — trừ khi `chiDanhMuc`: khi đó không tạo số tháng, chỉ đổi vị trí của số tháng đã
+ *     lưu (bảng hiện vị trí của tháng đã lưu). Số hiện có của mục (Dashboard, tháng sau dựa vào)
+ *     chỉ đổi khi chốt số và `thang` không cũ hơn tháng mới nhất đã có số.
+ */
+export async function luuBangThietYeu(
+  db: Prisma.TransactionClient,
+  x: { vesselId: number; thang: string; dong: DongHieuChinh[]; chiDanhMuc: boolean; nguoi: string }
+): Promise<KetQuaHieuChinh> {
+  const cu = await db.phuTungThietYeu.findMany({
+    where: { vesselId: x.vesselId },
+    orderBy: [{ thuTu: "asc" }, { id: "asc" }],
+    select: { id: true, nhom: true, thuTu: true, stt: true, moTa: true, partNo: true, toiThieu: true, viTri: true, hienCo: true },
+  });
+  const cuTheoId = new Map(cu.map((m) => [m.id, m]));
+  // Chỉ mục của đúng tàu này, mỗi mục một lần (lần đầu xuất hiện).
+  const theoId = new Map<number, DongHieuChinh>();
+  for (const d of x.dong) if (cuTheoId.has(d.id) && !theoId.has(d.id)) theoId.set(d.id, d);
+  const dong = [...theoId.values()];
+  const thuTuMoi = [...dong.map((d) => d.id), ...cu.filter((m) => !theoId.has(m.id)).map((m) => m.id)];
+  const doiThuTu = thuTuMoi.some((id, i) => id !== cu[i].id);
+  const coThangSau = x.chiDanhMuc
+    ? null
+    : await db.phuTungThietYeuThang.findFirst({ where: { item: { vesselId: x.vesselId }, thang: { gt: x.thang } }, select: { id: true } });
+  // Chỉ lưu danh mục: vị trí đang hiện của mục đã lưu số tháng này là vị trí của số tháng đó.
+  const viTriThang = x.chiDanhMuc
+    ? new Map((await db.phuTungThietYeuThang.findMany({ where: { item: { vesselId: x.vesselId }, thang: x.thang }, select: { itemId: true, viTri: true } })).map((r) => [r.itemId, r.viTri]))
+    : null;
+  let doiDanhMuc = 0;
+  let doiNhom = 0;
+  let soThang = 0;
+  for (let i = 0; i < thuTuMoi.length; i++) {
+    const m = cuTheoId.get(thuTuMoi[i])!;
+    const d = theoId.get(m.id);
+    const data: Prisma.PhuTungThietYeuUpdateInput = {};
+    if (doiThuTu && m.thuTu !== i + 1) data.thuTu = i + 1;
+    if (d) {
+      const moi = { nhom: d.nhom ?? m.nhom, stt: d.stt === undefined ? m.stt : d.stt, moTa: d.moTa, partNo: d.partNo, toiThieu: d.toiThieu, viTri: d.viTri };
+      const khac = (Object.keys(moi) as (keyof typeof moi)[]).filter((k) => (moi[k] ?? null) !== (m[k] ?? null));
+      if (khac.length) {
+        doiDanhMuc++;
+        if (khac.includes("nhom")) doiNhom++;
+        Object.assign(data, moi, { toiThieuSo: soTuToiThieu(moi.toiThieu) });
+      }
+      if (!x.chiDanhMuc && !coThangSau && d.hienCo !== m.hienCo) data.hienCo = d.hienCo;
+    }
+    if (Object.keys(data).length) await db.phuTungThietYeu.update({ where: { id: m.id }, data });
+    if (!d) continue;
+    if (viTriThang) {
+      if (viTriThang.has(m.id) && (viTriThang.get(m.id) ?? null) !== (d.viTri ?? null)) {
+        await db.phuTungThietYeuThang.update({ where: { itemId_thang: { itemId: m.id, thang: x.thang } }, data: { viTri: d.viTri } });
+      }
+      continue;
+    }
+    const so = { tonDau: d.tonDau, nhan: d.nhan, tieuThu: d.tieuThu, hienCo: d.hienCo, viTri: d.viTri, nguoiLuu: x.nguoi };
+    await db.phuTungThietYeuThang.upsert({ where: { itemId_thang: { itemId: m.id, thang: x.thang } }, update: so, create: { itemId: m.id, thang: x.thang, ...so } });
+    soThang++;
+  }
+  return { soMuc: dong.length, doiDanhMuc, doiNhom, doiThuTu, soThang };
+}
+
 // ─── Theo dõi nhiều tháng ───────────────────────────────────────────────────
 
 export type LichSuThietYeu = {

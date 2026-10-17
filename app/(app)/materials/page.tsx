@@ -10,10 +10,6 @@ import {
   ArrowRight,
   Boxes,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   Cog,
   FileText,
   Filter,
@@ -54,6 +50,7 @@ import { VesselMaterialAddForm } from "@/components/VesselCatalogActions";
 import VatTuMoiChoTauForm from "@/components/VatTuMoiChoTauForm";
 import TimNhanhDanhMuc from "@/components/TimNhanhDanhMuc";
 import KhungBang from "@/components/KhungBang";
+import PhanTrang from "@/components/PhanTrang";
 import NutThuGonNhom from "@/components/NutThuGonNhom";
 import {
   canManageVesselCatalog,
@@ -942,7 +939,7 @@ export default async function MaterialsPage({
                               {/* Ngay sau tên bộ phận, không đẩy sang mép phải: bảng rộng hơn
                                   màn hình thì mép phải dòng tiêu đề nằm khuất. */}
                               {dept.soTrang > 1 && (
-                                <PhanTrangBoPhan
+                                <PhanTrang
                                   trang={dept.trang}
                                   soTrang={dept.soTrang}
                                   href={(n) => hrefTrang(dept.key, n)}
@@ -1220,7 +1217,7 @@ export default async function MaterialsPage({
                                       tong: dept.total,
                                     })}
                                   </span>
-                                  <PhanTrangBoPhan
+                                  <PhanTrang
                                     trang={dept.trang}
                                     soTrang={dept.soTrang}
                                     href={(n) => hrefTrang(dept.key, n)}
@@ -1252,74 +1249,5 @@ export default async function MaterialsPage({
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * Chuyển trang của MỘT bộ phận: « đầu · ‹ trước · Trang 2/8 · sau › · cuối ». Đứng ở dòng tiêu
- * đề bộ phận (nút chỉ có biểu tượng) và ở dòng cuối bộ phận (`coChu`: nút trước / sau ghi cả chữ —
- * đọc hết trang là bấm). Là liên kết thường (dựng ở máy chủ) — trang mở lại đúng đầu bộ phận (#neo).
- */
-function PhanTrangBoPhan({
-  trang,
-  soTrang,
-  href,
-  nhan,
-  coChu = false,
-}: {
-  trang: number;
-  soTrang: number;
-  href: (n: number) => string;
-  nhan: { dau: string; truoc: string; sau: string; cuoi: string; trang: string };
-  /** Nút trước / sau ghi cả chữ (dòng cuối bộ phận). */
-  coChu?: boolean;
-}) {
-  const nut = (n: number, ten: string, Icon: LucideIcon, tat: boolean, chu?: "truoc" | "sau") => {
-    const ghiChu = coChu && chu !== undefined;
-    const noiDung = !ghiChu ? (
-      <Icon className="size-4" />
-    ) : chu === "truoc" ? (
-      <>
-        <Icon className="size-4" />
-        {ten}
-      </>
-    ) : (
-      <>
-        {ten}
-        <Icon className="size-4" />
-      </>
-    );
-    const lop = cn(
-      "inline-flex h-7 items-center justify-center gap-1 rounded-md",
-      ghiChu ? "border border-[var(--border-subtle)] px-2" : "w-7"
-    );
-    return tat ? (
-      <span aria-hidden="true" className={cn(lop, "text-[var(--text-muted)] opacity-40")}>
-        {noiDung}
-      </span>
-    ) : (
-      <Link
-        href={href(n)}
-        title={ten}
-        aria-label={ten}
-        className={cn(
-          lop,
-          "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-          // Dòng tiêu đề nền chìm → nhấn nổi; dòng cuối nền bảng → nhấn chìm.
-          coChu ? "hover:bg-[var(--surface-sunken)]" : "hover:bg-[var(--surface-raised)]"
-        )}
-      >
-        {noiDung}
-      </Link>
-    );
-  };
-  return (
-    <nav aria-label={nhan.trang} className={cn("no-print inline-flex items-center text-xs font-medium", coChu ? "gap-1" : "gap-0.5")}>
-      {nut(1, nhan.dau, ChevronsLeft, trang <= 1)}
-      {nut(trang - 1, nhan.truoc, ChevronLeft, trang <= 1, "truoc")}
-      <span className="tabular px-1.5 whitespace-nowrap text-[var(--text-secondary)]">{nhan.trang}</span>
-      {nut(trang + 1, nhan.sau, ChevronRight, trang >= soTrang, "sau")}
-      {nut(soTrang, nhan.cuoi, ChevronsRight, trang >= soTrang)}
-    </nav>
   );
 }

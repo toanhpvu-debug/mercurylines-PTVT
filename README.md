@@ -1197,7 +1197,10 @@ hàng ở hai kho đứng liền nhau) và yêu cầu, tài liệu gần đây. 
 dáng trang Tồn kho): *Báo cáo từ tàu* (số tệp gần nhất), *Chỉnh sửa thông tin tàu*, *Xóa tàu* (quản
 trị) và *Kho trên tàu* (số kho) **gập sẵn** cho trang gọn; *Tồn kho* (số dòng) và *Yêu cầu* (số yêu cầu)
 mở sẵn, gập được. Nút trong dòng tiêu đề (Tải lên / xem tất cả, Nhập / xuất kho, Tạo / duyệt yêu
-cầu) bấm thẳng, không gập / mở mục. Mọi thao tác đều dẫn sang module chuyên trách, đã lọc sẵn theo tàu:
+cầu) bấm thẳng, không gập / mở mục. Bảng tồn kho **50 dòng mỗi trang** (`?trang=n`, thanh « ‹ Trang n/N › kèm
+"Dòng 51–100 / 520" ở đầu khung và nút trước / sau ở cuối bảng; xin quá số trang thì mở trang cuối) trong khung
+**thu / phóng chữ · Mở rộng / Thu gọn · Toàn màn hình** như trang Tồn kho (`KhungBang`, nút chuyển trang dùng chung
+`components/PhanTrang.tsx` với Danh mục). Mọi thao tác đều dẫn sang module chuyên trách, đã lọc sẵn theo tàu:
 
 | Muốn làm gì | Làm ở đâu |
 |---|---|

@@ -19,7 +19,8 @@ const CO_CHU = [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.35, 1.5] as const;
  *     thoát). Làm TẠI CHỖ (position: fixed), không chuyển bảng sang chỗ khác: bảng không bị
  *     dựng lại nên ô đã tick, lọc tạm đang gõ… còn nguyên. Lớp z 25 nằm trên thanh tìm dính
  *     (z 20) mà dưới thanh thao tác hàng loạt (z 30) để vẫn thao tác được khi đang phóng to.
- * `dau` (vd. thanh tìm nhanh) đứng trên bảng và đi theo khung khi xem toàn màn hình.
+ * `dau` (vd. thanh tìm nhanh) đứng trên bảng và đi theo khung khi xem toàn màn hình; `trai` (vd. nút
+ * chuyển trang) đứng đầu dòng nút, cùng hàng với thu / phóng.
  * Cỡ chữ và chiều cao nhớ theo trình duyệt (localStorage, khóa `mercury.khung.<ten>`).
  */
 export default function KhungBang({
@@ -28,6 +29,7 @@ export default function KhungBang({
   caoMacDinh = "gon",
   cuonTrang = false,
   dau,
+  trai,
   anThanh = false,
   className,
   children,
@@ -41,6 +43,8 @@ export default function KhungBang({
   cuonTrang?: boolean;
   /** Phần đứng trên bảng, theo khung vào chế độ toàn màn hình. */
   dau?: ReactNode;
+  /** Phần đứng đầu dòng nút (bên trái thu / phóng), vd. nút chuyển trang của bảng. */
+  trai?: ReactNode;
   /** Ẩn thanh nút (vd. bảng đang trống). */
   anThanh?: boolean;
   className?: string;
@@ -135,7 +139,8 @@ export default function KhungBang({
       {dau}
       {!anThanh && (
         <div className={cn("no-print flex flex-wrap items-center gap-1", toanMan ? "pb-2" : "justify-end pb-1.5")}>
-          {toanMan && tieuDe && <div className="mr-auto min-w-0 truncate text-sm font-semibold text-[var(--text-primary)]">{tieuDe}</div>}
+          {toanMan && tieuDe && <div className={cn("min-w-0 truncate text-sm font-semibold text-[var(--text-primary)]", !trai && "mr-auto")}>{tieuDe}</div>}
+          {trai && <div className="mr-auto flex min-w-0 flex-wrap items-center gap-2">{trai}</div>}
           <Button type="button" variant="ghost" size="sm" onClick={() => doiCoChu(-1)} disabled={coChu <= CO_CHU[0]} title={t("chung.khung_thuNho")} aria-label={t("chung.khung_thuNho")} icon={<ZoomOut className="size-4" />} />
           <button
             type="button"

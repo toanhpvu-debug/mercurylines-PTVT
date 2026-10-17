@@ -23,6 +23,8 @@ import {
 import VesselEditForm from "@/components/VesselEditForm";
 import VesselDeleteButton from "@/components/VesselDeleteButton";
 import VesselSwitcher from "@/components/VesselSwitcher";
+import KhungBang from "@/components/KhungBang";
+import PhanTrang from "@/components/PhanTrang";
 import { layT } from "@/lib/i18n/server";
 import { cn } from "@/lib/cn";
 import {
@@ -107,8 +109,10 @@ const TONE_UU_TIEN: Record<string, Tone> = {
 
 export default async function VesselDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ trang?: string }>;
 }) {
   const user = await requireScopedUser();
   const { t, tTuDo, ngay } = await layT();
@@ -132,21 +136,25 @@ export default async function VesselDetailPage({
   if (!vessel) {
     notFound();
   }
-  // Bảng tồn kho ở đây chỉ để liếc nhanh: một tàu có vài trăm mặt hàng, dựng
-  // hết ra thì trang hồ sơ tàu nặng gấp đôi mà vẫn không ai đọc hết. Muốn xem
-  // đầy đủ, tìm kiếm hay lọc thì đã có trang Tồn kho ngay bên cạnh.
-  const GIOI_HAN_TON_KHO = 50;
-  const [inventories, tongTonKho, requests, documents] = await Promise.all([
+  // Bảng tồn kho ở đây để liếc nhanh: một tàu có vài trăm mặt hàng, dựng hết ra thì trang hồ
+  // sơ tàu nặng gấp đôi. Mỗi trang 50 dòng (?trang=n, nút « ‹ › »), khung thu / phóng chữ như
+  // trang Tồn kho; tìm kiếm hay lọc thì làm ở trang Tồn kho ngay bên cạnh.
+  const MOI_TRANG_TON = 50;
+  const trangXin = Math.max(1, Math.floor(Number((await searchParams).trang)) || 1);
+  const layTon = (trang: number) =>
     prisma.inventory.findMany({
       where: { vesselId: id },
       // Mã VT là cột đầu của bảng → sắp theo mã (cùng mặt hàng ở hai kho thì đứng liền nhau).
       orderBy: [{ material: { code: "asc" } }, { warehouseId: "asc" }],
-      take: GIOI_HAN_TON_KHO,
+      skip: (trang - 1) * MOI_TRANG_TON,
+      take: MOI_TRANG_TON,
       include: {
         warehouse: true,
         material: true,
       },
-    }),
+    });
+  const [tonTrangXin, tongTonKho, requests, documents] = await Promise.all([
+    layTon(trangXin),
     prisma.inventory.count({ where: { vesselId: id } }),
     prisma.materialRequest.findMany({
       where: { vesselId: id },
@@ -168,6 +176,21 @@ export default async function VesselDetailPage({
       },
     }),
   ]);
+  // Xin quá số trang (tồn kho vừa ít đi, đường dẫn cũ) → trang cuối.
+  const soTrangTon = Math.max(1, Math.ceil(tongTonKho / MOI_TRANG_TON));
+  const trangTon = Math.min(trangXin, soTrangTon);
+  const inventories = trangTon === trangXin ? tonTrangXin : await layTon(trangTon);
+  const tuTon = (trangTon - 1) * MOI_TRANG_TON;
+  /** Trang n của bảng tồn kho — #neo đưa về đầu bảng (thanh chuyển trang nằm trong khung). */
+  const hrefTon = (n: number) => `/vessels/${id}${n > 1 ? `?trang=${n}` : ""}#ton-kho-tau`;
+  const nhanTrangTon = {
+    dau: t("materials.trangDau"),
+    truoc: t("materials.trangTruoc"),
+    sau: t("materials.trangSau"),
+    cuoi: t("materials.trangCuoi"),
+    trang: t("materials.trangN", { n: trangTon, tong: soTrangTon }),
+  };
+  const dongTon = t("vessels.dongTuDen", { tu: tuTon + 1, den: tuTon + inventories.length, tong: tongTonKho });
   const toneTT = TONE_TRANG_THAI[vessel.status] ?? "neutral";
   const nhanTT =
     vessel.status === "MAINTENANCE"
@@ -386,9 +409,20 @@ export default async function VesselDetailPage({
             title={t("vessels.chuaCoTonKho")}
           />
         ) : (
-          <TableWrap>
+          <KhungBang
+            ten="ho-so-tau-ton"
+            caoMacDinh="cao"
+            tieuDe={`${vessel.code} — ${t("vessels.tonKhoCuaTau", { ten: vessel.name })}`}
+            trai={
+              // id: neo của nút chuyển trang (#ton-kho-tau) — mở lại đúng chỗ, chừa thanh đầu trang + tiêu đề mục.
+              <div id="ton-kho-tau" className="flex scroll-mt-32 flex-wrap items-center gap-2">
+                {soTrangTon > 1 && <PhanTrang trang={trangTon} soTrang={soTrangTon} href={hrefTon} nhan={nhanTrangTon} />}
+                <span className="tabular text-xs text-[var(--text-muted)]">{dongTon}</span>
+              </div>
+            }
+          >
             <Table dense>
-              <thead>
+              <thead className="sticky top-0 z-10 bg-[var(--surface-raised)]">
                 <tr>
                   <Th>{t("vessels.cotMaVatTu")}</Th>
                   <Th>{t("vessels.cotTenVatTu")}</Th>
@@ -441,29 +475,23 @@ export default async function VesselDetailPage({
                     </Tr>
                   );
                 })}
-                {tongTonKho > inventories.length && (
-                  <tr>
-                    <Td
-                      colSpan={7}
-                      className="bg-[var(--surface-sunken)]/60 text-xs"
-                    >
-                      <span className="text-[var(--text-muted)]">
-                        {t("vessels.dangHienTruoc", { n: inventories.length })}{" "}
-                        <b className="text-[var(--text-primary)]">{tongTonKho}</b>{" "}
-                        {t("vessels.dangHienSau")}
-                      </span>{" "}
-                      <Link
-                        href={`/inventory?vessel=${vessel.id}`}
-                        className={LINK}
-                      >
-                        {t("vessels.xemDayDuTonKho")}
-                      </Link>
-                    </Td>
+                {/* Đọc hết trang thì sang trang sau ngay tại đây, không phải cuộn ngược lên thanh. */}
+                {soTrangTon > 1 && (
+                  <tr className="no-print">
+                    <td colSpan={7} className="border-t border-[var(--border-subtle)] px-4 py-2">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="tabular text-xs text-[var(--text-muted)]">{dongTon}</span>
+                        <PhanTrang trang={trangTon} soTrang={soTrangTon} href={hrefTon} nhan={nhanTrangTon} coChu />
+                        <Link href={`/inventory?vessel=${vessel.id}`} className={`text-xs ${LINK}`}>
+                          {t("vessels.xemDayDuTonKho")}
+                        </Link>
+                      </div>
+                    </td>
                   </tr>
                 )}
               </tbody>
             </Table>
-          </TableWrap>
+          </KhungBang>
         )}
       </MucGap>
 

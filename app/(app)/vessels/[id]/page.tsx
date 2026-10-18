@@ -17,6 +17,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import {
   canManageVesselCatalog,
+  danhTinhHieuLuc,
   requireScopedUser,
   trongPhamVi,
   vesselScopeDayDu,
@@ -25,6 +26,8 @@ import { laBanTau } from "@/lib/banCai";
 import { tenKhoNgan } from "@/lib/khoTau";
 import { duongDanTheKho } from "@/lib/theKho";
 import BangKhoTau from "@/components/BangKhoTau";
+import NhapXuatHangLoat from "@/components/NhapXuatHangLoat";
+import { VAN_HANH_TAU } from "@/lib/roles";
 import VesselEditForm from "@/components/VesselEditForm";
 import VesselDeleteButton from "@/components/VesselDeleteButton";
 import VesselSwitcher from "@/components/VesselSwitcher";
@@ -52,6 +55,8 @@ export const dynamic = "force-dynamic";
 const LINK = "text-brand-700 hover:underline dark:text-brand-300";
 /** Liên kết không tô màu sẵn (tên mặt hàng, kho) — cả bảng xanh lè thì khó đọc; rê chuột mới hiện. */
 const LINK_AN = "hover:text-brand-700 hover:underline dark:hover:text-brand-300";
+/** Ô tick của dòng tồn (nhập / xuất hàng loạt — components/NhapXuatHangLoat.tsx). */
+const O_TICK = "size-4 accent-brand-600 align-middle";
 
 /** Tiêu đề khung gập: cùng một dáng với trang Tồn kho / Sơn. */
 const SUMMARY =
@@ -205,6 +210,10 @@ export default async function VesselDetailPage({
     trang: t("materials.trangN", { n: trangTon, tong: soTrangTon }),
   };
   const dongTon = t("vessels.dongTuDen", { tu: tuTon + 1, den: tuTon + inventories.length, tong: tongTonKho });
+  // Ô tick nhập / xuất hàng loạt: chỉ người ghi được phiếu nhập / xuất (cùng danh sách với
+  // createInventoryTransaction, kể cả ủy quyền) — người khác không thấy ô thừa.
+  const nhapXuatDuoc = danhTinhHieuLuc(user).some((d) => VAN_HANH_TAU.includes(d.role));
+  const bangTon = `tau-${vessel.id}`;
   const toneTT = TONE_TRANG_THAI[vessel.status] ?? "neutral";
   const nhanTT =
     vessel.status === "MAINTENANCE"
@@ -417,6 +426,11 @@ export default async function VesselDetailPage({
             <Table dense>
               <thead className="sticky top-0 z-10 bg-[var(--surface-raised)]">
                 <tr>
+                  {nhapXuatDuoc && (
+                    <Th className="w-8">
+                      <input type="checkbox" data-chon-ton-bang={bangTon} aria-label={t("inventory.hl_chonCaBang")} className={O_TICK} />
+                    </Th>
+                  )}
                   <Th>{t("vessels.cotMaVatTu")}</Th>
                   <Th>{t("vessels.cotTenVatTu")}</Th>
                   <Th>{t("chung.kho")}</Th>
@@ -435,6 +449,11 @@ export default async function VesselDetailPage({
                       key={inventory.id}
                       className="transition-colors hover:bg-[var(--surface-sunken)]/50"
                     >
+                      {nhapXuatDuoc && (
+                        <Td>
+                          <input type="checkbox" data-chon-ton={inventory.id} data-bang={bangTon} aria-label={inventory.material.code} className={O_TICK} />
+                        </Td>
+                      )}
                       {/* Bấm thẳng vào mục: mã / tên → thẻ kho của mặt hàng ở đúng kho này; kho / vị trí →
                           trang Tồn kho chỉ kho đó (tên gọn, không lặp tên tàu của chính trang này). */}
                       <Td className="font-display text-xs tracking-wide whitespace-nowrap">
@@ -486,7 +505,7 @@ export default async function VesselDetailPage({
                 {/* Đọc hết trang thì sang trang sau ngay tại đây, không phải cuộn ngược lên thanh. */}
                 {soTrangTon > 1 && (
                   <tr className="no-print">
-                    <td colSpan={7} className="border-t border-[var(--border-subtle)] px-4 py-2">
+                    <td colSpan={nhapXuatDuoc ? 8 : 7} className="border-t border-[var(--border-subtle)] px-4 py-2">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                         <span className="tabular text-xs text-[var(--text-muted)]">{dongTon}</span>
                         <PhanTrang trang={trangTon} soTrang={soTrangTon} href={hrefTon} nhan={nhanTrangTon} coChu />
@@ -501,6 +520,7 @@ export default async function VesselDetailPage({
             </Table>
           </KhungBang>
         )}
+        {nhapXuatDuoc && tongTonKho > 0 && <NhapXuatHangLoat key={`${vessel.id}-${trangTon}`} />}
       </MucGap>
 
       {/* 5) Yêu cầu — mở sẵn, gập được. Tạo, duyệt, xóa yêu cầu làm ở module Yêu cầu vật tư. */}

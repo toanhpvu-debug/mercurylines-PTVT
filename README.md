@@ -1355,6 +1355,31 @@ liệu mẫu) thì thẻ kho hiện một dòng **"Tồn đầu"** riêng bằng
 với con số ở bảng tồn kho rồi bị nghi là sai. Phạm vi tàu kiểm qua kho: gõ id kho của tàu không
 phụ trách thì nhận 404 y như kho không tồn tại.
 
+### Nhập / xuất hàng loạt — tick nhiều dòng
+
+Bảng tồn kho ở trang **Tồn kho** và ở **hồ sơ tàu** có cột ô tick (chỉ với người ghi được phiếu: Thuyền
+trưởng, Máy trưởng, quản trị, kể cả ủy quyền — cùng danh sách với phiếu từng dòng). Tick từng dòng, ô
+đầu cột chọn cả bảng, ô ở dòng tiêu đề bộ phận chọn cả bộ phận → thanh nổi **Đã chọn N dòng tồn ·
+Nhập kho · Xuất kho · Bỏ chọn** → hộp ghi số lượng cho từng dòng (ô trống = bỏ qua; *Cùng một số cho
+mọi dòng*; khi xuất có *Điền bằng tồn hiện có*), cùng **thời điểm thực hiện** (ghi lùi được) và **ghi
+chú** cho cả phiếu. Xuất quá tồn thì ô tô đỏ "Quá tồn (n)" và nút Ghi bị khóa.
+
+- Mỗi dòng thành một phiếu nhập / xuất trên thẻ kho, qua **cùng lõi** với phiếu từng dòng
+  (`lib/nhapXuatServer.ts`: khóa dòng tồn, trừ có điều kiện, cộng, ghi thẻ kho) — một luật, một chỗ sửa.
+- Ghi như **một phiếu**: một giao dịch; thiếu tồn ở bất kỳ dòng xuất nào (vd. người khác vừa xuất)
+  thì **không ghi dòng nào** và báo đủ các dòng thiếu kèm số còn. Khóa mọi dòng tồn trong một câu,
+  theo thứ tự tăng dần, nên hai phiếu hàng loạt chọn trùng mặt hàng không khóa chéo nhau.
+- Ô tick là `<input>` do server vẽ (`data-chon-ton`, `data-chon-ton-bang`, `data-chon-ton-nhom`) + một
+  thành phần nghe sự kiện cho cả trang (`components/NhapXuatHangLoat.tsx`, cùng cách `ChonHangLoat` ở
+  Danh mục); đổi trang / đổi bộ lọc là chọn lại từ đầu. Nhật ký: `kho-nhap-hang-loat` /
+  `kho-xuat-hang-loat` (số dòng, ghi chú, mã × số lượng). Tối đa 500 dòng mỗi lần.
+- **Giờ ghi lùi gửi kèm múi giờ** (cả form từng dòng, `lib/gioMay.ts`): máy chủ online chạy giờ UTC,
+  trước đây chuỗi "2026-10-17T08:00" bị hiểu là 8 giờ UTC — phiếu ghi lùi lệch 7 tiếng (ở máy văn
+  phòng giờ Việt Nam thì không lệch). Nay trình duyệt đổi sang ISO trước khi gửi.
+- Kiểm thử: `scripts/kiem-tra-nhap-xuat.ts` (thời điểm, nhập / xuất / xuất quá tồn / dòng tồn mới,
+  cuộn ngược) — đo 2026-10-18 trên bản sao dữ liệu, máy thử chạy giờ UTC: nhập 2 / 3 dòng ghi lùi 08:00
+  lưu đúng 01:00Z, xuất bị giành tồn giữa chừng thì cả phiếu cuộn ngược, máy hai không thấy ô tick.
+
 ## Bắt đầu từ dữ liệu trắng — xóa dữ liệu mẫu
 
 Bản cài mới được seed sẵn dữ liệu mẫu (tàu, vài vật tư, tồn kho, nhà cung cấp, sổ chằng buộc)

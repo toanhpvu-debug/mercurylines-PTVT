@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { ArrowLeftRight } from "lucide-react";
 import { createInventoryTransaction } from "@/app/actions";
 import { Button, Field, Input, Notice, Select } from "@/components/ui";
 import { useNgonNgu } from "@/lib/i18n/client";
+import { gioMayTuIso, isoTuGioMay } from "@/lib/gioMay";
 
 type MaterialOption = {
   id: number;
@@ -33,6 +34,14 @@ export default function InventoryForm({
     { message: "" }
   );
   const v = state.values ?? {};
+  // Ô ngày giờ giữ chữ người dùng gõ (giờ máy); ô ẩn gửi bản ISO có múi giờ.
+  const [thoiDiem, setThoiDiem] = useState(() => gioMayTuIso(v.occurredAt ?? ""));
+  // Ghi xong thì xóa như các ô khác của form (React tự đặt lại ô không điều khiển sau khi ghi).
+  const [ketQuaDaXem, setKetQuaDaXem] = useState(state);
+  if (state !== ketQuaDaXem) {
+    setKetQuaDaXem(state);
+    if (state.success) setThoiDiem("");
+  }
   // Thẻ kho gọi form này với đúng MỘT vật tư và MỘT kho: chọn sẵn luôn, đừng
   // bắt người dùng mở một ô chọn chỉ có một dòng rồi bấm vào dòng đó.
   const vatTuMacDinh =
@@ -89,10 +98,13 @@ export default function InventoryForm({
       </Field>
       <Field label={t("inventory.goiYThoiDiem")} className="md:col-span-3">
         <Input
-          name="occurredAt"
           type="datetime-local"
-          defaultValue={v.occurredAt ?? ""}
+          value={thoiDiem}
+          onChange={(e) => setThoiDiem(e.target.value)}
         />
+        {/* Gửi kèm múi giờ của máy người dùng: máy chủ online chạy giờ UTC, chuỗi
+            "2026-10-18T08:00" trơn sẽ bị hiểu là 8 giờ UTC (= 15 giờ Việt Nam). */}
+        <input type="hidden" name="occurredAt" value={isoTuGioMay(thoiDiem)} />
       </Field>
       <div className="flex items-end md:col-span-2">
         <Button

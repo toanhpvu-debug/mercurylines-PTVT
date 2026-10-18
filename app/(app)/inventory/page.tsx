@@ -27,6 +27,7 @@ import {
 } from "@/lib/departments";
 import { nhomCuaVatTu } from "@/lib/phanNhomBanChat";
 import InventoryForm from "@/components/InventoryForm";
+import NhapXuatHangLoat from "@/components/NhapXuatHangLoat";
 import KhungBang from "@/components/KhungBang";
 import {
   duongDanTheKho,
@@ -89,6 +90,8 @@ function toneThieu(pct: number): Tone {
 const LINK = "text-brand-700 hover:underline dark:text-brand-300";
 /** Liên kết không tô màu sẵn (tên mặt hàng, mã kho) — rê chuột mới hiện, bảng khỏi xanh lè. */
 const LINK_AN = "hover:text-brand-700 hover:underline dark:hover:text-brand-300";
+/** Ô tick của dòng tồn (nhập / xuất hàng loạt — components/NhapXuatHangLoat.tsx). */
+const O_TICK = "size-4 accent-brand-600 align-middle";
 
 /**
  * Ô "nhập / xuất gần nhất" của một dòng tồn: ngày · số lượng, ghi chú ở dòng
@@ -162,6 +165,9 @@ export default async function InventoryPage({
   const canTransact = danhTinhHieuLuc(user).some((d) =>
     VAN_HANH_TAU.includes(d.role)
   );
+  // Người ghi được phiếu thì bảng có thêm cột ô tick (nhập / xuất hàng loạt): các dòng trải ngang
+  // bảng (tiêu đề bộ phận, nhóm thiết bị, "còn N dòng nữa") trải thêm một cột.
+  const soCot = canTransact ? 10 : 9;
   const params = await searchParams;
 
   // Bộ lọc — người dùng bị giới hạn tàu thì ?vessel bị bỏ qua (chống truy cập chéo).
@@ -449,7 +455,8 @@ export default async function InventoryPage({
               </Select>
             </div>
           )}
-          <div className="w-40">
+          {/* Rộng như ô tàu: chữ "Tất cả kho / vị trí" và mã kho / vị trí dài (ML-001-ENG-ER-STORE) không bị cắt. */}
+          <div className="w-52">
             <Select
               name="wh"
               defaultValue={whFilter ?? ""}
@@ -505,6 +512,9 @@ export default async function InventoryPage({
           </Link>
         </Form>
       </Card>
+
+      {/* Nhập / xuất hàng loạt: nghe ô tick của mọi bảng bên dưới; key theo bộ lọc → đổi lọc là chọn lại. */}
+      {canTransact && groups.length > 0 && <NhapXuatHangLoat key={JSON.stringify(params)} />}
 
       {/* 3. Tồn kho nhóm theo tàu */}
       {groups.length === 0 ? (
@@ -576,6 +586,11 @@ export default async function InventoryPage({
                       <thead className="sticky top-0 z-10 bg-[var(--surface-raised)]">
                         {/* Mã → Tên mặt hàng → Kho (như bảng tồn kho ở hồ sơ tàu): dò theo mã trước. */}
                         <tr>
+                          {canTransact && (
+                            <Th className="w-8">
+                              <input type="checkbox" data-chon-ton-bang={`tau-${vessel.id}`} aria-label={t("inventory.hl_chonCaBang")} className={O_TICK} />
+                            </Th>
+                          )}
                           <Th>{t("chung.ma")}</Th>
                           <Th>{t("inventory.cotTenVatTu")}</Th>
                           <Th>{t("chung.kho")}</Th>
@@ -609,8 +624,17 @@ export default async function InventoryPage({
                           return (
                             <React.Fragment key={dept.key}>
                               {/* Tiêu đề bộ phận */}
-                              <TrNhom colSpan={9}>
+                              <TrNhom colSpan={soCot}>
                                 <span className="inline-flex flex-wrap items-center gap-2">
+                                  {canTransact && (
+                                    <input
+                                      type="checkbox"
+                                      data-chon-ton-nhom={`${vessel.id}-${dept.key}`}
+                                      aria-label={t("inventory.hl_chonCaNhom")}
+                                      title={t("inventory.hl_chonCaNhom")}
+                                      className={O_TICK}
+                                    />
+                                  )}
                                   <DeptIcon className="size-4 text-[var(--text-muted)]" />
                                   {tTuDo(`labels.dept_${dept.key}`)}
                                   <span className="text-xs font-normal text-[var(--text-muted)]">
@@ -628,7 +652,7 @@ export default async function InventoryPage({
                               {conLai > 0 && (
                                 <tr>
                                   <Td
-                                    colSpan={9}
+                                    colSpan={soCot}
                                     className="bg-[var(--surface-sunken)]/60 text-xs"
                                   >
                                     <span className="text-[var(--text-muted)]">
@@ -696,7 +720,7 @@ export default async function InventoryPage({
                                     {showEquipmentHeader && (
                                       <tr>
                                         <td
-                                          colSpan={9}
+                                          colSpan={soCot}
                                           className="border-b border-[var(--border-subtle)] bg-[var(--surface-sunken)]/60 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]"
                                         >
                                           <Wrench className="mr-1 inline size-3" />
@@ -707,6 +731,18 @@ export default async function InventoryPage({
                                       </tr>
                                     )}
                                     <Tr className="transition-colors hover:bg-[var(--surface-sunken)]/50">
+                                      {canTransact && (
+                                        <Td>
+                                          <input
+                                            type="checkbox"
+                                            data-chon-ton={inventory.id}
+                                            data-bang={`tau-${vessel.id}`}
+                                            data-nhom={`${vessel.id}-${dept.key}`}
+                                            aria-label={inventory.material.code}
+                                            className={O_TICK}
+                                          />
+                                        </Td>
+                                      )}
                                       <Td className="font-display text-xs tracking-wide whitespace-nowrap">
                                         <Link
                                           href={duongDanTheKho(

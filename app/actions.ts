@@ -44,6 +44,7 @@ import {
 import { docKhaiMoi, loiTrung, timTrung } from "@/lib/vatTuMoiChoTau";
 import { khoChinhTheoLoai } from "@/lib/khoTau";
 import { taoKhoChuan } from "@/lib/khoTauServer";
+import { docThoiDiemThucHien, ghiNhapXuatTx, khoaDongTonTx } from "@/lib/nhapXuatServer";
 import {
   CHI_HUY_TAU,
   ROLES,
@@ -1052,20 +1053,12 @@ export async function createInventoryTransaction(
     return { message: t("actions.kho_duLieuNhapXuatKhongHopLe"), values };
   }
   // Thời điểm thực hiện: để trống = bây giờ; cho phép ghi lùi, không cho ghi trước tương lai.
-  const occurredRaw = String(formData.get("occurredAt") || "").trim();
-  let occurredAt = new Date();
-  if (occurredRaw) {
-    const d = new Date(occurredRaw);
-    if (isNaN(d.getTime()) || d.getFullYear() < 2000) {
-      return { message: t("actions.kho_thoiDiemKhongHopLe"), values };
-    }
-    if (d.getTime() > Date.now() + 5 * 60 * 1000) {
-      return {
-        message: t("actions.kho_thoiDiemTuongLai"),
-        values,
-      };
-    }
-    occurredAt = d;
+  const thoiDiem = docThoiDiemThucHien(String(formData.get("occurredAt") || ""));
+  if ("loi" in thoiDiem) {
+    return {
+      message: t(thoiDiem.loi === "tuongLai" ? "actions.kho_thoiDiemTuongLai" : "actions.kho_thoiDiemKhongHopLe"),
+      values,
+    };
   }
   try {
     await prisma.$transaction(async (tx) => {
@@ -1078,76 +1071,21 @@ export async function createInventoryTransaction(
       if (!trongPhamVi(scope, warehouse.vesselId)) {
         throw new ActionError(t("actions.kho_chiTauMinhPhuTrach"));
       }
-      const vesselId = warehouse.vesselId;
-      // Xếp hàng mọi phiếu động tới CÙNG một dòng tồn. Khóa tự nhả khi giao
-      // dịch kết thúc (commit hay rollback), không có gì phải dọn.
-      //
-      // Cần khóa này cho nhánh NHẬP: hai phiếu nhập cùng lúc cho một cặp
-      // (vật tư, kho) chưa từng có dòng tồn thì cả hai cùng thấy "chưa có" và
-      // cùng INSERT — một bên vỡ vì đụng ràng buộc duy nhất, người dùng nhận
-      // màn hình lỗi thay vì thông báo tiếng Việt.
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${KHOA_TON_KHO}::int, ${khoaDongTon(
+      // Khóa dòng tồn rồi ghi — cùng lõi với nhập / xuất hàng loạt (lib/nhapXuatServer.ts).
+      await khoaDongTonTx(tx, [{ materialId, warehouseId }]);
+      const daGhi = await ghiNhapXuatTx(tx, {
+        type: type as "IN" | "OUT",
         materialId,
-        warehouseId
-      )}::int)`;
-      if (type === "OUT") {
-        // Trừ tồn bằng MỘT lệnh UPDATE có điều kiện, không đọc-rồi-ghi.
-        // Điều kiện quantity >= số xuất nằm ngay trong mệnh đề WHERE nên
-        // database tự là trọng tài: hai người cùng xuất một vật tư thì người
-        // sau chỉ trừ được nếu phần còn lại thật sự đủ. Kiểu cũ (đọc số, so
-        // sánh trong Node, rồi ghi đè) làm cả hai đọc thấy số cũ và tồn kho
-        // tụt xuống ÂM, hoặc mất hẳn một lần xuất.
-        const daTru = await tx.inventory.updateMany({
-          where: {
-            materialId,
-            warehouseId,
-            quantity: { gte: quantity },
-          },
-          data: {
-            quantity: {
-              decrement: quantity,
-            },
-          },
-        });
-        // count === 0 gồm cả hai khả năng: chưa có dòng tồn, hoặc tồn không đủ.
-        // Với người dùng thì cùng một việc — không xuất được vì thiếu hàng.
-        if (daTru.count === 0) {
-          throw new ActionError(t("actions.kho_khongDuTon"));
-        }
-      } else {
-        await tx.inventory.upsert({
-          where: {
-            materialId_warehouseId: {
-              materialId,
-              warehouseId,
-            },
-          },
-          update: {
-            quantity: {
-              increment: quantity,
-            },
-            vesselId,
-          },
-          create: {
-            materialId,
-            warehouseId,
-            vesselId,
-            quantity,
-          },
-        });
-      }
-      await tx.inventoryTransaction.create({
-        data: {
-          type,
-          materialId,
-          warehouseId,
-          vesselId,
-          quantity,
-          note: note || null,
-          occurredAt,
-          performedBy: actor.name,
-        },
+        warehouseId,
+        vesselId: warehouse.vesselId,
+        quantity,
+        note: note || null,
+        occurredAt: thoiDiem.ngay,
+        performedBy: actor.name,
       });
+      if (!daGhi) {
+        throw new ActionError(t("actions.kho_khongDuTon"));
+      }
     }, GIAO_DICH_GIU_KHOA);
   } catch (error) {
     if (error instanceof ActionError) {

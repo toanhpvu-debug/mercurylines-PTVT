@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  Anchor,
   ArrowLeft,
   ArrowRight,
   Boxes,
@@ -13,6 +14,12 @@ import {
   Printer,
   Trash2,
   Warehouse,
+  Cog,
+  LifeBuoy,
+  Package,
+  UtensilsCrossed,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
@@ -27,6 +34,9 @@ import { tenKhoNgan } from "@/lib/khoTau";
 import { duongDanTheKho } from "@/lib/theKho";
 import BangKhoTau from "@/components/BangKhoTau";
 import NhapXuatHangLoat from "@/components/NhapXuatHangLoat";
+import NutThuGonNhom from "@/components/NutThuGonNhom";
+import { DEPARTMENTS, sortWithinDepartment } from "@/lib/departments";
+import { nhomCuaVatTu } from "@/lib/phanNhomBanChat";
 import { VAN_HANH_TAU } from "@/lib/roles";
 import VesselEditForm from "@/components/VesselEditForm";
 import VesselDeleteButton from "@/components/VesselDeleteButton";
@@ -46,6 +56,7 @@ import {
   Td,
   Th,
   Tr,
+  TrNhom,
   buttonClass,
   type Tone,
 } from "@/components/ui";
@@ -55,6 +66,15 @@ export const dynamic = "force-dynamic";
 const LINK = "text-brand-700 hover:underline dark:text-brand-300";
 /** Liên kết không tô màu sẵn (tên mặt hàng, kho) — cả bảng xanh lè thì khó đọc; rê chuột mới hiện. */
 const LINK_AN = "hover:text-brand-700 hover:underline dark:hover:text-brand-300";
+/** Biểu tượng bộ phận — cùng bảng với trang Tồn kho / Danh mục. */
+const DEPT_ICON: Record<string, LucideIcon> = {
+  DECK: Anchor,
+  ENGINE: Cog,
+  ELEC: Zap,
+  SERVICE: UtensilsCrossed,
+  SAFETY: LifeBuoy,
+  OTHER: Package,
+};
 /** Ô tick của dòng tồn (nhập / xuất hàng loạt — components/NhapXuatHangLoat.tsx). */
 const O_TICK = "size-4 accent-brand-600 align-middle";
 
@@ -124,7 +144,7 @@ export default async function VesselDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ trang?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requireScopedUser();
   const { t, tTuDo, ngay } = await layT();
@@ -148,26 +168,41 @@ export default async function VesselDetailPage({
   if (!vessel) {
     notFound();
   }
-  // Bảng tồn kho ở đây để liếc nhanh: một tàu có vài trăm mặt hàng, dựng hết ra thì trang hồ
-  // sơ tàu nặng gấp đôi. Mỗi trang 50 dòng (?trang=n, nút « ‹ › »), khung thu / phóng chữ như
-  // trang Tồn kho; tìm kiếm hay lọc thì làm ở trang Tồn kho ngay bên cạnh.
-  const MOI_TRANG_TON = 50;
-  const trangXin = Math.max(1, Math.floor(Number((await searchParams).trang)) || 1);
-  const layTon = (trang: number) =>
+  // Bảng tồn kho của tàu NHÓM THEO BỘ PHẬN như Danh mục và trang Tồn kho: Boong → Máy → Điện →
+  // Phục vụ → An toàn → Khác, trong bộ phận vật tư trước, phụ tùng theo thiết bị, rồi theo tên — cùng
+  // hàm nhomCuaVatTu / sortWithinDepartment nên một mặt hàng đứng cùng bộ phận ở cả ba trang. Mỗi bộ
+  // phận một trang 40 dòng, chuyển trang riêng (?trang_DECK=2…) ở dòng tiêu đề và cuối bộ phận.
+  const MOI_TRANG_BO_PHAN = 40;
+  const sp = await searchParams;
+  const [tonTatCa, requests, documents, demTonKho, demGiaoDichKho, banTau] = await Promise.all([
     prisma.inventory.findMany({
       where: { vesselId: id },
-      // Mã VT là cột đầu của bảng → sắp theo mã (cùng mặt hàng ở hai kho thì đứng liền nhau).
       orderBy: [{ material: { code: "asc" } }, { warehouseId: "asc" }],
-      skip: (trang - 1) * MOI_TRANG_TON,
-      take: MOI_TRANG_TON,
-      include: {
-        warehouse: true,
-        material: true,
+      select: {
+        id: true,
+        materialId: true,
+        warehouseId: true,
+        quantity: true,
+        reservedQuantity: true,
+        warehouse: { select: { code: true, name: true } },
+        material: {
+          select: {
+            code: true,
+            nameVn: true,
+            nameEn: true,
+            impa: true,
+            uom: true,
+            minStock: true,
+            materialType: true,
+            equipment: true,
+            department: true,
+            nhomQuanLy: true,
+            responsibleRank: true,
+            category: { select: { name: true } },
+          },
+        },
       },
-    });
-  const [tonTrangXin, tongTonKho, requests, documents, demTonKho, demGiaoDichKho, banTau] = await Promise.all([
-    layTon(trangXin),
-    prisma.inventory.count({ where: { vesselId: id } }),
+    }),
     prisma.materialRequest.findMany({
       where: { vesselId: id },
       orderBy: { createdAt: "desc" },
@@ -195,25 +230,61 @@ export default async function VesselDetailPage({
   const soTheoKho = (dem: { warehouseId: number; _count: { _all: number } }[]) => new Map(dem.map((d) => [d.warehouseId, d._count._all]));
   const matHangTheoKho = soTheoKho(demTonKho);
   const giaoDichTheoKho = soTheoKho(demGiaoDichKho);
-  // Xin quá số trang (tồn kho vừa ít đi, đường dẫn cũ) → trang cuối.
-  const soTrangTon = Math.max(1, Math.ceil(tongTonKho / MOI_TRANG_TON));
-  const trangTon = Math.min(trangXin, soTrangTon);
-  const inventories = trangTon === trangXin ? tonTrangXin : await layTon(trangTon);
-  const tuTon = (trangTon - 1) * MOI_TRANG_TON;
-  /** Trang n của bảng tồn kho — #neo đưa về đầu bảng (thanh chuyển trang nằm trong khung). */
-  const hrefTon = (n: number) => `/vessels/${id}${n > 1 ? `?trang=${n}` : ""}#ton-kho-tau`;
-  const nhanTrangTon = {
+  const tongTonKho = tonTatCa.length;
+  type DongTon = (typeof tonTatCa)[number];
+  const theoBoPhan = new Map<string, DongTon[]>();
+  for (const r of tonTatCa) {
+    const khoa = nhomCuaVatTu({
+      nameVn: r.material.nameVn,
+      nameEn: r.material.nameEn,
+      impa: r.material.impa,
+      materialType: r.material.materialType,
+      code: r.material.code,
+      department: r.material.department,
+      categoryName: r.material.category?.name,
+      equipment: r.material.equipment,
+      nhomQuanLy: r.material.nhomQuanLy,
+      responsibleRank: r.material.responsibleRank,
+      nguonPhu: r.warehouse.code,
+    }).nhom;
+    const ds = theoBoPhan.get(khoa);
+    if (ds) ds.push(r);
+    else theoBoPhan.set(khoa, [r]);
+  }
+  const boPhan = DEPARTMENTS.map((d) => {
+    const sapXep = sortWithinDepartment(theoBoPhan.get(d.key) ?? [], (r) => ({
+      materialType: r.material.materialType,
+      equipment: r.material.equipment,
+      categoryName: r.material.category?.name ?? null,
+      nameVn: r.material.nameVn,
+    }));
+    const soTrang = Math.max(1, Math.ceil(sapXep.length / MOI_TRANG_BO_PHAN));
+    // Xin quá số trang (tồn kho vừa ít đi, đường dẫn cũ) → trang cuối.
+    const trang = Math.min(Math.max(1, Math.floor(Number(sp[`trang_${d.key}`])) || 1), soTrang);
+    const tu = (trang - 1) * MOI_TRANG_BO_PHAN;
+    return { key: d.key, tong: sapXep.length, trang, soTrang, tu, dong: sapXep.slice(tu, tu + MOI_TRANG_BO_PHAN) };
+  }).filter((d) => d.tong > 0);
+  /** Trang n của một bộ phận: giữ trang đang xem của bộ phận khác, cuộn về đúng bộ phận đó. */
+  const hrefBoPhan = (key: string, n: number) => {
+    const p = new URLSearchParams();
+    for (const d of boPhan) if (d.key !== key && d.trang > 1) p.set(`trang_${d.key}`, String(d.trang));
+    if (n > 1) p.set(`trang_${key}`, String(n));
+    const qs = p.toString();
+    return `/vessels/${id}${qs ? `?${qs}` : ""}#ton-${key}`;
+  };
+  const nhanTrang = (d: (typeof boPhan)[number]) => ({
     dau: t("materials.trangDau"),
     truoc: t("materials.trangTruoc"),
     sau: t("materials.trangSau"),
     cuoi: t("materials.trangCuoi"),
-    trang: t("materials.trangN", { n: trangTon, tong: soTrangTon }),
-  };
-  const dongTon = t("vessels.dongTuDen", { tu: tuTon + 1, den: tuTon + inventories.length, tong: tongTonKho });
+    trang: t("materials.trangN", { n: d.trang, tong: d.soTrang }),
+  });
   // Ô tick nhập / xuất hàng loạt: chỉ người ghi được phiếu nhập / xuất (cùng danh sách với
   // createInventoryTransaction, kể cả ủy quyền) — người khác không thấy ô thừa.
   const nhapXuatDuoc = danhTinhHieuLuc(user).some((d) => VAN_HANH_TAU.includes(d.role));
   const bangTon = `tau-${vessel.id}`;
+  // Số cột của bảng tồn kho — dòng tiêu đề bộ phận và dòng chuyển trang trải hết chiều ngang.
+  const soCot = nhapXuatDuoc ? 8 : 7;
   const toneTT = TONE_TRANG_THAI[vessel.status] ?? "neutral";
   const nhanTT =
     vessel.status === "MAINTENANCE"
@@ -415,13 +486,6 @@ export default async function VesselDetailPage({
             ten="ho-so-tau-ton"
             caoMacDinh="cao"
             tieuDe={`${vessel.code} — ${t("vessels.tonKhoCuaTau", { ten: vessel.name })}`}
-            trai={
-              // id: neo của nút chuyển trang (#ton-kho-tau) — mở lại đúng chỗ, chừa thanh đầu trang + tiêu đề mục.
-              <div id="ton-kho-tau" className="flex scroll-mt-32 flex-wrap items-center gap-2">
-                {soTrangTon > 1 && <PhanTrang trang={trangTon} soTrang={soTrangTon} href={hrefTon} nhan={nhanTrangTon} />}
-                <span className="tabular text-xs text-[var(--text-muted)]">{dongTon}</span>
-              </div>
-            }
           >
             <Table dense>
               <thead className="sticky top-0 z-10 bg-[var(--surface-raised)]">
@@ -440,87 +504,119 @@ export default async function VesselDetailPage({
                   <Th align="right">{t("vessels.cotKhaDung")}</Th>
                 </tr>
               </thead>
-              <tbody>
-                {inventories.map((inventory) => {
-                  const available =
-                    inventory.quantity - inventory.reservedQuantity;
-                  return (
-                    <Tr
-                      key={inventory.id}
-                      className="transition-colors hover:bg-[var(--surface-sunken)]/50"
-                    >
-                      {nhapXuatDuoc && (
-                        <Td>
-                          <input type="checkbox" data-chon-ton={inventory.id} data-bang={bangTon} aria-label={inventory.material.code} className={O_TICK} />
-                        </Td>
-                      )}
-                      {/* Bấm thẳng vào mục: mã / tên → thẻ kho của mặt hàng ở đúng kho này; kho / vị trí →
-                          trang Tồn kho chỉ kho đó (tên gọn, không lặp tên tàu của chính trang này). */}
-                      <Td className="font-display text-xs tracking-wide whitespace-nowrap">
-                        <Link href={duongDanTheKho(inventory.materialId, inventory.warehouseId)} prefetch={false} className={LINK} title={t("inventory.moTheKho")}>
-                          {inventory.material.code}
-                        </Link>
-                      </Td>
-                      <Td>
-                        <Link href={duongDanTheKho(inventory.materialId, inventory.warehouseId)} prefetch={false} className={LINK_AN}>
-                          {inventory.material.nameVn}
-                        </Link>
-                      </Td>
-                      <Td className="text-[var(--text-secondary)]">
-                        <Link
-                          href={`/inventory?vessel=${vessel.id}&wh=${inventory.warehouseId}`}
-                          prefetch={false}
-                          className={LINK_AN}
-                          title={`${inventory.warehouse.code} — ${t("inventory.xemHangCuaKho")}`}
-                        >
-                          {tenKhoNgan(inventory.warehouse.name, vessel.name)}
-                        </Link>
-                      </Td>
-                      <Td>
-                        <span className="text-xs text-[var(--text-secondary)]">
-                          {inventory.material.uom}
+              {/* Mỗi bộ phận một <tbody> (#ton-<bộ phận> để chuyển trang cuộn về đúng chỗ; nút thu gọn
+                  ẩn các dòng của riêng nó) — cùng dáng dòng tiêu đề với trang Danh mục. */}
+              {boPhan.map((dept) => {
+                const DeptIcon = DEPT_ICON[dept.key] ?? Package;
+                return (
+                  <tbody key={dept.key} id={`ton-${dept.key}`} className="scroll-mt-24">
+                    <TrNhom colSpan={soCot}>
+                      <div className="flex items-center gap-2">
+                        {nhapXuatDuoc && (
+                          <input
+                            type="checkbox"
+                            data-chon-ton-nhom={`${vessel.id}-${dept.key}`}
+                            aria-label={t("inventory.hl_chonCaNhom")}
+                            title={t("inventory.hl_chonCaNhom")}
+                            className={O_TICK}
+                          />
+                        )}
+                        <span className="inline-flex items-center gap-2">
+                          <DeptIcon className="size-4 text-[var(--text-muted)]" />
+                          {tTuDo(`labels.dept_${dept.key}`)}
+                          <Badge tone={dept.dong.length < dept.tong ? "warning" : "neutral"}>
+                            {dept.dong.length < dept.tong ? `${dept.tu + 1}–${dept.tu + dept.dong.length}/${dept.tong}` : dept.tong}
+                          </Badge>
                         </span>
-                      </Td>
-                      <Td align="right">{inventory.quantity}</Td>
-                      <Td align="right">
-                        <span className="text-[var(--text-muted)]">
-                          {inventory.reservedQuantity}
-                        </span>
-                      </Td>
-                      <Td align="right">
-                        <span
-                          className={cn(
-                            "font-semibold",
-                            available <= inventory.material.minStock
-                              ? "text-[var(--text-danger)]"
-                              : "text-[var(--text-success)]"
-                          )}
-                        >
-                          {available}
-                        </span>
-                      </Td>
-                    </Tr>
-                  );
-                })}
-                {/* Đọc hết trang thì sang trang sau ngay tại đây, không phải cuộn ngược lên thanh. */}
-                {soTrangTon > 1 && (
-                  <tr className="no-print">
-                    <td colSpan={nhapXuatDuoc ? 8 : 7} className="border-t border-[var(--border-subtle)] px-4 py-2">
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <span className="tabular text-xs text-[var(--text-muted)]">{dongTon}</span>
-                        <PhanTrang trang={trangTon} soTrang={soTrangTon} href={hrefTon} nhan={nhanTrangTon} coChu />
-                        <Link href={`/inventory?vessel=${vessel.id}`} className={`text-xs ${LINK}`}>
-                          {t("vessels.xemDayDuTonKho")}
-                        </Link>
+                        {dept.soTrang > 1 && (
+                          <PhanTrang trang={dept.trang} soTrang={dept.soTrang} href={(n) => hrefBoPhan(dept.key, n)} nhan={nhanTrang(dept)} />
+                        )}
+                        <NutThuGonNhom />
                       </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
+                    </TrNhom>
+                    {dept.dong.map((inventory) => {
+                      const available = inventory.quantity - inventory.reservedQuantity;
+                      return (
+                        <Tr key={inventory.id} className="transition-colors hover:bg-[var(--surface-sunken)]/50">
+                          {nhapXuatDuoc && (
+                            <Td>
+                              <input
+                                type="checkbox"
+                                data-chon-ton={inventory.id}
+                                data-bang={bangTon}
+                                data-nhom={`${vessel.id}-${dept.key}`}
+                                aria-label={inventory.material.code}
+                                className={O_TICK}
+                              />
+                            </Td>
+                          )}
+                          {/* Bấm thẳng vào mục: mã / tên → thẻ kho của mặt hàng ở đúng kho này; kho / vị trí →
+                              trang Tồn kho chỉ kho đó (tên gọn, không lặp tên tàu của chính trang này). */}
+                          <Td className="font-display text-xs tracking-wide whitespace-nowrap">
+                            <Link href={duongDanTheKho(inventory.materialId, inventory.warehouseId)} prefetch={false} className={LINK} title={t("inventory.moTheKho")}>
+                              {inventory.material.code}
+                            </Link>
+                          </Td>
+                          <Td>
+                            <Link href={duongDanTheKho(inventory.materialId, inventory.warehouseId)} prefetch={false} className={LINK_AN}>
+                              {inventory.material.nameVn}
+                            </Link>
+                          </Td>
+                          <Td className="text-[var(--text-secondary)]">
+                            <Link
+                              href={`/inventory?vessel=${vessel.id}&wh=${inventory.warehouseId}`}
+                              prefetch={false}
+                              className={LINK_AN}
+                              title={`${inventory.warehouse.code} — ${t("inventory.xemHangCuaKho")}`}
+                            >
+                              {tenKhoNgan(inventory.warehouse.name, vessel.name)}
+                            </Link>
+                          </Td>
+                          <Td>
+                            <span className="text-xs text-[var(--text-secondary)]">{inventory.material.uom}</span>
+                          </Td>
+                          <Td align="right">{inventory.quantity}</Td>
+                          <Td align="right">
+                            <span className="text-[var(--text-muted)]">{inventory.reservedQuantity}</span>
+                          </Td>
+                          <Td align="right">
+                            <span
+                              className={cn(
+                                "font-semibold",
+                                available <= inventory.material.minStock ? "text-[var(--text-danger)]" : "text-[var(--text-success)]"
+                              )}
+                            >
+                              {available}
+                            </span>
+                          </Td>
+                        </Tr>
+                      );
+                    })}
+                    {/* Đọc hết trang này của bộ phận thì sang trang sau ngay tại đây, không phải cuộn ngược lên. */}
+                    {dept.soTrang > 1 && (
+                      <tr className="no-print">
+                        <td colSpan={soCot} className="border-t border-[var(--border-subtle)] px-4 py-2">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span className="text-xs text-[var(--text-muted)]">
+                              {t("materials.cuoiTrangBoPhan", {
+                                bp: tTuDo(`labels.dept_${dept.key}`),
+                                tu: dept.tu + 1,
+                                den: dept.tu + dept.dong.length,
+                                tong: dept.tong,
+                              })}
+                            </span>
+                            <PhanTrang trang={dept.trang} soTrang={dept.soTrang} href={(n) => hrefBoPhan(dept.key, n)} nhan={nhanTrang(dept)} coChu />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                );
+              })}
             </Table>
           </KhungBang>
         )}
-        {nhapXuatDuoc && tongTonKho > 0 && <NhapXuatHangLoat key={`${vessel.id}-${trangTon}`} />}
+        {nhapXuatDuoc && tongTonKho > 0 && <NhapXuatHangLoat key={`${vessel.id}-${boPhan.map((d) => d.trang).join(".")}`} />}
       </MucGap>
 
       {/* 5) Yêu cầu — mở sẵn, gập được. Tạo, duyệt, xóa yêu cầu làm ở module Yêu cầu vật tư. */}

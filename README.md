@@ -1192,16 +1192,22 @@ Trong bảng danh sách, cả **mã tàu lẫn tên tàu** đều bấm được
 ## Nguyên tắc bố cục: mỗi nghiệp vụ một chỗ
 
 Trang **hồ sơ tàu** (`/vessels/[id]`) chỉ để *xem*: thông tin tàu, danh sách kho, bảng tóm tắt
-tồn kho (cột **Mã VT · Tên mặt hàng · Kho / vị trí** · ĐVT · Tồn · Giữ · Khả dụng, sắp theo mã — cùng mặt
-hàng ở hai kho đứng liền nhau; bấm mã / tên là mở thẻ kho, bấm kho / vị trí — tên gọn, không lặp tên
-tàu — là trang Tồn kho chỉ kho đó) và yêu cầu, tài liệu gần đây. Mỗi mục là một **khung gập** (cùng
+tồn kho (cột **Mã VT · Tên mặt hàng · Kho / vị trí** · ĐVT · Tồn · Giữ · Khả dụng; bấm mã / tên là mở
+thẻ kho, bấm kho / vị trí — tên gọn, không lặp tên tàu — là trang Tồn kho chỉ kho đó) và yêu cầu, tài
+liệu gần đây. Bảng tồn kho **nhóm theo bộ phận như Danh mục và trang Tồn kho** — Boong (Deck) đứng đầu,
+rồi Máy → Điện → Sinh hoạt & Phục vụ → An toàn chung → Khác; trong bộ phận vật tư trước, phụ tùng theo
+thiết bị, rồi theo tên (cùng `nhomCuaVatTu` / `sortWithinDepartment`, nên một mặt hàng đứng cùng bộ phận
+và cùng thứ tự ở cả ba trang). Mỗi mục là một **khung gập** (cùng
 dáng trang Tồn kho): *Báo cáo từ tàu* (số tệp gần nhất), *Chỉnh sửa thông tin tàu*, *Xóa tàu* (quản
 trị) và *Kho trên tàu* (số kho) **gập sẵn** cho trang gọn; *Tồn kho* (số dòng) và *Yêu cầu* (số yêu cầu)
 mở sẵn, gập được. Nút trong dòng tiêu đề (Tải lên / xem tất cả, Nhập / xuất kho, Tạo / duyệt yêu
-cầu) bấm thẳng, không gập / mở mục. Bảng tồn kho **50 dòng mỗi trang** (`?trang=n`, thanh « ‹ Trang n/N › kèm
-"Dòng 51–100 / 520" ở đầu khung và nút trước / sau ở cuối bảng; xin quá số trang thì mở trang cuối) trong khung
-**thu / phóng chữ · Mở rộng / Thu gọn · Toàn màn hình** như trang Tồn kho (`KhungBang`, nút chuyển trang dùng chung
-`components/PhanTrang.tsx` với Danh mục). Mọi thao tác đều dẫn sang module chuyên trách, đã lọc sẵn theo tàu —
+cầu) bấm thẳng, không gập / mở mục. Mỗi bộ phận của bảng tồn kho có dòng tiêu đề như Danh mục — ô chọn cả
+bộ phận (nhập / xuất hàng loạt), biểu tượng, tên, huy hiệu "1–40/120", nút **chuyển trang riêng** (« ‹ Trang 1/3 ›
+», `?trang_DECK=2…`, giữ trang của bộ phận khác, cuộn về `#ton-DECK`; nút trước / sau lặp lại ở cuối bộ phận) và
+**Thu gọn** — **40 dòng mỗi bộ phận một trang**, xin quá số trang thì mở trang cuối; tất cả trong khung **thu / phóng
+chữ · Mở rộng / Thu gọn · Toàn màn hình** như trang Tồn kho (`KhungBang`, `components/PhanTrang.tsx`,
+`components/NutThuGonNhom.tsx` dùng chung với Danh mục). Đo 2026-10-18 (ML-001, 520 dòng, 186 dòng đang hiện):
+dựng trang ~110 ms, hydrate ~460 ms (CPU chậm 4×: ~1,7 s) — trước khi nhóm (50 dòng / trang) là ~45 ms / ~430 ms / ~1,1 s. Mọi thao tác đều dẫn sang module chuyên trách, đã lọc sẵn theo tàu —
 riêng **kho / vị trí cất hàng** không có module nào khác nên được quản lý ngay ở mục *Kho trên tàu* (xem
 [Kho / vị trí trên tàu](#kho--vị-trí-trên-tàu-hồ-sơ-tàu--kho-trên-tàu)):
 

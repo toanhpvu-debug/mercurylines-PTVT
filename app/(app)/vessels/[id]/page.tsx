@@ -487,7 +487,9 @@ export default async function VesselDetailPage({
             caoMacDinh="cao"
             tieuDe={`${vessel.code} — ${t("vessels.tonKhoCuaTau", { ten: vessel.name })}`}
           >
-            <Table dense>
+            {/* xuongDong: bảng co theo khung (tên dài, tên kho xuống dòng) — đủ 7 cột Mã → Khả dụng
+                không phải cuộn ngang; mã giữ một dòng. */}
+            <Table dense xuongDong>
               <thead className="sticky top-0 z-10 bg-[var(--surface-raised)]">
                 <tr>
                   {nhapXuatDuoc && (
@@ -558,9 +560,12 @@ export default async function VesselDetailPage({
                             </Link>
                           </Td>
                           <Td>
-                            <Link href={duongDanTheKho(inventory.materialId, inventory.warehouseId)} prefetch={false} className={LINK_AN}>
-                              {inventory.material.nameVn}
-                            </Link>
+                            {/* Tên rất dài (tới ~90 ký tự) xuống dòng thay vì đẩy Kho / Tồn / Khả dụng ra ngoài khung. */}
+                            <div className="max-w-md">
+                              <Link href={duongDanTheKho(inventory.materialId, inventory.warehouseId)} prefetch={false} className={LINK_AN}>
+                                {inventory.material.nameVn}
+                              </Link>
+                            </div>
                           </Td>
                           <Td className="text-[var(--text-secondary)]">
                             <Link

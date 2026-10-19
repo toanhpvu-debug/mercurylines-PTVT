@@ -84,7 +84,9 @@ export function Modal({
             <X className="size-4" />
           </button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto p-5">{children}</div>
+        {/* Thân hộp cao theo màn hình (trừ lề lớp phủ + dòng tiêu đề): hộp có bảng cuộn riêng (chuyển
+            hàng, nhập / xuất hàng loạt) vẫn thấy nút Ghi ở đáy mà không phải cuộn trong hộp. */}
+        <div className="max-h-[calc(100dvh-9rem)] overflow-y-auto p-5">{children}</div>
       </div>
     </div>
   );

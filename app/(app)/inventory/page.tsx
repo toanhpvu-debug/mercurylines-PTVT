@@ -759,7 +759,10 @@ export default async function InventoryPage({
                                       <Td>
                                         <div
                                           className={cn(
-                                            "flex flex-wrap items-center gap-1.5",
+                                            // max-w-xs: tên dài xuống dòng để Kho / ĐVT / Tồn luôn trong
+                                            // khung ở 1366 px (bảng vẫn min-w-max; Khả dụng, Tối thiểu,
+                                            // Nhập / Xuất gần nhất cuộn ngang như trước).
+                                            "flex max-w-xs flex-wrap items-center gap-1.5",
                                             isSpare && "pl-3"
                                           )}
                                         >

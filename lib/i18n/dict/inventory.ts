@@ -100,6 +100,26 @@ export const inventory = tuDien(
     hl_quaNhieu: "Mỗi lần tối đa {n} dòng.",
     hl_soKhongHopLe: "Số lượng phải lớn hơn 0.",
 
+    // Kiểm soát tồn kho theo chức danh (người giữ & kiểm kê — cột Giữ bởi ở Danh mục)
+    cd_tieuDe: "Kiểm soát tồn kho theo chức danh",
+    cd_moTa:
+      "Mỗi mặt hàng có một chức danh giữ và kiểm kê (cột Giữ bởi ở Danh mục). Bấm tên chức danh để chỉ xem phần người đó phụ trách — chỉ huy gồm cả phần cấp dưới; bấm số thiếu để xem ngay hàng thiếu. MLS-11-06 tải báo cáo kiểm kê (Excel) của riêng chức danh đó, quý hiện tại, mọi kho của tàu; In mở báo cáo theo quý để in.",
+    cd_chonTau: "Chọn một tàu để xem tồn kho theo chức danh:",
+    cd_nChucDanh: "{n} chức danh",
+    cd_cotDong: "Dòng tồn",
+    cd_cotHet: "Hết hàng",
+    cd_cotCapNhat: "Nhập / xuất gần nhất",
+    cd_cotBaoCao: "Báo cáo",
+    cd_nutIn: "In",
+    cd_titleExcel: "Tải báo cáo kiểm kê MLS-11-06 (Excel) của {ten} — quý hiện tại",
+    cd_titleIn: "Mở báo cáo tồn kho theo quý của {ten} để xem và in",
+    cd_xemPhan: "Chỉ xem phần {ten} phụ trách",
+    cd_xemThieu: "Chỉ xem hàng thiếu của {ten}",
+    cd_nutXuat: "Xuất MLS-11-06 — {ten}",
+    cd_nutBaoCaoQuy: "In báo cáo theo quý",
+    cd_moiTauMotNut: "Mỗi tàu có nút MLS-11-06 ở đầu bảng — tải về là báo cáo của phần đang xem.",
+    cd_boLoc: "Bỏ lọc chức danh",
+
     // --- Trang Báo cáo nhận và sử dụng vật tư (MLS-11-01) ---
     baoCaoTieuDe: "Báo cáo nhận và sử dụng vật tư",
     baoCaoMoTa:
@@ -279,6 +299,25 @@ export const inventory = tuDien(
     hl_chuaCoSo: "No quantity entered.",
     hl_quaNhieu: "At most {n} lines at a time.",
     hl_soKhongHopLe: "Quantities must be greater than 0.",
+
+    cd_tieuDe: "Stock control by responsible rank",
+    cd_moTa:
+      "Every item has a rank that keeps and counts it (the Held by column in the catalogue). Click a rank to see only what that person is responsible for — a senior rank includes the ranks under it; click the short count to see the short items straight away. MLS-11-06 downloads the stock-take report (Excel) of that rank alone, current quarter, every warehouse of the vessel; Print opens the quarterly report for printing.",
+    cd_chonTau: "Pick a vessel to see stock by responsible rank:",
+    cd_nChucDanh: "{n} ranks",
+    cd_cotDong: "Stock rows",
+    cd_cotHet: "Out of stock",
+    cd_cotCapNhat: "Last receipt / issue",
+    cd_cotBaoCao: "Report",
+    cd_nutIn: "Print",
+    cd_titleExcel: "Download the MLS-11-06 stock-take report (Excel) of {ten} — current quarter",
+    cd_titleIn: "Open the quarterly stock report of {ten} to view and print",
+    cd_xemPhan: "Show only what {ten} is responsible for",
+    cd_xemThieu: "Show only the short items of {ten}",
+    cd_nutXuat: "Export MLS-11-06 — {ten}",
+    cd_nutBaoCaoQuy: "Print quarterly report",
+    cd_moiTauMotNut: "Each vessel has its own MLS-11-06 button above its table — it exports the part being shown.",
+    cd_boLoc: "Clear rank filter",
 
     baoCaoTieuDe: "Materials receiving and using report",
     baoCaoMoTa:

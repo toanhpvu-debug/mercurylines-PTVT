@@ -374,6 +374,22 @@ nhập & phân quyền), `UPLOAD_DIR` (thư mục lưu file báo cáo, mặc đ�
 của `docker-compose`, và tùy chọn `ANTHROPIC_API_KEY` / `GOOGLE_AI_API_KEY` (đường dự phòng
 cho bộ đọc AI phiếu giao hàng — khuyên nhập khóa trong app, xem mục *Bộ đọc AI cho phiếu giao*).
 
+## Kiểm soát tồn kho theo chức danh
+
+Mỗi mặt hàng có một **chức danh giữ và kiểm kê** (cột *Giữ bởi* ở Danh mục: gán tay → cụm máy →
+bản chất → người giữ kho của bộ phận, `lib/chucDanhChiuTrachNhiem.ts`). Trang **Tồn kho** dùng nó ở
+hai chỗ:
+
+| Việc | Ở đâu |
+|---|---|
+| Xem cả tàu theo chức danh: số dòng tồn, dưới tối thiểu, hết hàng, lần nhập / xuất gần nhất | Tồn kho → chọn một tàu → khung **Kiểm soát tồn kho theo chức danh** (`lib/tonTheoChucDanh.ts`) |
+| Chỉ xem phần một chức danh (chỉ huy gồm cấp dưới: Máy trưởng = cả buồng máy) | Ô **Chức danh** ở thanh lọc, hoặc bấm tên chức danh trong khung (`?rank=`, `rank=toi` = phần của người đang xem) |
+| Báo cáo kiểm kê MLS-11-06 của riêng một chức danh (Excel, quý hiện tại) | Nút **MLS-11-06** trên dòng chức danh / đầu bảng tàu khi đang lọc (`/api/export/inventory?rank=`) |
+| In báo cáo theo quý của chức danh | Nút **In** → Báo cáo theo quý đã lọc chức danh |
+
+Khung tính trên các dòng qua mọi bộ lọc khác (kho, loại, tìm, chỉ thiếu) nên bấm một chức danh ra
+đúng số dòng đã đếm. Nút tải chỉ hiện cho vai trò tải được (`XUAT_TON_KHO`, `lib/roles.ts`).
+
 ## Mã QR gắn từng mặt hàng — quét bằng camera điện thoại
 
 Mỗi mặt hàng có một nhãn QR. Quét nhãn là mở thẳng **thẻ kho** của mặt hàng đó trên tàu của

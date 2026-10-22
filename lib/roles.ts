@@ -239,6 +239,13 @@ export const LAP_YEU_CAU: readonly string[] = [
 ];
 
 /**
+ * Ai tải được báo cáo kiểm kê MLS-11-06 (app/api/export/inventory): người lập yêu cầu trên tàu,
+ * quản lý kỹ thuật soát chứng từ toàn đội, chuyên viên mua sắm. Trang Tồn kho dùng cùng danh
+ * sách để chỉ hiện nút tải cho người tải được.
+ */
+export const XUAT_TON_KHO: readonly string[] = [...LAP_YEU_CAU, "TECH_MANAGER", "PURCHASER"];
+
+/**
  * Trạng thái còn SỬA được nội dung yêu cầu.
  *
  * Mốc chia là lúc duyệt. Từ APPROVED trở đi, số lượng duyệt từng dòng đã được

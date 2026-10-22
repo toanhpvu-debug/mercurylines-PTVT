@@ -3,14 +3,15 @@ import { layT } from "@/lib/i18n/server";
 import { Select } from "@/components/ui";
 
 /**
- * Ô chọn "Chức danh quản lý" (?rank=) của báo cáo theo quý và thống kê xuất nhập tồn —
- * cùng danh sách, cùng cách gom theo bộ phận với ô lọc chức danh ở Danh mục vật tư.
+ * Ô chọn "Chức danh quản lý" (?rank=) của Tồn kho, báo cáo theo quý và thống kê xuất nhập
+ * tồn — cùng danh sách, cùng cách gom theo bộ phận với ô lọc chức danh ở Danh mục vật tư.
  * Người đang xem có chức danh giữ hàng thì thêm lối tắt "Phần tôi phụ trách" (rank=toi).
+ * `title`: nhãn khi ô đứng một mình không có Field (thanh lọc mỏng của trang Tồn kho).
  */
-export default async function ChonChucDanh({ giaTri, chucDanhCuaToi }: { giaTri: string; chucDanhCuaToi: string | null }) {
+export default async function ChonChucDanh({ giaTri, chucDanhCuaToi, title }: { giaTri: string; chucDanhCuaToi: string | null; title?: string }) {
   const { t, tenChucDanh, tenBoPhan } = await layT();
   return (
-    <Select name="rank" defaultValue={giaTri}>
+    <Select name="rank" defaultValue={giaTri} {...(title ? { title } : {})}>
       <option value="">{t("tonQuy.chucDanhTatCa")}</option>
       {chucDanhCuaToi && CHUC_DANH[chucDanhCuaToi] ? <option value="toi">{t("tonQuy.chucDanhCuaToi", { ten: tenChucDanh(chucDanhCuaToi) })}</option> : null}
       {(Object.keys(BO_PHAN) as BoPhan[]).map((bp) => (

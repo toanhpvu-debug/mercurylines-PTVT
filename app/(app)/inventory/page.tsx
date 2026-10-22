@@ -13,9 +13,12 @@ import {
   History,
   LifeBuoy,
   Package,
+  Printer,
+  Users,
   UtensilsCrossed,
   Warehouse,
   Wrench,
+  X,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -26,9 +29,13 @@ import {
   DEPARTMENTS,
 } from "@/lib/departments";
 import { nhomCuaVatTu } from "@/lib/phanNhomBanChat";
+import { chucDanhCuaNguoiDung } from "@/lib/maVatTu";
+import { chucDanhBaoTrum, docLocChucDanh, phamViChucDanh } from "@/lib/chucDanhChiuTrachNhiem";
+import { chucDanhGiuCua, tonTheoChucDanh } from "@/lib/tonTheoChucDanh";
 import InventoryForm from "@/components/InventoryForm";
 import NhapXuatHangLoat from "@/components/NhapXuatHangLoat";
 import KhungBang from "@/components/KhungBang";
+import ChonChucDanh from "@/components/ChonChucDanh";
 import {
   duongDanTheKho,
   khoaDongTon,
@@ -45,7 +52,7 @@ import {
   vesselWhere,
 } from "@/lib/auth";
 import { layT } from "@/lib/i18n/server";
-import { VAN_HANH_TAU } from "@/lib/roles";
+import { VAN_HANH_TAU, XUAT_TON_KHO } from "@/lib/roles";
 import { cn } from "@/lib/cn";
 import {
   Badge,
@@ -59,6 +66,7 @@ import {
   Select,
   Stat,
   Table,
+  TableWrap,
   Td,
   Th,
   Tr,
@@ -154,16 +162,21 @@ export default async function InventoryPage({
     q?: string;
     low?: string;
     full?: string;
+    rank?: string;
   }>;
 }) {
   const user = await requireScopedUser();
-  const { t, tTuDo, ngay, ngayGio } = await layT();
+  const { t, tTuDo, ngay, ngayGio, tenChucDanh, tenBoPhan } = await layT();
   const scope = vesselScopeDayDu(user);
   // Phải khớp đúng danh sách của createInventoryTransaction (VAN_HANH_TAU,
   // app/actions.ts) — liệt kê tay ở đây làm máy trưởng không thấy form dù server
   // vẫn cho ghi. Tính cả danh tính mượn qua ủy quyền.
   const canTransact = danhTinhHieuLuc(user).some((d) =>
     VAN_HANH_TAU.includes(d.role)
+  );
+  // Nút tải MLS-11-06 chỉ hiện cho người API xuất cho tải (thủy thủ trưởng, bếp trưởng… bấm là lỗi).
+  const xuatDuoc = danhTinhHieuLuc(user).some((d) =>
+    XUAT_TON_KHO.includes(d.role)
   );
   // Người ghi được phiếu thì bảng có thêm cột ô tick (nhập / xuất hàng loạt): các dòng trải ngang
   // bảng (tiêu đề bộ phận, nhóm thiết bị, "còn N dòng nữa") trải thêm một cột.
@@ -188,6 +201,12 @@ export default async function InventoryPage({
   const q = String(params.q ?? "").trim().toLowerCase();
   const lowOnly = params.low === "1";
   const showAll = params.full === "1";
+  // Chức danh quản lý (?rank=): chỉ dòng tồn của mặt hàng chức danh đó giữ và kiểm kê — chỉ huy
+  // gồm cả phần cấp dưới (lib/chucDanhChiuTrachNhiem.ts, như báo cáo quý / thống kê / MLS-11-06);
+  // "toi" = chức danh của người đang xem.
+  const chucDanhCuaToi = chucDanhCuaNguoiDung(user);
+  const rank = docLocChucDanh(params.rank, chucDanhCuaToi);
+  const phamVi = rank ? phamViChucDanh(rank) : [];
 
   // Tàu đang hiện, suy thẳng từ phạm vi (không cần đợi truy vấn tàu) để câu
   // "nhập/xuất gần nhất" chạy chung một chặng với các truy vấn khác.
@@ -234,7 +253,8 @@ export default async function InventoryPage({
               // Người giữ đã gán quyết định nhóm bộ phận (lib/phanNhomBanChat.ts) — như Danh mục.
               responsibleRank: true,
               uom: true,
-              category: { select: { name: true } },
+              // Mã nhóm thiết bị: phụ tùng máy chính → Máy hai, máy phụ → Máy ba… (chức danh giữ).
+              category: { select: { code: true, name: true } },
             },
           },
         },
@@ -302,7 +322,7 @@ export default async function InventoryPage({
   const warehouseById = new Map(warehouses.map((w) => [w.id, w]));
 
   // Áp bộ lọc loại / tìm kiếm / chỉ-thiếu (dữ liệu nhỏ — lọc tại chỗ).
-  const filtered = inventories.filter((inv) => {
+  const coBan = inventories.filter((inv) => {
     if (typeFilter !== "ALL" && inv.material.materialType !== typeFilter)
       return false;
     if (
@@ -319,6 +339,66 @@ export default async function InventoryPage({
       return false;
     return true;
   });
+
+  // Chức danh giữ của từng dòng — MỘT lần mỗi dòng (bên trong chạy nhomCuaVatTu, cả chục
+  // regex), và chỉ khi cần: lọc theo chức danh hoặc khung kiểm soát của một tàu.
+  const chucDanhTheoDong = new Map(
+    rank || vesselFilter ? coBan.map((inv) => [inv, chucDanhGiuCua(inv.material)] as const) : []
+  );
+  const filtered = rank
+    ? coBan.filter((inv) => chucDanhBaoTrum(rank, chucDanhTheoDong.get(inv)))
+    : coBan;
+
+  // Kiểm soát theo chức danh: khi đang xem MỘT tàu (báo cáo MLS-11-06 xuất theo từng tàu). Tính
+  // trên các dòng qua mọi bộ lọc TRỪ chức danh — bấm một chức danh ra đúng số dòng đã đếm.
+  const tauKiemSoat = vesselFilter
+    ? (vessels.find((v) => v.id === vesselFilter) ?? null)
+    : null;
+  const nhomChucDanh = tauKiemSoat
+    ? tonTheoChucDanh(
+        coBan.map((inv) => {
+          const gn = ganNhat.get(khoaDongTon(inv.materialId, inv.warehouseId));
+          const lan = [gn?.IN?.occurredAt, gn?.OUT?.occurredAt].filter(
+            (d): d is Date => d instanceof Date
+          );
+          return {
+            chucDanh: chucDanhTheoDong.get(inv) ?? null,
+            khaDung: inv.quantity - inv.reservedQuantity,
+            minStock: inv.material.minStock,
+            capNhat: lan.length
+              ? new Date(Math.max(...lan.map((d) => d.getTime())))
+              : null,
+          };
+        })
+      )
+    : [];
+  const soChucDanh = nhomChucDanh.reduce((s, g) => s + g.dong.length, 0);
+  /** Lại trang này, giữ bộ lọc đang chọn và đổi vài tham số (null = bỏ tham số đó). */
+  const hrefTonKho = (doi: Record<string, string | null>) => {
+    const giu: Record<string, string | null> = {
+      vessel: vesselFilter && chonDuocTau(scope) ? String(vesselFilter) : null,
+      wh: whFilter ? String(whFilter) : null,
+      type: typeFilter !== "ALL" ? typeFilter : null,
+      q: q ? String(params.q ?? "") : null,
+      low: lowOnly ? "1" : null,
+      rank: rank ? (params.rank === "toi" ? "toi" : rank) : null,
+      ...doi,
+    };
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(giu)) if (v) p.set(k, v);
+    const s = p.toString();
+    return s ? `/inventory?${s}` : "/inventory";
+  };
+  /** Báo cáo kiểm kê MLS-11-06 (Excel, quý hiện tại, mọi kho của tàu) của riêng một chức danh. */
+  const lienXuatChucDanh = (tauId: number, cd: string) =>
+    `/api/export/inventory?${new URLSearchParams({
+      vessel: String(tauId),
+      ...(typeFilter !== "ALL" ? { type: typeFilter } : {}),
+      rank: cd,
+    })}`;
+  /** Báo cáo tồn kho theo quý của chức danh — trang có nút In và Xuất Excel. */
+  const lienBaoCaoQuy = (tauId: number, cd: string) =>
+    `/inventory/bao-cao-quy?${new URLSearchParams({ vessel: String(tauId), type: typeFilter, rank: cd })}`;
 
   // Nhóm theo tàu để nhìn tổng quan đội tàu.
   const byVessel = new Map<
@@ -435,7 +515,10 @@ export default async function InventoryPage({
       <Card padded={false}>
         {/* next/form: bấm "Lọc" chỉ tải phần nội dung (chuyển trang phía client,
             khung chờ hiện ngay) thay vì tải lại cả trang như <form method="get">. */}
+        {/* key theo bộ lọc: bấm chức danh / mã kho trong bảng là điều hướng phía trình duyệt —
+            không dựng lại form thì các ô chọn (defaultValue) vẫn hiện giá trị cũ. */}
         <Form
+          key={[vesselFilter ?? "", whFilter ?? "", typeFilter, params.q ?? "", lowOnly ? 1 : 0, params.rank ?? ""].join("|")}
           action="/inventory"
           className="flex flex-wrap items-center gap-2 px-4 py-3"
         >
@@ -481,6 +564,13 @@ export default async function InventoryPage({
               <option value="SPARE">{t("labels.typeLong_SPARE")}</option>
             </Select>
           </div>
+          <div className="w-56">
+            <ChonChucDanh
+              giaTri={params.rank === "toi" && rank ? "toi" : rank}
+              chucDanhCuaToi={chucDanhCuaToi}
+              title={t("tonQuy.chucDanh")}
+            />
+          </div>
           <div className="min-w-40 flex-1">
             <Input
               name="q"
@@ -512,6 +602,201 @@ export default async function InventoryPage({
           </Link>
         </Form>
       </Card>
+
+      {/* 2b. Kiểm soát theo chức danh — người giữ & kiểm kê (cột Giữ bởi ở Danh mục). Mở sẵn khi chưa
+          chọn chức danh; đã chọn thì gập lại cho bảng tồn của phần đó lên trên. */}
+      <Card padded={false}>
+        <details open={!rank} className="group">
+          <summary className={SUMMARY}>
+            <ChevronRight
+              aria-hidden="true"
+              className="size-4 text-[var(--text-muted)] transition-transform group-open:rotate-90"
+            />
+            <Users className="size-4 text-[var(--text-muted)]" />
+            {t("inventory.cd_tieuDe")}
+            {tauKiemSoat && (
+              <span className="text-xs font-normal text-[var(--text-muted)]">
+                {tauKiemSoat.code} · {t("inventory.cd_nChucDanh", { n: soChucDanh })}
+              </span>
+            )}
+            {rank && <Badge tone="brand">{tenChucDanh(rank)}</Badge>}
+          </summary>
+          <div className="border-t border-[var(--border-subtle)] px-4 py-4">
+            {!tauKiemSoat ? (
+              <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-secondary)]">
+                {t("inventory.cd_chonTau")}
+                {vessels.map((v) => (
+                  <Link
+                    key={v.id}
+                    href={hrefTonKho({ vessel: String(v.id), wh: null, full: null })}
+                    className={buttonClass("secondary", "sm")}
+                  >
+                    {v.code}
+                  </Link>
+                ))}
+              </div>
+            ) : nhomChucDanh.length === 0 ? (
+              <p className="text-sm text-[var(--text-muted)]">{t("inventory.khongCoDongKhop")}</p>
+            ) : (
+              <>
+                <p className="mb-3 text-sm text-[var(--text-secondary)]">{t("inventory.cd_moTa")}</p>
+                <TableWrap>
+                  {/* xuongDong + tiêu đề dài được xuống dòng: đủ 6 cột trong khung ở 1366 px, nút In không bị cắt. */}
+                  <Table dense xuongDong>
+                    <thead>
+                      <tr>
+                        <Th>{t("tonQuy.tkCd_chucDanh")}</Th>
+                        <Th align="right">{t("inventory.cd_cotDong")}</Th>
+                        <Th align="right" className="whitespace-normal">{t("tonQuy.tkCd_thieu")}</Th>
+                        <Th align="right">{t("inventory.cd_cotHet")}</Th>
+                        <Th className="whitespace-normal">{t("inventory.cd_cotCapNhat")}</Th>
+                        <Th>{t("inventory.cd_cotBaoCao")}</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {nhomChucDanh.map((g) => (
+                        <React.Fragment key={g.boPhan ?? "KHAC"}>
+                          <TrNhom colSpan={6}>
+                            <span className="inline-flex flex-wrap items-center gap-2">
+                              {g.boPhan ? tenBoPhan(g.boPhan) : t("tonQuy.chucDanhNhomKhac")}
+                              <span className="text-xs font-normal text-[var(--text-muted)]">
+                                {t("inventory.nDong", { n: g.soDong })}
+                              </span>
+                              {g.thieu > 0 && <Badge tone="danger">{t("inventory.nThieu", { n: g.thieu })}</Badge>}
+                            </span>
+                          </TrNhom>
+                          {g.dong.map((d) => {
+                            const ten = d.chucDanh ? tenChucDanh(d.chucDanh) : "";
+                            return (
+                              <Tr
+                                key={d.chucDanh ?? "?"}
+                                className={
+                                  d.chucDanh && phamVi.includes(d.chucDanh) ? "bg-brand-500/10" : undefined
+                                }
+                              >
+                                <Td className="whitespace-nowrap">
+                                  {d.chucDanh ? (
+                                    <Link
+                                      href={hrefTonKho({ rank: d.chucDanh, full: null })}
+                                      prefetch={false}
+                                      className={cn("font-medium", LINK)}
+                                      title={t("inventory.cd_xemPhan", { ten })}
+                                    >
+                                      {ten}{" "}
+                                      <span className="text-xs text-[var(--text-muted)]">({d.chucDanh})</span>
+                                    </Link>
+                                  ) : (
+                                    <span className="text-[var(--text-muted)]">{t("tonQuy.chucDanhChuaRo")}</span>
+                                  )}
+                                </Td>
+                                <Td align="right" className="font-semibold">
+                                  {d.soDong}
+                                </Td>
+                                <Td align="right">
+                                  {d.thieu > 0 && d.chucDanh ? (
+                                    <Link
+                                      href={hrefTonKho({ rank: d.chucDanh, low: "1", full: null })}
+                                      prefetch={false}
+                                      className="font-semibold text-[var(--text-danger)] hover:underline"
+                                      title={t("inventory.cd_xemThieu", { ten })}
+                                    >
+                                      {d.thieu}
+                                    </Link>
+                                  ) : (
+                                    <span className={d.thieu ? "font-semibold text-[var(--text-danger)]" : "text-[var(--text-muted)]"}>
+                                      {d.thieu || "–"}
+                                    </span>
+                                  )}
+                                </Td>
+                                <Td align="right">
+                                  <span className={d.het ? "font-semibold text-[var(--text-danger)]" : "text-[var(--text-muted)]"}>
+                                    {d.het || "–"}
+                                  </span>
+                                </Td>
+                                <Td className="text-xs whitespace-nowrap">
+                                  {d.capNhat ? (
+                                    ngay(d.capNhat)
+                                  ) : (
+                                    <span className="text-[var(--text-muted)]">{t("inventory.chuaNhapXuat")}</span>
+                                  )}
+                                </Td>
+                                <Td className="whitespace-nowrap">
+                                  {d.chucDanh && (
+                                    <span className="inline-flex gap-1.5">
+                                      {xuatDuoc && (
+                                        <a
+                                          href={lienXuatChucDanh(tauKiemSoat.id, d.chucDanh)}
+                                          className={buttonClass("secondary", "sm")}
+                                          title={t("inventory.cd_titleExcel", { ten })}
+                                        >
+                                          <Download className="size-4" />
+                                          MLS-11-06
+                                        </a>
+                                      )}
+                                      <Link
+                                        href={lienBaoCaoQuy(tauKiemSoat.id, d.chucDanh)}
+                                        prefetch={false}
+                                        className={buttonClass("ghost", "sm")}
+                                        title={t("inventory.cd_titleIn", { ten })}
+                                      >
+                                        <Printer className="size-4" />
+                                        {t("inventory.cd_nutIn")}
+                                      </Link>
+                                    </span>
+                                  )}
+                                </Td>
+                              </Tr>
+                            );
+                          })}
+                        </React.Fragment>
+                      ))}
+                    </tbody>
+                  </Table>
+                </TableWrap>
+              </>
+            )}
+          </div>
+        </details>
+      </Card>
+
+      {/* Đang lọc một chức danh: nói rõ phạm vi (chỉ huy gồm cả cấp dưới) + báo cáo của riêng phần đó. */}
+      {rank && (
+        <Notice tone="info" className="flex flex-wrap items-center gap-2">
+          <span className="mr-auto">
+            {t("tonQuy.dangXemPhan", {
+              ten: tenChucDanh(rank),
+              ds: phamVi.map((c) => tenChucDanh(c)).join(", "),
+            })}
+          </span>
+          {tauKiemSoat ? (
+            <>
+              {xuatDuoc && (
+                <a href={lienXuatChucDanh(tauKiemSoat.id, rank)} className={buttonClass("primary", "sm")}>
+                  <Download className="size-4" />
+                  {t("inventory.cd_nutXuat", { ten: tenChucDanh(rank) })}
+                </a>
+              )}
+              <Link href={lienBaoCaoQuy(tauKiemSoat.id, rank)} className={buttonClass("secondary", "sm")}>
+                <Printer className="size-4" />
+                {t("inventory.cd_nutBaoCaoQuy")}
+              </Link>
+              <Link
+                href={`/inventory/thong-ke?${new URLSearchParams({ vessel: String(tauKiemSoat.id), type: typeFilter, rank })}`}
+                className={buttonClass("secondary", "sm")}
+              >
+                <BarChart3 className="size-4" />
+                {t("tonQuy.nutThongKe")}
+              </Link>
+            </>
+          ) : xuatDuoc ? (
+            <span className="text-xs">{t("inventory.cd_moiTauMotNut")}</span>
+          ) : null}
+          <Link href={hrefTonKho({ rank: null, full: null })} className={buttonClass("ghost", "sm")}>
+            <X className="size-4" />
+            {t("inventory.cd_boLoc")}
+          </Link>
+        </Notice>
+      )}
 
       {/* Nhập / xuất hàng loạt: nghe ô tick của mọi bảng bên dưới; key theo bộ lọc → đổi lọc là chọn lại. */}
       {canTransact && groups.length > 0 && <NhapXuatHangLoat key={JSON.stringify(params)} />}
@@ -566,13 +851,21 @@ export default async function InventoryPage({
                         </Badge>
                       )}
                     </span>
-                    <a
-                      href={`/api/export/inventory?vessel=${vessel.id}${typeFilter !== "ALL" ? `&type=${typeFilter}` : ""}`}
-                      className={buttonClass("secondary", "sm")}
-                    >
-                      <Download className="size-4" />
-                      MLS-11-06
-                    </a>
+                    {/* Đang lọc chức danh → báo cáo của riêng phần chức danh đó (tên tệp có đuôi _2E…). */}
+                    {xuatDuoc && (
+                      <a
+                        href={
+                          rank
+                            ? lienXuatChucDanh(vessel.id, rank)
+                            : `/api/export/inventory?vessel=${vessel.id}${typeFilter !== "ALL" ? `&type=${typeFilter}` : ""}`
+                        }
+                        {...(rank ? { title: t("inventory.cd_titleExcel", { ten: tenChucDanh(rank) }) } : {})}
+                        className={buttonClass("secondary", "sm")}
+                      >
+                        <Download className="size-4" />
+                        MLS-11-06
+                      </a>
+                    )}
                   </summary>
                   {/* Bảng có thanh cuộn riêng + tiêu đề ghim để dò nhanh trong danh sách dài; thanh
                       nhỏ phía trên để phóng / thu chữ, mở rộng khung, xem toàn màn hình. */}
@@ -665,14 +958,7 @@ export default async function InventoryPage({
                                       {t("inventory.conLaiDongNua")}
                                     </span>{" "}
                                     <Link
-                                      href={`?${new URLSearchParams({
-                                        ...(params.vessel ? { vessel: params.vessel } : {}),
-                                        ...(params.wh ? { wh: params.wh } : {}),
-                                        ...(typeFilter !== "ALL" ? { type: typeFilter } : {}),
-                                        ...(q ? { q: params.q ?? "" } : {}),
-                                        ...(lowOnly ? { low: "1" } : {}),
-                                        full: "1",
-                                      }).toString()}`}
+                                      href={hrefTonKho({ full: "1" })}
                                       className={LINK}
                                     >
                                       {t("chung.xemTatCa")}
@@ -691,6 +977,11 @@ export default async function InventoryPage({
                                   available <= inventory.material.minStock;
                                 const isSpare =
                                   inventory.material.materialType === "SPARE";
+                                // Lọc chức danh chỉ huy (gồm cấp dưới): ghi ai giữ dòng này.
+                                const cdGiu =
+                                  phamVi.length > 1
+                                    ? chucDanhTheoDong.get(inventory)
+                                    : null;
                                 // Tỷ lệ tồn / tối thiểu cho thanh mức thiếu (chỉ vẽ ở dòng thiếu).
                                 const pct =
                                   inventory.material.minStock > 0
@@ -785,6 +1076,11 @@ export default async function InventoryPage({
                                             <Badge tone="danger">
                                               {t("inventory.badgeThieu")}
                                             </Badge>
+                                          )}
+                                          {cdGiu && (
+                                            <span className="text-xs text-[var(--text-muted)]">
+                                              {t("tonQuy.giuBoi", { ten: tenChucDanh(cdGiu) })}
+                                            </span>
                                           )}
                                         </div>
                                       </Td>

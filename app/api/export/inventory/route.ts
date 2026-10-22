@@ -15,7 +15,7 @@ import {
   dungBieuMauKiemKe,
   ghiChuBanTuDung,
 } from "@/lib/bieuMauKiemKe";
-import { LAP_YEU_CAU } from "@/lib/roles";
+import { XUAT_TON_KHO } from "@/lib/roles";
 import { kyThang, ngayCuaVN, quyCua, type ThangNam } from "@/lib/kyQuy";
 import { soLieuKyVatTu, tenKyThang, thangCuaQuy } from "@/lib/tonKhoQuy";
 import { CHUC_DANH, chucDanhCuaNguoiDung } from "@/lib/maVatTu";
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
   // máy 2/3/4 đều TẢI LÊN / xem được ở giao diện, và quản lý kỹ thuật là người
   // soát chứng từ toàn đội. Chống xem chéo tàu vẫn do trongPhamVi() lo.
   const { t } = await layT();
-  const user = await requireActiveRole([...LAP_YEU_CAU, "TECH_MANAGER", "PURCHASER"]);
+  const user = await requireActiveRole([...XUAT_TON_KHO]);
   if (!user) {
     return NextResponse.json(
       { error: t("actionsModule.chuaDangNhap") },
